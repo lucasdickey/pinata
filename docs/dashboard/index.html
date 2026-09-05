@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pinata · decision log</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa; --panel: #ffffff; --panel-2: #f6f8fa;
+      --border: #d0d7de; --text: #1f2328; --muted: #656d76; --accent: #0969da;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 96px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: .9em; }
+
+  header h1 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+  header .tag { color: var(--muted); margin: 6px 0 0; }
+  header .tag b { color: var(--text); font-weight: 600; }
+  .banner {
+    margin: 20px 0 28px; padding: 14px 16px; border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: var(--radius);
+    background: var(--panel); color: var(--muted); font-size: 14px;
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+  .stat .n { font-size: 26px; font-weight: 650; line-height: 1.1; }
+  .stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+  .stat .bar { height: 3px; border-radius: 2px; margin-top: 10px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .controls input[type=search] {
+    flex: 1 1 220px; min-width: 180px; padding: 8px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 14px;
+  }
+  .chip {
+    border: 1px solid var(--border); background: var(--panel); color: var(--muted);
+    padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; white-space: nowrap;
+  }
+  .chip[aria-pressed="true"] { color: var(--text); border-color: currentColor; }
+  .chip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .count { color: var(--muted); font-size: 13px; margin: 12px 0 16px; }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-left: 3px solid var(--border); border-radius: var(--radius);
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .card > summary {
+    cursor: pointer; padding: 14px 18px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+    list-style: none;
+  }
+  .card > summary::-webkit-details-marker { display: none; }
+  .card > summary:hover .title { color: var(--accent); }
+  .id { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+  .title { font-weight: 600; flex: 1 1 320px; }
+  .pill { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .pill.status { color: var(--muted); }
+  .pill.status[data-s="accepted"] { color: #3fb950; }
+  .pill.status[data-s="pending"] { color: #d29922; }
+  .pill.status[data-s="superseded"], .pill.status[data-s="rejected"] { color: #8b949e; text-decoration: line-through; }
+  .meta { color: var(--muted); font-size: 12px; }
+
+  .body { padding: 0 18px 18px; border-top: 1px solid var(--border); }
+  .body h4 {
+    margin: 18px 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  }
+  .body p { margin: 0 0 8px; }
+  .body ul { margin: 0; padding-left: 20px; }
+  .body li { margin-bottom: 4px; }
+  blockquote {
+    margin: 6px 0 12px; padding: 10px 14px; background: var(--panel-2);
+    border-left: 2px solid var(--accent); border-radius: 0 6px 6px 0;
+    color: var(--text); font-size: 14px;
+  }
+  blockquote .who { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+  .alt { margin-bottom: 6px; }
+  .alt b { font-weight: 600; }
+  .alt span { color: var(--muted); }
+
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-top: 6px; }
+  .shots figure { margin: 0; }
+  .shots img {
+    width: 100%; border: 1px solid var(--border); border-radius: 6px; cursor: zoom-in; display: block; background: var(--panel-2);
+  }
+  .shots figcaption { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  dialog#lb { border: none; background: transparent; max-width: 96vw; max-height: 96vh; padding: 0; }
+  dialog#lb::backdrop { background: rgba(0,0,0,.85); }
+  dialog#lb img { max-width: 96vw; max-height: 90vh; border-radius: 8px; display: block; }
+  dialog#lb p { color: #ccc; text-align: center; font-size: 13px; margin: 8px 0 0; }
+
+  footer { color: var(--muted); font-size: 12px; margin-top: 32px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .empty { color: var(--muted); text-align: center; padding: 48px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>pinata · decision log</h1>
+    <p class="tag" id="tagline"></p>
+  </header>
+
+  <div class="banner">
+    Each record is tagged with its <b>origin</b>, separating what the human directed
+    from what the agent proposed and the human approved. Generated from
+    <code>docs/decisions/decisions.json</code> — do not edit this page's data by hand.
+  </div>
+
+  <section class="stats" id="stats"></section>
+
+  <div class="controls" id="controls">
+    <input type="search" id="q" placeholder="Search decisions…" aria-label="Search decisions" />
+  </div>
+  <div class="controls" id="origin-filters"></div>
+  <div class="controls" id="phase-filters"></div>
+  <p class="count" id="count"></p>
+
+  <main id="list"></main>
+
+  <footer id="footer"></footer>
+</div>
+
+<dialog id="lb"><img alt="" /><p></p></dialog>
+
+<script src="./decisions-data.js"></script>
+<script>
+(function () {
+  var data = window.PINATA;
+  var list = document.getElementById("list");
+  var state = { origins: new Set(), phases: new Set(), q: "" };
+
+  if (!data) {
+    list.innerHTML = '<p class="empty">decisions-data.js is missing. Run <code>node scripts/build-docs.mjs</code>.</p>';
+    return;
+  }
+
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+  // Records are authored in Markdown-ish prose; support only `code` and **bold**.
+  var rich = function (s) {
+    return esc(s)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  };
+  var originMeta = function (k) {
+    return data.origins[k] || { label: k, color: "#8b949e", description: "" };
+  };
+
+  document.getElementById("tagline").innerHTML =
+    "<b>" + esc(data.tagline) + "</b> · " + esc(data.assignment) +
+    " · timebox ~" + esc(data.timebox_hours) + "h";
+
+  // ---- stats -------------------------------------------------------------
+  var statsEl = document.getElementById("stats");
+  statsEl.innerHTML =
+    '<div class="stat"><div class="n">' + data.decisions.length +
+    '</div><div class="k">decisions recorded</div><div class="bar" style="background:var(--border)"></div></div>' +
+    Object.keys(data.origins).map(function (k) {
+      var m = data.origins[k];
+      var n = data.decisions.filter(function (d) { return d.origin === k; }).length;
+      return '<div class="stat" title="' + esc(m.description) + '"><div class="n">' + n +
+        '</div><div class="k">' + esc(m.label) + '</div>' +
+        '<div class="bar" style="background:' + esc(m.color) + '"></div></div>';
+    }).join("");
+
+  // ---- filters -----------------------------------------------------------
+  function chip(label, color, active, onClick) {
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("aria-pressed", String(active));
+    b.innerHTML = (color ? '<span class="dot" style="background:' + esc(color) + '"></span>' : "") + esc(label);
+    if (color) b.style.color = active ? color : "";
+    b.onclick = function () { onClick(); render(); };
+    return b;
+  }
+
+  function buildFilters() {
+    var of = document.getElementById("origin-filters");
+    var pf = document.getElementById("phase-filters");
+    of.innerHTML = ""; pf.innerHTML = "";
+
+    of.appendChild(chip("All origins", null, state.origins.size === 0, function () { state.origins.clear(); }));
+    Object.keys(data.origins).forEach(function (k) {
+      var m = data.origins[k];
+      of.appendChild(chip(m.label, m.color, state.origins.has(k), function () {
+        state.origins.has(k) ? state.origins.delete(k) : state.origins.add(k);
+      }));
+    });
+
+    var phases = [];
+    data.decisions.forEach(function (d) { if (phases.indexOf(d.phase) < 0) phases.push(d.phase); });
+    pf.appendChild(chip("All phases", null, state.phases.size === 0, function () { state.phases.clear(); }));
+    phases.forEach(function (p) {
+      pf.appendChild(chip(p, null, state.phases.has(p), function () {
+        state.phases.has(p) ? state.phases.delete(p) : state.phases.add(p);
+      }));
+    });
+  }
+
+  document.getElementById("q").addEventListener("input", function (e) {
+    state.q = e.target.value.toLowerCase();
+    render();
+  });
+
+  // ---- record ------------------------------------------------------------
+  function card(d) {
+    var m = originMeta(d.origin);
+    var t = d.transcript || {};
+    var h = [];
+
+    h.push('<details class="card" style="border-left-color:' + esc(m.color) + '">');
+    h.push("<summary>");
+    h.push('<span class="id">' + esc(d.id) + "</span>");
+    h.push('<span class="title">' + rich(d.title) + "</span>");
+    h.push('<span class="pill" style="color:' + esc(m.color) + '">' + esc(m.label) + "</span>");
+    h.push('<span class="pill status" data-s="' + esc(d.status) + '">' + esc(d.status) + "</span>");
+    h.push('<span class="meta">' + esc(d.date) + " · " + esc(d.phase) + "</span>");
+    h.push("</summary>");
+    h.push('<div class="body">');
+
+    if (d.supersedes) h.push('<p class="meta">Supersedes ' + esc(d.supersedes) + ".</p>");
+    if (d.superseded_by) h.push('<p class="meta">Superseded by ' + esc(d.superseded_by) + ".</p>");
+
+    h.push("<h4>Problem</h4><p>" + rich(d.problem) + "</p>");
+    h.push("<h4>Decision</h4><p>" + rich(d.decision) + "</p>");
+
+    if (d.alternatives && d.alternatives.length) {
+      h.push("<h4>Alternatives considered</h4>");
+      h.push(d.alternatives.map(function (a) {
+        return '<div class="alt"><b>' + rich(a.option) + "</b> <span>— " + rich(a.why_not) + "</span></div>";
+      }).join(""));
+    }
+
+    h.push("<h4>Rationale</h4><p>" + rich(d.rationale) + "</p>");
+
+    if (d.consequences && d.consequences.length) {
+      h.push("<h4>Consequences</h4><ul>" +
+        d.consequences.map(function (c) { return "<li>" + rich(c) + "</li>"; }).join("") + "</ul>");
+    }
+
+    var quotes = [
+      ["Human instruction", t.request],
+      ["Agent asked", t.proposal],
+      ["Human approved", t.approval]
+    ].filter(function (p) { return !!p[1]; });
+
+    if (quotes.length) {
+      h.push("<h4>Provenance evidence</h4>");
+      h.push(quotes.map(function (p) {
+        return "<blockquote><span class='who'>" + esc(p[0]) + "</span>" + rich(p[1]) + "</blockquote>";
+      }).join(""));
+    }
+
+    var arts = d.artifacts || [];
+    var shots = arts.filter(function (a) { return a.type === "screenshot"; });
+    var others = arts.filter(function (a) { return a.type !== "screenshot"; });
+
+    if (shots.length) {
+      h.push("<h4>Screenshots</h4><div class='shots'>" + shots.map(function (a) {
+        return "<figure><img src='" + esc(a.path) + "' alt='" + esc(a.caption || a.path) +
+          "' data-cap='" + esc(a.caption || "") + "' /><figcaption>" + esc(a.caption || "") + "</figcaption></figure>";
+      }).join("") + "</div>");
+    }
+    if (others.length) {
+      h.push("<h4>Artifacts</h4><ul>" + others.map(function (a) {
+        return a.type === "link"
+          ? "<li><a href='" + esc(a.url) + "' target='_blank' rel='noreferrer'>" + esc(a.caption || a.url) + "</a></li>"
+          : "<li><code>" + esc(a.path) + "</code>" + (a.caption ? " — " + esc(a.caption) : "") + "</li>";
+      }).join("") + "</ul>");
+    }
+
+    h.push("</div></details>");
+    return h.join("");
+  }
+
+  // ---- render ------------------------------------------------------------
+  function matches(d) {
+    if (state.origins.size && !state.origins.has(d.origin)) return false;
+    if (state.phases.size && !state.phases.has(d.phase)) return false;
+    if (!state.q) return true;
+    return JSON.stringify(d).toLowerCase().indexOf(state.q) >= 0;
+  }
+
+  function render() {
+    buildFilters();
+    var hits = data.decisions.filter(matches);
+    document.getElementById("count").textContent =
+      hits.length + " of " + data.decisions.length + " decision" + (data.decisions.length === 1 ? "" : "s");
+    list.innerHTML = hits.length
+      ? hits.map(card).join("")
+      : '<p class="empty">Nothing matches those filters.</p>';
+  }
+
+  // ---- lightbox ----------------------------------------------------------
+  var lb = document.getElementById("lb");
+  list.addEventListener("click", function (e) {
+    if (e.target.tagName !== "IMG") return;
+    lb.querySelector("img").src = e.target.src;
+    lb.querySelector("p").textContent = e.target.dataset.cap || "";
+    lb.showModal();
+  });
+  lb.addEventListener("click", function () { lb.close(); });
+
+  document.getElementById("footer").innerHTML =
+    "Generated from <code>docs/decisions/decisions.json</code> as of " + esc(data.as_of) +
+    " · source <code>" + esc(data.source_hash) + "</code>. " +
+    "Plain-text version: <code>docs/DECISIONS.md</code>.";
+
+  render();
+})();
+</script>
+</body>
+</html>

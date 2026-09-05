@@ -1,0 +1,23 @@
+name: validate
+
+# Deliberately the same single command a human or an agent runs locally, so a
+# green CI run and a green local run mean the same thing.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No install step: the project has no dependencies by design.
+      - run: npm run validate
