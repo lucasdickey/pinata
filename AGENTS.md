@@ -71,15 +71,19 @@ accurate even when it is unflattering.
 | `user-directed` | The human asked for this specifically. The agent executed. | `transcript.request` = verbatim quote of the human's instruction |
 | `agent-proposed-user-approved` | The agent raised the question or proposed the option; the human approved it. | `transcript.proposal` = what the agent asked, **and** `transcript.approval` = verbatim human approval |
 | `agent-autonomous` | The agent decided without asking, inside previously granted latitude. | `rationale` must state why it was safe to decide unilaterally |
-| `user-deferred` | Raised and consciously postponed. | `transcript` for who raised it; `status` stays `pending` |
+| `user-deferred` | Raised and consciously postponed. | `transcript` for who raised it; `status` stays `pending` until answered, then flips to `superseded` with `superseded_by` naming the record that answered it |
 
 Rules:
 
 - Never upgrade `agent-autonomous` to `agent-proposed-user-approved` after the fact.
   Silence is not approval.
 - Never label something `user-directed` if the agent supplied the idea and the human
-  merely said yes. That is `agent-proposed-user-approved`.
+  merely said yes. That is `agent-proposed-user-approved`. Answering a question the
+  agent posed is approval, not direction.
 - Quote the human verbatim. Paraphrase in `rationale`, not in `transcript`.
+- Answering a deferral does not mean editing the deferral. Add the record that
+  answers it and point the two at each other, so the fact that it was once open
+  stays visible.
 
 ### 2.4 Record shape
 
@@ -192,6 +196,9 @@ test before fixing it.
 - **Ask before deciding product direction.** Stack and scope choices that shape the
   demo get surfaced for approval. Mechanical choices inside an approved direction do
   not.
+- **Commit straight to `main`.** No feature branches, no pull requests (`D010`).
+  Which means `npm run validate` has to pass **before** every commit, not merely
+  before a merge — CI reports after the change is already on the default branch.
 - **Commit hygiene.** Conventional-ish subject line, body naming the decision IDs
   the commit implements. Regenerate docs before committing.
 

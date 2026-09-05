@@ -17,10 +17,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 4 | D001, D002, D004, D007 |
-| Agent proposed, human approved | 0 | — |
+| Agent proposed, human approved | 2 | D009, D010 |
 | Agent decided alone | 3 | D005, D006, D008 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **8** | |
+| **Total** | **10** | |
 
 ## Index
 
@@ -28,12 +28,14 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --- | --- | --- | --- |
 | [D001](#d001--name-the-project-pinata) | setup | Name the project "pinata" | Human directed | accepted |
 | [D002](#d002--public-github-repository-under-the-lucasdickey-account) | setup | Public GitHub repository under the lucasdickey account | Human directed | accepted |
-| [D003](#d003--default-branch-left-as-master-pending-a-call) | setup | Default branch left as master pending a call | Raised and deferred | pending |
+| [D003](#d003--default-branch-left-as-master-pending-a-call) | setup | Default branch left as master pending a call | Raised and deferred | superseded |
 | [D004](#d004--treat-the-decision-trail-as-a-shipped-deliverable) | setup | Treat the decision trail as a shipped deliverable | Human directed | accepted |
 | [D005](#d005--one-json-source-of-truth-both-human-readable-artifacts-generated) | setup | One JSON source of truth, both human-readable artifacts generated | Agent decided alone | accepted |
 | [D006](#d006--build-the-scaffolding-before-fixing-the-product-concept) | concept | Build the scaffolding before fixing the product concept | Agent decided alone | accepted |
 | [D007](#d007--one-command-is-the-quality-gate-npm-run-validate) | validate | One command is the quality gate: npm run validate | Human directed | accepted |
 | [D008](#d008--test-the-provenance-rules-not-just-the-code-that-renders-them) | validate | Test the provenance rules, not just the code that renders them | Agent decided alone | accepted |
+| [D009](#d009--rename-the-default-branch-to-main) | setup | Rename the default branch to main | Agent proposed, human approved | accepted |
+| [D010](#d010--commit-straight-to-main-with-ci-as-the-only-gate) | setup | Commit straight to main, with CI as the only gate | Agent proposed, human approved | accepted |
 
 ---
 
@@ -105,7 +107,8 @@ Human instruction:
 
 ## D003 — Default branch left as master pending a call
 
-*2026-09-04 · phase: setup · origin: **Raised and deferred** · status: **pending***
+*2026-09-04 · phase: setup · origin: **Raised and deferred** · status: **superseded***
+*Superseded by D009.*
 
 **Problem**
 
@@ -321,4 +324,87 @@ Decided without asking because it is a strictly stronger version of a protocol t
 
 ---
 
-<sub>Generated from 8 record(s) as of 2026-09-04 · source `e88d02b99c1f`</sub>
+## D009 — Rename the default branch to main
+
+*2026-09-04 · phase: setup · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D003.*
+
+**Problem**
+
+`D003` deferred this. The local git default produced a `master` branch, which stayed the default on a public repository that will be reviewed. Leaving it deferred meant CI had to trigger on two branch names and the answer would get more expensive the longer branches and history accumulated.
+
+**Decision**
+
+Rename to `main`. Done as a pointer move at the same commit — `git branch -m`, push `main`, set the GitHub default, delete the remote `master` — so no history was rewritten and the SHA is unchanged. CI now triggers on `main` only.
+
+**Alternatives considered**
+
+- *Keep `master`* — Rejected by the human. It also meant carrying a two-name CI trigger indefinitely to cover a question nobody had answered.
+- *Defer again until the product concept lands* — The cost of renaming only grows. Doing it while the repo is two commits deep and has no open branches is the cheapest this will ever be.
+
+**Rationale**
+
+The agent raised it, twice, and the human chose. Recorded as `agent-proposed-user-approved` rather than `user-directed` because the human never asked for a rename; they answered a question the agent put to them. The distinction is exactly what the origin field exists to preserve.
+
+**Consequences**
+
+- Anyone with an existing clone needs `git branch -m master main` and a new upstream, or a fresh clone.
+- `master` no longer exists on the remote; references to it are dead.
+- The CI trigger list is now a single branch, so a future rename would need the workflow updated too.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Rename the GitHub default branch from master to main? Still unresolved (D003); CI currently triggers on both.
+
+Human approved:
+
+> Rename to main
+
+**Artifacts**
+
+- `.github/workflows/validate.yml` — Trigger list reduced to main
+
+---
+
+## D010 — Commit straight to main, with CI as the only gate
+
+*2026-09-04 · phase: setup · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The first chunk of work went through a branch and a pull request, which produced a reviewable narrative but cost a round trip on a solo project inside a 4-hour timebox. The question was whether to keep paying that.
+
+**Decision**
+
+Commit directly to `main` from here on. No feature branches, no pull requests. `npm run validate` before every commit stays mandatory, and CI runs the same command on every push, so the gate is unchanged — only the ceremony is gone.
+
+**Alternatives considered**
+
+- *Keep a branch and PR per chunk* — Rejected by the human. On a single-author project with nobody to review, the PR adds latency without adding a reviewer.
+- *Run a Mission from inside pinata/* — Not chosen now. It remains available, and `D007` put the validation contract in place precisely so it would be safe when it is.
+
+**Rationale**
+
+The agent offered the options and the human picked. Worth recording because it removes a safety net: with no PR, the pre-commit `validate` run and CI are the only things standing between a bad change and the default branch. That trade is acceptable only because the gate is fast, deterministic, and dependency-free.
+
+**Consequences**
+
+- `main` is no longer protected by review, so a broken commit lands on the default branch before CI reports.
+- `npm run validate` must pass locally before every commit, not merely before every merge.
+- PR #1 remains the one place where the reasoning is narrated in review form; later reasoning lives only in the decision log and the session log, which raises the stakes on keeping both current.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Now that CI is green, how should we work from here? Feature branch + PR per chunk, like this one / Commit straight to the default branch / Run a Mission from inside pinata/
+
+Human approved:
+
+> Commit straight to the default branch
+
+---
+
+<sub>Generated from 10 record(s) as of 2026-09-04 · source `e31d7badbda9`</sub>

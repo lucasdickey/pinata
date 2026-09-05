@@ -72,13 +72,40 @@ Verified the gate fails as designed: with a stale generated file,
 `npm run docs:check` and `npm run validate` both exit 1. Clean, `validate` exits
 0 across 50 tests.
 
+### Shipping the first chunk
+
+9. Committed the scaffolding and the validation harness, opened PR #1, watched CI
+   go green in 9s with no install step, and merged. The CI source hash matched the
+   local one exactly, which is the first real evidence that generated artifacts
+   are reproducible across machines rather than merely deterministic on mine.
+10. Renamed the default branch `master` → `main`, answering the deferral from
+    `D003`. Done as a pointer move at the same commit, so no history was
+    rewritten and the SHA is unchanged. → `D009`
+11. Agreed to commit straight to `main` from here on, dropping branches and PRs.
+    Note what this costs: with no PR, `npm run validate` before each commit and
+    CI after it are the only things between a bad change and the default branch.
+    → `D010`
+
+### A rule that had to bend
+
+Answering `D003` exposed a contradiction in my own validator. It required
+`user-deferred` records to sit at `status: pending`, and separately required any
+record with a `superseded_by` pointer to be `superseded`. So an answered
+deferral could not be represented at all: the schema let a question be asked or
+settled, but had no way to say "this was open, and then it closed."
+
+Relaxed `user-deferred` to allow `pending` or `superseded`, with three tests
+pinning the distinction — open stays pending, `accepted` is still rejected
+because it would let an unanswered question read as settled, and an answered one
+must point at whatever answered it. `D003` now reads as superseded by `D009`
+rather than being quietly rewritten, which is the behaviour the log is for.
+
 ### Dead ends
 
-None that were abandoned. The timestamp approach was reversed rather than
-dropped, and the reversal is recorded in `D007`.
+None abandoned. Two reversals, both recorded rather than dropped: the wall-clock
+timestamp in generated output (`D007`) and the deferral status rule above.
 
 ### Open questions at end of session
 
-- What exactly does `pinata` do? Which of the two assignment paths does it take?
-  Still blocking; no application code written. → `D006`
-- Rename `master` → `main`? Still unanswered, so CI triggers on both. → `D003`
+- **What exactly does `pinata` do?** Still the blocker. No application code has
+  been written and `src/` does not exist yet. → `D006`

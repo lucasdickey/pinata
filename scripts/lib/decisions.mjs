@@ -78,8 +78,13 @@ export function validate(data) {
         `${at}: origin is agent-proposed-user-approved but transcript needs both proposal and approval`,
       );
     }
-    if (d.origin === "user-deferred" && d.status !== "pending") {
-      errors.push(`${at}: user-deferred records stay status=pending until answered`);
+    // A deferral stays open until something answers it, at which point the
+    // answering record supersedes it. Any other status would let an unanswered
+    // question quietly read as settled.
+    if (d.origin === "user-deferred" && !["pending", "superseded"].includes(d.status)) {
+      errors.push(
+        `${at}: user-deferred records stay status=pending until answered, then become superseded`,
+      );
     }
 
     for (const key of ["supersedes", "superseded_by"]) {

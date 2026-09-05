@@ -151,10 +151,28 @@ describe("validate: provenance evidence", () => {
     assert.deepEqual(validate(doc([decision({ origin: "agent-autonomous" })])), []);
   });
 
-  test("user-deferred must stay pending", () => {
+  test("user-deferred stays pending while the question is open", () => {
+    assert.deepEqual(validate(doc([decision({ origin: "user-deferred", status: "pending" })])), []);
+  });
+
+  test("user-deferred cannot be marked accepted, which would read as settled", () => {
     const errors = validate(doc([decision({ origin: "user-deferred", status: "accepted" })]));
     assert.ok(errors.some((e) => e.includes("stay status=pending")));
-    assert.deepEqual(validate(doc([decision({ origin: "user-deferred", status: "pending" })])), []);
+  });
+
+  test("an answered deferral becomes superseded by whatever answered it", () => {
+    const errors = validate(
+      doc([
+        decision({
+          id: "D001",
+          origin: "user-deferred",
+          status: "superseded",
+          superseded_by: "D002",
+        }),
+        decision({ id: "D002", supersedes: "D001" }),
+      ]),
+    );
+    assert.deepEqual(errors, []);
   });
 });
 

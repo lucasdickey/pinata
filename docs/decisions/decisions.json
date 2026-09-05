@@ -87,7 +87,7 @@
       "phase": "setup",
       "title": "Default branch left as master pending a call",
       "origin": "user-deferred",
-      "status": "pending",
+      "status": "superseded",
       "problem": "The local git config defaults to `master`, so the pushed repository has `master` as its default branch. Renaming is trivial now and annoying once branches and CI exist.",
       "decision": "Left as `master` for the moment. Flagged to the human rather than renamed silently.",
       "alternatives": [
@@ -105,7 +105,7 @@
       },
       "artifacts": [],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D009"
     },
     {
       "id": "D004",
@@ -312,6 +312,78 @@
           "caption": "Integrity checks against the real repository contents"
         }
       ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D009",
+      "date": "2026-09-04",
+      "phase": "setup",
+      "title": "Rename the default branch to main",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "`D003` deferred this. The local git default produced a `master` branch, which stayed the default on a public repository that will be reviewed. Leaving it deferred meant CI had to trigger on two branch names and the answer would get more expensive the longer branches and history accumulated.",
+      "decision": "Rename to `main`. Done as a pointer move at the same commit — `git branch -m`, push `main`, set the GitHub default, delete the remote `master` — so no history was rewritten and the SHA is unchanged. CI now triggers on `main` only.",
+      "alternatives": [
+        {
+          "option": "Keep `master`",
+          "why_not": "Rejected by the human. It also meant carrying a two-name CI trigger indefinitely to cover a question nobody had answered."
+        },
+        {
+          "option": "Defer again until the product concept lands",
+          "why_not": "The cost of renaming only grows. Doing it while the repo is two commits deep and has no open branches is the cheapest this will ever be."
+        }
+      ],
+      "rationale": "The agent raised it, twice, and the human chose. Recorded as `agent-proposed-user-approved` rather than `user-directed` because the human never asked for a rename; they answered a question the agent put to them. The distinction is exactly what the origin field exists to preserve.",
+      "consequences": [
+        "Anyone with an existing clone needs `git branch -m master main` and a new upstream, or a fresh clone.",
+        "`master` no longer exists on the remote; references to it are dead.",
+        "The CI trigger list is now a single branch, so a future rename would need the workflow updated too."
+      ],
+      "transcript": {
+        "proposal": "Rename the GitHub default branch from master to main? Still unresolved (D003); CI currently triggers on both.",
+        "approval": "Rename to main"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": ".github/workflows/validate.yml",
+          "caption": "Trigger list reduced to main"
+        }
+      ],
+      "supersedes": "D003",
+      "superseded_by": null
+    },
+    {
+      "id": "D010",
+      "date": "2026-09-04",
+      "phase": "setup",
+      "title": "Commit straight to main, with CI as the only gate",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The first chunk of work went through a branch and a pull request, which produced a reviewable narrative but cost a round trip on a solo project inside a 4-hour timebox. The question was whether to keep paying that.",
+      "decision": "Commit directly to `main` from here on. No feature branches, no pull requests. `npm run validate` before every commit stays mandatory, and CI runs the same command on every push, so the gate is unchanged — only the ceremony is gone.",
+      "alternatives": [
+        {
+          "option": "Keep a branch and PR per chunk",
+          "why_not": "Rejected by the human. On a single-author project with nobody to review, the PR adds latency without adding a reviewer."
+        },
+        {
+          "option": "Run a Mission from inside pinata/",
+          "why_not": "Not chosen now. It remains available, and `D007` put the validation contract in place precisely so it would be safe when it is."
+        }
+      ],
+      "rationale": "The agent offered the options and the human picked. Worth recording because it removes a safety net: with no PR, the pre-commit `validate` run and CI are the only things standing between a bad change and the default branch. That trade is acceptable only because the gate is fast, deterministic, and dependency-free.",
+      "consequences": [
+        "`main` is no longer protected by review, so a broken commit lands on the default branch before CI reports.",
+        "`npm run validate` must pass locally before every commit, not merely before every merge.",
+        "PR #1 remains the one place where the reasoning is narrated in review form; later reasoning lives only in the decision log and the session log, which raises the stakes on keeping both current."
+      ],
+      "transcript": {
+        "proposal": "Now that CI is green, how should we work from here? Feature branch + PR per chunk, like this one / Commit straight to the default branch / Run a Mission from inside pinata/",
+        "approval": "Commit straight to the default branch"
+      },
+      "artifacts": [],
       "supersedes": null,
       "superseded_by": null
     }
