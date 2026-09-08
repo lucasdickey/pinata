@@ -171,8 +171,11 @@ describe("repository contracts", () => {
 
   test("the docs tooling stays zero-dependency", () => {
     // The generator and dashboard must keep working from a bare checkout over
-    // file://, so scripts/ and the dashboard may only import node: builtins or
-    // relative paths — never a package from node_modules.
+    // file://, so the docs tooling (scripts/build-docs.mjs, scripts/lib/) and
+    // the dashboard may only import node: builtins or relative paths — never
+    // a package from node_modules. Application scripts elsewhere in scripts/
+    // (e.g. db-migrate.mjs) may use the approved dependency set; they are not
+    // part of the bare-checkout docs path.
     const importSpecifiers = (source) =>
       [
         ...source.matchAll(/(?:import|export)[^"']*?from\s*["']([^"']+)["']/g),
@@ -180,9 +183,9 @@ describe("repository contracts", () => {
         ...source.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g),
       ].map((m) => m[1]);
 
-    const scriptsDir = join(ROOT, "scripts");
-    const stack = [scriptsDir];
-    const files = [];
+    const docsLibDir = join(ROOT, "scripts", "lib");
+    const files = [join(ROOT, "scripts", "build-docs.mjs")];
+    const stack = [docsLibDir];
     while (stack.length) {
       const dir = stack.pop();
       for (const entry of readdirSync(dir)) {

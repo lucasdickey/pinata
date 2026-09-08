@@ -445,3 +445,71 @@ Roughly 60 minutes of mission-worker time (including one external pause).
   `rate_limit_buckets`) belong to `editor-durable-login-throttling` and
   `editor-session-lifecycle-on-protected-data`; the token format and route
   contracts are stable for them.
+
+## Session 08 — 2026-09-08 — Turso schema, migrations, and provider boundaries
+
+Mission feature `turso-schema-and-provider-boundaries`: establish the
+canonical Drizzle/libSQL persistence model and the server-only provider seams
+every later capture/annotation/thread feature builds on.
+
+### What happened
+
+- Wrote `src/lib/server/db/schema.ts`: projects (digest-only share
+  capability), ordered pages with unique `(project_id, normalized_url)`,
+  immutable capture attempts with per-`(page, variant)` attempt numbers,
+  unique idempotency keys, and unique `blob_path`, annotations with
+  server-numbered pins and optimistic revisions, append-only
+  `thread_entries`, generic `idempotency_keys`, digest-keyed
+  `rate_limit_buckets`, and `schema_meta`. CHECK constraints pin the
+  architecture's variant/status/kind/role/label enumerations.
+- Generated `drizzle/0000_init.sql` with drizzle-kit and added a custom
+  migration installing `BEFORE UPDATE`/`BEFORE DELETE` triggers on
+  `thread_entries` that `RAISE(ABORT, 'thread_entries are append-only')`.
+- Added `scripts/db-migrate.mjs` (`npm run db:migrate`): applies the
+  committed migrations with drizzle-orm's libSQL migrator, idempotently, and
+  never prints credentials. Verified against the real configured Turso
+  database (apply, reapply as no-op).
+- Added server-only, dependency-injectable provider boundaries:
+  `src/lib/server/db/client.ts` (env-built or injected libSQL client),
+  `src/lib/server/providers/browserless.ts` (fixed SFO Function endpoint,
+  Authorization-header token, response byte cap, bounded error codes), and
+  `src/lib/server/providers/blob.ts` (private put/head/get/del, injectable
+  SDK, pathname-only results — provider URLs never cross the seam).
+- 25 focused tests (in-memory schema/constraint/trigger matrix, fake-fetch
+  and fake-SDK provider outcomes, server-only source scans) and 3 real
+  integration tests (Turso migrate-twice/write/read/unique/trigger/cleanup;
+  private Blob put/head/get/delete with SHA-256 comparison) all pass.
+  Integration tests skip silently when provider env is absent so the CI gate
+  stays green without credentials.
+
+### What broke and was fixed
+
+- drizzle wraps libSQL errors, so constraint messages live on `error.cause`,
+  not `error.message`; assertion helpers now walk the cause chain. A failed
+  first integration run left one disposable run-id row chain in the real
+  database; it was deleted by exact run-id prefix and absence verified before
+  the rerun passed.
+- `BlobNotFoundError` from `@vercel/blob` carries `name: "Error"`; the
+  adapter matches the constructor name instead.
+- A one-off probe confirmed the private Blob object URL returns HTTP 403
+  without provider authorization.
+
+### Elapsed
+
+Roughly 45 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D025` recorded (agent-autonomous): committed Drizzle migrations, the Node
+  migration runner, database-enforced thread immutability, and the injectable
+  provider seams.
+- Supports the persistence half of `VAL-PROJECT-001/004`, `VAL-CAPTURE-008`,
+  `VAL-THREAD-002`, `VAL-AUTH-006`, and `VAL-THREAD-006`; the endpoint-level
+  assertions land with their owning features.
+
+### Open questions at end of session
+
+- `editor-durable-login-throttling` consumes `rate_limit_buckets`;
+  `project-url-array-and-atomic-create` consumes `idempotency_keys` and the
+  project/page/capture tables; capture features own the Browserless function
+  source that flows through this boundary.

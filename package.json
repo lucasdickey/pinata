@@ -17,6 +17,8 @@
     "lint": "node scripts/lint.mjs && eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/db-migrate.mjs",
     "e2e": "playwright test",
     "validate": "npm run lint && npm run typecheck && npm test && npm run docs:check && npm run build && npm run e2e"
   },

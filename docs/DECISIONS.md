@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 7 | D005, D006, D008, D021, D022, D023, D024 |
+| Agent decided alone | 8 | D005, D006, D008, D021, D022, D023, D024, D025 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **24** | |
+| **Total** | **25** | |
 
 ## Index
 
@@ -50,6 +50,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D022](#d022--serve-reqs-from-repository-sources-with-a-zero-dependency-safe-markdown-renderer) | build | Serve /reqs from repository sources with a zero-dependency safe Markdown renderer | Agent decided alone | accepted |
 | [D023](#d023--publish-one-versioned-validation-boundary-catalog-as-shared-exported-constants) | build | Publish one versioned validation boundary catalog as shared exported constants | Agent decided alone | accepted |
 | [D024](#d024--verify-the-editor-password-via-fixed-length-digests-and-bind-sessions-to-a-double-submit-csrf-proof) | build | Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof | Agent decided alone | accepted |
+| [D025](#d025--persist-the-canonical-model-in-committed-drizzle-migrations-with-database-enforced-thread-immutability-and-injectable-provider-seams) | build | Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams | Agent decided alone | accepted |
 
 ---
 
@@ -943,4 +944,44 @@ The architecture document already directs the password prompt, timing-safe compa
 
 ---
 
-<sub>Generated from 24 record(s) as of 2026-09-08 · source `057451a6afcf`</sub>
+## D025 — Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Every capture, annotation, thread, sharing, and throttling feature needs one authoritative Turso/libSQL schema whose constraints (unique normalized pages, immutable capture attempts, append-only thread entries, capability digests, idempotency keys, durable rate-limit buckets) hold at the database boundary rather than by application convention, applied through committed repeatable migrations, with provider boundaries that focused tests can drive deterministically without letting mocks replace real Turso/Blob/Browserless proof.
+
+**Decision**
+
+Model the architecture's tables in src/lib/server/db/schema.ts (text UUID keys, epoch-ms UTC timestamps, explicit foreign keys, unique constraints, and CHECK constraints for capture variant/status, annotation kind, and thread role/label), generate committed SQL with drizzle-kit into drizzle/, and add a custom migration installing BEFORE UPDATE/DELETE triggers on thread_entries that RAISE(ABORT). Apply migrations with scripts/db-migrate.mjs (npm run db:migrate), a Node script using drizzle-orm's libSQL migrator over @libsql/client so reapplication is idempotent and credentials are never printed. Capture attempts carry a per-(page, variant) monotonic attempt number plus a unique idempotency key and a unique blob_path, so retries are new immutable rows. Add generic idempotency_keys ((scope, key) primary key plus payload digest) and digest-keyed rate_limit_buckets tables. Keep all database, Browserless, and private-Blob construction in server-only modules with dependency-injectable client/fetch/SDK seams; adapters map provider failures to bounded secret-free error codes and never cross provider URLs or tokens to callers.
+
+**Alternatives considered**
+
+- *drizzle-kit push or manual schema changes against Turso* — The architecture requires committed, repeatable migrations; push/manual mutation leaves no auditable artifact and cannot be replayed identically in CI or production.
+- *Enforce thread append-only behavior only in application code* — VAL-THREAD-002 requires database triggers rejecting UPDATE/DELETE; application-only enforcement can be bypassed by any future code path or manual session.
+- *Let thread entries carry ON DELETE CASCADE so validation cleanup can delete them* — Cascade would let an annotation hard-delete erase founder history, contradicting the immutability rule; tests instead prove triggers inside a rolled-back transaction so no immutable row is ever left behind.
+
+**Rationale**
+
+The architecture document already directs Turso/libSQL + Drizzle, committed migrations, the table set, digest-only capability storage, and database triggers; this record chooses only mechanics inside that approved direction (migration runner, attempt-number/idempotency columns, trigger SQL), which is safe to decide unilaterally. The schema, triggers, and provider seams were verified against the real configured Turso database and private Blob store with disposable run-scoped data and confirmed cleanup before the full gate ran.
+
+**Consequences**
+
+- Future schema changes flow through drizzle-kit generate plus npm run db:migrate; drizzle/meta snapshots are committed and hand edits to generated SQL are limited to appended custom statements before first application.
+- Retrying a capture inserts a new row with the next attempt number; blob_path uniqueness forces a fresh private object per attempt, which capture features rely on for late-result fencing (VAL-CAPTURE-008).
+- Rate-limit and idempotency callers must SHA-256 their scope + identifier into bucket/digest keys; no plaintext password or raw capability may key a row.
+- Focused tests inject in-memory libSQL databases, fake fetch, and fake Blob SDKs for deterministic fault coverage; test/integration/turso.integration.test.ts runs the real-provider checks whenever the environment is present and skips otherwise.
+- No client-reachable module may import src/lib/server/db or src/lib/server/providers; test/server/provider-boundaries.test.ts enforces the boundary by source scan.
+
+**Artifacts**
+
+- `src/lib/server/db/schema.ts` — Canonical Drizzle schema
+- `drizzle/0001_thread_entries_immutable.sql` — Append-only thread triggers
+- `scripts/db-migrate.mjs` — Idempotent migration runner
+- `src/lib/server/providers/blob.ts` — Private Blob boundary with injectable SDK
+- `test/integration/turso.integration.test.ts` — Real Turso/Blob verification with verified cleanup
+
+---
+
+<sub>Generated from 25 record(s) as of 2026-09-08 · source `ccd284292261`</sub>
