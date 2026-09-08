@@ -23,6 +23,8 @@ import {
   EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
   EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
   FEEDBACK_BODY_MAX_CHARS,
+  IDEMPOTENCY_KEY_MAX_CHARS,
+  IDEMPOTENCY_KEY_MIN_CHARS,
   LAZY_SCROLL_MAX_STEPS,
   LAZY_SCROLL_STEP_DELAY_MS,
   LAZY_SCROLL_STEP_PX,
@@ -71,6 +73,8 @@ import {
   PERF_RETAINED_HEAP_MAX_BYTES,
   PERF_SELECTION_CYCLES,
   POLICY_VERSION,
+  PROJECT_REQUEST_MAX_BYTES,
+  PROJECT_TITLE_MAX_CHARS,
   REPLY_MAX_PER_WINDOW,
   REPLY_WINDOW_MS,
   STALE_CAPTURE_AGE_MS,
@@ -111,6 +115,10 @@ const URL_ROWS: DocRow[] = [
   { name: "MAX_UNIQUE_PAGE_URLS", value: fmtNum(MAX_UNIQUE_PAGE_URLS) },
   { name: "MAX_URL_BYTES", value: fmtBytes(MAX_URL_BYTES) },
   { name: "BLANK_URL_ROW_POLICY", value: BLANK_URL_ROW_POLICY },
+  { name: "PROJECT_REQUEST_MAX_BYTES", value: fmtBytes(PROJECT_REQUEST_MAX_BYTES) },
+  { name: "PROJECT_TITLE_MAX_CHARS", value: fmtNum(PROJECT_TITLE_MAX_CHARS) },
+  { name: "IDEMPOTENCY_KEY_MIN_CHARS", value: fmtNum(IDEMPOTENCY_KEY_MIN_CHARS) },
+  { name: "IDEMPOTENCY_KEY_MAX_CHARS", value: fmtNum(IDEMPOTENCY_KEY_MAX_CHARS) },
 ];
 
 const CAPTURE_ROWS: DocRow[] = [
@@ -278,6 +286,13 @@ describe("boundary catalog coverage and consistency", () => {
   test("attempt quota admits the initial attempts of a maximum-size project", () => {
     expect(MAX_CAPTURE_ATTEMPTS_PER_PROJECT).toBeGreaterThanOrEqual(MAX_UNIQUE_PAGE_URLS * 2);
     expect(MAX_SUBMITTED_URL_ROWS).toBeGreaterThanOrEqual(MAX_UNIQUE_PAGE_URLS);
+  });
+
+  test("the project request cap admits a maximum submission", () => {
+    // Every row at its maximum length must fit, plus title and framing.
+    expect(PROJECT_REQUEST_MAX_BYTES).toBeGreaterThan(MAX_SUBMITTED_URL_ROWS * MAX_URL_BYTES);
+    expect(IDEMPOTENCY_KEY_MIN_CHARS).toBeLessThan(IDEMPOTENCY_KEY_MAX_CHARS);
+    expect(PROJECT_TITLE_MAX_CHARS).toBeGreaterThan(0);
   });
 
   test("concurrency and manifest caps are the contract values", () => {

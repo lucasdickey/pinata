@@ -1068,8 +1068,108 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D028",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Projects take an explicit URL array; admission is a synchronous, network-free normalizer",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "A project needs more than one page, and the obvious way to get them is to crawl the root. Crawling is out of scope by product framing (the landing copy promises 'no crawling'), it turns project creation into an unbounded network operation, and it makes the page set non-deterministic. The creation boundary still has to decide, for every submitted string, whether it is a capturable destination — and it has to decide the same way every time so page identity is stable.",
+      "decision": "Project creation accepts exactly one required root URL plus an optional explicit array of additional URLs, and never discovers, infers, or follows a link. Every string goes through one synchronous normalizer (src/lib/url/normalize.ts) that performs no I/O: trim, byte cap, scheme check, a single WHATWG parse, https-only, no credentials, no non-443 port, trailing-dot strip, IP-literal rejection, empty-label rejection, single-label and reserved-suffix rejection, fragment dropped, empty query dropped, empty path normalized to '/'. The result is the page's identity, so two spellings that differ only by fragment collapse to one page. Every limit and every reject reason lives in the versioned boundary catalog (POLICY_VERSION 2026-09-08.3) with fixtures, and the route returns all offending rows at once as {field, index, code} without echoing the submitted text.",
+      "alternatives": [
+        {
+          "option": "Crawl the root and offer discovered pages",
+          "why_not": "Contradicts the product's stated 'no crawling' promise, makes creation an unbounded network operation with its own failure and abuse surface, and yields a page set that changes between two runs against the same site."
+        },
+        {
+          "option": "Resolve DNS at admission to prove the host is public",
+          "why_not": "It makes a form submission depend on the network, is trivially defeated by rebinding between admission and capture, and duplicates the check the capture worker has to make anyway at fetch time."
+        },
+        {
+          "option": "Accept any URL and let capture fail later",
+          "why_not": "It converts a correctable typo into a persisted project with dead pages and pushes SSRF-shaped inputs deeper into the system before anything says no."
+        }
+      ],
+      "rationale": "This is the conservative reading of an existing product constraint rather than a new direction, so it was safe to decide unilaterally. Keeping admission synchronous and network-free means the boundary is fully testable from fixtures, the same function decides page identity and admission (so they cannot drift), and the genuinely network-dependent checks stay where they can be enforced — at capture time, against the address actually connected to.",
+      "consequences": [
+        "Users must paste the pages they care about; there is no discovery affordance, and the editor UI is therefore an add/remove/reorder row list rather than a picker.",
+        "A host that resolves to a private address still passes admission. Rebinding and redirect safety are the capture worker's job (VAL-CAPTURE-001/002), and that split is now load-bearing.",
+        "Any change to normalization changes page identity, so it must bump POLICY_VERSION and update the fixtures and docs the drift tests compare against."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/url/normalize.ts",
+          "caption": "The synchronous admission normalizer: no I/O, one parse, one reject reason per failure"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/boundaries/url.ts",
+          "caption": "Versioned limits, reject reasons, and the normalization fixtures the docs and tests share"
+        },
+        {
+          "type": "file",
+          "path": "test/url-normalization.test.ts",
+          "caption": "79 cases: fixtures, byte caps, hostile spellings, and page-identity collapse"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D029",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "A project, its pages, and two pending capture attempts per page are created in one transaction, keyed for idempotent retry",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Creating a project writes to three tables, and capture dispatch reads what it wrote. A partial write leaves a project with no pages, or pages with no attempt rows that nothing will ever pick up — states the UI cannot represent and the capture worker cannot recover from. A double-submit or a retried request after a dropped response would otherwise create a second identical project.",
+      "decision": "One db.transaction writes the idempotency record, the project, every page in submission order (root first), and exactly two pending capture rows per page (desktop 1440x900, mobile 390x844, DPR 1, attempt 1) — or nothing. Capture dispatch happens strictly after the transaction commits. The client sends an idempotency key per creation intent: the same key with the same canonical payload digest replays the original identities with created:false and HTTP 200, the same key with a different digest is refused with 409, and a transaction failure re-reads the idempotency record so a concurrent winner converges instead of both callers failing.",
+      "alternatives": [
+        {
+          "option": "Write the rows sequentially and repair on the next read",
+          "why_not": "Repair logic has to guess which of several partial shapes it is looking at, and every reader — UI, capture worker, share links — would need the same guess."
+        },
+        {
+          "option": "Deduplicate on the payload alone, with no client key",
+          "why_not": "Two deliberate projects over the same URL set are legitimate; collapsing them silently loses user intent, and the payload alone cannot distinguish a retry from a second attempt."
+        },
+        {
+          "option": "Create the attempt rows lazily when capture first runs",
+          "why_not": "It leaves a window where a project exists with nothing queued, so a crash between creation and dispatch strands the project with no evidence that work was ever owed."
+        }
+      ],
+      "rationale": "Atomicity plus an explicit key is the standard shape for a create-then-dispatch boundary and introduces no product direction, so it was safe to decide unilaterally. Writing the attempt rows inside the same transaction makes 'work is owed' a durable fact rather than an in-flight intention, which is what lets the capture worker be a plain queue reader and lets partial-status reporting be a query instead of an inference.",
+      "consequences": [
+        "Capture dispatch may assume every page already has exactly two pending attempt rows; it never creates them.",
+        "Clients must generate one idempotency key per creation intent and reuse it on retry — the editor form does this and refreshes the key only after a success or a conflict.",
+        "The variant matrix (desktop/mobile, their viewports and DPR) is fixed at creation time, so adding a variant later means a migration for existing projects, not just new code."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/create.ts",
+          "caption": "The single transaction plus replay, conflict, and concurrent-winner convergence"
+        },
+        {
+          "type": "file",
+          "path": "test/server/projects-create.test.ts",
+          "caption": "Atomicity, rollback-leaves-nothing, replay identity, and lost-race convergence"
+        },
+        {
+          "type": "file",
+          "path": "test/integration/projects.integration.test.ts",
+          "caption": "The same guarantees against the real Turso database, with verified cleanup"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-08",
-  "source_hash": "59e6162f5604"
+  "source_hash": "aa1c9b7baf1a"
 };

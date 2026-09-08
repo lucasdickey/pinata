@@ -628,3 +628,92 @@ Roughly 30 minutes of mission-worker time.
 
 - Deployed-surface auth validation (`VAL-AUTH-002`) still needs a real run
   against the Vercel deployment; CI cannot stand in for it, and now says so.
+
+## Session — project creation from an explicit URL array, written atomically
+
+### What was attempted
+
+Mission feature `project-url-array-and-atomic-create`: turn one required root
+URL plus an optional explicit list of additional URLs into a project, its
+unique pages, and the capture work owed for them — in one transaction, before
+anything is dispatched — with an editor UI that can be driven entirely from the
+keyboard. Assertions `VAL-PROJECT-001`, `VAL-PROJECT-002`, `VAL-PROJECT-006`.
+
+### What landed
+
+- `src/lib/url/normalize.ts`: the synchronous, network-free admission
+  normalizer. One WHATWG parse, https-only, no credentials, no non-443 port, no
+  IP literals, no single-label or reserved-suffix hosts, fragment dropped. Its
+  output *is* page identity, so `/pricing#plans` and `/pricing` are one page.
+- `src/lib/server/projects/{submission,create,read,schemas}.ts`: row-level
+  validation that reports every bad row at once as `{field, index, code}`, a
+  canonical payload digest, one `db.transaction` writing the idempotency
+  record, the project, the ordered pages, and exactly two pending capture rows
+  per page, and a deterministic ordered read for the editor list.
+- `app/api/projects/route.ts`: POST/GET behind origin, session, CSRF, content
+  type, byte cap, and strict schema; 422 with bounded codes, 409 on a reused
+  key with a different payload, 200 on a true replay, 405 on other verbs.
+- `src/components/project-create-form.tsx` and a rewritten `editor-home.tsx`:
+  add/remove/reorder rows with named controls (`Move URL 3 up`, `Remove URL 2`),
+  focus moved deliberately after each mutation, per-row `aria-invalid` plus
+  `role="alert"`, Cancel that posts nothing, one idempotency key per intent.
+- Boundary catalog bumped to `2026-09-08.3` with the new limits, the
+  `not-public` and `too-long` reject reasons, and eight new fixtures; `EVALS.md`
+  and `ARCHITECTURE.md` regenerated against them.
+
+### What broke, and what it caught
+
+- The first race test could not run at all: an in-memory libSQL client is a
+  single connection, so two overlapping transactions raised `TRANSACTION_ACTIVE`,
+  and moving to a file-backed SQLite database only traded that for both racers
+  getting `SQLITE_BUSY`. Neither reproduces Turso's semantics. The unit test was
+  replaced with a deterministic simulation of losing the race — a proxy that
+  commits the winner inside the loser's transaction call — and real concurrency
+  is proven in the Turso integration suite instead.
+- Two component tests failed for reasons worth keeping: RTL's automatic cleanup
+  is not registered when Vitest runs without globals (fixed with an explicit
+  `cleanup()`), and a visually-hidden label rendered the accessible name as
+  `"Move upURL 2"`, which is exactly what a screen-reader user would have heard.
+  The buttons now carry explicit `aria-label`s.
+- `https:///pricing` was expected to be rejected as malformed and came back as
+  `not-public`: WHATWG parses it with `pricing` as the host. The expectation was
+  wrong, and the case exposed a real gap — empty host labels (`.com`, `a..b`)
+  are now rejected explicitly.
+- Playwright's request context sends no `Origin` header, so the API half of the
+  e2e spec got a 403 from a route that is correct to demand one. The spec now
+  sends the page's own origin, which is what a real browser fetch does.
+
+### Verification beyond the gate
+
+- Denial matrix by curl against `127.0.0.1:3100`: 401 anonymous, 403 without
+  CSRF, 403 cross-origin, 415 wrong content type, 400 unknown field, 405 on
+  PUT/DELETE. Then 422 with per-row codes, 201 create, 200 identical replay,
+  409 conflicting reuse, 200 list.
+- Inspected the real Turso rows after the create: pages in submission order
+  with the root first, two `pending` captures each. Deleted every row this
+  session created and re-queried to confirm.
+- `e2e/projects.spec.ts` drives the whole flow in Chromium against the
+  production build and the real database, then deletes its own run-scoped rows
+  and asserts the store is clean.
+
+### Elapsed
+
+Roughly 2 hours of mission-worker time.
+
+### Decisions and assertions
+
+- `D028` (agent-autonomous): explicit URL array, never crawl; admission is a
+  synchronous network-free normalizer whose output is page identity.
+- `D029` (agent-autonomous): project, pages, and two pending attempts per page
+  in one transaction, keyed for idempotent retry.
+- `VAL-PROJECT-001`, `VAL-PROJECT-002`, `VAL-PROJECT-006` are covered by unit,
+  component, integration, and e2e tests.
+
+### Open questions at end of session
+
+- A host that resolves to a private address still passes admission by design.
+  The capture worker owns that check (`VAL-CAPTURE-001/002`); until it lands,
+  nothing in the system enforces it.
+- The database still holds one orphan `valrun-…` project titled "validation
+  run" from an earlier session's run. It was left alone rather than deleted by
+  a session that did not create it.

@@ -86,6 +86,71 @@ pre code {
   margin-top: 1.5rem;
 }
 
+/* ---- project entry ---- */
+
+.project-create {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field-error {
+  color: var(--accent);
+  font-size: 0.9rem;
+  margin: 0.15rem 0 0.6rem;
+  display: block;
+}
+
+.hint {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.url-rows {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.url-rows ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+
+.url-rows li {
+  margin-bottom: 0.75rem;
+}
+
+.row-controls {
+  display: inline-flex;
+  gap: 0.4rem;
+  margin-left: 0.4rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.project-list {
+  list-style: none;
+  padding: 0;
+}
+
+.page-variants {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
 /* ---- requirements hub ---- */
 
 .reqs-shell {

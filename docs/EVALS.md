@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.2`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.3`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.2 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.3 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -108,16 +108,27 @@ the application is a defect.
 | `MAX_UNIQUE_PAGE_URLS` | 16 | Unique normalized page URLs retained per project. |
 | `MAX_URL_BYTES` | 2,048 bytes | Per submitted row, measured as UTF-8. |
 | `BLANK_URL_ROW_POLICY` | ignore | Blank optional array rows are ignored; the root URL is always required. |
+| `PROJECT_REQUEST_MAX_BYTES` | 69,632 bytes | Project-create bodies larger than this are rejected before parsing. |
+| `PROJECT_TITLE_MAX_CHARS` | 120 | Longest accepted project title; blank defaults to the root host. |
+| `IDEMPOTENCY_KEY_MIN_CHARS` | 8 | Shortest accepted mutation idempotency key. |
+| `IDEMPOTENCY_KEY_MAX_CHARS` | 128 | Longest accepted mutation idempotency key. |
 
 ### URL normalization fixtures
 
-Normalization parses once with WHATWG `URL`, lowercases scheme and host,
-converts IDNA hosts to punycode, strips a single trailing host dot, removes
-the default `:443` port and the fragment, resolves dot segments, treats
-backslashes as path separators, drops an empty query, and turns an empty path
-into `/`. Path case, percent-encoding (so `%7E` and `~`, and encoded
-separators such as `%2F`, stay distinct), and query order/duplicates are
-preserved. These exact fixtures pin the behavior:
+Normalization trims surrounding whitespace, rejects rows over
+`MAX_URL_BYTES`, then parses once with WHATWG `URL`, lowercases scheme and
+host, converts IDNA hosts to punycode, strips a single trailing host dot,
+removes the default `:443` port and the fragment, resolves dot segments,
+treats backslashes as path separators, drops an empty query, and turns an
+empty path into `/`. Path case, percent-encoding (so `%7E` and `~`, and
+encoded separators such as `%2F`, stay distinct), and query order/duplicates
+are preserved. Canonicalization happens before any address check, so every IP
+literal — including numeric spellings and private, link-local, carrier-grade,
+multicast, and metadata addresses — is rejected as `ip-literal`, while hosts
+that cannot exist publicly (single-label names and the reserved `localhost`,
+`local`, `internal`, `intranet`, `home.arpa`, `invalid`, `test`, and `onion`
+suffixes) are rejected as `not-public`. Public cross-origin HTTPS rows are
+allowed. These exact fixtures pin the behavior:
 
 | Fixture | Input | Expected |
 | --- | --- | --- |
@@ -142,6 +153,13 @@ preserved. These exact fixtures pin the behavior:
 | ipv6-loopback-rejected | `https://[::1]/` | `reject: ip-literal` |
 | relative-input-rejected | `/pricing` | `reject: relative` |
 | blank-input-rejected | (blank) | `reject: blank` |
+| surrounding-whitespace-trimmed | `  https://example.com/pricing  ` | `https://example.com/pricing` |
+| cross-origin-https-allowed | `https://docs.example.org/guide` | `https://docs.example.org/guide` |
+| unsupported-scheme-rejected | `javascript:alert(1)` | `reject: scheme` |
+| localhost-rejected | `https://localhost/` | `reject: not-public` |
+| single-label-host-rejected | `https://intranet/` | `reject: not-public` |
+| private-range-literal-rejected | `https://10.0.0.5/` | `reject: ip-literal` |
+| metadata-address-rejected | `https://169.254.169.254/latest/meta-data/` | `reject: ip-literal` |
 | root-and-slash-are-one-page | `https://example.com` or `https://example.com/` | `https://example.com/` (same page) |
 
 `/pricing` and `/pricing/` normalize to different pages; `https://example.com`

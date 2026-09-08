@@ -17,6 +17,22 @@ export const MAX_URL_BYTES = 2_048;
  */
 export const BLANK_URL_ROW_POLICY = "ignore" as const;
 
+/**
+ * Hard cap on a project-create request body, enforced before parsing: every
+ * submitted row at its maximum length plus room for the title, idempotency
+ * key, and JSON framing.
+ */
+export const PROJECT_REQUEST_MAX_BYTES = MAX_SUBMITTED_URL_ROWS * MAX_URL_BYTES + 4_096;
+
+/** Longest accepted project title. */
+export const PROJECT_TITLE_MAX_CHARS = 120;
+
+/** Shortest accepted mutation idempotency key. */
+export const IDEMPOTENCY_KEY_MIN_CHARS = 8;
+
+/** Longest accepted mutation idempotency key. */
+export const IDEMPOTENCY_KEY_MAX_CHARS = 128;
+
 export type UrlRejectReason =
   | "blank"
   | "malformed"
@@ -24,7 +40,9 @@ export type UrlRejectReason =
   | "scheme"
   | "credentials"
   | "ip-literal"
-  | "port";
+  | "port"
+  | "not-public"
+  | "too-long";
 
 export type UrlNormalizationFixture =
   | { name: string; type: "normalize"; input: string; url: string }
@@ -33,9 +51,13 @@ export type UrlNormalizationFixture =
 
 /**
  * Normalization policy, pinned by fixtures:
+ * - trim surrounding whitespace, then reject rows over `MAX_URL_BYTES`;
  * - parse once with WHATWG `URL` (lowercases scheme/host, converts IDNA hosts
  *   to punycode, removes the default `:443` port, resolves dot segments, and
  *   treats backslashes as slashes for special schemes);
+ * - reject any IP-literal host (canonicalized first, so numeric spellings and
+ *   private/link-local/metadata addresses cannot slip through) and any host
+ *   that cannot be public (single label, or a reserved special-use suffix);
  * - strip a single trailing host dot (a policy step WHATWG does not perform);
  * - remove the fragment and drop an empty query;
  * - turn an empty path into `/`;
@@ -151,6 +173,43 @@ export const URL_NORMALIZATION_FIXTURES: readonly UrlNormalizationFixture[] =
       name: "blank-input-rejected",
       input: "",
       type: "reject", reason: "blank",
+    },
+    {
+      name: "surrounding-whitespace-trimmed",
+      input: "  https://example.com/pricing  ",
+      type: "normalize", url: "https://example.com/pricing",
+    },
+    {
+      // An explicit array row may point at a different public origin than the
+      // root; cross-origin is a Pinata feature, not an error.
+      name: "cross-origin-https-allowed",
+      input: "https://docs.example.org/guide",
+      type: "normalize", url: "https://docs.example.org/guide",
+    },
+    {
+      name: "unsupported-scheme-rejected",
+      input: "javascript:alert(1)",
+      type: "reject", reason: "scheme",
+    },
+    {
+      name: "localhost-rejected",
+      input: "https://localhost/",
+      type: "reject", reason: "not-public",
+    },
+    {
+      name: "single-label-host-rejected",
+      input: "https://intranet/",
+      type: "reject", reason: "not-public",
+    },
+    {
+      name: "private-range-literal-rejected",
+      input: "https://10.0.0.5/",
+      type: "reject", reason: "ip-literal",
+    },
+    {
+      name: "metadata-address-rejected",
+      input: "https://169.254.169.254/latest/meta-data/",
+      type: "reject", reason: "ip-literal",
     },
     {
       name: "root-and-slash-are-one-page",
