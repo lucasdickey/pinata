@@ -87,6 +87,16 @@ reconstructed afterwards.
 | [`docs/SESSION-LOG.md`](docs/SESSION-LOG.md) | What actually happened each session, dead ends included. |
 | [`docs/NEXT.md`](docs/NEXT.md) | What I'd do with more time. |
 | [`AGENTS.md`](AGENTS.md) | The rules the agent works under. |
+| [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Product requirements, naming story, scope, and non-goals. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System shape, stack, capture pipeline, security boundaries. |
+| [`docs/MILESTONES.md`](docs/MILESTONES.md) | The three vertical slices and their status. |
+| [`docs/EVALS.md`](docs/EVALS.md) | The human-readable eval catalog. |
+
+The same sources are rendered live in the running app: the requirements hub at
+`/reqs` (plus `/reqs/architecture`, `/reqs/milestones`, `/reqs/decisions`, and
+`/reqs/evals`) renders these files — and `docs/decisions/decisions.json`
+directly — with raw HTML disabled, so the deployed product documents itself
+and doubles as its own capture target.
 
 Every decision carries an **origin** that distinguishes what the human directed
 from what the agent proposed and the human approved, each backed by a verbatim

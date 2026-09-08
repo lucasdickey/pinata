@@ -750,8 +750,49 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D022",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Serve /reqs from repository sources with a zero-dependency safe Markdown renderer",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The approved architecture requires /reqs pages backed by docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, docs/MILESTONES.md, and docs/EVALS.md with raw HTML disabled, and decisions rendered directly from docs/decisions/decisions.json. But the approved dependency allowlist (D021) contains no Markdown package, and hand-copying content into JSX would create a second dataset that drifts from the sources.",
+      "decision": "Implement a deliberately small Markdown renderer in src/lib/markdown.ts (headings, paragraphs, flat lists, pipe tables, fenced code, blockquotes, inline code/strong/em/links) that escapes every source character it does not emit itself, allow-lists link targets to https?/root-relative/relative/anchor, renders unsafe or malformed targets as inert text, adds target=_blank rel=\"noopener noreferrer\" plus a visible host label to external links, and makes colliding heading anchors unique with deterministic -2/-3 suffixes. The hub's route table and dogfood URL array are exported constants in src/lib/requirements.ts that pages and tests share; /reqs/decisions imports docs/decisions/decisions.json directly.",
+      "alternatives": [
+        {
+          "option": "Add react-markdown or marked to the approved set",
+          "why_not": "D021 requires a decision and allowlist change for any new package; the requirements docs use a small fixed subset, so a dependency buys little and expands the supply chain the gate must protect."
+        },
+        {
+          "option": "Hand-write the hub pages as JSX duplicating the docs",
+          "why_not": "Creates the exact second-source drift the architecture forbids; VAL-REQS-002 requires source order to match the repository files."
+        }
+      ],
+      "rationale": "The direction (source-backed /reqs routes, raw HTML disabled, decisions from the JSON) was already fixed by the approved mission architecture; only the mechanism was open. Choosing the mechanism is a mechanical choice inside an approved direction per AGENTS.md section 4, it adds no dependencies, and it is fully reversible, so a unilateral call is safe and is labeled agent-autonomous honestly.",
+      "consequences": [
+        "The supported Markdown subset is deliberately small; new document features require renderer support plus tests.",
+        "Hostile-input behavior (raw HTML, javascript:/data:/vbscript:/protocol-relative targets, malformed links, colliding anchors) is pinned by test/requirements-markdown.test.ts.",
+        "Any second decision dataset or duplicated dogfood URL literal is a defect caught by test/requirements-sources.test.ts and test/requirements-decisions.test.tsx."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/markdown.ts",
+          "caption": "The safe renderer"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/requirements.ts",
+          "caption": "The shared route table and dogfood URL array"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-08",
-  "source_hash": "29a0fee5c092"
+  "source_hash": "e341b6682eb7"
 };

@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 4 | D005, D006, D008, D021 |
+| Agent decided alone | 5 | D005, D006, D008, D021, D022 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **21** | |
+| **Total** | **22** | |
 
 ## Index
 
@@ -47,6 +47,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D019](#d019--standardize-on-node-24-across-app-ci-and-vercel) | setup | Standardize on Node 24 across app, CI, and Vercel | Agent proposed, human approved | accepted |
 | [D020](#d020--product-stack-transition-vitest-and-playwright-join-the-single-validate-gate) | validate | Product-stack transition: Vitest and Playwright join the single validate gate | Agent proposed, human approved | accepted |
 | [D021](#d021--re-scope-the-dependency-ban-to-an-approved-pinned-allowlist-eslint-covers-js-tsc-covers-ts) | build | Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS | Agent decided alone | accepted |
+| [D022](#d022--serve-reqs-from-repository-sources-with-a-zero-dependency-safe-markdown-renderer) | build | Serve /reqs from repository sources with a zero-dependency safe Markdown renderer | Agent decided alone | accepted |
 
 ---
 
@@ -832,4 +833,38 @@ D020 explicitly deferred this re-scope to the Milestone 1 implementation, and th
 
 ---
 
-<sub>Generated from 21 record(s) as of 2026-09-08 · source `29a0fee5c092`</sub>
+## D022 — Serve /reqs from repository sources with a zero-dependency safe Markdown renderer
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The approved architecture requires /reqs pages backed by docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, docs/MILESTONES.md, and docs/EVALS.md with raw HTML disabled, and decisions rendered directly from docs/decisions/decisions.json. But the approved dependency allowlist (D021) contains no Markdown package, and hand-copying content into JSX would create a second dataset that drifts from the sources.
+
+**Decision**
+
+Implement a deliberately small Markdown renderer in src/lib/markdown.ts (headings, paragraphs, flat lists, pipe tables, fenced code, blockquotes, inline code/strong/em/links) that escapes every source character it does not emit itself, allow-lists link targets to https?/root-relative/relative/anchor, renders unsafe or malformed targets as inert text, adds target=_blank rel="noopener noreferrer" plus a visible host label to external links, and makes colliding heading anchors unique with deterministic -2/-3 suffixes. The hub's route table and dogfood URL array are exported constants in src/lib/requirements.ts that pages and tests share; /reqs/decisions imports docs/decisions/decisions.json directly.
+
+**Alternatives considered**
+
+- *Add react-markdown or marked to the approved set* — D021 requires a decision and allowlist change for any new package; the requirements docs use a small fixed subset, so a dependency buys little and expands the supply chain the gate must protect.
+- *Hand-write the hub pages as JSX duplicating the docs* — Creates the exact second-source drift the architecture forbids; VAL-REQS-002 requires source order to match the repository files.
+
+**Rationale**
+
+The direction (source-backed /reqs routes, raw HTML disabled, decisions from the JSON) was already fixed by the approved mission architecture; only the mechanism was open. Choosing the mechanism is a mechanical choice inside an approved direction per AGENTS.md section 4, it adds no dependencies, and it is fully reversible, so a unilateral call is safe and is labeled agent-autonomous honestly.
+
+**Consequences**
+
+- The supported Markdown subset is deliberately small; new document features require renderer support plus tests.
+- Hostile-input behavior (raw HTML, javascript:/data:/vbscript:/protocol-relative targets, malformed links, colliding anchors) is pinned by test/requirements-markdown.test.ts.
+- Any second decision dataset or duplicated dogfood URL literal is a defect caught by test/requirements-sources.test.ts and test/requirements-decisions.test.tsx.
+
+**Artifacts**
+
+- `src/lib/markdown.ts` — The safe renderer
+- `src/lib/requirements.ts` — The shared route table and dogfood URL array
+
+---
+
+<sub>Generated from 22 record(s) as of 2026-09-08 · source `e341b6682eb7`</sub>

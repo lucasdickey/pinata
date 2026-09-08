@@ -276,3 +276,47 @@ Roughly 45 minutes of mission-worker time inside the resumed Mission
 
 - None for the foundation. Next milestone-1 features build the `/reqs/*` hub,
   auth, and the capture pipeline on top of this gate.
+
+## Session 05 — 2026-09-08 — Requirements hub and source-backed docs
+
+### What was attempted
+
+Mission feature `requirements-source-docs-and-hub` (Mission `901210d4`):
+created the human-editable sources `docs/REQUIREMENTS.md`,
+`docs/ARCHITECTURE.md`, `docs/MILESTONES.md`, and `docs/EVALS.md`, and the
+public hub routes `/reqs`, `/reqs/architecture`, `/reqs/milestones`,
+`/reqs/decisions`, and `/reqs/evals`. Markdown renders through a new
+zero-dependency safe renderer (`src/lib/markdown.ts`) with raw HTML disabled,
+allow-listed link targets, and unique heading anchors; the decisions page
+imports `docs/decisions/decisions.json` directly. Test-first: renderer,
+source-alignment, and decision-catalog tests were red before implementation
+(missing modules), then green.
+
+### What broke, and what it caught
+
+- **The first inert-link rendering returned bare label text**, which the
+  fixture could not distinguish from never-parsed text. Unsafe or malformed
+  link targets now render as a marked `<span class="inert-link">` so the
+  dropped navigation is visible in tests and in the page.
+- **Testing Library `getByText` is stricter than intuition**: the typographic
+  quotes wrapping transcript evidence and a duplicated word across card
+  sections broke exact matches. Fixed in the tests with regex matchers — the
+  rendering itself was correct.
+
+### Elapsed
+
+Roughly 50 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D022` recorded (agent-autonomous): the renderer mechanism, the shared
+  route/dogfood constants, and the no-second-dataset rule.
+- Implements the `D020`/`D021` dependency policy; fulfills validation
+  assertions `VAL-REQS-001`, `VAL-REQS-002`, `VAL-REQS-004`, `VAL-REQS-005`,
+  and `VAL-REQS-006` on the local surface. Exact runtime boundary values stay
+  with the validation-boundary-catalog feature (`VAL-REQS-007`).
+
+### Open questions at end of session
+
+- None. The deployed-SHA provenance cue (`VERCEL_GIT_COMMIT_SHA`) will show a
+  real value once the deployment feature ships; locally it reads `local`.
