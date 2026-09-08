@@ -708,8 +708,50 @@ window.PINATA = {
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D021",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "D020's first recorded consequence: the lint rule asserting empty dependency lists contradicts the approved application stack the moment Milestone 1 installs it. ESLint also needed a scope decision, because typescript-eslint and eslint-config-next are not in the approved dependency set.",
+      "decision": "package.json dependencies and devDependencies are limited to the mission-approved packages at exact pinned versions, enforced by lint against the single allowlist in scripts/lib/approved-deps.mjs (imported by both the lint gate and the integrity tests so they cannot drift). The docs tooling stays zero-dependency, now enforced by a test that scripts/ and docs/dashboard import only node: builtins or relative paths. ESLint lints the JavaScript surface only; TypeScript/TSX correctness is covered by tsc --noEmit. @types/node, @types/react, and @types/react-dom are admitted as part of the approved TypeScript toolchain.",
+      "alternatives": [
+        {
+          "option": "Keep the empty-dependency lint rule and exempt app code by convention",
+          "why_not": "A rule the gate enforces but the stack violates would be deleted under pressure anyway; re-scoping keeps the protection honest for the docs tooling where it matters."
+        },
+        {
+          "option": "Add typescript-eslint and eslint-config-next for full TS linting",
+          "why_not": "Both are outside the mission-approved dependency set; tsc --noEmit already covers type correctness, and the lint stage stays dependency-light."
+        }
+      ],
+      "rationale": "D020 explicitly deferred this re-scope to the Milestone 1 implementation, and the package set itself was approved during mission planning (D014-D017, D020). Choosing the enforcement mechanics is a mechanical choice inside an approved direction, per AGENTS.md section 4.",
+      "consequences": [
+        "Adding any new package requires editing scripts/lib/approved-deps.mjs and recording a decision.",
+        "Exact pinned versions only; npm install must run with --save-exact or the gate fails.",
+        "npm audit reports 4 moderate findings in the drizzle-kit/esbuild toolchain (dev-only transitive deps); the automated fix is a breaking downgrade and is not applied. Recorded as a known weakness in docs/NEXT.md.",
+        "tsconfig.json and next-env.d.ts are partially maintained by Next.js tooling; tsconfig.json must stay strict JSON so the lint JSON check keeps passing."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "scripts/lib/approved-deps.mjs",
+          "caption": "The single dependency allowlist imported by lint and tests"
+        },
+        {
+          "type": "file",
+          "path": "package.json",
+          "caption": "The ordered six-stage validate gate and pinned approved dependencies"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-08",
-  "source_hash": "3bab0716450d"
+  "source_hash": "29a0fee5c092"
 };

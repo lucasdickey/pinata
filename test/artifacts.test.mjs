@@ -4,12 +4,13 @@
 // generated file committed stale, a decision referencing a screenshot that was
 // never added, a dashboard script reading a field the generator stopped emitting.
 
-import { test, describe } from "node:test";
+import { test, describe } from "vitest";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { join, extname } from "node:path";
 import { validate, screenshotPaths } from "../scripts/lib/decisions.mjs";
 import { ROOT, SOURCE, MD_OUT, JS_OUT, SHOT_DIR, renderAll, loadSource } from "../scripts/build-docs.mjs";
+import { APPROVED_DEPENDENCIES, dependencyProblems } from "../scripts/lib/approved-deps.mjs";
 
 const read = (p) => readFileSync(p, "utf8");
 
@@ -130,7 +131,16 @@ describe("the dashboard", () => {
 describe("repository contracts", () => {
   test("AGENTS.md documents the validation commands", () => {
     const agents = read(join(ROOT, "AGENTS.md"));
-    for (const cmd of ["npm test", "npm run docs", "npm run docs:check", "npm run validate"]) {
+    for (const cmd of [
+      "npm test",
+      "npm run docs",
+      "npm run docs:check",
+      "npm run lint",
+      "npm run typecheck",
+      "npm run build",
+      "npm run e2e",
+      "npm run validate",
+    ]) {
       assert.ok(agents.includes(cmd), `AGENTS.md should document \`${cmd}\``);
     }
   });
@@ -144,9 +154,52 @@ describe("repository contracts", () => {
     }
   });
 
-  test("the repo stays dependency-free", () => {
+  test("dependencies stay within the approved set, pinned exactly", () => {
     const pkg = JSON.parse(read(join(ROOT, "package.json")));
-    assert.deepEqual(pkg.dependencies ?? {}, {});
-    assert.deepEqual(pkg.devDependencies ?? {}, {});
+    assert.deepEqual(dependencyProblems(pkg), []);
+    // The application stack now exists, so the approved set must name it —
+    // an empty allowlist here would mean the check is vacuous.
+    for (const field of ["dependencies", "devDependencies"]) {
+      for (const name of Object.keys(pkg[field] ?? {})) {
+        assert.ok(
+          APPROVED_DEPENDENCIES[field].includes(name),
+          `${name} is installed but missing from the approved set`,
+        );
+      }
+    }
+  });
+
+  test("the docs tooling stays zero-dependency", () => {
+    // The generator and dashboard must keep working from a bare checkout over
+    // file://, so scripts/ and the dashboard may only import node: builtins or
+    // relative paths — never a package from node_modules.
+    const importSpecifiers = (source) =>
+      [
+        ...source.matchAll(/(?:import|export)[^"']*?from\s*["']([^"']+)["']/g),
+        ...source.matchAll(/import\s*["']([^"']+)["']/g),
+        ...source.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g),
+      ].map((m) => m[1]);
+
+    const scriptsDir = join(ROOT, "scripts");
+    const stack = [scriptsDir];
+    const files = [];
+    while (stack.length) {
+      const dir = stack.pop();
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) stack.push(full);
+        else if ([".mjs", ".js"].includes(extname(full))) files.push(full);
+      }
+    }
+    files.push(join(ROOT, "docs/dashboard/decisions-data.js"));
+
+    for (const file of files) {
+      for (const spec of importSpecifiers(read(file))) {
+        assert.ok(
+          spec.startsWith("node:") || spec.startsWith("./") || spec.startsWith("../"),
+          `${file} imports "${spec}" — the docs tooling must stay zero-dependency`,
+        );
+      }
+    }
   });
 });

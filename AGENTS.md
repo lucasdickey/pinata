@@ -141,20 +141,23 @@ than trying to reconstruct it at the end.
 ## 3. Validation contract
 
 This is the authoritative answer to "how do I know a change is good?" Any agent,
-mission, or CI job should use exactly these commands. Node 20.9+ is the only
-prerequisite; there is nothing to install.
+mission, or CI job should use exactly these commands. The prerequisite is
+Node 24 (`D019`) and a one-time `npm ci`.
 
 | Command | What it proves |
 | --- | --- |
-| `npm run lint` | Every `.mjs`/`.js` parses, every `.json` parses, the dependency lists are still empty, and the generated files still carry their banner. |
+| `npm run lint` | ESLint over the JavaScript surface, plus repository integrity: every `.mjs`/`.js` parses, every `.json` parses, dependencies stay within the approved pinned set (`scripts/lib/approved-deps.mjs`), one lockfile exists, and the generated files still carry their banner. |
+| `npm run typecheck` | `tsc --noEmit` passes over the app, tests, and configs. |
+| `npm test` | The Vitest suite in `test/` — unit, component (jsdom + React Testing Library), and repository-integrity tests. |
 | `npm run docs` | Rewrites the generated artifacts from `decisions.json`. |
 | `npm run docs:check` | The committed artifacts match what the generator would write. Fails on stale docs. Writes nothing. |
-| `npm test` | The full `node:test` suite in `test/`. |
-| `npm run validate` | `lint` → `docs:check` → `test`. **This is the gate.** |
+| `npm run build` | The Next.js production build succeeds under Node 24. |
+| `npm run e2e` | Playwright Chromium end-to-end tests against `next start` on `127.0.0.1:3100`, at most two workers. |
+| `npm run validate` | `lint` → `typecheck` → `test` → `docs:check` → `build` → `e2e`, in that order. **This is the gate.** |
 
 **Run `npm run validate` before declaring any piece of work finished.** A
-non-zero exit means the work is not done. CI runs the same single command, so a
-green local run and a green CI run mean the same thing.
+non-zero exit means the work is not done. CI runs the same single command under
+Node 24, so a green local run and a green CI run mean the same thing.
 
 ### What the suite actually covers
 
@@ -165,7 +168,13 @@ green local run and a green CI run mean the same thing.
   ids are gapless, referenced screenshots exist on disk, the generated files are
   not stale, the dashboard pulls in no third-party assets and reads no field the
   generator does not emit, every element the dashboard script looks up exists in
-  the markup, and every relative link in `README.md` resolves.
+  the markup, every relative link in `README.md` resolves, and the dependency
+  lists stay within the approved set while the docs tooling stays
+  zero-dependency.
+- `test/home.test.tsx` — the Vitest + jsdom + React Testing Library chain
+  against a real component.
+- `e2e/smoke.spec.ts` — the Playwright Chromium chain against the production
+  server on `127.0.0.1:3100`.
 
 ### Determinism
 
@@ -176,10 +185,10 @@ function of `decisions.json`.
 
 ### Adding to the suite
 
-When product code lands in `src/`, add its tests under `test/` so the same
-`npm run validate` keeps covering everything. Do not introduce a second test
-runner or a competing entry point. If a bug escapes to a human, add the failing
-test before fixing it.
+When product code lands in `app/` or `src/`, add its tests under `test/` (Vitest)
+or `e2e/` (Playwright) so the same `npm run validate` keeps covering everything.
+Do not introduce a second test runner or a competing entry point. If a bug
+escapes to a human, add the failing test before fixing it.
 
 ---
 
@@ -190,9 +199,12 @@ test before fixing it.
   decision rather than silently running over.
 - **Demo-first.** The MVP is shown live over screen share. Anything that cannot be
   demonstrated in a browser or a terminal in under a minute is deprioritized.
-- **No unrequested dependencies.** The docs tooling is deliberately zero-dependency
-  (one Node script, no `node_modules`, dashboard opens over `file://`). Keep it that
-  way so the artifacts survive without a build environment.
+- **No unrequested dependencies.** Application dependencies are limited to the
+  mission-approved set pinned exactly in `package.json`
+  (`scripts/lib/approved-deps.mjs` is the allowlist the gate enforces). The docs
+  tooling stays zero-dependency (one Node script, dashboard opens over
+  `file://`) so the artifacts survive without a build environment. Keep it that
+  way.
 - **Ask before deciding product direction.** Stack and scope choices that shape the
   demo get surfaced for approval. Mechanical choices inside an approved direction do
   not.
@@ -213,16 +225,27 @@ pinata/
 ├── AGENTS.md                       # this file
 ├── CLAUDE.md                       # pointer to this file
 ├── README.md
-├── package.json                    # scripts only; dependency lists stay empty
-├── .github/workflows/validate.yml  # CI: runs `npm run validate`
+├── package.json                    # scripts + the approved pinned dependency set
+├── package-lock.json               # the one lockfile
+├── tsconfig.json                   # strict TypeScript, Next.js plugin
+├── next.config.ts                  # Next.js configuration
+├── vitest.config.ts                # unit/component/integration runner
+├── playwright.config.ts            # Chromium e2e against 127.0.0.1:3100
+├── eslint.config.js                # flat config, JavaScript surface
+├── .github/workflows/validate.yml  # CI: Node 24, `npm run validate`
+├── app/                            # Next.js App Router entry points
+├── src/                            # application source (components, lib)
+├── e2e/                            # Playwright specs
 ├── scripts/
 │   ├── build-docs.mjs              # CLI: generate, or --check for staleness
 │   ├── lint.mjs                    # dependency-free syntax + repo-rule checks
 │   └── lib/
-│       └── decisions.mjs           # pure validate + render functions
+│       ├── decisions.mjs           # pure validate + render functions
+│       └── approved-deps.mjs       # the approved dependency allowlist
 ├── test/
-│   ├── decisions.test.mjs          # rules, against fixtures
-│   └── artifacts.test.mjs          # the real repo's integrity
+│   ├── decisions.test.mjs          # rules, against fixtures (Vitest)
+│   ├── artifacts.test.mjs          # the real repo's integrity (Vitest)
+│   └── home.test.tsx               # component chain smoke test
 └── docs/
     ├── ASSIGNMENT.md               # the brief, and how we intend to satisfy it
     ├── DECISIONS.md                # GENERATED
@@ -236,4 +259,5 @@ pinata/
         └── screenshots/
 ```
 
-Application source lands in `src/` once the product direction is settled.
+The local application always runs on `127.0.0.1:3100` (`npm run dev` for
+development, `npm run start` for the production build). Port 3000 is off-limits.

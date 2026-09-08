@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 3 | D005, D006, D008 |
+| Agent decided alone | 4 | D005, D006, D008, D021 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **20** | |
+| **Total** | **21** | |
 
 ## Index
 
@@ -46,6 +46,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D018](#d018--editor-password-prompt-persistent-founder-capability-links-append-only-threads) | design | Editor password prompt, persistent founder capability links, append-only threads | Agent proposed, human approved | accepted |
 | [D019](#d019--standardize-on-node-24-across-app-ci-and-vercel) | setup | Standardize on Node 24 across app, CI, and Vercel | Agent proposed, human approved | accepted |
 | [D020](#d020--product-stack-transition-vitest-and-playwright-join-the-single-validate-gate) | validate | Product-stack transition: Vitest and Playwright join the single validate gate | Agent proposed, human approved | accepted |
+| [D021](#d021--re-scope-the-dependency-ban-to-an-approved-pinned-allowlist-eslint-covers-js-tsc-covers-ts) | build | Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS | Agent decided alone | accepted |
 
 ---
 
@@ -796,4 +797,39 @@ Human approved:
 
 ---
 
-<sub>Generated from 20 record(s) as of 2026-09-08 · source `3bab0716450d`</sub>
+## D021 — Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+D020's first recorded consequence: the lint rule asserting empty dependency lists contradicts the approved application stack the moment Milestone 1 installs it. ESLint also needed a scope decision, because typescript-eslint and eslint-config-next are not in the approved dependency set.
+
+**Decision**
+
+package.json dependencies and devDependencies are limited to the mission-approved packages at exact pinned versions, enforced by lint against the single allowlist in scripts/lib/approved-deps.mjs (imported by both the lint gate and the integrity tests so they cannot drift). The docs tooling stays zero-dependency, now enforced by a test that scripts/ and docs/dashboard import only node: builtins or relative paths. ESLint lints the JavaScript surface only; TypeScript/TSX correctness is covered by tsc --noEmit. @types/node, @types/react, and @types/react-dom are admitted as part of the approved TypeScript toolchain.
+
+**Alternatives considered**
+
+- *Keep the empty-dependency lint rule and exempt app code by convention* — A rule the gate enforces but the stack violates would be deleted under pressure anyway; re-scoping keeps the protection honest for the docs tooling where it matters.
+- *Add typescript-eslint and eslint-config-next for full TS linting* — Both are outside the mission-approved dependency set; tsc --noEmit already covers type correctness, and the lint stage stays dependency-light.
+
+**Rationale**
+
+D020 explicitly deferred this re-scope to the Milestone 1 implementation, and the package set itself was approved during mission planning (D014-D017, D020). Choosing the enforcement mechanics is a mechanical choice inside an approved direction, per AGENTS.md section 4.
+
+**Consequences**
+
+- Adding any new package requires editing scripts/lib/approved-deps.mjs and recording a decision.
+- Exact pinned versions only; npm install must run with --save-exact or the gate fails.
+- npm audit reports 4 moderate findings in the drizzle-kit/esbuild toolchain (dev-only transitive deps); the automated fix is a breaking downgrade and is not applied. Recorded as a known weakness in docs/NEXT.md.
+- tsconfig.json and next-env.d.ts are partially maintained by Next.js tooling; tsconfig.json must stay strict JSON so the lint JSON check keeps passing.
+
+**Artifacts**
+
+- `scripts/lib/approved-deps.mjs` — The single dependency allowlist imported by lint and tests
+- `package.json` — The ordered six-stage validate gate and pinned approved dependencies
+
+---
+
+<sub>Generated from 21 record(s) as of 2026-09-08 · source `29a0fee5c092`</sub>

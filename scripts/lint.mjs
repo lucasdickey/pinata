@@ -1,17 +1,30 @@
 #!/usr/bin/env node
-// Dependency-free lint: syntax-check every JS module, and enforce the two
-// repository rules that are easy to break by accident (no stray dependencies,
-// no hand-edits to generated files).
+// Dependency-free lint: syntax-check every JS module, and enforce the
+// repository rules that are easy to break by accident (dependencies stay
+// within the approved set at exact versions, no hand-edits to generated
+// files).
 //
 // Not a style checker. It only catches things that would actually break.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join, dirname, relative, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { dependencyProblems } from "./lib/approved-deps.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SKIP = new Set(["node_modules", ".git", ".factory"]);
+const SKIP = new Set([
+  "node_modules",
+  ".git",
+  ".factory",
+  ".next",
+  ".vercel",
+  ".agents",
+  ".claude",
+  ".tools",
+  "test-results",
+  "playwright-report",
+]);
 const problems = [];
 
 function walk(dir) {
@@ -46,13 +59,13 @@ for (const file of files.filter((f) => extname(f) === ".json")) {
   }
 }
 
-// 3. No dependencies. The docs tooling must keep working without an install.
+// 3. Dependencies stay within the mission-approved set, pinned exactly, with
+// one lockfile. The docs tooling itself (scripts/, docs/dashboard/) remains
+// zero-dependency: it may import only node: builtins. See D020/D021.
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
-  const names = Object.keys(pkg[field] ?? {});
-  if (names.length) {
-    problems.push(`package.json: ${field} must stay empty, found ${names.join(", ")}`);
-  }
+problems.push(...dependencyProblems(pkg));
+if (!existsSync(join(ROOT, "package-lock.json"))) {
+  problems.push("package-lock.json is missing — run `npm install` and commit it");
 }
 
 // 4. Generated artifacts must still declare themselves generated.

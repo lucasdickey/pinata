@@ -17,7 +17,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
+          cache: npm
 
-      # No install step: the project has no dependencies by design.
+      - run: npm ci
+
+      # Playwright's Chromium is exercised by the e2e stage of the gate.
+      - run: npx playwright install --with-deps chromium
+
       - run: npm run validate

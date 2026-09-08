@@ -2,7 +2,7 @@
 // the provenance tagging is the deliverable, so the rules that keep it honest
 // are the rules worth testing.
 
-import { test, describe } from "node:test";
+import { test, describe } from "vitest";
 import assert from "node:assert/strict";
 import {
   validate,

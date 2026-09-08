@@ -221,3 +221,58 @@ None abandoned. The Mission itself is paused, not dropped.
 - Resume the Mission (`/missions` from `pinata/`) once usage limits reset;
   next action there is `foundation-docs-worker` on
   `foundation-node24-next-validation`.
+
+---
+
+## Session 04 — 2026-09-08 — Foundation: Node 24 + Next.js + the grown-up gate
+
+### What was attempted
+
+1. Converted the docs-only scaffold into a Next.js App Router + TypeScript
+   application under Node 24, implementing `D014`, `D019`, and `D020`:
+   installed the mission-approved package set pinned exactly
+   (289 packages, one `package-lock.json`), added `app/` + `src/` with a
+   minimal landing page, and wired `tsconfig.json`, `next.config.ts`,
+   `vitest.config.ts`, `playwright.config.ts`, and `eslint.config.js`.
+2. Migrated both `node:test` suites to Vitest by changing the import source
+   only — every provenance, deterministic-rendering, screenshot, dashboard,
+   and relative-link assertion survives unchanged in intent. Added
+   `test/home.test.tsx` to prove the Vitest + jsdom + React Testing Library
+   chain, and `e2e/smoke.spec.ts` to prove Playwright Chromium against
+   `next start` on `127.0.0.1:3100`.
+3. Re-scoped the dependency-free lint rule into an approved pinned allowlist
+   (`scripts/lib/approved-deps.mjs`, imported by both lint and the integrity
+   test) and added a zero-dependency test for the docs tooling — recorded as
+   `D021`, the consequence `D020` had already flagged.
+4. Grew `npm run validate` to the six ordered stages (lint → typecheck →
+   Vitest → docs:check → build → Playwright) and pointed GitHub Actions at
+   Node 24 with `npm ci` + the identical command.
+
+### What broke, and what it caught
+
+- **Vitest 4 ignored the `esbuild.jsx` override.** Component tests failed to
+  parse JSX ("Unexpected JSX expression") because Vitest 4 transforms through
+  oxc, not esbuild. Fixed with `oxc: { jsx: { runtime: "automatic" } }` —
+  after a detour through a `@ts-expect-error` that `tsc` correctly rejected as
+  unused, since the `oxc` key is typed but expects an options object.
+- **Playwright's cached Chromium was one build behind.** The readiness check
+  had exercised chromium-1234; `@playwright/test` 1.63.0 wants 1243.
+  `npx playwright install chromium` resolved it; CI installs fresh anyway.
+- **The first `jq` append of D021 silently fell through to a placeholder
+  branch** because of a shell-quoting typo. Caught by inspecting the temp file
+  before touching the real one; redone from a heredoc JSON file.
+
+### Elapsed
+
+Roughly 45 minutes of mission-worker time inside the resumed Mission
+(`901210d4`), plus the readiness work already counted in Session 02-03.
+
+### Decisions and assertions
+
+- `D021` recorded (agent-autonomous, implementing `D020`'s consequence).
+- Implements `D014`, `D019`, `D020`. No new deferrals.
+
+### Open questions at end of session
+
+- None for the foundation. Next milestone-1 features build the `/reqs/*` hub,
+  auth, and the capture pipeline on top of this gate.

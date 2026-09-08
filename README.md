@@ -62,8 +62,10 @@ Flow for the canvas. Chosen and approved during mission planning — see
 ## Status
 
 The product concept is fixed ([`D012`](docs/DECISIONS.md#d012--define-the-product-directional-feedback-on-friends-public-websites))
-and the architecture was approved during a Factory Mission planning phase.
-Application code has not been written yet. The plan is three milestones:
+and the architecture was approved during a Factory Mission planning phase. The
+application foundation is in place — Node 24, Next.js + React + TypeScript, and
+the single `npm run validate` gate — and product features land milestone by
+milestone. The plan is three milestones:
 
 1. **Capture and organize** — app foundation, editor auth, projects and URL
    arrays, the capture pipeline, deployed and validated against Chickpea.
@@ -111,31 +113,43 @@ open docs/dashboard/index.html
 
 ## Validation
 
-Requires Node 20.9+. There is nothing to install today — the repository
-currently contains the documentation tooling only, and it is deliberately
-zero-dependency. `npm run validate` is the whole gate:
+Requires Node 24 (`D019`). Install once, then `npm run validate` is the whole
+gate:
 
 ```bash
 git clone https://github.com/lucasdickey/pinata.git
 cd pinata
+npm ci
 npm run validate
 ```
 
 | Command | What it proves |
 | --- | --- |
-| `npm run lint` | Everything parses, the dependency lists are still empty, generated files still say so. |
+| `npm run lint` | ESLint plus repository integrity: everything parses, dependencies stay within the approved pinned set, generated files still say so. |
+| `npm run typecheck` | `tsc --noEmit` over the app, tests, and configs. |
+| `npm test` | The Vitest suite in `test/` — provenance rules, repository integrity, and component tests. |
 | `npm run docs:check` | The committed artifacts match what the generator would write. Fails on stale docs. |
-| `npm test` | The `node:test` suite in `test/`. |
-| `npm run validate` | All three. This is the gate, and CI runs the identical command. |
+| `npm run build` | The Next.js production build succeeds. |
+| `npm run e2e` | Playwright Chromium against the production server on `127.0.0.1:3100`. |
+| `npm run validate` | All six stages, in that order. This is the gate, and CI runs the identical command under Node 24. |
 
 The suite tests the provenance rules themselves, not just the rendering: a
 decision tagged as human-directed with no quote behind it fails the build. See
 [`AGENTS.md`](AGENTS.md) section 3 for the full contract.
 
-When the product stack lands (Milestone 1), the gate grows — TypeScript,
-Vitest, a Next.js build, and Playwright end-to-end join the same single
-command, and the runtime standardizes on Node 24 — without adding a second
-entry point. That transition is approved and recorded as
+The gate grew exactly as planned when the product stack landed: TypeScript,
+Vitest, a Next.js build, and Playwright end-to-end joined the same single
+command, and the runtime standardized on Node 24 — without adding a second
+entry point. That transition is recorded as
 [`D019`](docs/DECISIONS.md#d019--standardize-on-node-24-across-app-ci-and-vercel)
 and
 [`D020`](docs/DECISIONS.md#d020--product-stack-transition-vitest-and-playwright-join-the-single-validate-gate).
+
+## Developing
+
+```bash
+npm run dev    # Next.js on http://127.0.0.1:3100
+```
+
+Port 3100 is reserved for this project; the dev and production servers bind
+only to localhost.
