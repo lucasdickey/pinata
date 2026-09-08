@@ -200,7 +200,9 @@ test before fixing it.
   Which means `npm run validate` has to pass **before** every commit, not merely
   before a merge — CI reports after the change is already on the default branch.
 - **Commit hygiene.** Conventional-ish subject line, body naming the decision IDs
-  the commit implements. Regenerate docs before committing.
+  the commit implements. Regenerate docs before committing. Commit and push early
+  and often — at minimum whenever a decision lands — rather than batching; the
+  remote commit graph is part of the graded deliverable (see `D011`).
 
 ---
 

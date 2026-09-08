@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 4 | D001, D002, D004, D007 |
-| Agent proposed, human approved | 2 | D009, D010 |
+| Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
+| Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 3 | D005, D006, D008 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **10** | |
+| **Total** | **20** | |
 
 ## Index
 
@@ -36,6 +36,16 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D008](#d008--test-the-provenance-rules-not-just-the-code-that-renders-them) | validate | Test the provenance rules, not just the code that renders them | Agent decided alone | accepted |
 | [D009](#d009--rename-the-default-branch-to-main) | setup | Rename the default branch to main | Agent proposed, human approved | accepted |
 | [D010](#d010--commit-straight-to-main-with-ci-as-the-only-gate) | setup | Commit straight to main, with CI as the only gate | Agent proposed, human approved | accepted |
+| [D011](#d011--commit-and-push-early-and-often-especially-at-decision-points) | setup | Commit and push early and often, especially at decision points | Human directed | accepted |
+| [D012](#d012--define-the-product-directional-feedback-on-friends-public-websites) | concept | Define the product: directional feedback on friends' public websites | Human directed | accepted |
+| [D013](#d013--chickpea-is-the-canonical-real-world-test-target) | concept | Chickpea is the canonical real-world test target | Human directed | accepted |
+| [D014](#d014--nextjs--react--typescript-on-vercel-is-the-application-stack) | design | Next.js + React + TypeScript on Vercel is the application stack | Agent proposed, human approved | accepted |
+| [D015](#d015--mit-react-flow-is-the-canvas-foundation) | design | MIT React Flow is the canvas foundation | Agent proposed, human approved | accepted |
+| [D016](#d016--browserless-captures-screenshots-and-dom-manifests-in-one-session) | design | Browserless captures screenshots and DOM manifests in one session | Agent proposed, human approved | accepted |
+| [D017](#d017--private-vercel-blob-for-images-tursolibsql--drizzle-for-metadata) | design | Private Vercel Blob for images, Turso/libSQL + Drizzle for metadata | Agent proposed, human approved | accepted |
+| [D018](#d018--editor-password-prompt-persistent-founder-capability-links-append-only-threads) | design | Editor password prompt, persistent founder capability links, append-only threads | Agent proposed, human approved | accepted |
+| [D019](#d019--standardize-on-node-24-across-app-ci-and-vercel) | setup | Standardize on Node 24 across app, CI, and Vercel | Agent proposed, human approved | accepted |
+| [D020](#d020--product-stack-transition-vitest-and-playwright-join-the-single-validate-gate) | validate | Product-stack transition: Vitest and Playwright join the single validate gate | Agent proposed, human approved | accepted |
 
 ---
 
@@ -407,4 +417,383 @@ Human approved:
 
 ---
 
-<sub>Generated from 10 record(s) as of 2026-09-04 · source `e31d7badbda9`</sub>
+## D011 — Commit and push early and often, especially at decision points
+
+*2026-09-08 · phase: setup · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Work from Session 01 and afterward sat uncommitted in the working tree: a .gitignore update, a vendored agent skill, and a brand asset. The commit graph is itself part of the graded deliverable (D002), so progress that exists only locally is invisible to a reviewer and one accident away from being lost.
+
+**Decision**
+
+Commit and push to the remote frequently rather than batching — at minimum whenever a decision is recorded or implemented. Reversal is cheap with git, so the bias is toward publishing small commits early.
+
+**Alternatives considered**
+
+- *Commit in large batches at natural milestones* — Batching hides the build narrative the assignment asks us to surface, and leaves work sitting locally where it can be lost.
+- *Commit locally and push at milestones* — The remote repository is the review surface; unpushed work may as well not exist for the reviewer.
+
+**Rationale**
+
+Directed by the human, with the reasoning supplied: reversing a commit is easy, so there is no upside to sitting on uncommitted work. This also reinforces D002's consequence that the commit history is reviewable evidence the work was built new for this assignment. Complements D010 (no PR ceremony) with the push-frequency half of the same hygiene rule. Originally drafted as D009 in a session whose tree pre-dated the published D009/D010; renumbered on merge, which is itself recorded in Session 03.
+
+**Consequences**
+
+- The existing regenerate-docs-before-committing rule now applies at a higher frequency.
+- Every push is immediately public, so staged content must be checked for secrets and client data each time, not just at milestones.
+- Commits stay small and their bodies name the decision IDs they implement.
+
+**Provenance evidence**
+
+Human instruction:
+
+> please be sure to commit and push to remote as we make decisions, so we don't sit with an empty git repository. i'd rather commit and push often, given the ease of reversing with git source control. and especially wiht key decisions we've decided on.
+
+**Artifacts**
+
+- `AGENTS.md` — Section 4 commit-hygiene rule updated to require frequent pushes
+
+---
+
+## D012 — Define the product: directional feedback on friends' public websites
+
+*2026-09-08 · phase: concept · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D006 left the product concept deliberately open, blocking all application code. The human stated the problem in their own words at the start of Mission planning (2026-09-06); recorded here on 2026-09-08 along with the rest of the planning decisions.
+
+**Decision**
+
+Pinata is a lightweight, Figma-like web workspace for giving directional feedback on friends' public SaaS, product, pricing, and documentation pages. Static full-page captures, pinned annotations with comments, and a simple founder reply loop. Explicitly out of scope: deterministic copy/style edits (the founder owns the edits), interaction or animation capture, and runtime AI — feedback stays human-authored and directional.
+
+**Alternatives considered**
+
+- *A deterministic editing tool that applies copy/style changes directly* — Explicitly rejected by the human: "We're not making an IDE." Directional suggestions, not pedantic instructions.
+- *Runtime AI to generate or transform feedback* — Rejected unless a compelling reason emerges; token consumption needs justification, and the product thesis is human-authored feedback.
+
+**Rationale**
+
+Stated directly by the human in the mission brief, resolving D006 exactly as D006 predicted: the first product decision is user-directed. The concept matches the name thesis from D001 — annotations pinned to a page, coming back at the founder.
+
+**Consequences**
+
+- `src/` can now be built against a fixed concept.
+- No AI provider keys are needed at runtime; the constraint can only be revisited with explicit justification.
+- Feature requests for deterministic edits or interaction capture are out of scope by definition.
+- The decision, session-log, and dashboard protocol from D004/D005 remains the record-keeping contract for everything that follows.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Solution: Figma-like, but much lighter weight. Easy to input/create feedback, from any computer I might have access to, targeting any friends website. [...] I do not wish to deterministicaly make copy edits, change colors/styles, etc. That is responsibility of the founder friend, I just ant to give directional feedback for things to consider or try, rather than pedantic/deterministic instructions. We're not making an IDE. [...] I'd prefer that we limit the use of AI/token consumption for this software as it operates unless there is a REALLY good reason to consider otherwise
+
+**Artifacts**
+
+- [The Factory Mission session where the brief was given and planned](https://app.factory.ai/sessions/901210d4-da5a-462c-b63b-07301719d17f)
+
+---
+
+## D013 — Chickpea is the canonical real-world test target
+
+*2026-09-08 · phase: concept · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Evals against synthetic fixtures would not surface the failure modes that matter — lazy-loaded content, dense pricing tables, real CSS. And the product has a real first user with a real deadline behind it.
+
+**Decision**
+
+Use `https://chickpea.co/` plus the explicit URL array `/pricing`, `/about`, `/privacy` as the primary validation target throughout the build. The first real project is feedback for Chickpea's founder. Captures are internal test/demo material with source attribution, not reusable marketing assets.
+
+**Alternatives considered**
+
+- *A local fixture site for capture testing* — A fixture cannot reproduce lazy loading, cookie banners, or dense real-world layout; the capture pipeline must handle a real production site from day one.
+
+**Rationale**
+
+Directed by the human, who needs to send feedback to Chickpea's founder soon. This makes the eval target and the first real use case the same thing, which is the strongest kind of eval.
+
+**Consequences**
+
+- The validation contract asserts against live Chickpea pages, so tests inherit that site's uptime and content drift as a managed risk.
+- URL arrays are explicit: no crawling or link discovery.
+- Desktop and mobile captures of the same URLs are both required, so geometry alignment between viewports is a first-class concern.
+
+**Provenance evidence**
+
+Human instruction:
+
+> i want to use this site for our core test: http://chickpea.co/ - as it's the one we're using for real-world inspiration as I need to provide feedback to Pejman ("founder") ASAP
+
+---
+
+## D014 — Next.js + React + TypeScript on Vercel is the application stack
+
+*2026-09-08 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The product needed a stack that ships an MVP fast, integrates natively with the chosen storage services, and keeps authorization server-side without standing up a separate API.
+
+**Decision**
+
+Build the app with Next.js + React + TypeScript, deployed to Vercel. Server routes and actions authenticate actors, enforce role permissions, validate URLs and payloads, and mediate all storage access. Local development runs on `127.0.0.1:3100`; port 3000 and all pre-existing local processes are off-limits (approved separately).
+
+**Rationale**
+
+Proposed by the agent as part of the binding architecture and approved wholesale by the human. Next.js on Vercel collapses hosting, server-side authz, and the Blob/Turso integrations into one deploy target, which matters against a 4-hour-flavored budget even though the mission is allowed to run longer.
+
+**Consequences**
+
+- The password prompt is client-visible but credential checks are always server-side; no secret ships in browser code.
+- All Blob and Turso access passes through authorized application routes — the browser never holds storage credentials.
+- Port 3100 is reserved for Pinata; start/stop/health checks hardcode it.
+- GitHub Actions runs the same validation command as local development.
+
+**Provenance evidence**
+
+Agent asked:
+
+> My proposed binding architecture is: Next.js + TypeScript on Vercel; MIT React Flow for the canvas; Browserless Function API for aligned screenshot and DOM-manifest capture; Private Vercel Blob for images; Turso/libSQL + Drizzle for projects, captures, feedback, immutable replies, and capability rotation; App password prompt checked server-side against environment secrets; Local app on port 3100; port 3000 and all existing processes remain off-limits
+
+Human approved:
+
+> Approve as proposed
+
+---
+
+## D015 — MIT React Flow is the canvas foundation
+
+*2026-09-08 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The annotation canvas needs pan/zoom, custom nodes, and precise coordinate control. The obvious premium option charges license fees; the free options differ widely in fit.
+
+**Decision**
+
+Use MIT-licensed React Flow. Each page/device capture gets its own coordinate plane in screenshot-natural pixels, with pages grouped in a project sidebar rather than placed on one shared infinite canvas. Pins, rectangles, and circles are custom nodes parented to the screenshot; arrows are React Flow edges with draggable endpoint nodes.
+
+**Alternatives considered**
+
+- *tldraw with a trial/license key* — License cost against an explicit keep-costs-low goal from the human.
+- *MIT Excalidraw embed* — Sketch-oriented; weaker fit for numbered pins, metadata attachment, and pixel-exact coordinate persistence.
+
+**Rationale**
+
+The human picked the option and supplied the reasoning: cost. Screenshot-natural coordinates mean browser size and canvas zoom never move a target, which is what makes deep-zoom feedback trustworthy.
+
+**Consequences**
+
+- Annotation geometry is stored immutably in screenshot-natural pixel coordinates; adapters translate to screen space, never the reverse.
+- Desktop and mobile captures are independent coordinate planes; annotations never migrate between them.
+- No canvas license fees or key management.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Which canvas foundation should Pinata use for the live app?
+
+Human approved:
+
+> let's do MIT React flow, as one of my other goals was to keep costs low - rather than paying for tldraw
+
+---
+
+## D016 — Browserless captures screenshots and DOM manifests in one session
+
+*2026-09-08 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The screenshot and the DOM metadata manifest must come from the same layout state or pins cannot be attached to elements reliably. Self-hosting headless Chromium is operational burden the MVP does not need.
+
+**Decision**
+
+Use the Browserless Function API: one fresh browser session per URL and viewport, desktop and mobile at CSS-pixel scale. Each session navigates to a validated public HTTPS URL, incrementally scrolls lazy content, freezes visual animation, extracts a bounded and sanitized element manifest, and captures the final image from that same state. Maximum two concurrent captures.
+
+**Alternatives considered**
+
+- *A screenshot-only API such as ScreenshotOne* — Simple only if page URLs are already known and no DOM manifest is needed; it cannot extract aligned metadata in the same session.
+- *Self-hosted Playwright/Chromium* — The human asked for a hosted provider with good APIs/CLIs rather than infrastructure to run.
+
+**Rationale**
+
+Proposed by the agent and ratified through the umbrella architecture approval (there was no standalone Browserless question — recorded honestly). The manifest is deliberately bounded: tag, role, short visible text, accessible name, structural path, document-space rectangle. It excludes HTML source, cookies, storage, form values, hidden content, and cross-origin iframe internals.
+
+**Consequences**
+
+- Only public absolute HTTPS targets are captured; redirects, private addresses, metadata endpoints, unsupported schemes, excessive height, and timeouts are rejected.
+- DOM metadata is descriptive context attached to an immutable capture, never an executable selector or editing mechanism.
+- Concurrency is capped at two to stay inside the Browserless free-tier limit.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Browserless rather than a screenshot-only API if "core top-level pages" means discovering navigation links. Browserless can inspect the page and capture both viewports in one browser platform. ScreenshotOne is simpler only if page URLs are already known.
+
+Human approved:
+
+> Approve as proposed
+
+---
+
+## D017 — Private Vercel Blob for images, Turso/libSQL + Drizzle for metadata
+
+*2026-09-08 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Screenshots are large binary assets and project data is relational; both need managed, Vercel-friendly homes that stay within free tiers and require no server administration.
+
+**Decision**
+
+Store screenshots in private Vercel Blob and everything else — projects, pages, captures, annotation geometry, DOM metadata references, threads, actor roles, share-token digests, revisions — in Turso/libSQL via Drizzle. All reads and writes pass through authorized application routes.
+
+**Alternatives considered**
+
+- *Neon (Postgres) instead of Turso* — Offered as an explicit option in the approval prompt; the human approved the stack as proposed. Turso is lighter and its CLI verified cleanly in readiness checks.
+
+**Rationale**
+
+Proposed by the agent and approved wholesale. Both services completed real write/read/delete verification during mission readiness checks before this was recorded, so the choice is evidence-backed rather than brochure-backed.
+
+**Consequences**
+
+- Share-token digests are stored, never the tokens themselves.
+- Database triggers reject UPDATE/DELETE on founder replies, enforcing immutability below the application layer.
+- Mutations use prepared queries, origin/CSRF checks, and durable rate limits.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Private Vercel Blob plus Turso/libSQL for screenshot assets and project/comment metadata. This is lighter than Postgres, integrates with Vercel, and has a strong CLI. An unguessable edit URL acts as a bearer capability; display names are labels, not verified identities.
+
+Human approved:
+
+> Approve as proposed
+
+---
+
+## D018 — Editor password prompt, persistent founder capability links, append-only threads
+
+*2026-09-08 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The product needs exactly two roles — Lucas as editor, recipients as founders — without a signup system. Access control has to be real (server-enforced) while staying proportionate to a friends-and-founders tool.
+
+**Decision**
+
+Lucas authenticates through an in-app password prompt whose credential is checked server-side against an environment secret. Founders enter through high-entropy, unguessable project links that act as bearer capabilities and persist until Lucas rotates or revokes them. Threads are chronological and append-only: founders reply as `founder`, Lucas appends follow-ups, and founder replies are immutable for everyone — no update/delete endpoint exists for them.
+
+**Alternatives considered**
+
+- *Browser HTTP Basic prompt or Vercel deployment protection* — Basic auth is hostile to demo and to founders; deployment protection would lock founders out entirely.
+- *Founder links that expire after 30 days or are one-per-recipient* — The human chose persistence-until-rotation; expiry adds a renewal flow the MVP does not need.
+
+**Rationale**
+
+Two separate approval questions, answered directly by the human. Immutability of founder replies is the trust mechanism: feedback history cannot be rewritten by either side, which makes the tool safe to point at someone's product.
+
+**Consequences**
+
+- Founder view is read/reply only: founders cannot create, move, edit, or delete annotations.
+- Link rotation and revocation are first-class operations, not admin chores.
+- Server-enforced least privilege for both roles; display names are labels, not identities.
+
+**Provenance evidence**
+
+Agent asked:
+
+> When you said "env secrets basic auth," which Lucas login experience do you want? [...] How should shared founder links behave over time?
+
+Human approved:
+
+> we will store password as an env credential and it'll be enforced on the front end with a prompt [...] Persist until Lucas rotates/revokes
+
+---
+
+## D019 — Standardize on Node 24 across app, CI, and Vercel
+
+*2026-09-08 · phase: setup · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The scaffold was built on Node 20, Vercel deploys run Node 24, and the local machine drifted to Node 25 — under which `node --test test/` already broke once (Session 02). Three runtimes is a standing source of works-here failures.
+
+**Decision**
+
+Standardize the application, CI, and repository documentation on Node 24, matching Vercel.
+
+**Alternatives considered**
+
+- *Node 20, matching the scaffold* — Would require downgrading Vercel and fighting the platform default.
+
+**Rationale**
+
+Proposed by the agent with an explicit recommendation; the human's answer was a delegation ("i defer to you") rather than a picked option, and it is recorded as approval-by-deferral for honesty. The recommendation stood because it removes a drift axis that had already produced a real failure.
+
+**Consequences**
+
+- README and CI pin Node 24 once the product stack lands.
+- The Node 25 `node --test` directory-form breakage (Session 02) stays fixed via the explicit glob, which behaves identically on Node 24.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Which Node runtime should the application, CI, and Vercel standardize on? [...] I recommend standardizing the new app, CI, and repository on Node 24 rather than downgrading Vercel. This supersedes the scaffold's pre-product runtime choice.
+
+Human approved:
+
+> i defer to you
+
+---
+
+## D020 — Product-stack transition: Vitest and Playwright join the single validate gate
+
+*2026-09-08 · phase: validate · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The zero-dependency `node:test` gate chosen in D007 cannot cover a Next.js application — no component tests, no browser flows, no typecheck. But multiplying entry points would break the single-command contract that makes the gate runnable.
+
+**Decision**
+
+`npm run validate` remains the single gate and grows to aggregate: ESLint plus repository integrity checks, TypeScript typecheck, Vitest suites, the deterministic docs check, the Next.js production build, and Playwright Chromium end-to-end tests. GitHub Actions runs the identical Node 24 command. The docs tooling itself stays zero-dependency, and the existing `node:test` suite keeps running until its assertions are migrated.
+
+**Alternatives considered**
+
+- *Keep node:test only* — Cannot typecheck TypeScript, render components, or drive a browser; the gate would go formally green while proving almost nothing about the app.
+- *A second test runner or entry point alongside validate* — Forbidden by AGENTS.md section 3: one gate, or the gate stops being run.
+
+**Rationale**
+
+Proposed by the agent, approved by the human with the full stack named. This reverses D007's rejection of a test framework — correct at the time, when the repo was dependency-free docs tooling — while preserving D007's actual decision, the single gate.
+
+**Consequences**
+
+- When Milestone 1 lands dependencies, the lint rule asserting empty dependency lists must be re-scoped to protect only the docs tooling, or retired with a new decision record.
+- The README validation section gets rewritten when the gate composition changes.
+- User-reported escapes become contract assertions before fixes are implemented (the feedback-loops requirement).
+
+**Provenance evidence**
+
+Agent asked:
+
+> For validation, I propose Vitest for unit/component/integration tests, Playwright for repeatable browser flows, and agent-browser for real user-surface validation. The milestone gate will run lint, typecheck, tests, production build, and e2e through the single `npm run validate` entry point. Workers will run narrow affected tests first, then the complete gate before handoff.
+
+Human approved:
+
+> Approve Vitest, Playwright, agent-browser
+
+---
+
+<sub>Generated from 20 record(s) as of 2026-09-08 · source `3bab0716450d`</sub>
