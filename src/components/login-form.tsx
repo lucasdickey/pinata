@@ -30,6 +30,19 @@ export function LoginForm() {
         router.refresh();
         return;
       }
+      if (response.status === 429) {
+        // Durable login throttling (VAL-AUTH-006): bounded generic guidance
+        // from the Retry-After header; never a password-correctness hint.
+        const retryAfter = Number(response.headers.get("retry-after"));
+        const minutes =
+          Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter / 60) : null;
+        setError(
+          minutes === null
+            ? "Too many attempts. Please try again later."
+            : `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+        );
+        return;
+      }
       // The server's failure is deliberately generic; mirror that here.
       setError("The password did not match.");
     } catch {

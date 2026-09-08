@@ -513,3 +513,61 @@ Roughly 45 minutes of mission-worker time.
   `project-url-array-and-atomic-create` consumes `idempotency_keys` and the
   project/page/capture tables; capture features own the Browserless function
   source that flows through this boundary.
+
+---
+
+## Session: durable editor-login throttling (2026-09-08)
+
+### What happened
+
+- Built `src/lib/server/auth/throttle.ts`: one shared durable login bucket in
+  the approved `rate_limit_buckets` table, keyed by the SHA-256 digest of the
+  fixed `editor-login` scope, with a fixed window anchored at the first
+  failure and an atomic `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING`
+  registration that resets the window exactly at the published boundary.
+- Wired `POST /api/auth/login` to pre-check the durable bucket (generic 429 +
+  bounded `Retry-After`), fail closed with a bounded 503 when the store or
+  `SESSION_SECRET` is unavailable, register failures atomically, and clear
+  the bucket on success. The session-secret check now runs before password
+  verification so a misconfigured deployment cannot serve as a
+  password-correctness oracle.
+- The login form now shows bounded retry guidance on 429 instead of
+  mislabeling it as a wrong password.
+- TDD: focused unit tests (threshold, exact recovery boundary, cross-handle
+  bucket sharing, digest-only rows), route tests with injected database and
+  clock, and a real-Turso integration test using two independent clients and
+  a run-scoped scope with verified cleanup.
+- Manual HTTP proof: three wrong passwords on one dev-server process, two
+  more after a full restart, then a generic 429; the real Turso bucket row
+  read back as the digest key with count 5 and no credential material; the
+  correct password was rejected with 429 while throttled; after clearing the
+  bucket, the correct password succeeded (200). The validation bucket row was
+  deleted and absence verified.
+
+### Dead ends / surprises
+
+- One off-by-one in a test expectation: the window anchors at the first
+  failure, not at the check time; fixed the expectation, not the code.
+- Pre-existing (not introduced here): the e2e auth specs require `.env.local`
+  secrets, so CI without Turso/editor env cannot run them; the login route's
+  new durable-store dependency inherits that limitation deliberately
+  (fail-closed).
+
+### Elapsed
+
+Roughly 40 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D026` recorded (agent-autonomous): durable digested global login bucket,
+  fixed-window exact recovery, generic 429 + Retry-After, fail-closed secret
+  ordering without a password oracle.
+- Fulfills `VAL-AUTH-006` on the local surface with real-Turso corroboration;
+  the isolated-preview missing-secret deployments remain milestone-validation
+  evidence (worker does not deploy).
+
+### Open questions at end of session
+
+- Editor session revocation is still per-process (see `auth/session.ts`);
+  cross-instance logout durability belongs to the session-lifecycle feature
+  if the contract demands it.

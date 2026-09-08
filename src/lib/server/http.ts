@@ -9,6 +9,7 @@ export const ERRORS = {
   rejected: "Request rejected.",
   authRequired: "Authentication required.",
   wrongPassword: "The password did not match.",
+  throttled: "Too many attempts. Please try again later.",
   unavailable: "Service unavailable.",
 } as const;
 

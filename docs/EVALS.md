@@ -260,6 +260,16 @@ application instances, and both recover after exactly the published window.
 | `REPLY_MAX_PER_WINDOW` | 30 | Founder replies accepted per window. |
 | `REPLY_WINDOW_MS` | 3,600,000 ms (1 hour) | Reply rate-limit window and recovery interval. |
 
+Login enforcement semantics: failed editor logins are counted in one shared
+`rate_limit_buckets` row keyed by the SHA-256 digest of the `editor-login`
+scope — never a password, secret, or client identifier — so the threshold
+holds for the single editor credential across tabs and application instances.
+The window is fixed at the first failure in the window; throttled attempts
+receive the same generic `429` with a bounded `Retry-After` header and never
+extend the window. A correct attempt succeeds immediately once
+`window_started_at + LOGIN_WINDOW_MS` has passed, and a successful login
+clears the bucket.
+
 ### Feedback, annotation, and interaction limits
 
 | Constant | Value | Policy |

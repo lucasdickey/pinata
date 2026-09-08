@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 8 | D005, D006, D008, D021, D022, D023, D024, D025 |
+| Agent decided alone | 9 | D005, D006, D008, D021, D022, D023, D024, D025, D026 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **25** | |
+| **Total** | **26** | |
 
 ## Index
 
@@ -51,6 +51,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D023](#d023--publish-one-versioned-validation-boundary-catalog-as-shared-exported-constants) | build | Publish one versioned validation boundary catalog as shared exported constants | Agent decided alone | accepted |
 | [D024](#d024--verify-the-editor-password-via-fixed-length-digests-and-bind-sessions-to-a-double-submit-csrf-proof) | build | Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof | Agent decided alone | accepted |
 | [D025](#d025--persist-the-canonical-model-in-committed-drizzle-migrations-with-database-enforced-thread-immutability-and-injectable-provider-seams) | build | Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams | Agent decided alone | accepted |
+| [D026](#d026--throttle-editor-logins-with-one-durable-digested-global-bucket-and-check-secrets-fail-closed-before-verification) | build | Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification | Agent decided alone | accepted |
 
 ---
 
@@ -984,4 +985,44 @@ The architecture document already directs Turso/libSQL + Drizzle, committed migr
 
 ---
 
-<sub>Generated from 25 record(s) as of 2026-09-08 · source `ccd284292261`</sub>
+## D026 — Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+VAL-AUTH-006 requires durable editor-login throttling that holds across tabs and at least two application instances, recovers after the exact published interval, and keeps passwords and secrets out of throttle evidence, plus fail-closed behavior when either editor auth secret is missing. The contract fixes the threshold (LOGIN_MAX_FAILURES) and window (LOGIN_WINDOW_MS) but not the bucket identity, window style, throttled-response shape, or misconfiguration ordering.
+
+**Decision**
+
+Enforce the login throttle in the approved Turso rate_limit_buckets table as one shared bucket keyed by the SHA-256 digest of the fixed editor-login scope (never a password, secret, or client identifier), with a fixed window anchored at the first failure: failures are registered by a single atomic INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING statement that resets the window exactly at the boundary, throttled attempts receive a bounded generic 429 with a Retry-After header and never mutate or extend the window, a successful login deletes the bucket, and the route fails closed (bounded 503) when the durable store or SESSION_SECRET is unavailable. The SESSION_SECRET check runs before password verification so a misconfigured deployment answers every attempt with the identical 503 instead of becoming a password-correctness oracle. Tests and validation runs use run-scoped scopes so they never touch the production bucket.
+
+**Alternatives considered**
+
+- *Per-client-IP buckets keyed from x-forwarded-for / x-real-ip* — The editor credential is a single shared secret, so IP-keyed buckets let a distributed attacker keep guessing by rotating addresses, and client-supplied forwarding headers are spoofable off-platform; one global bucket is the strongest reading of the contract requirement that the same bucket hold across tabs and instances.
+- *Sliding window or throttled-attempts-extend-the-window* — Only a fixed window anchored at the first failure makes 'a correct attempt succeeds immediately after the exact recovery interval' literally true; extending the window under sustained attack would make recovery unpredictable.
+- *Keep the pre-existing order that verifies the password before checking SESSION_SECRET* — With SESSION_SECRET absent and EDITOR_PASSWORD present that order answers 401 to wrong passwords and 503 to the right one, leaking password correctness from a misconfigured deployment.
+
+**Rationale**
+
+VAL-AUTH-006 and the approved schema (D025) already direct durable, digest-keyed throttling; this record chooses only the keying scope, window semantics, response shape, and check ordering inside that approved direction, which is safe to decide unilaterally because no user-facing product direction changes. The behavior was proven against the real configured Turso database (two independent clients sharing one run-scoped bucket, digest-only readback, verified cleanup) and end to end against the local server across a process restart before the full gate ran.
+
+**Consequences**
+
+- Five wrong editor passwords anywhere in the world throttle all editor login attempts for up to the published 15-minute window; this deliberately trades editor availability for credential protection and is published in docs/EVALS.md.
+- The login route depends on the durable store: when Turso is unreachable, login fails closed with a bounded 503 rather than allowing unaccounted attempts.
+- CI environments without Turso credentials cannot exercise the login route; the e2e auth specs already require .env.local secrets and remain a local/deployed-surface check.
+- Validation runs correlate durable throttle state by recomputing the SHA-256 of their run-scoped scope and must delete the row afterward; the production scope is reserved for real traffic.
+- Future reply throttling (VAL-THREAD-006) should reuse registerLoginFailure-style atomic upsert semantics with its own scope.
+
+**Artifacts**
+
+- `src/lib/server/auth/throttle.ts` — Durable digest-keyed login throttle with atomic window reset
+- `app/api/auth/login/route.ts` — Login route wiring: throttle pre-check, fail-closed secrets, failure accounting
+- `test/server/login-throttle.test.ts` — Focused threshold, recovery-boundary, and digest-only bucket tests
+- `test/server/auth-throttle-routes.test.ts` — Route-level throttle and fail-closed configuration matrix
+- `test/integration/login-throttle.integration.test.ts` — Real Turso cross-instance proof with run-scoped cleanup
+
+---
+
+<sub>Generated from 26 record(s) as of 2026-09-08 · source `6708ff02c407`</sub>

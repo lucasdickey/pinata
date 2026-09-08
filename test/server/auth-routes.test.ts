@@ -18,6 +18,11 @@ import {
   verifyEditorSessionToken,
   __clearRevokedSessionsForTests,
 } from "../../src/lib/server/auth/session";
+import {
+  __resetDatabaseCacheForTests,
+  __setDatabaseForTests,
+} from "../../src/lib/server/db/client";
+import { createTestDb, type TestDb } from "./test-db";
 
 const TEST_PASSWORD = "route-test-password-sentinel";
 const TEST_SECRET = "route-test-session-secret-sentinel";
@@ -50,13 +55,21 @@ function sessionTokenFrom(response: Response): string {
   return session.split(";")[0].slice(EDITOR_SESSION_COOKIE.length + 1);
 }
 
-beforeEach(() => {
+let testDb: TestDb;
+
+beforeEach(async () => {
   vi.stubEnv("EDITOR_PASSWORD", TEST_PASSWORD);
   vi.stubEnv("SESSION_SECRET", TEST_SECRET);
   __clearRevokedSessionsForTests();
+  // Login throttling is durable (VAL-AUTH-006): inject a fresh migrated
+  // in-memory database per test so buckets never leak between tests.
+  testDb = await createTestDb();
+  __setDatabaseForTests(testDb.db);
 });
 
 afterEach(() => {
+  testDb.client.close();
+  __resetDatabaseCacheForTests();
   vi.unstubAllEnvs();
   __clearRevokedSessionsForTests();
 });

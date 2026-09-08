@@ -55,3 +55,8 @@ export function getDatabase(): Database | null {
 export function __resetDatabaseCacheForTests(): void {
   cached = undefined;
 }
+
+/** Test-only helper: install an injected process-wide handle (or null). */
+export function __setDatabaseForTests(db: Database | null): void {
+  cached = db;
+}
