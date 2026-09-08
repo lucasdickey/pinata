@@ -10,3 +10,5 @@ build/
 .factory/
 .vscode/
 .idea/
+.vercel
+.env*
