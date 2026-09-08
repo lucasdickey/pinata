@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 5 | D005, D006, D008, D021, D022 |
+| Agent decided alone | 6 | D005, D006, D008, D021, D022, D023 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **22** | |
+| **Total** | **23** | |
 
 ## Index
 
@@ -48,6 +48,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D020](#d020--product-stack-transition-vitest-and-playwright-join-the-single-validate-gate) | validate | Product-stack transition: Vitest and Playwright join the single validate gate | Agent proposed, human approved | accepted |
 | [D021](#d021--re-scope-the-dependency-ban-to-an-approved-pinned-allowlist-eslint-covers-js-tsc-covers-ts) | build | Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS | Agent decided alone | accepted |
 | [D022](#d022--serve-reqs-from-repository-sources-with-a-zero-dependency-safe-markdown-renderer) | build | Serve /reqs from repository sources with a zero-dependency safe Markdown renderer | Agent decided alone | accepted |
+| [D023](#d023--publish-one-versioned-validation-boundary-catalog-as-shared-exported-constants) | build | Publish one versioned validation boundary catalog as shared exported constants | Agent decided alone | accepted |
 
 ---
 
@@ -867,4 +868,40 @@ The direction (source-backed /reqs routes, raw HTML disabled, decisions from the
 
 ---
 
-<sub>Generated from 22 record(s) as of 2026-09-08 · source `e341b6682eb7`</sub>
+## D023 — Publish one versioned validation boundary catalog as shared exported constants
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The validation contract (VAL-REQS-007 plus the auth, capture, quota, geometry, and performance assertions) requires exact versioned values for session lifetime/renewal, URL limits and normalization fixtures, capture dimensions/time/bytes/attempts/concurrency/staleness, the manifest schema, the supported-motion matrix and tolerances, the capture outcome catalog, geometry minimums, login/reply quotas, the client timeout, the annotation maximum, hit targets, and the performance protocol/budgets — before the features that consume them exist. Without a single exported source, each consuming feature would invent and duplicate its own literals, and the docs and /reqs pages would silently drift from runtime behavior.
+
+**Decision**
+
+Create src/lib/boundaries/ as the only source of runtime policy values: focused modules (session, url, capture, manifest, motion, outcomes, geometry, quotas, feedback, interaction, performance) re-exported under one dated POLICY_VERSION (2026-09-08.1). Choose the concrete values now: a 12-hour renewable editor session with a 2-hour renewal threshold; 32 submitted rows, 16 unique URLs, 2,048 bytes per URL; 1440×900 and 390×844 DPR-1 viewports; 16,384 px height, 25,000,000 px area, 8 MiB image, 16 MiB provider response caps; 30 s navigation, 5 s network-idle, 800 px × 24-step × 250 ms lazy scroll, and a 90 s total capture deadline inside Browserless's 120 s session cap; 5 redirect hops; 64 attempts per project; 2 active captures; a 5-minute stale age; a 500-element / 256 KiB exact-key manifest schema; an eight-case motion matrix with 1 px anchor tolerance and 0.001 masked-diff ratio; an eighteen-code outcome catalog with 256-byte public messages; 8 px minimum shapes and 16 px minimum arrows; 5 failed logins per 15 minutes and 30 replies per hour; a 15 s client request timeout; 2,000-character feedback bodies; 200 annotations per capture; 8 nearby candidates; 24 px hit targets (WCAG 2.2 AA); and the tall-capture performance protocol and budgets. Publish the same values, fixtures, and policy enums in docs/EVALS.md and docs/ARCHITECTURE.md (which the /reqs routes render), and pin all three together with test/boundaries.test.ts, which imports the exported constants, checks the docs and rendered route HTML for the exact values, and scans the application for duplicated literals.
+
+**Alternatives considered**
+
+- *Defer the exact numbers to each consuming feature* — VAL-REQS-007 requires published exact values before the dependent behavior lands; deferring re-creates the drift and guesswork the catalog exists to prevent, and each feature would choose in isolation.
+- *Maintain the values in the docs and mirror them into code* — Two writable sources inevitably drift; instead the code exports the values once and the docs are pinned to the exports by test.
+
+**Rationale**
+
+The mission plan explicitly assigns defining this catalog to the validation-boundary-catalog feature, and the requirements session deliberately published policies without numbers until it landed. The values are constrained by documented provider limits (Browserless's two concurrent sessions and 120-second cap), the observed ~13,000 px Chickpea mobile page, WCAG 2.2 target-size minimums, and the approved architecture. Choosing them here is the assigned work, the choice is fully recorded, and it is reversible by editing one module, so a unilateral call is safe and is labeled agent-autonomous honestly.
+
+**Consequences**
+
+- Auth, capture, canvas, thread, UI, and performance features must import from src/lib/boundaries/ rather than declaring literals; the duplicate-literal scan in test/boundaries.test.ts fails otherwise.
+- docs/EVALS.md and docs/ARCHITECTURE.md table rows are formatted to the drift test's conventions; changing a value requires updating the constant and the docs together.
+- URL normalization is pinned by 22 exact fixtures, including the policy steps WHATWG does not perform (trailing-dot strip, fragment removal, empty-query drop) and the distinctness of %7E versus ~ and of /pricing versus /pricing/.
+- Any boundary change bumps POLICY_VERSION and updates both docs in the same commit.
+
+**Artifacts**
+
+- `src/lib/boundaries/index.ts` — The versioned catalog entry point
+- `test/boundaries.test.ts` — The source/docs/route drift guard and duplicate-literal scan
+- `docs/EVALS.md` — The published boundary tables, rendered at /reqs/evals
+
+---
+
+<sub>Generated from 23 record(s) as of 2026-09-08 · source `99b45ea5f0b0`</sub>

@@ -1,4 +1,10 @@
 import { expect, test } from "@playwright/test";
+import {
+  CLIENT_REQUEST_TIMEOUT_MS,
+  DESKTOP_VIEWPORT,
+  MOBILE_VIEWPORT,
+  POLICY_VERSION,
+} from "../src/lib/boundaries";
 
 // Public requirements hub: discovery from the landing page, refresh-safe
 // routes, current-navigation state, bounded 404, narrow-layout overflow, and
@@ -97,4 +103,29 @@ test("the decisions route renders the real decision log", async ({ page }) => {
   await expect(cards.first()).toHaveAttribute("data-decision-id", "D001");
   expect(await cards.count()).toBeGreaterThan(15);
   await expect(page.locator('article[data-decision-id="D009"] a[href="#D003"]')).toBeVisible();
+});
+
+// VAL-REQS-007: the deployed routes publish the versioned boundary catalog,
+// reading the same exported constants the runtime will enforce.
+test("evals and architecture publish the versioned boundary catalog", async ({ page }) => {
+  const errors = watchConsoleErrors(page);
+  const viewportText = `${DESKTOP_VIEWPORT.width} × ${DESKTOP_VIEWPORT.height}`;
+  const mobileText = `${MOBILE_VIEWPORT.width} × ${MOBILE_VIEWPORT.height}`;
+
+  await page.goto("/reqs/evals");
+  const evals = page.locator("article.doc");
+  await expect(evals).toContainText(POLICY_VERSION);
+  await expect(evals).toContainText(viewportText);
+  await expect(evals).toContainText(mobileText);
+  await expect(evals).toContainText("CLIENT_REQUEST_TIMEOUT_MS");
+  await expect(evals).toContainText(CLIENT_REQUEST_TIMEOUT_MS.toLocaleString("en-US"));
+  await expect(evals).toContainText("stale-lease");
+  await expect(evals).toContainText("trailing-dot-stripped");
+
+  await page.goto("/reqs/architecture");
+  const arch = page.locator("article.doc");
+  await expect(arch).toContainText(POLICY_VERSION);
+  await expect(arch).toContainText(viewportText);
+  await expect(arch).toContainText("STALE_CAPTURE_AGE_MS");
+  expect(errors).toEqual([]);
 });

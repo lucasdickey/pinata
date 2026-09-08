@@ -320,3 +320,60 @@ Roughly 50 minutes of mission-worker time.
 
 - None. The deployed-SHA provenance cue (`VERCEL_GIT_COMMIT_SHA`) will show a
   real value once the deployment feature ships; locally it reads `local`.
+
+## Session 06 — 2026-09-08 — Validation boundary catalog
+
+Mission feature `validation-boundary-catalog` (Mission `901210d4`): created
+`src/lib/boundaries/` as the single versioned source of every runtime policy
+value the contract names (VAL-REQS-007) — session lifetime/renewal, URL limits
+and 22 exact normalization fixtures, capture dimensions/time/bytes/attempts/
+concurrency/staleness, the exact-key manifest schema, the eight-case
+supported-motion matrix and tolerances, the eighteen-code capture outcome
+catalog, geometry minimums, login/reply quotas, the client request timeout,
+the annotation maximum, hit targets, and the performance protocol/budgets —
+all re-exported under one dated `POLICY_VERSION`. Published the same values in
+`docs/EVALS.md` (full catalog) and `docs/ARCHITECTURE.md` (capture/session
+subset), which the `/reqs/evals` and `/reqs/architecture` routes render.
+
+Test-first: `test/boundaries.test.ts` was red before the modules existed
+(module-not-found), then red on the six documentation-publication tests until
+the docs tables were written. The suite imports the exported constants,
+verifies internal consistency (budgets nest, the lazy scroll covers a
+maximum-height page, the total deadline fits the provider session cap), pins
+the fixtures and outcome catalog, compares every constant's exact formatted
+value against both docs and the rendered route HTML, and scans `src/` and
+`app/` for duplicated policy literals. A Playwright spec asserts the served
+pages publish the same values.
+
+### What broke, and what it caught
+
+- **Assumed WHATWG decodes `%7E` and uppercases percent-encodings.** Node 24's
+  `URL` preserves `%7Eme` and lowercase `a%2fb` byte-for-byte, verified with a
+  throwaway script before writing fixtures. The fixtures encode preservation,
+  so `%7E` and `~` remain distinct page identities.
+- **Thousands-grouping mismatch between test and docs.** The first doc run
+  failed on `1,440 × 900` versus `1440 × 900`; the formatter now groups only
+  byte/duration/pixel-cap values, and a missing `POLICY_VERSION` table row in
+  EVALS.md was added.
+- **`example.com.` keeps its trailing dot in WHATWG**, so stripping it is a
+  deliberate policy step; the fixture and a test assertion record that this is
+  intentional, not parser behavior.
+
+### Elapsed
+
+Roughly 45 minutes of mission-worker time (excluding an external pause).
+
+### Decisions and assertions
+
+- `D023` recorded (agent-autonomous): the catalog module, the chosen values,
+  the docs-publication rule, and the duplicate-literal defect rule.
+- Fulfills `VAL-REQS-007` on the local surface (source export, docs/route
+  alignment, duplicate-literal scan). The deployed-content comparison runs
+  with the deployment feature; consuming features (auth, capture, canvas,
+  thread, UI, performance) must now import these constants.
+
+### Open questions at end of session
+
+- None. Values are defensible against the documented provider limits and
+  observed Chickpea heights; any future change bumps `POLICY_VERSION` and
+  updates both docs in the same commit.

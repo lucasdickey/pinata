@@ -98,6 +98,40 @@ visible and retryable.
 
 Every redirect hop is revalidated under the same rules before following it.
 
+## Published runtime boundaries
+
+The capture pipeline, session policy, and every other runtime limit are
+exported once from `src/lib/boundaries/` (policy version
+`2026-09-08.1`, constant `POLICY_VERSION`) and drift-checked against this
+document and the [Evals catalog](/reqs/evals), which publishes the complete
+set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
+minimums, quotas, interaction limits, and performance budgets.
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `POLICY_VERSION` | 2026-09-08.1 | Dated catalog version; bumps on any boundary change. |
+| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
+| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
+| `DESKTOP_VIEWPORT` | 1440 × 900 CSS px, DPR 1 | Standard desktop capture. |
+| `MOBILE_VIEWPORT` | 390 × 844 CSS px, DPR 1 | Standard mobile capture with mobile UA and touch emulation. |
+| `MAX_DOCUMENT_HEIGHT_PX` | 16,384 px | Taller documents fail boundedly. |
+| `MAX_DOCUMENT_PIXELS` | 25,000,000 px | Larger documents fail boundedly. |
+| `MAX_IMAGE_BYTES` | 8,388,608 bytes (8 MiB) | Maximum accepted screenshot size. |
+| `MAX_PROVIDER_RESPONSE_BYTES` | 16,777,216 bytes (16 MiB) | Maximum accepted Browserless response size. |
+| `NAVIGATION_TIMEOUT_MS` | 30,000 ms | Per-navigation budget. |
+| `NETWORK_IDLE_TIMEOUT_MS` | 5,000 ms | Post-navigation network-idle budget. |
+| `LAZY_SCROLL_STEP_PX` | 800 px | Lazy-loading scroll increment. |
+| `LAZY_SCROLL_MAX_STEPS` | 24 | Reaches the bottom of a maximum-height page. |
+| `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
+| `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap. |
+| `MAX_REDIRECT_HOPS` | 5 | Redirect hops revalidated before failure. |
+| `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Persisted attempts per project, initial plus retries. |
+| `MAX_ACTIVE_CAPTURES` | 2 | The Browserless free-tier concurrency limit. |
+| `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale. |
+| `MANIFEST_SCHEMA_VERSION` | 1 | Persisted per capture as `dom_manifest_version`. |
+| `MAX_MANIFEST_ELEMENTS` | 500 | Element cap; overflow truncates with a warning. |
+| `MAX_MANIFEST_BYTES` | 262,144 bytes (256 KiB) | Exact persisted manifest size cap. |
+
 ## Canvas and coordinates
 
 The React Flow instance is controlled; application domain records are

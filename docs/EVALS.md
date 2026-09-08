@@ -80,14 +80,207 @@ Representative scenarios:
 
 ## Published boundaries
 
-Exact, versioned runtime values — session lifetimes, URL and field limits,
-capture dimensions, time and byte budgets, manifest caps, geometry minimums,
-reply and login quotas, and performance budgets — are owned by the
-validation-boundary catalog work (contract area `VAL-REQS-007` and the
-capture/quota assertions). They are published as shared exported constants
-that tests, documentation, and the deployed evals page all read from one
-source. Until that work lands, this catalog deliberately states policies
-without inventing numbers.
+Every runtime boundary is exported exactly once from `src/lib/boundaries/`
+(policy version `2026-09-08.1`, constant `POLICY_VERSION`). Unit tests import
+the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
+and the deployed `/reqs` routes; any drift between code, docs, and deployed
+content fails the gate, and duplicating one of these literals anywhere else in
+the application is a defect.
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `POLICY_VERSION` | 2026-09-08.1 | Dated catalog version; bumps on any boundary change. |
+
+### Editor session
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | A session is never valid past its absolute expiry. |
+| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal is allowed only when the remaining lifetime is inside this threshold; a renewal sets a fresh absolute expiry. |
+
+### URL and input limits
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `MAX_SUBMITTED_URL_ROWS` | 32 | Rows beyond the limit are rejected before any normalization or persistence. |
+| `MAX_UNIQUE_PAGE_URLS` | 16 | Unique normalized page URLs retained per project. |
+| `MAX_URL_BYTES` | 2,048 bytes | Per submitted row, measured as UTF-8. |
+| `BLANK_URL_ROW_POLICY` | ignore | Blank optional array rows are ignored; the root URL is always required. |
+
+### URL normalization fixtures
+
+Normalization parses once with WHATWG `URL`, lowercases scheme and host,
+converts IDNA hosts to punycode, strips a single trailing host dot, removes
+the default `:443` port and the fragment, resolves dot segments, treats
+backslashes as path separators, drops an empty query, and turns an empty path
+into `/`. Path case, percent-encoding (so `%7E` and `~`, and encoded
+separators such as `%2F`, stay distinct), and query order/duplicates are
+preserved. These exact fixtures pin the behavior:
+
+| Fixture | Input | Expected |
+| --- | --- | --- |
+| scheme-and-host-are-lowercased | `HTTPS://EXAMPLE.COM/Pricing` | `https://example.com/Pricing` |
+| empty-path-becomes-root | `https://example.com` | `https://example.com/` |
+| default-port-443-removed | `https://example.com:443/pricing` | `https://example.com/pricing` |
+| non-443-port-rejected | `https://example.com:8443/` | `reject: port` |
+| fragment-removed | `https://example.com/pricing#team` | `https://example.com/pricing` |
+| query-order-and-duplicates-preserved | `https://example.com/pricing?ref=a&ref=b` | `https://example.com/pricing?ref=a&ref=b` |
+| empty-query-dropped | `https://example.com/pricing?` | `https://example.com/pricing` |
+| encoded-tilde-preserved | `https://example.com/%7Eme` | `https://example.com/%7Eme` |
+| encoded-slash-preserved | `https://example.com/a%2fb` | `https://example.com/a%2fb` |
+| idna-host-becomes-punycode | `https://bücher.example/` | `https://xn--bcher-kva.example/` |
+| trailing-dot-stripped | `https://example.com./pricing` | `https://example.com/pricing` |
+| backslash-treated-as-slash | `https://example.com\pricing` | `https://example.com/pricing` |
+| dot-segments-resolved | `https://example.com/a/../b/./c` | `https://example.com/b/c` |
+| trailing-slash-is-distinct | `https://example.com/pricing/` | `https://example.com/pricing/` |
+| credentials-rejected | `https://user:pass@example.com/` | `reject: credentials` |
+| http-scheme-rejected | `http://example.com/` | `reject: scheme` |
+| ip-literal-rejected | `https://127.0.0.1/` | `reject: ip-literal` |
+| numeric-ip-spelling-rejected | `https://2130706433/` | `reject: ip-literal` |
+| ipv6-loopback-rejected | `https://[::1]/` | `reject: ip-literal` |
+| relative-input-rejected | `/pricing` | `reject: relative` |
+| blank-input-rejected | (blank) | `reject: blank` |
+| root-and-slash-are-one-page | `https://example.com` or `https://example.com/` | `https://example.com/` (same page) |
+
+`/pricing` and `/pricing/` normalize to different pages; `https://example.com`
+and `https://example.com/` normalize to the same page. Rejections happen
+before any capture attempt or project row exists.
+
+### Capture dimensions, time, and bytes
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `DESKTOP_VIEWPORT` | 1440 × 900 CSS px, DPR 1 | Desktop captures render at natural CSS-pixel dimensions. |
+| `MOBILE_VIEWPORT` | 390 × 844 CSS px, DPR 1 | Mobile captures add a mobile user agent and touch emulation. |
+| `MAX_DOCUMENT_HEIGHT_PX` | 16,384 px | Taller documents fail as `document-too-tall`. |
+| `MAX_DOCUMENT_PIXELS` | 25,000,000 px | Larger documents fail as `too-many-pixels`. |
+| `MAX_IMAGE_BYTES` | 8,388,608 bytes (8 MiB) | Larger screenshots fail as `image-bytes-exceeded`. |
+| `MAX_PROVIDER_RESPONSE_BYTES` | 16,777,216 bytes (16 MiB) | Larger provider responses fail as `provider-bytes-exceeded`. |
+| `NAVIGATION_TIMEOUT_MS` | 30,000 ms | Per-navigation budget; exceeding it fails as `navigation-timeout`. |
+| `NETWORK_IDLE_TIMEOUT_MS` | 5,000 ms | Post-navigation network-idle budget. |
+| `LAZY_SCROLL_STEP_PX` | 800 px | Lazy-loading scroll increment. |
+| `LAZY_SCROLL_MAX_STEPS` | 24 | Enough steps to reach the bottom of a maximum-height page. |
+| `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
+| `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap; exceeding it fails as `total-timeout`. |
+| `MAX_REDIRECT_HOPS` | 5 | Every hop is revalidated under the same public-HTTPS rules. |
+
+### Capture attempts, concurrency, and staleness
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Initial attempts plus retries; a maximum-size project starts with 32. |
+| `MAX_ACTIVE_CAPTURES` | 2 | Matches the Browserless free-tier concurrency limit; dispatch beyond it fails as `quota-exceeded`. |
+| `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale and becomes retryable. |
+
+### DOM manifest schema
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `MANIFEST_SCHEMA_VERSION` | 1 | Persisted per capture as `dom_manifest_version`. |
+| `MAX_MANIFEST_ELEMENTS` | 500 | Overflow keeps the capture ready with a `manifest-truncated` warning. |
+| `MAX_MANIFEST_BYTES` | 262,144 bytes (256 KiB) | Exact persisted UTF-8 JSON size; never exceeded. |
+| `MANIFEST_TEXT_MAX_CHARS` | 120 | Short visible text per element. |
+| `MANIFEST_ACCESSIBLE_NAME_MAX_CHARS` | 120 | Accessible name per element. |
+| `MANIFEST_MAX_CLASSES` | 8 | Bounded class hints per element. |
+| `MANIFEST_PATH_MAX_DEPTH` | 12 | Structural-path segments per element. |
+| `MANIFEST_RECT_DECIMALS` | 2 | Decimal places on document-space rectangle coordinates. |
+| `MANIFEST_ELEMENT_KEYS` | id, kind, tag, role, text, accessibleName, hints, path, rect | The exact element key set; no other keys may appear. |
+| `MANIFEST_HINT_KEYS` | id, classes, alt, title, testId | The exact hint key set. |
+| `MANIFEST_ELEMENT_KINDS` | landmark, heading, link, control, image, table-cell, details, summary, text | The bounded element-kind enum. |
+
+### Supported motion and tolerances
+
+Capture freezes or pauses what it safely can from the same stabilized layout
+state as the screenshot, and warns on the rest:
+
+| Case | Policy |
+| --- | --- |
+| CSS animations | frozen |
+| CSS transitions | frozen |
+| Text carets | hidden |
+| Web Animations API | paused |
+| Video elements | paused |
+| Animated images (GIF/APNG/WebP) | first-frame |
+| Canvas/JS-driven animation | unsupported-warn |
+| Sticky/parallax layers | as-rendered |
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `MOTION_ANCHOR_TOLERANCE_CSS_PX` | 1 px | Anchor geometry must survive stabilization within one CSS pixel. |
+| `MOTION_MASKED_MAX_DIFF_RATIO` | 0.001 | At most 0.1% of pixels in a masked deterministic region may differ. |
+
+### Capture outcome catalog
+
+Every capture outcome maps to exactly one row: its persisted status, whether
+retry is offered, the HTTP status of the API response (`—` marks a computed
+or persisted state rather than a response), whether it consumes a persisted
+attempt, and whether it surfaces as a warning on a ready capture. Public
+messages and remediation text live in the catalog and are bounded by
+`MAX_PUBLIC_MESSAGE_BYTES` | 256 bytes.
+
+| Code | Status | Retryable | HTTP | Consumes attempt | Warning |
+| --- | --- | --- | --- | --- | --- |
+| invalid-url | failed | no | 422 | no | no |
+| dns-failed | failed | yes | 502 | yes | no |
+| unsafe-redirect | failed | no | 422 | yes | no |
+| browserless-auth | failed | no | 502 | yes | no |
+| browserless-provider | failed | yes | 502 | yes | no |
+| navigation-timeout | failed | yes | 504 | yes | no |
+| total-timeout | failed | yes | 504 | yes | no |
+| document-too-tall | failed | no | 422 | yes | no |
+| too-many-pixels | failed | no | 422 | yes | no |
+| provider-bytes-exceeded | failed | yes | 502 | yes | no |
+| image-bytes-exceeded | failed | no | 422 | yes | no |
+| invalid-image | failed | yes | 502 | yes | no |
+| quota-exceeded | failed | yes | 429 | no | no |
+| blob-failure | failed | yes | 502 | yes | no |
+| finalization-failure | failed | yes | 502 | yes | no |
+| stale-lease | failed | yes | — | yes | no |
+| cleanup-pending | ready | no | — | yes | yes |
+| manifest-truncated | ready | no | — | yes | yes |
+
+### Geometry minimums
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `MIN_SHAPE_SIZE_PX` | 8 px | Minimum rectangle/circle extent in screenshot-natural pixels; circles stay square. |
+| `MIN_ARROW_LENGTH_PX` | 16 px | Minimum arrow start-to-end distance in screenshot-natural pixels. |
+
+### Login and reply quotas
+
+Both quotas are enforced in the durable store, so they hold across tabs and
+application instances, and both recover after exactly the published window.
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `LOGIN_MAX_FAILURES` | 5 | Failed editor logins allowed per window before generic throttling. |
+| `LOGIN_WINDOW_MS` | 900,000 ms (15 minutes) | Login throttle window and recovery interval. |
+| `REPLY_MAX_PER_WINDOW` | 30 | Founder replies accepted per window. |
+| `REPLY_WINDOW_MS` | 3,600,000 ms (1 hour) | Reply rate-limit window and recovery interval. |
+
+### Feedback, annotation, and interaction limits
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `FEEDBACK_BODY_MAX_CHARS` | 2,000 | Shared maximum length of an original comment or a thread reply. |
+| `MAX_ANNOTATIONS_PER_CAPTURE` | 200 | Persisted annotations per capture, across all kinds. |
+| `NEARBY_CANDIDATES_MAX` | 8 | Nearby DOM candidates offered when placing a mark. |
+| `CLIENT_REQUEST_TIMEOUT_MS` | 15,000 ms | Every client request reaches a terminal state within this budget. |
+| `MIN_HIT_TARGET_CSS_PX` | 24 px | Shared minimum pointer/touch hit target (WCAG 2.2 AA, 2.5.8). |
+
+### Performance protocol and budgets
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `PERFORMANCE_PROTOCOL` | 3 measured runs, Chromium, desktop viewport, 16 GB RAM / 10 logical cores, maximum-dimension fixture annotated to the per-capture annotation maximum, evenly by kind and height | The fixed measurement protocol; every run must pass every budget. |
+| `PERF_IMAGE_TO_USABLE_P95_MS` | 3,000 ms | p95 from image response to a usable canvas. |
+| `PERF_PAN_ZOOM_CYCLES` | 60 | Pan/zoom cycles per run. |
+| `PERF_SELECTION_CYCLES` | 100 | Selection cycles per run. |
+| `PERF_INPUT_TO_PAINT_P95_MS` | 100 ms | p95 input-to-paint latency during the cycles. |
+| `PERF_LONGEST_TASK_MS` | 200 ms | Longest allowed main-thread task. |
+| `PERF_RETAINED_HEAP_MAX_BYTES` | 268,435,456 bytes (256 MiB) | Post-GC retained heap ceiling. |
+| `PERF_DETACHED_NODES_MAX` | 25 | Detached DOM nodes tolerated after GC. |
+| `PERF_CAMERA_REQUEST_BUDGET` | 0 | Camera cycles issue zero annotation writes and no increasing reads. |
 
 ## Quality attributes under test
 
