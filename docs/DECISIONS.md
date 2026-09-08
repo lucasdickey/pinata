@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 6 | D005, D006, D008, D021, D022, D023 |
+| Agent decided alone | 7 | D005, D006, D008, D021, D022, D023, D024 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **23** | |
+| **Total** | **24** | |
 
 ## Index
 
@@ -49,6 +49,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D021](#d021--re-scope-the-dependency-ban-to-an-approved-pinned-allowlist-eslint-covers-js-tsc-covers-ts) | build | Re-scope the dependency ban to an approved pinned allowlist; ESLint covers JS, tsc covers TS | Agent decided alone | accepted |
 | [D022](#d022--serve-reqs-from-repository-sources-with-a-zero-dependency-safe-markdown-renderer) | build | Serve /reqs from repository sources with a zero-dependency safe Markdown renderer | Agent decided alone | accepted |
 | [D023](#d023--publish-one-versioned-validation-boundary-catalog-as-shared-exported-constants) | build | Publish one versioned validation boundary catalog as shared exported constants | Agent decided alone | accepted |
+| [D024](#d024--verify-the-editor-password-via-fixed-length-digests-and-bind-sessions-to-a-double-submit-csrf-proof) | build | Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof | Agent decided alone | accepted |
 
 ---
 
@@ -904,4 +905,42 @@ The mission plan explicitly assigns defining this catalog to the validation-boun
 
 ---
 
-<sub>Generated from 23 record(s) as of 2026-09-08 · source `99b45ea5f0b0`</sub>
+## D024 — Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The editor login (VAL-AUTH-001, VAL-AUTH-010) needs a server-only verifier that never leaks length or timing information about EDITOR_PASSWORD, a session format that supports the catalog's absolute-expiry/renewal policy plus authoritative logout before any durable store exists, and CSRF protection for cookie-authorized mutations now that SameSite=Strict and exact Origin checks alone would leave the later mutation surface without a session-bound proof.
+
+**Decision**
+
+Hash both the submitted password and EDITOR_PASSWORD with SHA-256 and compare the fixed-length digests with crypto.timingSafeEqual, so empty, unequal-length, oversized, and arbitrary-Unicode input can neither throw nor bypass. Issue sessions as HMAC-SHA256-signed v1.payload.signature tokens carrying a random session id, issued-at, absolute expiry, and a random CSRF proof; renewal keeps the session id and proof and resets the absolute expiry. Bind mutations with a double-submit pair: the proof rides in a browser-readable pinata_csrf cookie and must be echoed in the x-pinata-csrf header, compared timing-safely against the session payload. Logout revokes the session id in a per-process revocation set held until the session's absolute expiry, and always clears both cookies with matching attributes. Enforce exact same-origin Origin against the Host header (Next.js normalizes request.url's hostname), the 1,024-byte auth body cap, and a strict one-field Zod schema; add AUTH_REQUEST_MAX_BYTES and EDITOR_PASSWORD_MAX_CHARS to the boundary catalog and bump POLICY_VERSION to 2026-09-08.2. Keep every secret, verifier, and cookie serializer in src/lib/server/, guarded by a test that fails if any client module imports them.
+
+**Alternatives considered**
+
+- *Compare plaintext passwords with timingSafeEqual after length checks* — Length checks branch on attacker input and expose the configured length; hashing to fixed-length representations first keeps one constant-time code path for every input class.
+- *Rely on SameSite=Strict plus Origin checks without a CSRF token* — The contract requires a session-bound CSRF proof on authenticated mutations; the double-submit header also guards against future relaxed-same-site mistakes and subresource confusion.
+- *Wait for the Turso schema feature and store sessions/revocations in the database* — Login must work before the database lands; a per-process revocation set satisfies authoritative logout within an instance now, and the durable-throttling feature can move revocation and buckets to Turso without changing the token format or the route contracts.
+
+**Rationale**
+
+The architecture document already directs the password prompt, timing-safe comparison, SESSION_SECRET-signed cookies, and origin/CSRF protection, so this chooses only implementation mechanics inside that approved direction — a safe agent-autonomous call. The verifier and session format were proven with 44 focused tests before the full gate ran.
+
+**Consequences**
+
+- Client code reads the pinata_csrf cookie and echoes it in x-pinata-csrf on every mutation; the header is compared against the session payload, not the cookie, so a stolen cookie alone cannot authorize mutations.
+- Logout is authoritative per application instance; cross-instance revocation durability arrives with the durable store features (editor-durable-login-throttling, editor-session-lifecycle-on-protected-data).
+- AUTH_REQUEST_MAX_BYTES (1,024 bytes) and EDITOR_PASSWORD_MAX_CHARS (256) join the versioned boundary catalog; docs/EVALS.md and docs/ARCHITECTURE.md publish them at POLICY_VERSION 2026-09-08.2.
+- No client-reachable module may import src/lib/server/ or node:crypto; test/server/auth.test.ts enforces the boundary by source scan.
+
+**Artifacts**
+
+- `src/lib/server/auth/password.ts` — Fixed-length timing-safe verifier
+- `src/lib/server/auth/session.ts` — Signed, renewable, revocable session tokens
+- `src/lib/server/http.ts` — Origin, byte-cap, and generic-error boundaries
+- `test/server/auth-routes.test.ts` — The login/logout/session denial matrix
+
+---
+
+<sub>Generated from 24 record(s) as of 2026-09-08 · source `057451a6afcf`</sub>

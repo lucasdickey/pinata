@@ -14,10 +14,12 @@ import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  AUTH_REQUEST_MAX_BYTES,
   BLANK_URL_ROW_POLICY,
   CAPTURE_OUTCOMES,
   CLIENT_REQUEST_TIMEOUT_MS,
   DESKTOP_VIEWPORT,
+  EDITOR_PASSWORD_MAX_CHARS,
   EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
   EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
   FEEDBACK_BODY_MAX_CHARS,
@@ -100,6 +102,8 @@ interface DocRow {
 const SESSION_ROWS: DocRow[] = [
   { name: "EDITOR_SESSION_ABSOLUTE_LIFETIME_MS", value: fmtMs(EDITOR_SESSION_ABSOLUTE_LIFETIME_MS) },
   { name: "EDITOR_SESSION_RENEWAL_THRESHOLD_MS", value: fmtMs(EDITOR_SESSION_RENEWAL_THRESHOLD_MS) },
+  { name: "AUTH_REQUEST_MAX_BYTES", value: fmtBytes(AUTH_REQUEST_MAX_BYTES) },
+  { name: "EDITOR_PASSWORD_MAX_CHARS", value: fmtNum(EDITOR_PASSWORD_MAX_CHARS) },
 ];
 
 const URL_ROWS: DocRow[] = [

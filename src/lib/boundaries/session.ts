@@ -11,3 +11,12 @@ export const EDITOR_SESSION_ABSOLUTE_LIFETIME_MS = 43_200_000;
  * expiry of now + EDITOR_SESSION_ABSOLUTE_LIFETIME_MS.
  */
 export const EDITOR_SESSION_RENEWAL_THRESHOLD_MS = 7_200_000;
+
+/**
+ * Maximum byte size of an authentication request body (login/logout JSON),
+ * measured as UTF-8. Larger bodies are rejected before parsing.
+ */
+export const AUTH_REQUEST_MAX_BYTES = 1_024;
+
+/** Maximum characters accepted in the editor password field. */
+export const EDITOR_PASSWORD_MAX_CHARS = 256;

@@ -377,3 +377,71 @@ Roughly 45 minutes of mission-worker time (excluding an external pause).
 - None. Values are defensible against the documented provider limits and
   observed Chickpea heights; any future change bumps `POLICY_VERSION` and
   updates both docs in the same commit.
+
+## Session 07 — 2026-09-08 — Editor authentication, sessions, and the authorization boundary
+
+### What happened
+
+Built Lucas's password-only entry (mission feature
+`editor-auth-session-and-authorization`, assertions VAL-AUTH-001 and
+VAL-AUTH-010) test-first. The landing route is now the server-side boundary:
+a clean browser gets the product framing plus one labeled masked password
+prompt and no editor data; a verified session gets a minimal editor shell
+with a keyboard-operable Sign out. `POST /api/auth/login` enforces, in
+order, an exact same-origin Origin (compared against the Host header), the
+`application/json` content type, the new 1,024-byte auth body cap, a strict
+one-field Zod schema, and then the server-only verifier, which SHA-256-hashes
+both submitted and configured passwords and compares the fixed-length
+digests with `crypto.timingSafeEqual`. Success issues an HMAC-SHA256-signed
+session (`pinata_editor_session`, HttpOnly, SameSite=Strict, path `/`,
+`Secure` on HTTPS) plus a browser-readable `pinata_csrf` double-submit
+proof. `POST /api/auth/logout` requires the session-bound `x-pinata-csrf`
+header, revokes the session id in a per-process set held until absolute
+expiry, and clears both cookies with matching attributes; repeat logouts are
+idempotent. `GET /api/editor/session` is the first protected read behind
+`requireEditor`, and renews sessions inside the 2-hour threshold with a
+fresh absolute expiry. The two new boundaries
+(`AUTH_REQUEST_MAX_BYTES`, `EDITOR_PASSWORD_MAX_CHARS`) joined the catalog,
+which bumped `POLICY_VERSION` to 2026-09-08.2.
+
+### What broke, and what it caught
+
+- **Next.js normalizes `request.url`'s hostname.** The first real-server
+  login returned 403: the app runs on `127.0.0.1:3100` but route handlers
+  saw `http://localhost:3100/...`, so Origin (`127.0.0.1`) mismatched the
+  URL host. The check now treats the Host header as the addressed authority,
+  with the request URL as fallback; a regression test pins both the
+  normalized-URL pass case and a poisoned-Host rejection.
+- **Next.js's route announcer is a second `role="alert"`.** The first e2e
+  login-denial assertion was ambiguous against `#__next-route-announcer__`;
+  the spec now targets the login section's paragraph alert.
+- **Local development secrets are short.** A naive e2e scan for secret
+  *values* in served HTML false-positives when a local value is a common
+  six-letter word. The e2e scans for secret *names* in HTML and client
+  bundles (always meaningful) and proves the login response never echoes the
+  submitted password; unique-sentinel value scans remain with the deployed
+  cross-surface hardening feature (VAL-AUTH-002). Advisory: confirm the
+  deployed `EDITOR_PASSWORD`/`SESSION_SECRET` are high-entropy before any
+  public launch.
+
+### Elapsed
+
+Roughly 60 minutes of mission-worker time (including one external pause).
+
+### Decisions and assertions
+
+- `D024` recorded (agent-autonomous): fixed-length digest verification, the
+  signed renewable session format, the double-submit CSRF binding, and the
+  per-process logout revocation set.
+- Fulfills `VAL-AUTH-001` and `VAL-AUTH-010` on the local surface: 30 unit
+  tests (verifier, session lifecycle, cookies, schema, origin/transport,
+  server-only source scan), 14 route-level matrix tests, the curl matrix
+  against the running server, and 5 new Playwright specs all pass inside
+  `npm run validate`.
+
+### Open questions at end of session
+
+- Cross-instance logout revocation and durable login throttling (Turso
+  `rate_limit_buckets`) belong to `editor-durable-login-throttling` and
+  `editor-session-lifecycle-on-protected-data`; the token format and route
+  contracts are stable for them.

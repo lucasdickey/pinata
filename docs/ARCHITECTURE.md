@@ -102,16 +102,18 @@ Every redirect hop is revalidated under the same rules before following it.
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.1`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-08.2`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.2 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
+| `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
+| `EDITOR_PASSWORD_MAX_CHARS` | 256 | Password field length cap. |
 | `DESKTOP_VIEWPORT` | 1440 × 900 CSS px, DPR 1 | Standard desktop capture. |
 | `MOBILE_VIEWPORT` | 390 × 844 CSS px, DPR 1 | Standard mobile capture with mobile UA and touch emulation. |
 | `MAX_DOCUMENT_HEIGHT_PX` | 16,384 px | Taller documents fail boundedly. |

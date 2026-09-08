@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.2`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.2 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -97,6 +97,8 @@ the application is a defect.
 | --- | --- | --- |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | A session is never valid past its absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal is allowed only when the remaining lifetime is inside this threshold; a renewal sets a fresh absolute expiry. |
+| `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Login/logout request bodies larger than this are rejected before parsing. |
+| `EDITOR_PASSWORD_MAX_CHARS` | 256 | The password field accepts at most this many characters. |
 
 ### URL and input limits
 
