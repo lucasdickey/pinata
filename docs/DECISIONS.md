@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 9 | D005, D006, D008, D021, D022, D023, D024, D025, D026 |
+| Agent decided alone | 10 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **26** | |
+| **Total** | **27** | |
 
 ## Index
 
@@ -52,6 +52,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D024](#d024--verify-the-editor-password-via-fixed-length-digests-and-bind-sessions-to-a-double-submit-csrf-proof) | build | Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof | Agent decided alone | accepted |
 | [D025](#d025--persist-the-canonical-model-in-committed-drizzle-migrations-with-database-enforced-thread-immutability-and-injectable-provider-seams) | build | Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams | Agent decided alone | accepted |
 | [D026](#d026--throttle-editor-logins-with-one-durable-digested-global-bucket-and-check-secrets-fail-closed-before-verification) | build | Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification | Agent decided alone | accepted |
+| [D027](#d027--env-dependent-tests-skip-rather-than-fail-so-the-ci-gate-needs-no-repository-secrets) | build | Env-dependent tests skip rather than fail, so the CI gate needs no repository secrets | Agent decided alone | accepted |
 
 ---
 
@@ -1025,4 +1026,40 @@ VAL-AUTH-006 and the approved schema (D025) already direct durable, digest-keyed
 
 ---
 
-<sub>Generated from 26 record(s) as of 2026-09-08 · source `6708ff02c407`</sub>
+## D027 — Env-dependent tests skip rather than fail, so the CI gate needs no repository secrets
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The gate is one command run in two places with different configuration. Locally .env.local supplies the editor secrets, Turso credentials, Blob token, and Browserless token; GitHub Actions holds none of them. The e2e auth specs read EDITOR_PASSWORD from .env.local and threw when it was absent, so `npm run validate` could never pass in CI. Either CI gets real secrets, or the suite has to state which parts it can prove without them.
+
+**Decision**
+
+Keep secrets out of CI entirely and make configuration-dependent tests skip with a name-only reason instead of failing. Playwright specs go through e2e/local-env.ts: localEnvGate([...names]) resolves each variable from the process environment first and .env.local second, reports the missing names, and the spec calls test.skip(!gate.ready, gate.reason) before reading any value through requireLocalEnvValue. No spec reads .env.local directly, and test/e2e-env-gate.test.ts enforces both that rule and the presence of the skip. This mirrors the describe.skipIf gating the Vitest integration suites already use. The unauthenticated e2e coverage — the login prompt shape, the 401 on the protected read, and the public HTML/bundle secret-name scan — stays unconditional and runs in CI.
+
+**Alternatives considered**
+
+- *Give the workflow real repository secrets* — It would put the editor password, session-signing key, and provider tokens into a workflow that also runs on pull requests, for no gain in what CI actually proves; the credentialed paths still need a real browser and a real deployment to be believable.
+- *Split e2e into a CI subset and a local-only suite with a second command* — A second entry point breaks the rule that one command means the same thing everywhere, and it invites the local-only suite to rot unrun.
+- *Have the specs fabricate a password when the environment is absent* — A test that passes against a credential nobody configured proves nothing and would report false coverage of the auth boundary.
+
+**Rationale**
+
+This is the gating pattern the repository already chose for the Turso and Blob integration suites, applied to Playwright, so it introduces no new direction; it is safe to decide unilaterally because it neither weakens an assertion nor changes product behavior. The skipped tests are named in the run output with the variables they need, which keeps the reduced CI coverage visible instead of silent, and no secret value reaches the workflow, the specs, or any committed file.
+
+**Consequences**
+
+- A green CI run proves the public and anonymous surfaces only. Editor login, Turso, Blob, and Browserless coverage comes from a local `npm run validate` with .env.local present, and from validation against the deployment — CI alone is never sufficient evidence that a credentialed path works.
+- Every future env-dependent Playwright spec must gate through e2e/local-env.ts; reading .env.local directly now fails `npm test`.
+- Skip reasons and gate errors may name variables but never values, keeping the no-secret-in-output rule intact even in failure output.
+
+**Artifacts**
+
+- `e2e/local-env.ts` — The shared Playwright environment gate: name-only reporting, process env before .env.local
+- `e2e/auth.spec.ts` — Auth specs: anonymous checks unconditional, the two login checks gated
+- `test/e2e-env-gate.test.ts` — Gate behavior plus the repository rule that no spec reads .env.local directly
+
+---
+
+<sub>Generated from 27 record(s) as of 2026-09-08 · source `59e6162f5604`</sub>

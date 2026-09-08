@@ -175,6 +175,37 @@ Node 24, so a green local run and a green CI run mean the same thing.
   against a real component.
 - `e2e/smoke.spec.ts` — the Playwright Chromium chain against the production
   server on `127.0.0.1:3100`.
+- `test/e2e-env-gate.test.ts` — the environment gate below, plus the rule that
+  no Playwright spec may read `.env.local` on its own.
+
+### Configured versus unconfigured environments
+
+The gate runs in two places with different configuration, and it has to be
+green in both:
+
+- **Locally (and against a deployment)** `.env.local` supplies the real editor
+  secrets, Turso credentials, Blob token, and Browserless token, so every test
+  runs and coverage is complete.
+- **In CI** there are no repository secrets by design — none are needed to
+  prove the repository is sound, and none should be handed to a workflow that
+  runs on pull requests.
+
+Tests that need real configuration therefore **skip, never fail, when it is
+absent**:
+
+- Vitest integration suites under `test/integration/` gate on the provider
+  variables with `describe.skipIf`.
+- Playwright specs gate through `e2e/local-env.ts`: `localEnvGate([...names])`
+  reports what is missing, the spec calls `test.skip(!gate.ready, gate.reason)`,
+  and `requireLocalEnvValue(name)` reads the value only after the gate passed.
+  A skip reason names variables, never values. Specs must not read `.env.local`
+  directly — `test/e2e-env-gate.test.ts` enforces that.
+
+The consequence is explicit: a green CI run proves the anonymous and public
+surfaces, not the credentialed paths. Anything that needs real secrets — editor
+login, Turso, Blob, Browserless — is proven by a local `npm run validate` with
+`.env.local` present, and by validation against the deployment. Run the gate
+locally before declaring work finished; CI alone is not sufficient evidence.
 
 ### Determinism
 

@@ -571,3 +571,60 @@ Roughly 40 minutes of mission-worker time.
 - Editor session revocation is still per-process (see `auth/session.ts`);
   cross-instance logout durability belongs to the session-lifecycle feature
   if the contract demands it.
+
+---
+
+## Session: keeping the CI gate green without secrets (2026-09-08)
+
+### What happened
+
+- The auth e2e specs read `EDITOR_PASSWORD` straight out of `.env.local` and
+  threw when it was absent, so `npm run validate` could not pass in GitHub
+  Actions, which holds no repository secrets. Fixed by gating rather than by
+  handing CI credentials.
+- Added `e2e/local-env.ts`: `localEnvGate([...names])` resolves each variable
+  from the process environment first and `.env.local` second, returns the
+  missing **names** and a `test.skip` reason, and `requireLocalEnvValue(name)`
+  reads a value only after the gate passed. Nothing in the module can put a
+  value into a message.
+- `e2e/auth.spec.ts` now gates the two login checks on
+  `EDITOR_PASSWORD`/`SESSION_SECRET`/`TURSO_*` and the protected-read check on
+  `SESSION_SECRET`. The prompt-shape and public-bundle secret-name scans stay
+  unconditional and run in CI.
+- `test/e2e-env-gate.test.ts` covers the helper (missing file, quoting,
+  process-env precedence, empty-as-absent, name-only reasons) and enforces the
+  repository rule that no Playwright spec reads `.env.local` directly and that
+  any spec using the gate actually skips on it.
+- Documented the split in `AGENTS.md` section 3 and `README.md`: a green CI run
+  proves the public surfaces; credentialed paths are proven by a local gate run
+  with `.env.local` present and against the deployment.
+
+### What broke, and what it caught
+
+- The first no-secret run still failed one test: with `SESSION_SECRET` absent,
+  `GET /api/editor/session` fails closed with a bounded 503, not the 401 the
+  anonymous-denial test asserts. That is the route behaving correctly, so the
+  test was gated on `SESSION_SECRET` rather than relaxed to accept either
+  status — a denial test that accepts 503 would pass against a broken build.
+- Verified the CI condition without touching `.env.local`: copied the working
+  tree to a scratch directory with no env file, unset the provider variables,
+  and ran the whole gate there. `npm run validate` exited 0 with three e2e
+  tests skipped and eleven passed; the JSON reporter showed skip reasons
+  naming only variables.
+
+### Elapsed
+
+Roughly 30 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D027` recorded (agent-autonomous): env-dependent tests skip rather than
+  fail, so the gate needs no repository secrets; the reduced CI coverage is
+  stated rather than implied.
+- No contract assertion changed. `VAL-AUTH-001` coverage is unchanged where the
+  environment is configured — the same specs run and pass locally.
+
+### Open questions at end of session
+
+- Deployed-surface auth validation (`VAL-AUTH-002`) still needs a real run
+  against the Vercel deployment; CI cannot stand in for it, and now says so.

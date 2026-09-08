@@ -1,20 +1,26 @@
 // End-to-end proof of the editor auth boundary against the production build
 // (VAL-AUTH-001): clean-browser prompt shape, wrong/valid login transitions,
 // cookie attributes, logout, post-logout replay denial, and a public-asset
-// secret scan. The editor password is read from .env.local and never logged.
+// secret scan. The editor password is read from the environment and never
+// logged.
+//
+// The prompt-shape and public-asset checks need no configuration and run
+// everywhere, including CI. The rest gate on what the server needs to answer
+// them meaningfully, and skip with a name-only reason otherwise: the protected
+// read fails closed with a 503 (not the 401 under test) when SESSION_SECRET is
+// absent, and login additionally needs the editor password and the durable
+// throttle store the route requires before it will verify anything.
 
 import { expect, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { localEnvGate, requireLocalEnvValue } from "./local-env";
 
-function localEnvValue(name: string): string {
-  for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
-    const match = line.match(/^([A-Z_]+)=(.*)$/);
-    if (match && match[1] === name) {
-      return match[2].replace(/^"|"$/g, "");
-    }
-  }
-  throw new Error(`${name} is not present in .env.local`);
-}
+const sessionEnv = localEnvGate(["SESSION_SECRET"]);
+const loginEnv = localEnvGate([
+  "EDITOR_PASSWORD",
+  "SESSION_SECRET",
+  "TURSO_DATABASE_URL",
+  "TURSO_AUTH_TOKEN",
+]);
 
 test("a clean browser sees one masked password prompt and no editor data", async ({ page }) => {
   const consoleErrors: string[] = [];
@@ -44,6 +50,7 @@ test("a clean browser sees one masked password prompt and no editor data", async
 test("wrong password is denied; the configured password establishes a session; logout ends it", async ({
   page,
 }) => {
+  test.skip(!loginEnv.ready, loginEnv.reason);
   await page.goto("/");
 
   // Wrong password: generic error, no session cookie.
@@ -55,7 +62,7 @@ test("wrong password is denied; the configured password establishes a session; l
 
   // Valid password: editor shell appears, session cookies carry the policy
   // attributes.
-  await page.getByLabel("Password").fill(localEnvValue("EDITOR_PASSWORD"));
+  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 
@@ -82,6 +89,7 @@ test("wrong password is denied; the configured password establishes a session; l
 });
 
 test("anonymous callers are denied the protected editor read", async ({ page }) => {
+  test.skip(!sessionEnv.ready, sessionEnv.reason);
   const response = await page.request.get("/api/editor/session");
   expect(response.status()).toBe(401);
   const body = await response.text();
@@ -117,7 +125,8 @@ test("public HTML and client bundles contain no secret names", async ({ page, re
 });
 
 test("the login response never echoes the submitted password", async ({ request }) => {
-  const editorPassword = localEnvValue("EDITOR_PASSWORD");
+  test.skip(!loginEnv.ready, loginEnv.reason);
+  const editorPassword = requireLocalEnvValue("EDITOR_PASSWORD");
   for (const password of [editorPassword, "unique-wrong-password-sentinel-zq8x"]) {
     const response = await request.post("/api/auth/login", {
       headers: { "content-type": "application/json" },

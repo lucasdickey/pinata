@@ -1018,8 +1018,58 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D027",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Env-dependent tests skip rather than fail, so the CI gate needs no repository secrets",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The gate is one command run in two places with different configuration. Locally .env.local supplies the editor secrets, Turso credentials, Blob token, and Browserless token; GitHub Actions holds none of them. The e2e auth specs read EDITOR_PASSWORD from .env.local and threw when it was absent, so `npm run validate` could never pass in CI. Either CI gets real secrets, or the suite has to state which parts it can prove without them.",
+      "decision": "Keep secrets out of CI entirely and make configuration-dependent tests skip with a name-only reason instead of failing. Playwright specs go through e2e/local-env.ts: localEnvGate([...names]) resolves each variable from the process environment first and .env.local second, reports the missing names, and the spec calls test.skip(!gate.ready, gate.reason) before reading any value through requireLocalEnvValue. No spec reads .env.local directly, and test/e2e-env-gate.test.ts enforces both that rule and the presence of the skip. This mirrors the describe.skipIf gating the Vitest integration suites already use. The unauthenticated e2e coverage — the login prompt shape, the 401 on the protected read, and the public HTML/bundle secret-name scan — stays unconditional and runs in CI.",
+      "alternatives": [
+        {
+          "option": "Give the workflow real repository secrets",
+          "why_not": "It would put the editor password, session-signing key, and provider tokens into a workflow that also runs on pull requests, for no gain in what CI actually proves; the credentialed paths still need a real browser and a real deployment to be believable."
+        },
+        {
+          "option": "Split e2e into a CI subset and a local-only suite with a second command",
+          "why_not": "A second entry point breaks the rule that one command means the same thing everywhere, and it invites the local-only suite to rot unrun."
+        },
+        {
+          "option": "Have the specs fabricate a password when the environment is absent",
+          "why_not": "A test that passes against a credential nobody configured proves nothing and would report false coverage of the auth boundary."
+        }
+      ],
+      "rationale": "This is the gating pattern the repository already chose for the Turso and Blob integration suites, applied to Playwright, so it introduces no new direction; it is safe to decide unilaterally because it neither weakens an assertion nor changes product behavior. The skipped tests are named in the run output with the variables they need, which keeps the reduced CI coverage visible instead of silent, and no secret value reaches the workflow, the specs, or any committed file.",
+      "consequences": [
+        "A green CI run proves the public and anonymous surfaces only. Editor login, Turso, Blob, and Browserless coverage comes from a local `npm run validate` with .env.local present, and from validation against the deployment — CI alone is never sufficient evidence that a credentialed path works.",
+        "Every future env-dependent Playwright spec must gate through e2e/local-env.ts; reading .env.local directly now fails `npm test`.",
+        "Skip reasons and gate errors may name variables but never values, keeping the no-secret-in-output rule intact even in failure output."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "e2e/local-env.ts",
+          "caption": "The shared Playwright environment gate: name-only reporting, process env before .env.local"
+        },
+        {
+          "type": "file",
+          "path": "e2e/auth.spec.ts",
+          "caption": "Auth specs: anonymous checks unconditional, the two login checks gated"
+        },
+        {
+          "type": "file",
+          "path": "test/e2e-env-gate.test.ts",
+          "caption": "Gate behavior plus the repository rule that no spec reads .env.local directly"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-08",
-  "source_hash": "6708ff02c407"
+  "source_hash": "59e6162f5604"
 };

@@ -143,6 +143,13 @@ npm run validate
 | `npm run e2e` | Playwright Chromium against the production server on `127.0.0.1:3100`. |
 | `npm run validate` | All six stages, in that order. This is the gate, and CI runs the identical command under Node 24. |
 
+The gate needs no credentials to pass. Tests that require real configuration —
+the editor password, Turso, Blob, Browserless — read it from a git-ignored
+`.env.local` and **skip** when it is absent, which is how CI stays green with no
+repository secrets. So a green CI run proves the public surfaces; the
+credentialed paths are proven by running the same gate locally with `.env.local`
+present, and against the deployment. See [`AGENTS.md`](AGENTS.md) section 3.
+
 The suite tests the provenance rules themselves, not just the rendering: a
 decision tagged as human-directed with no quote behind it fails the build. See
 [`AGENTS.md`](AGENTS.md) section 3 for the full contract.
