@@ -14,6 +14,7 @@ import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  ALLOWED_IMAGE_CONTENT_TYPES,
   AUTH_REQUEST_MAX_BYTES,
   BLANK_URL_ROW_POLICY,
   CAPTURE_OUTCOMES,
@@ -132,6 +133,7 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "MAX_DOCUMENT_HEIGHT_PX", value: fmtPx(MAX_DOCUMENT_HEIGHT_PX) },
   { name: "MAX_DOCUMENT_PIXELS", value: fmtPx(MAX_DOCUMENT_PIXELS) },
   { name: "MAX_IMAGE_BYTES", value: fmtBytes(MAX_IMAGE_BYTES) },
+  { name: "ALLOWED_IMAGE_CONTENT_TYPES", value: ALLOWED_IMAGE_CONTENT_TYPES.join(", ") },
   { name: "MAX_PROVIDER_RESPONSE_BYTES", value: fmtBytes(MAX_PROVIDER_RESPONSE_BYTES) },
   { name: "NAVIGATION_TIMEOUT_MS", value: fmtMs(NAVIGATION_TIMEOUT_MS) },
   { name: "NETWORK_IDLE_TIMEOUT_MS", value: fmtMs(NETWORK_IDLE_TIMEOUT_MS) },

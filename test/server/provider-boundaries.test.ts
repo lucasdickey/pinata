@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import {
   BROWSERLESS_FUNCTION_ENDPOINT,
+  browserlessAuthorization,
   createBrowserlessClient,
   type FetchLike,
 } from "../../src/lib/server/providers/browserless";
@@ -51,7 +52,11 @@ describe("browserless provider boundary", () => {
     expect(seen!.url).toBe(BROWSERLESS_FUNCTION_ENDPOINT);
     expect(seen!.url).not.toContain(TEST_BROWSERLESS_TOKEN);
     const headers = (seen!.init as { headers: Record<string, string> }).headers;
-    expect(headers.authorization).toBe(`Bearer ${TEST_BROWSERLESS_TOKEN}`);
+    // Basic with the token as the username: the one header form the provider
+    // gateway accepts, and it keeps the credential out of the URL.
+    expect(headers.authorization).toBe(browserlessAuthorization(TEST_BROWSERLESS_TOKEN));
+    expect(headers.authorization).toMatch(/^Basic [A-Za-z0-9+/=]+$/);
+    expect(headers.authorization).not.toContain(TEST_BROWSERLESS_TOKEN);
     // User input travels as context data, never interpolated into code.
     const body = JSON.parse(String((seen!.init as { body: string }).body));
     expect(body.context).toEqual({ url: "https://example.com/" });

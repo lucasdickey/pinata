@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.5`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.6`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.5 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.6 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -175,6 +175,7 @@ before any capture attempt or project row exists.
 | `MAX_DOCUMENT_HEIGHT_PX` | 16,384 px | Taller documents fail as `document-too-tall`. |
 | `MAX_DOCUMENT_PIXELS` | 25,000,000 px | Larger documents fail as `too-many-pixels`. |
 | `MAX_IMAGE_BYTES` | 8,388,608 bytes (8 MiB) | Larger screenshots fail as `image-bytes-exceeded`. |
+| `ALLOWED_IMAGE_CONTENT_TYPES` | image/png, image/webp | Only these decode into a stored screenshot; anything else fails as `invalid-image`. Capture asks for the first entry, PNG, so pixels are lossless and one stabilized layout is reproducible. |
 | `MAX_PROVIDER_RESPONSE_BYTES` | 16,777,216 bytes (16 MiB) | Larger provider responses fail as `provider-bytes-exceeded`. |
 | `NAVIGATION_TIMEOUT_MS` | 30,000 ms | Per-navigation budget; exceeding it fails as `navigation-timeout`. |
 | `NETWORK_IDLE_TIMEOUT_MS` | 5,000 ms | Post-navigation network-idle budget. |
@@ -284,6 +285,32 @@ state as the screenshot, and warns on the rest:
 | Animated images (GIF/APNG/WebP) | first-frame |
 | Canvas/JS-driven animation | unsupported-warn |
 | Sticky/parallax layers | as-rendered |
+
+Exactly what each policy does, so the result is reproducible rather than
+merely still:
+
+- **frozen** — capture-only CSS sets `animation: none` and `transition: none`,
+  so the element renders its base style instead of whichever frame the clock
+  happened to be on. Freezing in place would be still but not reproducible.
+- **hidden** — `caret-color: transparent`, which removes the blinking caret
+  without moving or resizing the field.
+- **paused** — every `document.getAnimations()` animation is paused and
+  rewound to time zero; every `<video>` is paused. A rewound Web Animation is
+  reproducible; a paused video frame is not, so video regions are excluded
+  from reproducibility comparisons.
+- **first-frame** — an animated image is covered by a canvas holding the frame
+  `createImageBitmap` decodes, which is the format's default (first) frame.
+  When the bytes cannot be re-read (opaque cross-origin response), the capture
+  warns instead of claiming a freeze.
+- **unsupported-warn** — a visible `<canvas>` may be repainted by script at any
+  moment; capture cannot freeze it and says so in a warning.
+- **as-rendered** — sticky and parallax layers are captured where they sit
+  after the scroll returns to the top, and the capture warns that their
+  position is scroll-dependent.
+
+Every warning code is derived from this matrix (`motion-unsupported:canvas-js`,
+`motion-as-rendered:sticky-parallax`, `motion-first-frame:animated-image`), so
+no capture can invent a motion warning outside the published cases.
 
 | Constant | Value | Policy |
 | --- | --- | --- |

@@ -1,10 +1,17 @@
 // POST /api/captures/[captureId]/dispatch — admit one pending attempt's
-// target and claim it for provider work (VAL-CAPTURE-001, VAL-CAPTURE-002).
+// target, claim it, capture it, and finalize it, in one request
+// (VAL-CAPTURE-001 … VAL-CAPTURE-004, VAL-CAPTURE-014).
 //
 // Boundary order matches every other mutation: same-origin Origin, editor
 // session plus CSRF, hard byte cap, then the work. The route takes no request
 // body — the attempt row already names the target — so nothing a caller sends
 // can influence which URL is admitted.
+//
+// The provider runs in this same request, immediately after admission claims
+// the attempt, and the response is only written once the row is `ready` or
+// `failed`. That is deliberate: an admitted attempt must never be left as an
+// open `capturing` claim waiting for a second call that may never come, and
+// there is no separate claim endpoint to leave it open.
 //
 // A rejected target answers with its catalog outcome: a bounded public
 // message that names no host, no resolved address, and no provider detail.
@@ -12,8 +19,12 @@
 import { CAPTURE_REQUEST_MAX_BYTES, captureOutcome } from "../../../../../src/lib/boundaries";
 import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
 import { requireEditorMutation } from "../../../../../src/lib/server/auth/guard";
-import { getAdmissionDeps } from "../../../../../src/lib/server/captures/deps";
+import {
+  getAdmissionDeps,
+  getCaptureExecutionDeps,
+} from "../../../../../src/lib/server/captures/deps";
 import { dispatchCapture } from "../../../../../src/lib/server/captures/dispatch";
+import { executeCapture } from "../../../../../src/lib/server/captures/execute";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
 import { ERRORS, hasSameOrigin, isSecureRequest, jsonError } from "../../../../../src/lib/server/http";
 
@@ -54,10 +65,8 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     return deny(503, ERRORS.unavailable);
   }
 
-  if (!result.ok) {
-    if (result.error === "not-found") return deny(404, ERRORS.rejected);
-    if (result.error === "not-dispatchable") return deny(409, ERRORS.rejected);
-    const outcome = captureOutcome(result.outcome);
+  const outcomeResponse = (code: string) => {
+    const outcome = captureOutcome(code);
     return withRenewal(
       Response.json(
         { error: outcome.publicMessage, code: outcome.code, remediation: outcome.remediation },
@@ -66,10 +75,30 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       auth.renewedToken,
       secure,
     );
+  };
+
+  if (!result.ok) {
+    if (result.error === "not-found") return deny(404, ERRORS.rejected);
+    if (result.error === "not-dispatchable") return deny(409, ERRORS.rejected);
+    return outcomeResponse(result.outcome);
+  }
+
+  let execution;
+  try {
+    execution = await executeCapture(db, result.capture.captureId, getCaptureExecutionDeps());
+  } catch {
+    return deny(503, ERRORS.unavailable);
+  }
+
+  if (!execution.ok) {
+    // "not-executable" means another worker already finalized this attempt
+    // between the claim and here; the row is terminal either way.
+    if ("error" in execution) return deny(409, ERRORS.rejected);
+    return outcomeResponse(execution.outcome);
   }
 
   return withRenewal(
-    Response.json({ capture: { ...result.capture, status: "capturing" } }, { status: 202 }),
+    Response.json({ capture: { ...execution.capture, status: "ready" } }, { status: 200 }),
     auth.renewedToken,
     secure,
   );

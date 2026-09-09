@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 16 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033 |
+| Agent decided alone | 20 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **33** | |
+| **Total** | **37** | |
 
 ## Index
 
@@ -59,6 +59,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D031](#d031--retry-is-scoped-to-one-page-and-one-viewport-keyed-to-that-exact-target) | build | Retry is scoped to one page and one viewport, keyed to that exact target | Agent decided alone | accepted |
 | [D032](#d032--capture-admission-is-two-defences-a-bounded-server-side-check-and-an-in-function-request-guard) | build | Capture admission is two defences: a bounded server-side check and an in-function request guard | Agent decided alone | accepted |
 | [D033](#d033--dns-admission-fails-closed-on-any-ambiguity-and-one-non-public-answer-rejects-the-host) | build | DNS admission fails closed on any ambiguity, and one non-public answer rejects the host | Agent decided alone | accepted |
+| [D034](#d034--capture-screenshots-are-png-and-only-png-or-webp-may-ever-be-stored) | build | Capture screenshots are PNG, and only PNG or WebP may ever be stored | Agent decided alone | accepted |
+| [D035](#d035--dispatch-admits-captures-and-finalizes-in-one-request-there-is-no-claim-endpoint) | build | Dispatch admits, captures, and finalizes in one request; there is no claim endpoint | Agent decided alone | accepted |
+| [D036](#d036--browserless-is-authenticated-with-http-basic-because-bearer-fails-and-the-url-is-not-an-option) | build | Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option | Agent decided alone | accepted |
+| [D037](#d037--controlled-capture-fixtures-live-in-the-repository-and-are-published-to-a-disposable-public-host-per-run) | validate | Controlled capture fixtures live in the repository and are published to a disposable public host per run | Agent decided alone | accepted |
 
 ---
 
@@ -1284,4 +1288,137 @@ Every rejected case is one where the application cannot state what the browser w
 
 ---
 
-<sub>Generated from 33 record(s) as of 2026-09-08 · source `9366ac364400`</sub>
+## D034 — Capture screenshots are PNG, and only PNG or WebP may ever be stored
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The capture pipeline has to decide what image format it asks Chromium for and what it will accept back. The choice is not cosmetic: the motion assertion compares two captures of one deterministic fixture pixel by pixel, and it also decides what a decoder has to be able to reject safely.
+
+**Decision**
+
+The published catalog gains ALLOWED_IMAGE_CONTENT_TYPES = [image/png, image/webp], and the first entry is what the capture function asks for. Only an allowlisted declared content type whose bytes decode as that same format, at exactly the document dimensions, can be stored. POLICY_VERSION moved to 2026-09-08.6.
+
+**Alternatives considered**
+
+- *Capture lossy WebP for smaller objects* — Lossy encoding makes two captures of an identical page differ, which is exactly what the stabilization assertion measures.
+- *Accept whatever the provider returns* — A provider error page, an HTML body, or a polyglot would become a ready capture; the decoder has to gate on a closed set.
+
+**Rationale**
+
+This is a mechanical choice inside an already approved direction, and it is reversible: WebP stays in the allowlist so a future feature can switch the produced format without touching the validator. PNG is lossless, so the pixel-diff assertion measures the page rather than the encoder, and the structural decoder that validates it is small enough to stay dependency-free.
+
+**Consequences**
+
+- Screenshots are larger than a lossy encoding would be; a 1440 x 4484 fixture capture measured 188 KB, well inside the 8 MiB cap.
+- Adding an image format is a five-file catalog change: the constant, both published docs, the drift test row, and POLICY_VERSION.
+
+**Artifacts**
+
+- `src/lib/boundaries/capture.ts` — The published image-type allowlist
+- `src/lib/server/captures/image.ts` — Structural PNG/WebP validation, dimension agreement, and SHA-256
+
+---
+
+## D035 — Dispatch admits, captures, and finalizes in one request; there is no claim endpoint
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Admission claimed an attempt and returned 202 with the row left in capturing, on the assumption that some later call would run the provider. That leaves a durable open claim whenever the second call never arrives, and it invites a second public endpoint whose only job is to finish someone else's claim.
+
+**Decision**
+
+POST /api/captures/:id/dispatch now runs the Browserless execution in the same request, immediately after dispatchCapture returns ok, and answers only once the row is ready or failed. Every exit from a claimed attempt is terminal: a missing provider credential, an untrustworthy envelope, a storage failure, and an unexpected throw all fail the row with a catalog outcome rather than leaving it capturing.
+
+**Alternatives considered**
+
+- *Keep 202 and add a worker or claim endpoint* — It adds a second surface that finalizes attempts it did not admit, and the open claim still exists whenever that worker is not running.
+- *Leave the claim open and rely on stale-lease reconciliation* — Staleness is a five-minute recovery path for crashes, not a design for the normal case.
+
+**Rationale**
+
+The open claim was recorded as an open question by the previous feature, and closing it inside the existing endpoint changes no public contract beyond the success status. Deciding this unilaterally was safe because the alternative — a new endpoint — is the change that would have needed approval.
+
+**Consequences**
+
+- A successful dispatch response now takes as long as a real capture, which the request-level timeout budget already bounds.
+- An admitted attempt can never be observed as an open capturing claim from this route, so polling only ever sees a terminal row.
+
+**Artifacts**
+
+- `app/api/captures/[captureId]/dispatch/route.ts` — Admit, capture, finalize, respond
+- `src/lib/server/captures/execute.ts` — Every path out of a claim is terminal
+
+---
+
+## D036 — Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The provider documents its token as a query parameter, which this project refuses: a credential in a URL leaks into proxies, logs, and error reports. The adapter therefore sent it as a bearer credential in the Authorization header — and every real call failed. Measured against three regional endpoints, a bearer credential returns a gateway 500 while the same request with the token in the query string returns 200.
+
+**Decision**
+
+The adapter sends Authorization: Basic base64(token + ':') — the token as the basic username with an empty password. That form is accepted by the same gateway that rejects bearer, and it keeps the credential in the header. The fixed regional /function endpoint and the never-log rule are unchanged.
+
+**Alternatives considered**
+
+- *Put the token in the ?token= query string as documented* — URLs end up in proxy logs, error reports, and stack traces; a header does not.
+- *Stop and treat the provider as blocked* — The provider is not blocked — one header form works, and the constraint is theirs, not the design's.
+
+**Rationale**
+
+This preserves the invariant that matters (the credential travels only in the Authorization header, never in a URL and never in a log) and changes only the scheme token inside that header. It was safe to decide alone because the alternative that needed judgement — a credential in the URL — was rejected, not chosen.
+
+**Consequences**
+
+- Provider-adapter tests assert the basic form and that the raw token appears nowhere in the header value or the URL.
+- If the provider later accepts bearer, switching back is a one-line change behind browserlessAuthorization().
+
+**Artifacts**
+
+- `src/lib/server/providers/browserless.ts` — browserlessAuthorization(): the accepted header form
+
+---
+
+## D037 — Controlled capture fixtures live in the repository and are published to a disposable public host per run
+
+*2026-09-09 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Proving device emulation, context isolation, lazy loading, and motion stabilization needs pages that Browserless can actually load, which means public HTTPS. This project's own Vercel deployments sit behind deployment protection and answer an SSO redirect, no tunnel tooling is installed, and publishing fixtures through the application's own routes would put test pages on its public surface.
+
+**Decision**
+
+The fixtures are versioned files in test/fixtures/capture/ (echo-v1.html, tall-motion-v1.html). scripts/publish-capture-fixtures.mjs uploads them to a disposable public host with a one-hour lifetime, refuses to print a URL unless the served bytes hash to exactly the repository bytes and arrive as text/html, and the real-provider suite reads those URLs from the environment and skips when they are absent.
+
+**Alternatives considered**
+
+- *Serve the fixtures from the application on Vercel* — Deployment protection blocks the provider, and disabling it to host test pages trades a real safety control for test convenience.
+- *Commit the fixtures to a public branch and serve them through a CDN of raw repository files* — It requires pushing, and this worker does not push.
+- *Run a tunnel to the local server* — No tunnel client is installed, and installing one puts a network-exposing daemon on the machine for a test.
+
+**Rationale**
+
+The repository stays the source of truth for fixture behaviour — the host only serves a byte-identical copy for the length of a run — so the assertion remains reproducible from the tree. The uploaded content is inert markup with no secrets and no application data, and it expires on its own.
+
+**Consequences**
+
+- The real-provider capture suite needs one publish step before it runs, and it skips rather than fails when the URLs are absent, so CI stays green.
+- The tall fixture publishes one masked region: everything whose value legitimately varies between runs lives in aside#volatile, and everything outside it must be pixel-identical.
+
+**Artifacts**
+
+- `test/fixtures/capture/tall-motion-v1.html` — Versioned tall fixture covering the published motion matrix
+- `scripts/publish-capture-fixtures.mjs` — Hash-verified publication of the repository fixtures
+- `test/integration/browserless-capture.integration.test.ts` — The real Browserless proof for VAL-CAPTURE-003 and VAL-CAPTURE-004
+
+---
+
+<sub>Generated from 37 record(s) as of 2026-09-09 · source `cfe793b27e74`</sub>

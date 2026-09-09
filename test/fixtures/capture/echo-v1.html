@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinata capture echo fixture v1</title>
+    <!--
+      Controlled echo fixture for VAL-CAPTURE-003.
+
+      It reports back exactly what the capture context looks like from inside
+      the page: the device emulation, a per-load context nonce, whether any
+      cookie or storage sentinel from an earlier load survived, and how many
+      times the page was interacted with. Two real Browserless executions of
+      this one URL must therefore show different context nonces, no surviving
+      sentinels, and zero interactions.
+
+      Inert and self-contained: no network requests, no third-party code, no
+      secrets. Every value is rendered into semantic elements so it appears in
+      both the screenshot and the DOM manifest. Version this file by copying
+      it to a new -vN name; never edit a published version in place.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #fdfaf4;
+        color: #1c1b19;
+        font: 16px/24px ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 36px;
+      }
+      h2 {
+        margin: 24px 0 8px;
+        font-size: 20px;
+        line-height: 28px;
+        border-bottom: 2px solid #e2d9c8;
+      }
+      p {
+        margin: 0 0 4px;
+        word-break: break-all;
+      }
+      .flag {
+        background: #fff3d6;
+        padding: 2px 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Pinata capture echo fixture</h1>
+      <p id="fixture-version">fixture-version: echo-v1</p>
+
+      <h2>Context isolation</h2>
+      <p id="context-nonce">context-nonce: pending</p>
+      <p id="cookie-sentinel">cookie-sentinel: pending</p>
+      <p id="local-sentinel">local-storage-sentinel: pending</p>
+      <p id="session-sentinel">session-storage-sentinel: pending</p>
+
+      <h2>Device observations</h2>
+      <p id="viewport">viewport: pending</p>
+      <p id="dpr">device-pixel-ratio: pending</p>
+      <p id="touch">max-touch-points: pending</p>
+      <p id="pointer">pointer-coarse: pending</p>
+      <p id="hover">hover-none: pending</p>
+      <p id="ua-family">ua-family: pending</p>
+      <p id="ua-mobile">ua-mobile: pending</p>
+      <p id="reduced-motion">prefers-reduced-motion: pending</p>
+
+      <h2>Interaction counters</h2>
+      <p id="counters" class="flag">counters: pending</p>
+      <p id="navigation-count">navigation-count: pending</p>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+        var set = function (id, text) {
+          document.getElementById(id).textContent = text;
+        };
+        var hex = function (bytes) {
+          var out = "";
+          for (var i = 0; i < bytes.length; i += 1) {
+            out += ("0" + bytes[i].toString(16)).slice(-2);
+          }
+          return out;
+        };
+
+        var nonce = "ctx_" + hex(crypto.getRandomValues(new Uint8Array(8)));
+        set("context-nonce", "context-nonce: " + nonce);
+
+        // Read any sentinel a previous execution left behind *before* writing
+        // this execution's own. A fresh context must find nothing.
+        var priorCookie = /(?:^|; )pinata_ctx=([^;]*)/.exec(document.cookie);
+        set("cookie-sentinel", "cookie-sentinel: " + (priorCookie ? "LEAKED " + priorCookie[1] : "none"));
+
+        var readStore = function (store) {
+          try {
+            return store.getItem("pinata_ctx");
+          } catch (error) {
+            return null;
+          }
+        };
+        var priorLocal = readStore(window.localStorage);
+        var priorSession = readStore(window.sessionStorage);
+        set("local-sentinel", "local-storage-sentinel: " + (priorLocal ? "LEAKED " + priorLocal : "none"));
+        set(
+          "session-sentinel",
+          "session-storage-sentinel: " + (priorSession ? "LEAKED " + priorSession : "none")
+        );
+
+        document.cookie = "pinata_ctx=" + nonce + "; path=/; max-age=3600; SameSite=Lax";
+        try {
+          window.localStorage.setItem("pinata_ctx", nonce);
+          window.sessionStorage.setItem("pinata_ctx", nonce);
+        } catch (error) {
+          /* storage may be unavailable; the cookie sentinel still applies */
+        }
+
+        var media = function (query) {
+          return window.matchMedia(query).matches;
+        };
+        var ua = navigator.userAgent || "";
+        set("viewport", "viewport: " + window.innerWidth + "x" + window.innerHeight);
+        set("dpr", "device-pixel-ratio: " + window.devicePixelRatio);
+        set("touch", "max-touch-points: " + (navigator.maxTouchPoints || 0));
+        set("pointer", "pointer-coarse: " + media("(pointer: coarse)"));
+        set("hover", "hover-none: " + media("(hover: none)"));
+        set("ua-family", "ua-family: " + (/iPhone|iPad|Android/.test(ua) ? "mobile" : "desktop"));
+        set(
+          "ua-mobile",
+          "ua-mobile: " + (navigator.userAgentData ? Boolean(navigator.userAgentData.mobile) : /Mobile/.test(ua))
+        );
+        set("reduced-motion", "prefers-reduced-motion: " + (media("(prefers-reduced-motion: reduce)") ? "reduce" : "no-preference"));
+
+        var counts = { click: 0, keydown: 0, pointerdown: 0, touchstart: 0, submit: 0, focusin: 0 };
+        var render = function () {
+          set(
+            "counters",
+            "counters: click:" +
+              counts.click +
+              " keydown:" +
+              counts.keydown +
+              " pointerdown:" +
+              counts.pointerdown +
+              " touchstart:" +
+              counts.touchstart +
+              " submit:" +
+              counts.submit +
+              " focusin:" +
+              counts.focusin
+          );
+        };
+        Object.keys(counts).forEach(function (name) {
+          document.addEventListener(
+            name,
+            function () {
+              counts[name] += 1;
+              render();
+            },
+            true
+          );
+        });
+        render();
+        // Re-render continuously: the value in the screenshot is the value at
+        // capture time, not a stale first paint.
+        window.setInterval(render, 100);
+
+        set(
+          "navigation-count",
+          "navigation-count: " + performance.getEntriesByType("navigation").length
+        );
+      })();
+    </script>
+  </body>
+</html>

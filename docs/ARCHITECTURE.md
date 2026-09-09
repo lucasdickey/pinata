@@ -82,7 +82,10 @@ visible and retryable.
    no IP literals, no non-443 ports, no private, loopback, link-local,
    reserved, or metadata destinations — by parser and by DNS answers.
 2. Call the fixed Browserless Function endpoint with the token in an
-   authorization header. User input is context data, never interpolated code.
+   authorization header — HTTP basic, the token as the username, because the
+   provider gateway rejects a bearer credential and this project will not put
+   a credential in a URL (`D036`). User input is context data, never
+   interpolated code.
 3. Configure viewport and reduced motion, navigate with bounded waits.
 4. Incrementally scroll to trigger lazy content, return to top, wait for
    fonts and two animation frames.
@@ -93,23 +96,31 @@ visible and retryable.
    cross-origin iframe internals.
 7. Capture one full-page image from the same stabilized state, enforcing
    height, pixel, byte, and timeout budgets.
-8. Upload to private Blob, persist metadata, and mark the capture ready. On
+8. Decode the returned bytes before believing them: an allowlisted declared
+   content type, a container that really is that format, dimensions equal to
+   the measured document, and a SHA-256 over the exact bytes to be stored.
+9. Upload to private Blob, persist metadata, and mark the capture ready. On
    error, keep an actionable failed record and clean up orphaned objects.
 
 Every redirect hop is revalidated under the same rules before following it.
+
+Steps 1 through 9 all happen inside the dispatch request. An admitted attempt
+is claimed, captured, and finalized before the response is written, so no
+attempt is ever left as an open `capturing` claim waiting for a second call
+(`D035`).
 
 ## Published runtime boundaries
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.5`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-08.6`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.5 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.6 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -119,6 +130,7 @@ minimums, quotas, interaction limits, and performance budgets.
 | `MAX_DOCUMENT_HEIGHT_PX` | 16,384 px | Taller documents fail boundedly. |
 | `MAX_DOCUMENT_PIXELS` | 25,000,000 px | Larger documents fail boundedly. |
 | `MAX_IMAGE_BYTES` | 8,388,608 bytes (8 MiB) | Maximum accepted screenshot size. |
+| `ALLOWED_IMAGE_CONTENT_TYPES` | image/png, image/webp | Storable screenshot types; the first is what capture produces. |
 | `MAX_PROVIDER_RESPONSE_BYTES` | 16,777,216 bytes (16 MiB) | Maximum accepted Browserless response size. |
 | `NAVIGATION_TIMEOUT_MS` | 30,000 ms | Per-navigation budget. |
 | `NETWORK_IDLE_TIMEOUT_MS` | 5,000 ms | Post-navigation network-idle budget. |

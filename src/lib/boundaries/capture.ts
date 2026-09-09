@@ -32,6 +32,17 @@ export const MAX_DOCUMENT_PIXELS = 25_000_000;
 /** Largest accepted screenshot: 8 MiB. */
 export const MAX_IMAGE_BYTES = 8_388_608;
 
+/**
+ * Image types a capture may store. The first entry is what the capture
+ * function asks Chromium to produce: PNG is lossless, so decoded pixels are
+ * exactly the stabilized layout and two captures of one deterministic page
+ * compare byte-for-byte.
+ */
+export const ALLOWED_IMAGE_CONTENT_TYPES: readonly string[] = Object.freeze([
+  "image/png",
+  "image/webp",
+]);
+
 /** Largest accepted Browserless function response: 16 MiB. */
 export const MAX_PROVIDER_RESPONSE_BYTES = 16_777_216;
 

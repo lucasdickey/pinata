@@ -17,6 +17,7 @@
     "lint": "node scripts/lint.mjs && eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "fixtures:publish": "node scripts/publish-capture-fixtures.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/db-migrate.mjs",
     "e2e": "playwright test",

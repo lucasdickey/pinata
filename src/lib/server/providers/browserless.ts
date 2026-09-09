@@ -71,6 +71,20 @@ async function defaultFetch(
 }
 
 /**
+ * The Authorization header value the provider accepts: the token as the
+ * HTTP basic username with an empty password.
+ *
+ * The provider's own documentation puts the token in a `?token=` query
+ * string, which this project will not do — a credential in a URL leaks into
+ * proxies, logs, and error reports. Its gateway answers a bearer credential
+ * with a 500 (measured against three regional endpoints), so basic is the one
+ * header form it both accepts and keeps the token out of the URL.
+ */
+export function browserlessAuthorization(token: string): string {
+  return `Basic ${Buffer.from(`${token}:`).toString("base64")}`;
+}
+
+/**
  * Build the real Browserless client from environment configuration, with an
  * injectable fetch for focused fault tests. Fails closed (null) when the
  * token is absent; never logs the token or provider response bodies.
@@ -81,6 +95,7 @@ export function createBrowserlessClient(
 ): BrowserlessClient | null {
   const token = env.BROWSERLESS_TOKEN;
   if (!token) return null;
+  const authorization = browserlessAuthorization(token);
   return {
     async runFunction(request) {
       const controller = new AbortController();
@@ -89,7 +104,7 @@ export function createBrowserlessClient(
         const response = await fetchImpl(BROWSERLESS_FUNCTION_ENDPOINT, {
           method: "POST",
           headers: {
-            authorization: `Bearer ${token}`,
+            authorization,
             "content-type": "application/json",
           },
           body: JSON.stringify({ code: request.code, context: request.context }),

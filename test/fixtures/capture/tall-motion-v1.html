@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinata capture tall motion fixture v1</title>
+    <!--
+      Controlled tall fixture for VAL-CAPTURE-004.
+
+      It is tall enough to need several lazy-scroll steps, reveals top /
+      middle / bottom sentinels only as those regions are scrolled into view,
+      and runs one instance of every case in the published motion-support
+      matrix (CSS animation, CSS transition, caret, Web Animations, video,
+      animated image, canvas/JS painting, sticky and parallax).
+
+      Two rules keep it useful as a pixel-diff reference:
+
+        1. Everything whose rendered value legitimately changes between two
+           executions — the per-load nonce, the scroll-event count, the
+           script-painted canvas, the video frame, and the JS-toggled
+           transition target — lives inside <aside id="volatile">, the one
+           published masked region.
+        2. Everything outside that band must render identically once capture
+           stabilization has run, which is exactly what the diff asserts.
+
+      Inert and self-contained: no network requests, no third-party code, no
+      secrets, and no element that requires interaction to become visible.
+      Version this file by copying it to a new -vN name; never edit a
+      published version in place.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        background: #fdfaf4;
+        color: #1c1b19;
+        font: 16px/24px ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      header.sticky {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        padding: 12px 24px;
+        background: #1c1b19;
+        color: #fdfaf4;
+        font-size: 18px;
+      }
+      main {
+        padding: 24px;
+      }
+      section {
+        margin: 0 0 24px;
+        padding: 16px;
+        border: 2px solid #e2d9c8;
+        background: #ffffff;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 36px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 28px;
+      }
+      p {
+        margin: 0 0 4px;
+      }
+      .spacer {
+        height: 700px;
+        margin: 0 0 24px;
+        padding: 16px;
+        background: #f3ece0;
+        border: 2px dashed #d9cdb6;
+      }
+      .box {
+        width: 120px;
+        height: 120px;
+        background: #d9552f;
+      }
+      .spin {
+        animation: pinata-spin 1.2s linear infinite;
+      }
+      @keyframes pinata-spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .slide {
+        transition: transform 240ms linear;
+        background: #2f6ad9;
+      }
+      .slide.shifted {
+        transform: translateX(160px);
+      }
+      #waapi {
+        background: #2f9d55;
+      }
+      #animated-gif {
+        width: 120px;
+        height: 120px;
+        image-rendering: pixelated;
+        display: block;
+      }
+      #caret-box {
+        padding: 8px;
+        border: 2px solid #1c1b19;
+        background: #fff8e6;
+        max-width: 320px;
+      }
+      aside#volatile {
+        margin: 0 0 24px;
+        padding: 16px;
+        border: 2px solid #b03030;
+        background: #fff1f1;
+      }
+      aside#volatile .row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      #js-canvas,
+      #stream-video {
+        width: 120px;
+        height: 120px;
+        background: #333333;
+        display: block;
+      }
+      .parallax-frame {
+        position: relative;
+        height: 220px;
+        overflow: hidden;
+        background: #efe7d8;
+      }
+      .parallax-layer {
+        position: absolute;
+        left: 24px;
+        top: 24px;
+        width: 200px;
+        height: 80px;
+        background: #7d5ad9;
+        color: #ffffff;
+        padding: 8px;
+      }
+      footer {
+        padding: 24px;
+        background: #1c1b19;
+        color: #fdfaf4;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="sticky"><span>STICKY-HEADER motion-case sticky-parallax</span></header>
+    <main>
+      <h1 id="title">Pinata capture tall motion fixture</h1>
+      <p id="fixture-version">fixture-version: tall-motion-v1</p>
+      <p id="top-sentinel">TOP-SENTINEL-VISIBLE</p>
+      <p id="interaction-counters">
+        interactions: click:0 keydown:0 pointerdown:0 touchstart:0 submit:0 focusin:0
+      </p>
+      <p id="navigation-count">navigation-count: pending</p>
+
+      <aside id="volatile">
+        <h2>Masked volatile band</h2>
+        <p id="load-nonce">load-nonce: pending</p>
+        <p id="scroll-events">scroll-events: 0</p>
+        <div class="row">
+          <div>
+            <p>motion-case css-transition</p>
+            <div class="box slide" id="transition-box"></div>
+          </div>
+          <div>
+            <p>motion-case canvas-js</p>
+            <canvas id="js-canvas" width="120" height="120"></canvas>
+          </div>
+          <div>
+            <p>motion-case video</p>
+            <video id="stream-video" muted playsinline></video>
+          </div>
+        </div>
+      </aside>
+
+      <section id="case-css-animation">
+        <h2>motion-case css-animation</h2>
+        <p>A CSS keyframe animation runs until capture disables animations.</p>
+        <div class="box spin" id="spin-box"></div>
+      </section>
+
+      <section id="case-caret">
+        <h2>motion-case caret</h2>
+        <p>An editable region holds a blinking caret; capture hides carets.</p>
+        <div id="caret-box" contenteditable="true">CARET-REGION-TEXT</div>
+      </section>
+
+      <section id="case-web-animations">
+        <h2>motion-case web-animations</h2>
+        <p>A Web Animations API animation runs until capture pauses and rewinds it.</p>
+        <div class="box" id="waapi"></div>
+      </section>
+
+      <section id="case-animated-image">
+        <h2>motion-case animated-image</h2>
+        <p>A two-frame animated GIF; capture freezes it to its first frame.</p>
+        <img
+          id="animated-gif"
+          alt="two frame animated gif"
+          src="data:image/gif;base64,R0lGODlhAgACAPAAAOEdKx1O4SH/C05FVFNDQVBFMi4wAwEAAAAh+QQECgAAACwAAAAAAgACAAACAwSAAgAh+QQECgAAACwAAAAAAgACAAACA0ySAgA7"
+        />
+      </section>
+
+      <div class="spacer"><p>SPACER-ONE</p></div>
+
+      <section id="case-middle">
+        <h2>Lazy middle content</h2>
+        <p id="middle-sentinel">MIDDLE-SENTINEL-PENDING</p>
+        <p id="middle-detail">middle-detail: pending</p>
+      </section>
+
+      <div class="spacer"><p>SPACER-TWO</p></div>
+
+      <section id="case-parallax">
+        <h2>motion-case sticky-parallax</h2>
+        <div class="parallax-frame">
+          <div class="parallax-layer" id="parallax-layer">PARALLAX-LAYER</div>
+        </div>
+      </section>
+
+      <div class="spacer"><p>SPACER-THREE</p></div>
+
+      <section id="case-bottom">
+        <h2>Lazy bottom content</h2>
+        <p id="bottom-sentinel">BOTTOM-SENTINEL-PENDING</p>
+        <p id="bottom-detail">bottom-detail: pending</p>
+      </section>
+    </main>
+    <footer>
+      <p id="footer-sentinel">FOOTER-SENTINEL-VISIBLE</p>
+      <p id="footer-counters">
+        interactions: click:0 keydown:0 pointerdown:0 touchstart:0 submit:0 focusin:0
+      </p>
+      <p id="lazy-loads">lazy-loads: 0</p>
+    </footer>
+
+    <script>
+      (function () {
+        "use strict";
+        var byId = function (id) {
+          return document.getElementById(id);
+        };
+        var hex = function (bytes) {
+          var out = "";
+          for (var i = 0; i < bytes.length; i += 1) {
+            out += ("0" + bytes[i].toString(16)).slice(-2);
+          }
+          return out;
+        };
+
+        byId("load-nonce").textContent =
+          "load-nonce: load_" + hex(crypto.getRandomValues(new Uint8Array(8)));
+        byId("navigation-count").textContent =
+          "navigation-count: " + performance.getEntriesByType("navigation").length;
+
+        // Focus the caret region before the counters are wired: the fixture's
+        // own scripted focus must not be reported as an interaction.
+        byId("caret-box").focus({ preventScroll: true });
+
+        // --- interaction counters (must stay zero through a capture) --------
+        var counts = { click: 0, keydown: 0, pointerdown: 0, touchstart: 0, submit: 0, focusin: 0 };
+        var renderCounters = function () {
+          var text =
+            "interactions: click:" +
+            counts.click +
+            " keydown:" +
+            counts.keydown +
+            " pointerdown:" +
+            counts.pointerdown +
+            " touchstart:" +
+            counts.touchstart +
+            " submit:" +
+            counts.submit +
+            " focusin:" +
+            counts.focusin;
+          byId("interaction-counters").textContent = text;
+          byId("footer-counters").textContent = text;
+        };
+        Object.keys(counts).forEach(function (name) {
+          document.addEventListener(
+            name,
+            function () {
+              counts[name] += 1;
+              renderCounters();
+            },
+            true
+          );
+        });
+        renderCounters();
+        window.setInterval(renderCounters, 100);
+
+        // --- scroll and lazy reveal -----------------------------------------
+        var scrollEvents = 0;
+        var lazyLoads = 0;
+        window.addEventListener(
+          "scroll",
+          function () {
+            scrollEvents += 1;
+            byId("scroll-events").textContent = "scroll-events: " + scrollEvents;
+          },
+          { passive: true }
+        );
+
+        var reveal = function (sentinelId, detailId, label) {
+          byId(sentinelId).textContent = label + "-SENTINEL-LOADED";
+          byId(detailId).textContent =
+            label.toLowerCase() + "-detail: revealed after scrolling into view";
+          lazyLoads += 1;
+          byId("lazy-loads").textContent = "lazy-loads: " + lazyLoads;
+        };
+        var watch = function (sectionId, sentinelId, detailId, label) {
+          var target = byId(sectionId);
+          var observer = new IntersectionObserver(
+            function (entries) {
+              for (var i = 0; i < entries.length; i += 1) {
+                if (entries[i].isIntersecting) {
+                  reveal(sentinelId, detailId, label);
+                  observer.disconnect();
+                }
+              }
+            },
+            { rootMargin: "0px" }
+          );
+          observer.observe(target);
+        };
+        watch("case-middle", "middle-sentinel", "middle-detail", "MIDDLE");
+        watch("case-bottom", "bottom-sentinel", "bottom-detail", "BOTTOM");
+
+        // --- motion cases ----------------------------------------------------
+        var transitionBox = byId("transition-box");
+        window.setInterval(function () {
+          transitionBox.classList.toggle("shifted");
+        }, 400);
+
+        byId("waapi").animate(
+          [{ transform: "translateX(0px)" }, { transform: "translateX(180px)" }],
+          { duration: 1400, iterations: Infinity, direction: "alternate" }
+        );
+
+        var canvas = byId("js-canvas");
+        var context2d = canvas.getContext("2d");
+        var frame = 0;
+        var paint = function () {
+          frame += 1;
+          context2d.fillStyle = "#333333";
+          context2d.fillRect(0, 0, 120, 120);
+          context2d.fillStyle = "#f2c14e";
+          context2d.fillRect((frame * 3) % 100, 20, 20, 80);
+          window.requestAnimationFrame(paint);
+        };
+        window.requestAnimationFrame(paint);
+
+        // A canvas-backed MediaStream keeps the fixture self-contained: a real
+        // playing <video> element with no network request and no media file.
+        var video = byId("stream-video");
+        try {
+          video.srcObject = canvas.captureStream(15);
+          var playback = video.play();
+          if (playback && playback.catch) playback.catch(function () {});
+        } catch (error) {
+          /* a provider image without captureStream still exercises the rest */
+        }
+
+        var parallax = byId("parallax-layer");
+        window.addEventListener(
+          "scroll",
+          function () {
+            parallax.style.transform = "translateY(" + (window.scrollY % 40) / 4 + "px)";
+          },
+          { passive: true }
+        );
+      })();
+    </script>
+  </body>
+</html>

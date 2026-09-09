@@ -1368,8 +1368,172 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D034",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Capture screenshots are PNG, and only PNG or WebP may ever be stored",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The capture pipeline has to decide what image format it asks Chromium for and what it will accept back. The choice is not cosmetic: the motion assertion compares two captures of one deterministic fixture pixel by pixel, and it also decides what a decoder has to be able to reject safely.",
+      "decision": "The published catalog gains ALLOWED_IMAGE_CONTENT_TYPES = [image/png, image/webp], and the first entry is what the capture function asks for. Only an allowlisted declared content type whose bytes decode as that same format, at exactly the document dimensions, can be stored. POLICY_VERSION moved to 2026-09-08.6.",
+      "alternatives": [
+        {
+          "option": "Capture lossy WebP for smaller objects",
+          "why_not": "Lossy encoding makes two captures of an identical page differ, which is exactly what the stabilization assertion measures."
+        },
+        {
+          "option": "Accept whatever the provider returns",
+          "why_not": "A provider error page, an HTML body, or a polyglot would become a ready capture; the decoder has to gate on a closed set."
+        }
+      ],
+      "rationale": "This is a mechanical choice inside an already approved direction, and it is reversible: WebP stays in the allowlist so a future feature can switch the produced format without touching the validator. PNG is lossless, so the pixel-diff assertion measures the page rather than the encoder, and the structural decoder that validates it is small enough to stay dependency-free.",
+      "consequences": [
+        "Screenshots are larger than a lossy encoding would be; a 1440 x 4484 fixture capture measured 188 KB, well inside the 8 MiB cap.",
+        "Adding an image format is a five-file catalog change: the constant, both published docs, the drift test row, and POLICY_VERSION."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/boundaries/capture.ts",
+          "caption": "The published image-type allowlist"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/image.ts",
+          "caption": "Structural PNG/WebP validation, dimension agreement, and SHA-256"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D035",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Dispatch admits, captures, and finalizes in one request; there is no claim endpoint",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Admission claimed an attempt and returned 202 with the row left in capturing, on the assumption that some later call would run the provider. That leaves a durable open claim whenever the second call never arrives, and it invites a second public endpoint whose only job is to finish someone else's claim.",
+      "decision": "POST /api/captures/:id/dispatch now runs the Browserless execution in the same request, immediately after dispatchCapture returns ok, and answers only once the row is ready or failed. Every exit from a claimed attempt is terminal: a missing provider credential, an untrustworthy envelope, a storage failure, and an unexpected throw all fail the row with a catalog outcome rather than leaving it capturing.",
+      "alternatives": [
+        {
+          "option": "Keep 202 and add a worker or claim endpoint",
+          "why_not": "It adds a second surface that finalizes attempts it did not admit, and the open claim still exists whenever that worker is not running."
+        },
+        {
+          "option": "Leave the claim open and rely on stale-lease reconciliation",
+          "why_not": "Staleness is a five-minute recovery path for crashes, not a design for the normal case."
+        }
+      ],
+      "rationale": "The open claim was recorded as an open question by the previous feature, and closing it inside the existing endpoint changes no public contract beyond the success status. Deciding this unilaterally was safe because the alternative — a new endpoint — is the change that would have needed approval.",
+      "consequences": [
+        "A successful dispatch response now takes as long as a real capture, which the request-level timeout budget already bounds.",
+        "An admitted attempt can never be observed as an open capturing claim from this route, so polling only ever sees a terminal row."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/api/captures/[captureId]/dispatch/route.ts",
+          "caption": "Admit, capture, finalize, respond"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/execute.ts",
+          "caption": "Every path out of a claim is terminal"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D036",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The provider documents its token as a query parameter, which this project refuses: a credential in a URL leaks into proxies, logs, and error reports. The adapter therefore sent it as a bearer credential in the Authorization header — and every real call failed. Measured against three regional endpoints, a bearer credential returns a gateway 500 while the same request with the token in the query string returns 200.",
+      "decision": "The adapter sends Authorization: Basic base64(token + ':') — the token as the basic username with an empty password. That form is accepted by the same gateway that rejects bearer, and it keeps the credential in the header. The fixed regional /function endpoint and the never-log rule are unchanged.",
+      "alternatives": [
+        {
+          "option": "Put the token in the ?token= query string as documented",
+          "why_not": "URLs end up in proxy logs, error reports, and stack traces; a header does not."
+        },
+        {
+          "option": "Stop and treat the provider as blocked",
+          "why_not": "The provider is not blocked — one header form works, and the constraint is theirs, not the design's."
+        }
+      ],
+      "rationale": "This preserves the invariant that matters (the credential travels only in the Authorization header, never in a URL and never in a log) and changes only the scheme token inside that header. It was safe to decide alone because the alternative that needed judgement — a credential in the URL — was rejected, not chosen.",
+      "consequences": [
+        "Provider-adapter tests assert the basic form and that the raw token appears nowhere in the header value or the URL.",
+        "If the provider later accepts bearer, switching back is a one-line change behind browserlessAuthorization()."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/providers/browserless.ts",
+          "caption": "browserlessAuthorization(): the accepted header form"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D037",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Controlled capture fixtures live in the repository and are published to a disposable public host per run",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Proving device emulation, context isolation, lazy loading, and motion stabilization needs pages that Browserless can actually load, which means public HTTPS. This project's own Vercel deployments sit behind deployment protection and answer an SSO redirect, no tunnel tooling is installed, and publishing fixtures through the application's own routes would put test pages on its public surface.",
+      "decision": "The fixtures are versioned files in test/fixtures/capture/ (echo-v1.html, tall-motion-v1.html). scripts/publish-capture-fixtures.mjs uploads them to a disposable public host with a one-hour lifetime, refuses to print a URL unless the served bytes hash to exactly the repository bytes and arrive as text/html, and the real-provider suite reads those URLs from the environment and skips when they are absent.",
+      "alternatives": [
+        {
+          "option": "Serve the fixtures from the application on Vercel",
+          "why_not": "Deployment protection blocks the provider, and disabling it to host test pages trades a real safety control for test convenience."
+        },
+        {
+          "option": "Commit the fixtures to a public branch and serve them through a CDN of raw repository files",
+          "why_not": "It requires pushing, and this worker does not push."
+        },
+        {
+          "option": "Run a tunnel to the local server",
+          "why_not": "No tunnel client is installed, and installing one puts a network-exposing daemon on the machine for a test."
+        }
+      ],
+      "rationale": "The repository stays the source of truth for fixture behaviour — the host only serves a byte-identical copy for the length of a run — so the assertion remains reproducible from the tree. The uploaded content is inert markup with no secrets and no application data, and it expires on its own.",
+      "consequences": [
+        "The real-provider capture suite needs one publish step before it runs, and it skips rather than fails when the URLs are absent, so CI stays green.",
+        "The tall fixture publishes one masked region: everything whose value legitimately varies between runs lives in aside#volatile, and everything outside it must be pixel-identical."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "test/fixtures/capture/tall-motion-v1.html",
+          "caption": "Versioned tall fixture covering the published motion matrix"
+        },
+        {
+          "type": "file",
+          "path": "scripts/publish-capture-fixtures.mjs",
+          "caption": "Hash-verified publication of the repository fixtures"
+        },
+        {
+          "type": "file",
+          "path": "test/integration/browserless-capture.integration.test.ts",
+          "caption": "The real Browserless proof for VAL-CAPTURE-003 and VAL-CAPTURE-004"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-08",
-  "source_hash": "9366ac364400"
+  "as_of": "2026-09-09",
+  "source_hash": "cfe793b27e74"
 };

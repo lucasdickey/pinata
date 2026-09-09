@@ -1,9 +1,10 @@
-// POST /api/captures/[captureId]/dispatch — admission before provider work
-// (VAL-CAPTURE-001, VAL-CAPTURE-002).
+// POST /api/captures/[captureId]/dispatch — admission, then the provider run,
+// in one request (VAL-CAPTURE-001 … VAL-CAPTURE-004).
 //
 // The point of these tests is what does *not* happen: a rejected target must
 // leave a bounded failed attempt, no provider call, and no ready image, while
-// a safe chain claims the attempt and persists both public URLs.
+// a safe chain claims the attempt, captures it, and finalizes it before the
+// response is written. No path may leave an open `capturing` claim.
 
 import { and, asc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -18,14 +19,25 @@ import { CAPTURE_REQUEST_MAX_BYTES } from "../../src/lib/boundaries";
 import { EDITOR_CSRF_HEADER, EDITOR_SESSION_COOKIE } from "../../src/lib/auth-constants";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import type { AdmissionDeps, RedirectProbe } from "../../src/lib/server/captures/admission";
-import { __setAdmissionDepsForTests } from "../../src/lib/server/captures/deps";
+import {
+  __setAdmissionDepsForTests,
+  __setCaptureExecutionDepsForTests,
+} from "../../src/lib/server/captures/deps";
 import type { DnsResolver } from "../../src/lib/server/captures/dns";
+import type { CaptureExecutionDeps } from "../../src/lib/server/captures/execute";
 import { applyCaptureTransition } from "../../src/lib/server/captures/transitions";
 import {
   __resetDatabaseCacheForTests,
   __setDatabaseForTests,
   schema,
 } from "../../src/lib/server/db/client";
+import {
+  echoClient,
+  FIXTURE_PNG,
+  recordingStore,
+  type RecordingClient,
+  type RecordingStore,
+} from "./capture-provider-fakes";
 import { createTestDb, type TestDb } from "./test-db";
 
 const TEST_SECRET = "capture-dispatch-session-secret-sentinel";
@@ -35,6 +47,17 @@ const T0 = 1_800_000_000_000;
 let testDb: TestDb;
 let session: { token: string; csrf: string };
 let pageIds: string[];
+let provider: RecordingClient;
+let blob: RecordingStore;
+
+/** Swap in a provider pair for one test; the claim must still close. */
+function injectExecution(deps: Partial<CaptureExecutionDeps>): void {
+  __setCaptureExecutionDepsForTests({
+    client: provider.client,
+    store: blob.store,
+    ...deps,
+  });
+}
 
 interface RequestOptions {
   origin?: string | null;
@@ -127,10 +150,14 @@ beforeEach(async () => {
   session = { token: created.token, csrf: created.payload.csrf };
   await seedProject("https://safe.example");
   injectDeps({ "safe.example": ["93.184.216.34"] });
+  provider = echoClient();
+  blob = recordingStore();
+  injectExecution({});
 });
 
 afterEach(() => {
   __setAdmissionDepsForTests(null);
+  __setCaptureExecutionDepsForTests(null);
   testDb.client.close();
   __resetDatabaseCacheForTests();
   vi.unstubAllEnvs();
@@ -171,8 +198,9 @@ describe("dispatch boundary", () => {
     const attempt = await firstAttempt(pageIds[0]!);
     const first = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
     const second = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
-    expect(first.status).toBe(202);
+    expect(first.status).toBe(200);
     expect(second.status).toBe(409);
+    expect(provider.requests).toHaveLength(1);
     expect(await second.json()).toEqual({ error: "Request rejected." });
   });
 
@@ -205,29 +233,55 @@ describe("dispatch boundary", () => {
   });
 });
 
-describe("safe targets are admitted and claimed", () => {
-  test("a public target claims the attempt and persists both URLs", async () => {
+describe("safe targets are admitted, captured, and finalized in one request", () => {
+  test("a public target answers ready with its own image, hash, and manifest", async () => {
     const attempt = await firstAttempt(pageIds[0]!);
     const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
-    expect(response.status).toBe(202);
-    expect(await response.json()).toEqual({
-      capture: {
-        captureId: attempt.id,
-        variant: "desktop",
-        requestedUrl: "https://safe.example/",
-        finalUrl: "https://safe.example/",
-        hops: 0,
-        status: "capturing",
-      },
+    expect(response.status).toBe(200);
+    const { capture } = await response.json();
+    expect(capture).toMatchObject({
+      captureId: attempt.id,
+      variant: "desktop",
+      requestedUrl: "https://safe.example/",
+      finalUrl: "https://safe.example/",
+      status: "ready",
+      contentType: "image/png",
+      bytes: FIXTURE_PNG.byteLength,
+      manifestElements: 1,
     });
+    expect(capture.imageHash).toMatch(/^[0-9a-f]{64}$/);
+
     const row = await firstAttempt(pageIds[0]!);
     expect(row).toMatchObject({
-      status: "capturing",
+      status: "ready",
       requestedUrl: "https://safe.example/",
       finalUrl: "https://safe.example/",
       errorCode: null,
-      imageHash: null,
-      blobPath: null,
+      errorMessage: null,
+      imageHash: capture.imageHash,
+      blobContentType: "image/png",
+    });
+    expect(blob.puts).toHaveLength(1);
+    expect(row.blobPath).toBe(blob.puts[0]!.pathname);
+    expect(row.domManifestJson).toBeTruthy();
+  });
+
+  test("the provider is invoked with the admitted final URL, not the requested one", async () => {
+    injectDeps(
+      { "safe.example": ["93.184.216.34"], "www.safe.example": ["93.184.216.34"] },
+      (url) =>
+        Promise.resolve(
+          url === "https://safe.example/"
+            ? { status: 301, location: "https://www.safe.example/home" }
+            : { status: 200, location: null },
+        ),
+    );
+    const attempt = await firstAttempt(pageIds[0]!);
+    await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0]!.context).toMatchObject({
+      targetUrl: "https://www.safe.example/home",
+      variant: "desktop",
     });
   });
 
@@ -243,9 +297,9 @@ describe("safe targets are admitted and claimed", () => {
     );
     const attempt = await firstAttempt(pageIds[0]!);
     const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
-    expect(response.status).toBe(202);
+    expect(response.status).toBe(200);
     expect(await firstAttempt(pageIds[0]!)).toMatchObject({
-      status: "capturing",
+      status: "ready",
       requestedUrl: "https://safe.example/",
       finalUrl: "https://www.safe.example/home",
     });
@@ -254,6 +308,74 @@ describe("safe targets are admitted and claimed", () => {
   test("dispatching one variant leaves its sibling untouched", async () => {
     const attempt = await firstAttempt(pageIds[0]!, "desktop");
     await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    const sibling = await firstAttempt(pageIds[0]!, "mobile");
+    expect(sibling).toMatchObject({ status: "pending", imageHash: null, blobPath: null });
+    expect(provider.requests).toHaveLength(1);
+  });
+
+  test("each variant is captured by its own provider execution", async () => {
+    const desktop = await firstAttempt(pageIds[0]!, "desktop");
+    const mobile = await firstAttempt(pageIds[0]!, "mobile");
+    await dispatchPOST(build(desktop.id), routeContext(desktop.id));
+    await dispatchPOST(build(mobile.id), routeContext(mobile.id));
+
+    expect(provider.requests).toHaveLength(2);
+    const [desktopRequest, mobileRequest] = provider.requests;
+    const nonceOf = (request: (typeof provider.requests)[number]) =>
+      (request.context as { layoutNonce: string }).layoutNonce;
+    expect(nonceOf(desktopRequest!)).not.toBe(nonceOf(mobileRequest!));
+    expect(desktopRequest!.context).toMatchObject({
+      viewport: { width: 1440, height: 900, deviceScaleFactor: 1, isMobile: false },
+    });
+    expect(mobileRequest!.context).toMatchObject({
+      viewport: { width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true },
+    });
+
+    const rows = await attemptsFor(pageIds[0]!, "desktop");
+    const mobileRows = await attemptsFor(pageIds[0]!, "mobile");
+    expect(rows[0]!.status).toBe("ready");
+    expect(mobileRows[0]!.status).toBe("ready");
+    expect(rows[0]!.blobPath).not.toBe(mobileRows[0]!.blobPath);
+  });
+});
+
+describe("provider failures close the claim in the same request", () => {
+  test("a provider outage fails the attempt and stores nothing", async () => {
+    injectExecution({
+      client: { runFunction: async () => ({ ok: false, error: "unavailable" }) },
+    });
+    const attempt = await firstAttempt(pageIds[0]!);
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ code: "browserless-provider" });
+    expect(await firstAttempt(pageIds[0]!)).toMatchObject({
+      status: "failed",
+      errorCode: "browserless-provider",
+      blobPath: null,
+      imageHash: null,
+    });
+    expect(blob.puts).toEqual([]);
+  });
+
+  test("an unconfigured provider fails the attempt rather than parking it", async () => {
+    injectExecution({ client: null, store: null });
+    const attempt = await firstAttempt(pageIds[0]!);
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+
+    expect(response.status).toBe(502);
+    const row = await firstAttempt(pageIds[0]!);
+    expect(row.status).toBe("failed");
+    expect(row.status).not.toBe("capturing");
+  });
+
+  test("a failed capture leaves a retryable attempt and an untouched sibling", async () => {
+    injectExecution({
+      client: { runFunction: () => Promise.reject(new Error("socket hang up")) },
+    });
+    const attempt = await firstAttempt(pageIds[0]!);
+    await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(await firstAttempt(pageIds[0]!, "desktop")).toMatchObject({ status: "failed" });
     expect((await firstAttempt(pageIds[0]!, "mobile")).status).toBe("pending");
   });
 });

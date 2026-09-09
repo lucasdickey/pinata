@@ -879,3 +879,100 @@ Roughly 1 hour of mission-worker time.
   That is a legal state with computed staleness and retry, but the next
   capture feature should call the provider immediately after
   `dispatchCapture` returns rather than leaving the claim open.
+
+---
+
+## Session — the standard Browserless captures, desktop and mobile (2026-09-09)
+
+### What was attempted
+
+The first feature that actually produces an image: one real Browserless
+execution per URL and viewport, a stabilized full-page screenshot and its DOM
+manifest from that single result, byte-level image validation, private Blob
+storage, and a finalized `ready` row — plus the two proofs that mocks cannot
+give, against controlled public fixtures.
+
+### What was built
+
+- `src/lib/server/captures/function-source.ts` — the ESM function the provider
+  runs. It installs the request guard, emulates the device, navigates, scrolls
+  in bounded steps, returns to the top, applies the published motion matrix,
+  measures anchors before and after stabilization, builds the manifest, and
+  takes one full-page screenshot from that same state. No target interaction
+  exists anywhere in it, and a focused test greps the emitted source to keep it
+  that way.
+- `src/lib/server/captures/image.ts` — dependency-free PNG and WebP structural
+  decoding, dimension agreement, byte caps, and SHA-256 over the exact bytes.
+- `src/lib/server/captures/result.ts` — strict validation of the provider
+  envelope, including the `{ data, type }` transport wrapper.
+- `src/lib/server/captures/execute.ts` — the orchestration where every path out
+  of a claimed attempt is terminal, and a lost finalization deletes the object
+  it just wrote.
+- The dispatch route now admits, captures, and finalizes in one request.
+
+### What broke
+
+- **Every real provider call failed with a gateway 500.** A minimal
+  three-line function failed the same way, which ruled out the capture code.
+  Measured across three regional endpoints: a bearer credential returns 500, a
+  query-string token returns 200, and `Authorization: Basic base64(token + ':')`
+  returns 200. The adapter now uses basic (`D036`) — the credential stays in a
+  header and out of URLs, which was the point of the rule.
+- **The provider wraps results.** A Function API response is
+  `{ data, type }`; the code validated the outer object as the capture
+  envelope and rejected every real success as untrustworthy.
+- **Fixture hosting was a dead end three times.** A Vercel Blob public upload
+  is refused on a private store; the project's own Vercel deployments answer an
+  SSO redirect, so Browserless cannot load them; webhook.site serves a CSP that
+  forbids scripts and workers, which is most of a motion fixture. What worked:
+  keep the fixtures in the repository, publish a byte-identical copy to a
+  disposable public host per run, and verify the served hash before use
+  (`D037`).
+- Smaller ones: the animated-GIF fixture had to be hand-encoded (two frames,
+  red then blue) so the first-frame assertion has a colour to check; the
+  integration cleanup missed the retry attempt because the application
+  generates its own id, so it now deletes by page.
+
+### How it was verified
+
+- Focused Vitest: 17 image-validation cases, 37 function-source cases, 23
+  execution cases, and 24 dispatch-route cases; 681 tests green overall.
+- Real Browserless, real private Blob, real Turso, run `capv-mttfyuby-…`:
+  - echo fixture desktop — `1440x900` document, decoded `1440x900`, own hash,
+    own private object, null error;
+  - echo fixture mobile — `390x844` document, decoded `390x844`, distinct
+    context nonce, `cookie-sentinel: none`, `local-storage-sentinel: none`,
+    `session-storage-sentinel: none`;
+  - tall fixture twice — `1440x4484`, 5 scroll steps, final scroll `(0, 0)`,
+    `MIDDLE-SENTINEL-LOADED` and `BOTTOM-SENTINEL-LOADED` present in both image
+    and manifest, interaction counters all zero, warnings exactly
+    `motion-paused:video`, `motion-unsupported-warn:canvas-js`,
+    `motion-as-rendered:sticky-parallax`, animated image frozen to its red
+    first frame, anchor shift `0` px, and a masked pixel-diff ratio of `0`
+    against a published threshold of `0.001`.
+  - Every run-scoped row and object was deleted and its absence verified.
+
+### Elapsed
+
+Roughly 1 hour 15 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D034` (agent-autonomous): captures are PNG; only PNG or WebP may be stored.
+- `D035` (agent-autonomous): dispatch admits, captures, and finalizes in one
+  request — answering the open question left by the admission session.
+- `D036` (agent-autonomous): Browserless is authenticated with HTTP basic.
+- `D037` (agent-autonomous): controlled fixtures live in the repository and are
+  published per run to a disposable public host.
+- `VAL-CAPTURE-003` and `VAL-CAPTURE-004` are covered by the real-provider
+  suite; `VAL-CAPTURE-014`'s image-validation half is covered by the focused
+  decoder tests.
+
+### Open questions at end of session
+
+- The fixture host is disposable by design, so the real-provider suite needs a
+  publish step before it runs and skips without one. If a later feature needs
+  fixtures that outlive a run, that is a hosting decision to revisit.
+- Desktop capture keeps the provider's own headless user agent rather than
+  claiming a consumer browser identity. If a target serves different markup to
+  headless Chrome, that is the trade to reconsider.
