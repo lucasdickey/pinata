@@ -1831,8 +1831,69 @@ window.PINATA = {
           "caption": "Real-provider proof: sentinel scans of manifest and pixels, live DNS-alternation evidence, post-admission seeded attempts, hard-fixture failure bound"
         }
       ]
+    },
+    {
+      "id": "D044",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Captures are stored as private Vercel Blob objects, but the contract (VAL-CAPTURE-010, VAL-CAPTURE-014) requires that bytes reach a browser only through an authorized application route: provider URLs and pathnames may never be disclosed, a warmed cache or old URL must never replay an image after authority ends, and delivery must return exactly the bytes the capture validated. The range/conditional semantics, the cache policy, and the integrity posture all constrain the founder-capability work in milestone 2, so they needed to be fixed explicitly rather than improvised per caller.",
+      "decision": "Serve screenshots only from GET/HEAD /api/captures/<captureId>/asset. The route verifies the live editor session on every request — including ones answered 304, 206, or by HEAD — then resolves the capture through the project hierarchy: only a ready capture of a live project with a complete, policy-shaped storage record resolves; nonexistent, non-ready, deleted-project, and integrity-failed cases share one bounded generic 404, and anonymous, expired, or tampered sessions share one 401. Range support is exactly one bytes=<start>-<end?> range (206 with Content-Range); suffix, multi-range, reversed, and non-numeric ranges are 400, and an unsatisfiable range is 416 with the published length — all settled from the persisted record before any provider read. Conditionals (If-None-Match, weak forms and *, then If-Modified-Since) are answered from the persisted SHA-256 without fetching the object. When bytes are served they are revalidated against the persisted content type, byte length, and SHA-256, and the strong ETag is that SHA-256. Every response — success, denial, and 405 alike — carries Cache-Control: private, no-store, max-age=0, X-Content-Type-Options: nosniff, Vary: Cookie, and Accept-Ranges: bytes, published as ASSET_CACHE_CONTROL/ASSET_VARY/ASSET_RANGE_UNIT in the boundary catalog (POLICY_VERSION 2026-09-09.1, five-file change).",
+      "alternatives": [
+        {
+          "option": "Redirect authorized requests to a short-lived signed Blob URL",
+          "why_not": "A signed URL is a bearer capability that escapes the application's authority: once issued it works for anyone holding it until expiry, it discloses the provider hostname and pathname, and it cannot be revoked on logout or rotation. Proxying costs one extra read through the server and keeps every byte behind live authorization."
+        },
+        {
+          "option": "Serve full bodies only and reject all range/conditional requests",
+          "why_not": "The contract names documented GET/HEAD/range/conditional behavior, and long captures are exactly where resume and revalidation matter; ignoring If-None-Match would also waste the one cheap integrity anchor (the persisted SHA-256) that lets a 304 cost no provider read."
+        },
+        {
+          "option": "Trust the persisted storage record and skip re-hashing fetched bytes",
+          "why_not": "The hash check is the only proof that the object now in the store is the object the capture validated; without it a corrupted or substituted object would be served with a confident ETag. The cost is one SHA-256 over at most 8 MiB per fetch, negligible against the provider read itself."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the mission architecture already fixes private Blob storage behind authorized application routes, and the validation contract fixes the method/range/conditional/cache matrix and the exact-bytes requirement; this record pins the interpretation (single explicit-start ranges, hash-as-ETag, fail-closed integrity, deny-all-responses-cacheable-never) inside that approved direction.",
+      "consequences": [
+        "The founder-capability worker (VAL-CAPTURE-010) extends this same route with capability-session authorization rather than creating a second delivery path; rotation/revocation denial then falls out of reauthorizing every request.",
+        "deliverCaptureAsset is the only module that may turn a capture id into bytes; its resolve-then-revalidate order is the denial-equality invariant the cross-surface hardening feature will scan.",
+        "The ETag of a capture image is publicly its SHA-256; clients may cache-validate but never cache-store.",
+        "Three asset constants join the boundary catalog under POLICY_VERSION 2026-09-09.1 with the five-file change (catalog, EVALS, ARCHITECTURE, drift test, version)."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/asset.ts",
+          "caption": "Resolution, range/conditional semantics, and fail-closed integrity revalidation for private delivery"
+        },
+        {
+          "type": "file",
+          "path": "app/api/captures/[captureId]/asset/route.ts",
+          "caption": "GET/HEAD route: live session verification on every request, safety headers on every response"
+        },
+        {
+          "type": "file",
+          "path": "test/server/capture-asset.test.ts",
+          "caption": "28-case route boundary matrix: exact bytes/headers, range and conditional semantics, generic byte-free denials"
+        },
+        {
+          "type": "file",
+          "path": "test/integration/blob-asset.integration.test.ts",
+          "caption": "Real private Blob proof: metadata/hash match, unauthenticated provider denial, exact authorized delivery, verified cleanup"
+        },
+        {
+          "type": "file",
+          "path": "e2e/asset.spec.ts",
+          "caption": "Production-build proof over HTTP plus browser cache/logout/history: network log shows 200, 200, 401, 401"
+        }
+      ]
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "e6790283d525"
+  "source_hash": "0fce7a77a731"
 };

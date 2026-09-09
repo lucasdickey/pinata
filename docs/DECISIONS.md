@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 24 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043 |
+| Agent decided alone | 25 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **43** | |
+| **Total** | **44** | |
 
 ## Index
 
@@ -69,6 +69,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D041](#d041--capture-fixtures-are-served-by-a-separate-unprotected-static-vercel-project) | validate | Capture fixtures are served by a separate unprotected static Vercel project | Human directed | accepted |
 | [D042](#d042--browserless-concurrency-is-a-durable-two-slot-lease-table-the-editor-polls-the-hierarchy-on-a-published-backoff-schedule) | build | Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule | Agent decided alone | accepted |
 | [D043](#d043--remote-network-safety-is-proven-against-the-real-provider-with-a-two-page-fixture-split-driven-by-the-provider-kill-switch-map) | build | Remote-network safety is proven against the real provider with a two-page fixture split driven by the provider kill-switch map | Agent decided alone | accepted |
+| [D044](#d044--private-screenshot-delivery-is-one-non-redirecting-route-that-reauthorizes-every-request-and-revalidates-bytes-before-serving) | build | Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving | Agent decided alone | accepted |
 
 ---
 
@@ -1660,4 +1661,43 @@ Safe to decide unilaterally: the mission contract (VAL-CAPTURE-013) fixes the pr
 
 ---
 
-<sub>Generated from 43 record(s) as of 2026-09-09 · source `e6790283d525`</sub>
+## D044 — Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Captures are stored as private Vercel Blob objects, but the contract (VAL-CAPTURE-010, VAL-CAPTURE-014) requires that bytes reach a browser only through an authorized application route: provider URLs and pathnames may never be disclosed, a warmed cache or old URL must never replay an image after authority ends, and delivery must return exactly the bytes the capture validated. The range/conditional semantics, the cache policy, and the integrity posture all constrain the founder-capability work in milestone 2, so they needed to be fixed explicitly rather than improvised per caller.
+
+**Decision**
+
+Serve screenshots only from GET/HEAD /api/captures/<captureId>/asset. The route verifies the live editor session on every request — including ones answered 304, 206, or by HEAD — then resolves the capture through the project hierarchy: only a ready capture of a live project with a complete, policy-shaped storage record resolves; nonexistent, non-ready, deleted-project, and integrity-failed cases share one bounded generic 404, and anonymous, expired, or tampered sessions share one 401. Range support is exactly one bytes=<start>-<end?> range (206 with Content-Range); suffix, multi-range, reversed, and non-numeric ranges are 400, and an unsatisfiable range is 416 with the published length — all settled from the persisted record before any provider read. Conditionals (If-None-Match, weak forms and *, then If-Modified-Since) are answered from the persisted SHA-256 without fetching the object. When bytes are served they are revalidated against the persisted content type, byte length, and SHA-256, and the strong ETag is that SHA-256. Every response — success, denial, and 405 alike — carries Cache-Control: private, no-store, max-age=0, X-Content-Type-Options: nosniff, Vary: Cookie, and Accept-Ranges: bytes, published as ASSET_CACHE_CONTROL/ASSET_VARY/ASSET_RANGE_UNIT in the boundary catalog (POLICY_VERSION 2026-09-09.1, five-file change).
+
+**Alternatives considered**
+
+- *Redirect authorized requests to a short-lived signed Blob URL* — A signed URL is a bearer capability that escapes the application's authority: once issued it works for anyone holding it until expiry, it discloses the provider hostname and pathname, and it cannot be revoked on logout or rotation. Proxying costs one extra read through the server and keeps every byte behind live authorization.
+- *Serve full bodies only and reject all range/conditional requests* — The contract names documented GET/HEAD/range/conditional behavior, and long captures are exactly where resume and revalidation matter; ignoring If-None-Match would also waste the one cheap integrity anchor (the persisted SHA-256) that lets a 304 cost no provider read.
+- *Trust the persisted storage record and skip re-hashing fetched bytes* — The hash check is the only proof that the object now in the store is the object the capture validated; without it a corrupted or substituted object would be served with a confident ETag. The cost is one SHA-256 over at most 8 MiB per fetch, negligible against the provider read itself.
+
+**Rationale**
+
+Safe to decide unilaterally: the mission architecture already fixes private Blob storage behind authorized application routes, and the validation contract fixes the method/range/conditional/cache matrix and the exact-bytes requirement; this record pins the interpretation (single explicit-start ranges, hash-as-ETag, fail-closed integrity, deny-all-responses-cacheable-never) inside that approved direction.
+
+**Consequences**
+
+- The founder-capability worker (VAL-CAPTURE-010) extends this same route with capability-session authorization rather than creating a second delivery path; rotation/revocation denial then falls out of reauthorizing every request.
+- deliverCaptureAsset is the only module that may turn a capture id into bytes; its resolve-then-revalidate order is the denial-equality invariant the cross-surface hardening feature will scan.
+- The ETag of a capture image is publicly its SHA-256; clients may cache-validate but never cache-store.
+- Three asset constants join the boundary catalog under POLICY_VERSION 2026-09-09.1 with the five-file change (catalog, EVALS, ARCHITECTURE, drift test, version).
+
+**Artifacts**
+
+- `src/lib/server/captures/asset.ts` — Resolution, range/conditional semantics, and fail-closed integrity revalidation for private delivery
+- `app/api/captures/[captureId]/asset/route.ts` — GET/HEAD route: live session verification on every request, safety headers on every response
+- `test/server/capture-asset.test.ts` — 28-case route boundary matrix: exact bytes/headers, range and conditional semantics, generic byte-free denials
+- `test/integration/blob-asset.integration.test.ts` — Real private Blob proof: metadata/hash match, unauthenticated provider denial, exact authorized delivery, verified cleanup
+- `e2e/asset.spec.ts` — Production-build proof over HTTP plus browser cache/logout/history: network log shows 200, 200, 401, 401
+
+---
+
+<sub>Generated from 44 record(s) as of 2026-09-09 · source `0fce7a77a731`</sub>

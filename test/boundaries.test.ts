@@ -15,6 +15,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
+  ASSET_CACHE_CONTROL,
+  ASSET_RANGE_UNIT,
+  ASSET_VARY,
   AUTH_REQUEST_MAX_BYTES,
   BLANK_URL_ROW_POLICY,
   CAPTURE_CLEANUP_WINDOW_MS,
@@ -226,6 +229,12 @@ const OUTCOME_ROWS: DocRow[] = [
   { name: "MAX_PUBLIC_MESSAGE_BYTES", value: fmtBytes(MAX_PUBLIC_MESSAGE_BYTES) },
 ];
 
+const ASSET_ROWS: DocRow[] = [
+  { name: "ASSET_CACHE_CONTROL", value: ASSET_CACHE_CONTROL },
+  { name: "ASSET_VARY", value: ASSET_VARY },
+  { name: "ASSET_RANGE_UNIT", value: ASSET_RANGE_UNIT },
+];
+
 /** Every constant the Evals source must publish, as `name | value` rows. */
 const EVALS_ROWS: DocRow[] = [
   { name: "POLICY_VERSION", value: POLICY_VERSION },
@@ -235,6 +244,7 @@ const EVALS_ROWS: DocRow[] = [
   ...MANIFEST_ROWS,
   ...MOTION_ROWS,
   ...OUTCOME_ROWS,
+  ...ASSET_ROWS,
   ...GEOMETRY_ROWS,
   ...QUOTA_ROWS,
   ...FEEDBACK_ROWS,
@@ -247,6 +257,7 @@ const ARCHITECTURE_ROWS: DocRow[] = [
   { name: "POLICY_VERSION", value: POLICY_VERSION },
   ...SESSION_ROWS,
   ...CAPTURE_ROWS,
+  ...ASSET_ROWS,
   { name: "MANIFEST_SCHEMA_VERSION", value: fmtNum(MANIFEST_SCHEMA_VERSION) },
   { name: "MAX_MANIFEST_ELEMENTS", value: fmtNum(MAX_MANIFEST_ELEMENTS) },
   { name: "MAX_MANIFEST_BYTES", value: fmtBytes(MAX_MANIFEST_BYTES) },
@@ -367,6 +378,17 @@ describe("boundary catalog coverage and consistency", () => {
     expect(PERF_SELECTION_CYCLES).toBe(100);
     expect(PERF_CAMERA_REQUEST_BUDGET).toBe(0);
     expect(PERFORMANCE_PROTOCOL.runs).toBeGreaterThanOrEqual(3);
+  });
+
+  test("the asset cache policy forbids retention and keys on authority", () => {
+    // Private screenshots behind a revocable authority must never be stored
+    // by a browser or intermediary, and any cache that saw a response must
+    // key on the authority-carrying header.
+    expect(ASSET_CACHE_CONTROL).toContain("private");
+    expect(ASSET_CACHE_CONTROL).toContain("no-store");
+    expect(ASSET_CACHE_CONTROL).toContain("max-age=0");
+    expect(ASSET_VARY).toBe("Cookie");
+    expect(ASSET_RANGE_UNIT).toBe("bytes");
   });
 });
 

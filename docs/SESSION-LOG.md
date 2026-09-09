@@ -1351,3 +1351,70 @@ debugging.
 ### Open questions at end of session
 
 - None.
+
+## Session — authorized private capture asset delivery (2026-09-09)
+
+### What happened
+
+- Built the only route private screenshot bytes may leave through:
+  `GET`/`HEAD` `/api/captures/<captureId>/asset`. The route verifies the live
+  editor session on every request (304/206/HEAD included); the delivery
+  module (`src/lib/server/captures/asset.ts`) resolves the capture through
+  the project hierarchy, settles range and conditional semantics from the
+  persisted record before any provider read, and revalidates fetched bytes
+  against the persisted type, length, and SHA-256 before serving. Strong ETag
+  is the persisted SHA-256. Every response carries `private, no-store,
+  max-age=0`, `nosniff`, `Vary: Cookie`, and `Accept-Ranges: bytes`.
+- TDD: `test/server/capture-asset.test.ts` went red on the missing route
+  module, then green across 28 cases (exact bytes/headers, single-range 206,
+  malformed/multi/suffix-range 400, unsatisfiable 416, hash conditionals
+  without a provider read, identical generic denials for nonexistent and
+  non-ready ids, integrity fail-closed, 405s, no pathname leakage).
+- Real-provider proof: `test/integration/blob-asset.integration.test.ts`
+  seeded a disposable private object plus Turso rows, verified provider
+  metadata/hash, proved unauthenticated SDK access is denied, proved exact
+  authorized delivery, and verified deletion of both.
+- Production-build proof: `e2e/asset.spec.ts` runs the HTTP matrix through
+  Playwright's request context against `next start` and drives a real
+  browser: warm render (64×40 image decoded), reload, authoritative logout,
+  then plain/conditional/range replays and reload/re-navigation/back all
+  denied 401 with the network log showing exactly 200, 200, 401, 401 — no
+  cached replay. agent-browser confirmed the anonymous surface: generic 401
+  JSON, no image, no cookies.
+- A literal curl pass against `next start` with a real login repeated the
+  matrix (200 with byte-exact sha256, HEAD, 206, 400s, 416, 304/200,
+  anonymous 401, unknown/failed 404, unsafe methods 405, logout then
+  plain/conditional/range replay 401). Disposable rows/object deleted and
+  verified absent.
+- Boundary catalog gained `ASSET_CACHE_CONTROL`, `ASSET_VARY`,
+  `ASSET_RANGE_UNIT` under `POLICY_VERSION` 2026-09-09.1 (five-file change).
+
+### What broke
+
+- Playwright `addCookies` rejects `url` plus `path` together; fixed by
+  passing `url` only.
+- `page.goForward()` after a 401 top-level navigation returned null (no
+  forward traversal); the history assertion moved to a network-response log
+  that proves every post-logout navigation hit the network and reauthorized.
+- The first curl login attempt failed 400 because a shell-interpolated JSON
+  body mangled the password; fixed by piping `JSON.stringify` output straight
+  into curl so no credential value is ever expanded by the shell.
+
+### Elapsed
+
+Roughly one hour of mission-worker time.
+
+### Decisions and assertions
+
+- D044 (non-redirecting route, reauthorize-every-request, single
+  explicit-start ranges, hash-as-ETag, fail-closed integrity, no-store
+  everywhere).
+- Evidence for VAL-CAPTURE-014 (delivery half): authorized delivery returns
+  exact bytes/type/length with the SHA-256 matching the stored object, proven
+  at unit, real-provider, production-build, and curl levels. The
+  rotation/revocation founder matrix remains with VAL-CAPTURE-010 in
+  milestone 2, which extends this same route.
+
+### Open questions at end of session
+
+- None.

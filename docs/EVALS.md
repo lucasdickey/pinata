@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.9`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-09.1`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.9 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-09.1 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -364,6 +364,31 @@ messages and remediation text live in the catalog and are bounded by
 | stale-lease | failed | yes | — | yes | no |
 | cleanup-pending | ready | no | — | yes | yes |
 | manifest-truncated | ready | no | — | yes | yes |
+
+### Private asset delivery
+
+Screenshots are stored in a private Vercel Blob store; the only way bytes
+reach a browser is `GET`/`HEAD` `/api/captures/<captureId>/asset`, which
+verifies the actor's authority on every request — including requests that end
+in `304`, `206`, or an empty `HEAD` — and never redirects to or names the
+provider. A capture id resolves through its project: a ready capture of a
+live project with a complete storage record is served; every other case
+(anonymous, expired, tampered, or ended authority; nonexistent, pending,
+capturing, failed, deleted-project, or integrity-failed captures) receives
+the one bounded generic denial with no bytes. Served bytes are revalidated
+against the persisted content type, byte length, and SHA-256 before anything
+is returned, and the strong ETag is exactly that SHA-256. A single
+`bytes=<start>-<end?>` range is honored (`206` with `Content-Range`);
+suffix, multi-range, reversed, and non-numeric ranges are rejected without
+bytes, and an unsatisfiable range answers `416` with the published length.
+`If-None-Match` (weak forms and `*` included) and `If-Modified-Since` are
+answered from the persisted hash without a provider read.
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `ASSET_CACHE_CONTROL` | private, no-store, max-age=0 | Every asset response; no browser or intermediary may retain private bytes after authority ends. |
+| `ASSET_VARY` | Cookie | Asset authorization rides on the authority-carrying Cookie header, so any cache key must include it. |
+| `ASSET_RANGE_UNIT` | bytes | The only range unit served; exactly one range with an explicit start. |
 
 ### Geometry minimums
 

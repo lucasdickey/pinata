@@ -113,14 +113,14 @@ attempt is ever left as an open `capturing` claim waiting for a second call
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.9`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-09.1`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.9 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-09.1 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -150,6 +150,9 @@ minimums, quotas, interaction limits, and performance budgets.
 | `CAPTURE_POLL_INITIAL_INTERVAL_MS` | 2,000 ms | First capture-progress poll delay. |
 | `CAPTURE_POLL_MAX_INTERVAL_MS` | 10,000 ms | Capture-progress poll backoff ceiling. |
 | `CAPTURE_POLL_DEADLINE_MS` | 600,000 ms (10 minutes) | Polling stops here; longer than the stale age, so abandonment is observed as stale first. |
+| `ASSET_CACHE_CONTROL` | private, no-store, max-age=0 | Every private-asset response; no browser or intermediary may retain bytes after authority ends. |
+| `ASSET_VARY` | Cookie | Asset authorization rides on the Cookie header, so caches must key on it. |
+| `ASSET_RANGE_UNIT` | bytes | The asset route serves one explicit-start byte range; suffix and multi-range requests are rejected. |
 | `MANIFEST_SCHEMA_VERSION` | 1 | Persisted per capture as `dom_manifest_version`. |
 | `MAX_MANIFEST_ELEMENTS` | 500 | Element cap; overflow truncates with a warning. |
 | `MAX_MANIFEST_BYTES` | 262,144 bytes (256 KiB) | Exact persisted manifest size cap. |
@@ -180,6 +183,12 @@ the annotation.
 - Source-site HTML is never rendered unsanitized; comments are plain text
   rendered through React escaping.
 - Private Blob paths resolve only after editor or project-capability checks.
+  The asset route (`GET`/`HEAD` `/api/captures/<captureId>/asset`) never
+  redirects to or names the provider, revalidates stored bytes against the
+  persisted type, length, and SHA-256 before serving, supports one explicit
+  byte range plus `If-None-Match`/`If-Modified-Since` conditionals, and
+  answers every unauthorized or unresolvable request with the same bounded
+  generic denial carrying no bytes.
 - Login and reply routes use durable throttling and generic error messages.
 - These requirements pages render Markdown with raw HTML disabled and an
   allow-listed set of link schemes.

@@ -4,7 +4,7 @@
 // probe during a focused test, and focused tests must never reach the real
 // network. This module is the one place both concerns meet.
 
-import { createVercelBlobStore } from "../providers/blob";
+import { createVercelBlobStore, type ScreenshotStore } from "../providers/blob";
 import { createBrowserlessClient } from "../providers/browserless";
 import { createRedirectProbe, type AdmissionDeps } from "./admission";
 import { createNodeDnsResolver } from "./dns";
@@ -12,6 +12,7 @@ import type { CaptureExecutionDeps } from "./execute";
 
 let override: AdmissionDeps | null = null;
 let executionOverride: CaptureExecutionDeps | null = null;
+let storeOverride: ScreenshotStore | null | undefined;
 
 /** Live resolver plus redirect probe, or whatever a test injected. */
 export function getAdmissionDeps(): AdmissionDeps {
@@ -39,4 +40,18 @@ export function getCaptureExecutionDeps(): CaptureExecutionDeps {
 
 export function __setCaptureExecutionDepsForTests(deps: CaptureExecutionDeps | null): void {
   executionOverride = deps;
+}
+
+/**
+ * The private screenshot store for asset delivery, or whatever a test
+ * injected. Fails closed to null when the credential is absent; delivery maps
+ * that to a bounded generic unavailability, never an echoed detail.
+ */
+export function getScreenshotStore(): ScreenshotStore | null {
+  if (storeOverride !== undefined) return storeOverride;
+  return createVercelBlobStore(process.env);
+}
+
+export function __setScreenshotStoreForTests(store: ScreenshotStore | null | undefined): void {
+  storeOverride = store;
 }
