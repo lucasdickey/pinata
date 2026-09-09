@@ -10,23 +10,11 @@ import { useCallback, useEffect, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import { ProjectCreateForm } from "./project-create-form";
-
-interface ProjectSummary {
-  projectId: string;
-  publicId: string;
-  title: string;
-  rootUrl: string;
-  pages: {
-    id: string;
-    normalizedUrl: string;
-    sortIndex: number;
-    captures: { id: string; variant: string; status: string }[];
-  }[];
-}
+import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
   | { status: "loading" }
-  | { status: "ready"; projects: ProjectSummary[] }
+  | { status: "ready"; projects: WorkspaceProject[] }
   | { status: "failed" };
 
 export function EditorHome() {
@@ -42,7 +30,7 @@ export function EditorHome() {
         setList({ status: "failed" });
         return;
       }
-      const payload = (await response.json()) as { projects: ProjectSummary[] };
+      const payload = (await response.json()) as { projects: WorkspaceProject[] };
       setList({ status: "ready", projects: payload.projects });
     } catch {
       setList({ status: "failed" });
@@ -88,25 +76,7 @@ export function EditorHome() {
           <p>No projects yet.</p>
         ) : null}
         {list.status === "ready" && list.projects.length > 0 ? (
-          <ul className="project-list">
-            {list.projects.map((project) => (
-              <li key={project.projectId}>
-                <h3>{project.title}</h3>
-                <ol>
-                  {project.pages.map((page) => (
-                    <li key={page.id}>
-                      {page.normalizedUrl}
-                      <span className="page-variants">
-                        {page.captures
-                          .map((capture) => `${capture.variant}: ${capture.status}`)
-                          .join(", ")}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </li>
-            ))}
-          </ul>
+          <ProjectWorkspace projects={list.projects} onChanged={() => void load()} />
         ) : null}
       </section>
 

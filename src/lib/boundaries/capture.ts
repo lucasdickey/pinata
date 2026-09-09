@@ -64,3 +64,6 @@ export const MAX_ACTIVE_CAPTURES = 2;
 
 /** A `capturing` attempt older than this computes to stale (5 minutes). */
 export const STALE_CAPTURE_AGE_MS = 300_000;
+
+/** Hard byte cap on a capture mutation request body (variant plus key). */
+export const CAPTURE_REQUEST_MAX_BYTES = 1_024;

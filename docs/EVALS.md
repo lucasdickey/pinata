@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.3`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.4`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.3 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.4 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -191,6 +191,7 @@ before any capture attempt or project row exists.
 | `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Initial attempts plus retries; a maximum-size project starts with 32. |
 | `MAX_ACTIVE_CAPTURES` | 2 | Matches the Browserless free-tier concurrency limit; dispatch beyond it fails as `quota-exceeded`. |
 | `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale and becomes retryable. |
+| `CAPTURE_REQUEST_MAX_BYTES` | 1,024 bytes | Hard cap on a capture mutation body, enforced before parsing. |
 
 ### DOM manifest schema
 

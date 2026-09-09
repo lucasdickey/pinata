@@ -22,7 +22,7 @@ import {
   readBoundedJson,
 } from "../../../src/lib/server/http";
 import { createProjectAtomically } from "../../../src/lib/server/projects/create";
-import { listProjects } from "../../../src/lib/server/projects/read";
+import { listProjectHierarchies } from "../../../src/lib/server/projects/hierarchy";
 import { createProjectBodySchema } from "../../../src/lib/server/projects/schemas";
 import { validateProjectSubmission } from "../../../src/lib/server/projects/submission";
 
@@ -97,7 +97,7 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
   try {
-    const projects = await listProjects(db);
+    const projects = await listProjectHierarchies(db, Date.now());
     return withRenewal(
       Response.json({ projects }),
       auth.renewedToken,

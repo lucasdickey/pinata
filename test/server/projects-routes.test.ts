@@ -266,6 +266,9 @@ describe("GET /api/projects", () => {
     expect(projects).toHaveLength(1);
     expect(projects[0].pages.map((p: { sortIndex: number }) => p.sortIndex)).toEqual([0, 1, 2]);
     expect(projects[0].pages[1].normalizedUrl).toBe("https://chickpea.co/pricing");
-    expect(projects[0].pages[0].captures).toHaveLength(2);
+    expect(projects[0].pages[0].devices.map((d: { variant: string }) => d.variant)).toEqual([
+      "desktop",
+      "mobile",
+    ]);
   });
 });

@@ -38,8 +38,22 @@ async function addRow(page: Page, value: string): Promise<void> {
   await inputs.last().fill(value);
 }
 
+interface DeviceSummary {
+  variant: string;
+  attempts: { id: string; attempt: number; state: string }[];
+  latest: { attempt: number; state: string } | null;
+  selectedCaptureId: string | null;
+  usable: boolean;
+  retryable: boolean;
+}
+
 async function projectsOf(request: APIRequestContext): Promise<
-  { title: string; pages: { normalizedUrl: string; captures: { variant: string; status: string }[] }[] }[]
+  {
+    publicId: string;
+    title: string;
+    pages: { id: string; normalizedUrl: string; devices: DeviceSummary[] }[];
+    counts: { pages: number; attempts: number; ready: number; failed: number; inProgress: number };
+  }[]
 > {
   const response = await request.get("/api/projects");
   expect(response.status()).toBe(200);
@@ -101,10 +115,9 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   const created = after.find((project) => project.title === `${RUN_ID} review`);
   expect(created?.pages.map((p) => p.normalizedUrl)).toEqual([ROOT, PRICING, ABOUT]);
   for (const created_page of created!.pages) {
-    expect(created_page.captures.map((c) => `${c.variant}:${c.status}`)).toEqual([
-      "desktop:pending",
-      "mobile:pending",
-    ]);
+    expect(
+      created_page.devices.map((d) => `${d.variant}:${d.latest?.state ?? "none"}`),
+    ).toEqual(["desktop:pending", "mobile:pending"]);
   }
   expect(consoleErrors).toEqual([]);
 });
@@ -147,6 +160,77 @@ test("an idempotent retry of the same submission creates nothing new", async ({ 
 
   const projects = await projectsOf(page.request);
   expect(projects.filter((p) => p.title === `${RUN_ID} retry`)).toHaveLength(1);
+});
+
+test("the workspace keeps one active device, retries one variant, and survives reload", async ({
+  page,
+}) => {
+  test.skip(!projectEnv.ready, projectEnv.reason);
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+
+  await signIn(page);
+  const created = (await projectsOf(page.request)).find((p) => p.title === `${RUN_ID} review`)!;
+  const pricing = created.pages[1]!;
+
+  // Drive one variant to a terminal failure the way a capture worker will,
+  // so the partial-status and scoped-retry surfaces have something to show.
+  const { createClient } = await import("@libsql/client");
+  const client = createClient({
+    url: requireLocalEnvValue("TURSO_DATABASE_URL"),
+    authToken: requireLocalEnvValue("TURSO_AUTH_TOKEN"),
+  });
+  try {
+    await client.execute({
+      sql: `update captures set status = 'failed', error_code = 'total-timeout',
+              error_message = 'The capture exceeded its total time budget.', updated_at = ?
+            where page_id = ? and variant = 'mobile' and attempt = 1`,
+      args: [Date.now(), pricing.id],
+    });
+  } finally {
+    client.close();
+  }
+
+  await page.reload();
+  const tree = page.getByRole("navigation", { name: "Projects, pages, and devices" });
+  await expect(tree.getByText(`${RUN_ID} review`)).toBeVisible();
+  // Exactly one page/device is active at a time.
+  await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
+
+  const detail = page.getByRole("region", { name: "Selected capture" });
+  await tree.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
+  await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
+  await expect(detail.getByRole("alert")).toContainText(
+    "The capture exceeded its total time budget.",
+  );
+
+  // The static stage is an image surface, not a link to the captured site.
+  await expect(detail.getByTestId("capture-stage").locator("a, iframe")).toHaveCount(0);
+
+  await detail.getByRole("button", { name: "Retry Mobile capture" }).click();
+  await expect(detail.getByRole("list", { name: "Capture versions" })).toBeVisible();
+
+  const afterRetry = (await projectsOf(page.request)).find(
+    (p) => p.title === `${RUN_ID} review`,
+  )!;
+  const retriedPage = afterRetry.pages[1]!;
+  expect(retriedPage.devices[1]!.attempts.map((a) => a.attempt)).toEqual([2, 1]);
+  expect(retriedPage.devices[1]!.latest?.state).toBe("pending");
+  // Exactly one variant of one page was retried.
+  expect(retriedPage.devices[0]!.attempts).toHaveLength(1);
+  expect(afterRetry.pages[0]!.devices.every((d) => d.attempts.length === 1)).toBe(true);
+  expect(afterRetry.pages[2]!.devices.every((d) => d.attempts.length === 1)).toBe(true);
+
+  // The organization is durable, not browser-local: a hard reload rebuilds it
+  // from the database with the same versions.
+  await page.reload();
+  await tree.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
+  await expect(
+    detail.getByRole("list", { name: "Capture versions" }).getByRole("button"),
+  ).toHaveCount(2);
+  expect(consoleErrors).toEqual([]);
 });
 
 test("this run's projects are removed and the store is left clean", async ({ page }) => {

@@ -717,3 +717,80 @@ Roughly 2 hours of mission-worker time.
 - The database still holds one orphan `valrun-…` project titled "validation
   run" from an earlier session's run. It was left alone rather than deleted by
   a session that did not create it.
+
+## Session — project/page/device hierarchy and the capture-attempt status model
+
+### What was attempted
+
+Turn the rows project creation commits into a navigable, durable organization:
+a project → page → Desktop/Mobile tree with exactly one active item, a status
+model over immutable capture attempts, a retry scoped to one page and one
+viewport, and deterministic version selection.
+
+### What was built
+
+- `src/lib/server/captures/status.ts` — the computed layer over stored attempt
+  rows: `capturing` past `STALE_CAPTURE_AGE_MS` computes to stale, the active
+  capture is the highest-numbered *ready* attempt, retry is offered only for a
+  terminal or stale latest attempt whose outcome the catalog allows.
+- `src/lib/server/captures/transitions.ts` — every persisted transition is a
+  compare-and-set on one attempt id plus its expected status. Illegal pairs and
+  lost races report `fenced` and write nothing.
+- `src/lib/server/captures/retry.ts` + `app/api/pages/[pageId]/captures` — a
+  retry that names one page and one variant, recorded under a `capture-retry`
+  idempotency scope digested with `{pageId, variant}` so key reuse against
+  another target is a 409 rather than a silent second capture.
+- `src/lib/server/projects/hierarchy.ts` (replacing `projects/read.ts`) plus
+  `GET /api/projects/[publicId]` — the whole organization read from Turso, with
+  per-project counts and both devices always present.
+- `src/components/project-workspace.tsx` — the tree, the one-active-item rule,
+  partial statuses, the version list, and an inert screenshot stage with no
+  link or frame that could navigate to the captured site.
+
+### What broke or surprised
+
+- The GET `/api/projects` payload changed shape (`pages[].captures` became
+  `pages[].devices`), so the existing route test and `e2e/projects.spec.ts` had
+  to move with it. Keeping the old shape alongside the new one would have meant
+  two sources of truth for the same rows.
+- Adding `CAPTURE_REQUEST_MAX_BYTES` is not free: the catalog, both published
+  docs, the drift test, and `POLICY_VERSION` all move together. That friction is
+  the point, but it is worth budgeting for.
+
+### How it was verified
+
+- Focused Vitest: status/selection/staleness, fenced transitions, scoped retry
+  (replay, conflict, non-retryable, quota, unknown page), hierarchy ordering and
+  ownership, the route boundary matrix, and the workspace component.
+- Real Turso (`test/integration/hierarchy.integration.test.ts`): a *fresh*
+  database handle — the readback a restarted process performs — returns the same
+  public ID, root, normalized URLs, order, ownership, and attempts; a partial
+  failure leaves ordered ready siblings usable; a scoped retry replays, conflicts
+  on target reuse, and a late old result lands on its own row without becoming
+  the default. Run-scoped rows deleted with verified cleanup.
+- Chromium e2e drives the workspace against the production build: one active
+  device, the failed variant's bounded message, a retry that touches one variant
+  only, and the same versions after a hard reload.
+
+### Elapsed
+
+Roughly 1.5 hours of mission-worker time.
+
+### Decisions and assertions
+
+- `D030` (agent-autonomous): active capture is the highest-numbered ready
+  attempt; staleness is computed at read time; terminal rows are fenced.
+- `D031` (agent-autonomous): retry is scoped to one page and one viewport and
+  keyed to that exact target.
+- `VAL-PROJECT-003`, `VAL-PROJECT-004`, and `VAL-PROJECT-005` are covered on the
+  local surface; the redeployment half of `VAL-PROJECT-004` waits on the
+  milestone-2 deployment feature.
+
+### Open questions at end of session
+
+- Nothing writes `ready` yet outside tests: the capture worker that calls
+  `applyCaptureTransition` for real is the next feature. Until then the stage
+  shows a placeholder instead of the private screenshot, which
+  `private-capture-asset-delivery` will supply.
+- The orphan `valrun-…` project from an earlier session is still in the
+  database; this session again left it alone.

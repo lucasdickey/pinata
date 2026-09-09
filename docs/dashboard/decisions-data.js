@@ -1168,8 +1168,108 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D030",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "The active capture is the highest-numbered ready attempt, and staleness is computed at read time",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Attempt rows are immutable history, so a page variant can hold several of them at once: a ready one, a newer failed one, and an abandoned capturing one whose worker died. Something has to decide which version the canvas shows and when a retry is offered. Choosing by completion time would let a late result from an abandoned older attempt overwrite a newer ready capture as the default, silently rebasing every annotation bound to it. Persisting a stale flag would need a background job the deployment does not have.",
+      "decision": "Selection is by attempt version, never by clock: the active capture for a (page, variant) is the ready attempt with the highest attempt number, so a late old result still persists on its own row and stays addressable but can never become the default. A capturing attempt older than STALE_CAPTURE_AGE_MS computes to stale on read rather than being written, and retry is offered only when the latest attempt is terminal or computed stale and the outcome catalog does not mark that failure non-retryable. Every persisted transition is a compare-and-set on one attempt id plus its expected status, so terminal rows can never be rewritten.",
+      "alternatives": [
+        {
+          "option": "Select the most recently completed attempt",
+          "why_not": "An abandoned attempt that reports back ten minutes late would displace the newer capture the user is already annotating."
+        },
+        {
+          "option": "Persist a stale flag with a sweeper job",
+          "why_not": "It needs a scheduler the Vercel deployment does not run, and a missed sweep leaves an attempt permanently unretryable."
+        },
+        {
+          "option": "Overwrite the attempt row on retry",
+          "why_not": "It destroys the image, manifest, hash, and annotation binding of the previous version, which the architecture requires to stay addressable."
+        }
+      ],
+      "rationale": "Version-ordered selection plus read-time staleness makes both answers pure functions of committed rows, so two readers, two instances, and a reload cannot disagree, and no background process is required. This is an implementation of the immutability rule the architecture already fixed, not a product choice, so it was safe to decide unilaterally.",
+      "consequences": [
+        "A late result is never lost and never wins: it lands on its own row and appears in the version list below the newer default.",
+        "Staleness moves with the published constant; changing STALE_CAPTURE_AGE_MS changes retryability everywhere at once with no data migration.",
+        "Any future capture worker must transition through applyCaptureTransition, because a direct update would bypass the terminal-row fence."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/status.ts",
+          "caption": "Computed state, version-ordered selection, and retryability"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/transitions.ts",
+          "caption": "Compare-and-set transitions that fence terminal rows and lost races"
+        },
+        {
+          "type": "file",
+          "path": "test/server/capture-status.test.ts",
+          "caption": "Selection, staleness, and retryability boundaries"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D031",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Retry is scoped to one page and one viewport, keyed to that exact target",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "When one of a project eight captures fails, resubmitting the project would re-run the seven that succeeded, burn Browserless quota, and replace ready captures that already carry annotations. A retry also needs a key so a double click or a retried request after a dropped response does not schedule two captures — but a key that is not bound to its target would let the same key silently schedule a different page or viewport.",
+      "decision": "POST /api/pages/[pageId]/captures names exactly one page and one variant. It writes one new pending attempt for that target only, never touching a sibling page or the other viewport. The client idempotency key is recorded in the shared idempotency_keys table under a capture-retry scope with a digest of {pageId, variant}: the same key with the same target replays the one created attempt, and the same key with a different target is refused with a bounded 409. Attempts are capped per project by MAX_CAPTURE_ATTEMPTS_PER_PROJECT, and a missing page, a non-retryable state, and a quota refusal all answer with the same generic bounded message.",
+      "alternatives": [
+        {
+          "option": "Retry at the project level",
+          "why_not": "It re-captures ready siblings, wastes the two-concurrent free tier, and creates new versions nobody asked for."
+        },
+        {
+          "option": "Key the retry on (page, variant) alone with no client key",
+          "why_not": "Two deliberate recaptures of the same target are legitimate; collapsing them removes the ability to recapture at all."
+        },
+        {
+          "option": "Let the key be target-free",
+          "why_not": "A reused key would then schedule work against whatever target the request happened to name, which is exactly the confusion idempotency is supposed to prevent."
+        }
+      ],
+      "rationale": "Scoping the mutation to the smallest addressable unit is what makes partial failure recoverable without collateral damage, and binding the key to the target keeps replay honest. Both follow directly from the approved capture model, so no product direction was decided here.",
+      "consequences": [
+        "The capture worker remains a queue reader: retry, like creation, only writes pending rows and never calls a provider inline.",
+        "A client must hold one key per retry intent and refresh it only after a success or a conflict; the workspace does this per (page, variant).",
+        "CAPTURE_REQUEST_MAX_BYTES joins the versioned boundary catalog (POLICY_VERSION 2026-09-08.4) so the retry body cap is published like every other limit."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/retry.ts",
+          "caption": "Target-bound idempotent retry with the project attempt cap"
+        },
+        {
+          "type": "file",
+          "path": "app/api/pages/[pageId]/captures/route.ts",
+          "caption": "The scoped retry endpoint and its bounded denials"
+        },
+        {
+          "type": "file",
+          "path": "test/integration/hierarchy.integration.test.ts",
+          "caption": "Real-Turso proof of scoped retry, replay, conflict, and late-result fencing"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-08",
-  "source_hash": "aa1c9b7baf1a"
+  "source_hash": "14e2a504d24b"
 };

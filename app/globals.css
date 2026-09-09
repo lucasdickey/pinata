@@ -151,6 +151,79 @@ pre code {
   margin-left: 0.5rem;
 }
 
+/* ---- project / page / device workspace ---- */
+
+.workspace {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(16rem, 22rem) 1fr;
+  align-items: start;
+}
+
+@media (max-width: 48rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+.workspace-tree ul,
+.workspace-tree ol {
+  list-style: none;
+  padding-left: 0;
+}
+
+.workspace-tree ol {
+  padding-left: 0.75rem;
+}
+
+.workspace-tree .page-url {
+  display: block;
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.workspace-tree .page-devices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.workspace-tree button[aria-current="true"],
+.capture-versions button[aria-current="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.project-counts,
+.device-status {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.capture-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  padding-left: 0;
+}
+
+.capture-stage {
+  border: 2px dashed var(--line);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  min-height: 8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.capture-error {
+  color: var(--accent);
+}
+
 /* ---- requirements hub ---- */
 
 .reqs-shell {

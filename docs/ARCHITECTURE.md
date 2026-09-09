@@ -102,14 +102,14 @@ Every redirect hop is revalidated under the same rules before following it.
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.3`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-08.4`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.3 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.4 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -130,6 +130,7 @@ minimums, quotas, interaction limits, and performance budgets.
 | `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Persisted attempts per project, initial plus retries. |
 | `MAX_ACTIVE_CAPTURES` | 2 | The Browserless free-tier concurrency limit. |
 | `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale. |
+| `CAPTURE_REQUEST_MAX_BYTES` | 1,024 bytes | Hard cap on a capture mutation body, enforced before parsing. |
 | `MANIFEST_SCHEMA_VERSION` | 1 | Persisted per capture as `dom_manifest_version`. |
 | `MAX_MANIFEST_ELEMENTS` | 500 | Element cap; overflow truncates with a warning. |
 | `MAX_MANIFEST_BYTES` | 262,144 bytes (256 KiB) | Exact persisted manifest size cap. |
