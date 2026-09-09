@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinata remote-network hard fixture v1</title>
+    <!--
+      Controlled hard remote-network safety fixture for VAL-CAPTURE-013.
+
+      Companion to remote-network-v1: this page attempts the destinations the
+      real provider treats as fatal to the browsing session — literal
+      loopback, link-local, cloud-metadata, and IPv6-local fetches, a metadata
+      image, and a worker fetch (verified 2026-09-09: any one of these gets
+      the browser target destroyed, even when the in-function request guard
+      aborts the request first; RFC1918 literals and private-resolving host
+      names are refused gracefully and live in remote-network-v1).
+
+      The expected capture outcome is a bounded safe failure: no ready state,
+      no image, no manifest, no stored object. If any of these requests could
+      actually return content, the marker would be painted — but no artifact
+      of any kind may exist for this page, so the persisted row and the
+      absence of bytes are the whole proof.
+
+      Inert and self-contained: no third-party code, no secrets. Version this
+      file by copying it to a new -vN name; never edit a published version in
+      place.
+    -->
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #fdfaf4;
+        color: #1c1b19;
+        font: 16px/24px ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      .probe.leak {
+        background: #ff00ff;
+        color: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">HARD-NETWORK-FIXTURE</h1>
+      <p id="fixture-version">fixture-version: remote-network-hard-v1</p>
+      <p id="pre-attack">pre-attack: rendered</p>
+      <p id="probe-hard" class="probe">probe-hard: pending</p>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+        // Assembled at runtime so no static copy of the marker exists.
+        var LEAK = "PRIV" + "LEAK";
+        var mark = function () {
+          var el = document.getElementById("probe-hard");
+          el.textContent = "probe-hard: " + LEAK;
+          el.classList.add("leak");
+        };
+        var DEST = {
+          meta: "https://169.254.169.254/latest/meta-data/",
+          loopback: "https://127.0.0.1/",
+          linklocal: "https://169.254.1.10/",
+          v6local: "https://[::1]/",
+          v6ula: "https://[fd00::1]/",
+          imageMeta: "http://169.254.169.254/favicon.ico",
+        };
+        var opts = { mode: "no-cors", cache: "no-store", credentials: "omit" };
+        fetch(DEST.meta, opts).then(mark, function () {});
+        fetch(DEST.loopback, opts).then(mark, function () {});
+        fetch(DEST.linklocal, opts).then(mark, function () {});
+        fetch(DEST.v6local, opts).then(mark, function () {});
+        fetch(DEST.v6ula, opts).then(mark, function () {});
+        var img = new Image();
+        img.width = 16;
+        img.height = 16;
+        img.alt = "";
+        img.addEventListener("load", mark);
+        img.src = DEST.imageMeta;
+        document.querySelector("main").appendChild(img);
+        try {
+          var workerSource =
+            "onmessage = function (event) {" +
+            "fetch(event.data, { mode: 'no-cors', cache: 'no-store', credentials: 'omit' })" +
+            ".then(function () { postMessage('resolved'); }, function () { postMessage('rejected'); });" +
+            "};";
+          var worker = new Worker(
+            URL.createObjectURL(new Blob([workerSource], { type: "text/javascript" }))
+          );
+          worker.addEventListener("message", function (event) {
+            if (event.data === "resolved") mark();
+          });
+          worker.postMessage(DEST.meta);
+        } catch (error) {
+          /* a refused worker constructor is also a safe outcome */
+        }
+      })();
+    </script>
+  </body>
+</html>

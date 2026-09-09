@@ -17,8 +17,10 @@
 //   1. ensures the project exists and deployment protection is disabled,
 //   2. deploys the exact repository bytes to the production alias,
 //   3. reads every fixture back and refuses to print a URL unless the response
-//      is a direct 200 (no interstitial redirect), inline text/html with no
-//      attachment disposition, and hashes to exactly the repository bytes,
+//      is a direct 200 (no interstitial redirect), the expected inline content
+//      type with no attachment disposition, and hashes to exactly the
+//      repository bytes — and verifies each controlled redirect route answers
+//      with its exact status and Location,
 //   4. rewrites test/fixtures/capture/host.json when the alias or bytes moved
 //      (the durable URLs are public and non-secret, so they are committed),
 //   5. prints the CAPTURE_*_FIXTURE_URL environment lines the real-provider
@@ -48,6 +50,28 @@ const FIXTURES = [
   // whose visible hints no longer name the linked hosts (VAL-PROJECT-003).
   { envName: "CAPTURE_LINKS_V1_FIXTURE_URL", file: "links-v1.html", version: "links-v1" },
   { envName: "CAPTURE_LINKS_FIXTURE_URL", file: "links-v2.html", version: "links-v2" },
+  { envName: "CAPTURE_NETWORK_FIXTURE_URL", file: "remote-network-v1.html", version: "remote-network-v1" },
+  { envName: "CAPTURE_NETWORK_HARD_FIXTURE_URL", file: "remote-network-hard-v1.html", version: "remote-network-hard-v1" },
+  { envName: "CAPTURE_PIXEL_FIXTURE_URL", file: "pixel-v1.png", version: "pixel-v1", type: "image/png" },
+];
+
+// Controlled redirect routes (VAL-CAPTURE-013): public same-origin fixture
+// URLs that 302 to public-shaped names whose DNS answers are private, so the
+// fixture page can start an allowed request that only the provider's
+// network-level enforcement can refuse at the redirect hop. The destinations
+// are hostnames, not literals: the literal form would be refused by the
+// in-function guard's shape check, which is not the layer under test here.
+const REDIRECTS = [
+  {
+    source: "/redirect-v1/meta",
+    destination: "https://169.254.169.254.nip.io/latest/meta-data/",
+    statusCode: 302,
+  },
+  {
+    source: "/redirect-v1/loopback",
+    destination: "https://127.0.0.1.nip.io/",
+    statusCode: 302,
+  },
 ];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -170,11 +194,25 @@ const READBACK_RETRY_DELAY_MS = 10_000;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function verifyReadbackWithRetry(url, bytes) {
+async function verifyReadbackWithRetry(url, bytes, expectType) {
   let lastError;
   for (let attempt = 1; attempt <= READBACK_MAX_ATTEMPTS; attempt += 1) {
     try {
-      await verifyReadback(url, bytes);
+      await verifyReadback(url, bytes, expectType);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < READBACK_MAX_ATTEMPTS) await sleep(READBACK_RETRY_DELAY_MS);
+    }
+  }
+  throw lastError;
+}
+
+async function verifyRedirectWithRetry(baseUrl, redirect) {
+  let lastError;
+  for (let attempt = 1; attempt <= READBACK_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await verifyRedirect(baseUrl, redirect);
       return;
     } catch (error) {
       lastError = error;
@@ -185,9 +223,10 @@ async function verifyReadbackWithRetry(url, bytes) {
 }
 
 // A candidate fixture host must prove four things per fixture before any URL
-// is trusted: a direct 200 (no interstitial/SSO redirect), inline text/html,
-// no attachment disposition, and bytes identical to the repository file.
-async function verifyReadback(url, bytes) {
+// is trusted: a direct 200 (no interstitial/SSO redirect), the expected inline
+// content type, no attachment disposition, and bytes identical to the
+// repository file.
+async function verifyReadback(url, bytes, expectType = "text/html") {
   const response = await fetch(url, { redirect: "manual", cache: "no-store" });
   if (response.status !== 200) {
     throw new Error(
@@ -195,8 +234,8 @@ async function verifyReadback(url, bytes) {
     );
   }
   const contentType = response.headers.get("content-type") || "";
-  if (!contentType.startsWith("text/html")) {
-    throw new Error(`${url}: host served ${contentType}, not text/html`);
+  if (!contentType.startsWith(expectType)) {
+    throw new Error(`${url}: host served ${contentType}, not ${expectType}`);
   }
   const disposition = response.headers.get("content-disposition") || "";
   if (disposition.toLowerCase().includes("attachment")) {
@@ -205,6 +244,20 @@ async function verifyReadback(url, bytes) {
   const served = new Uint8Array(await response.arrayBuffer());
   if (sha256(served) !== sha256(bytes)) {
     throw new Error(`${url}: served bytes do not match the repository fixture`);
+  }
+}
+
+// A redirect route must answer with exactly its configured status and
+// Location; a host that rewrote or dropped the route would silently turn the
+// fixture's redirect probes into ordinary same-origin fetches.
+async function verifyRedirect(baseUrl, redirect) {
+  const url = `${baseUrl}${redirect.source}`;
+  const response = await fetch(url, { redirect: "manual", cache: "no-store" });
+  if (response.status !== redirect.statusCode) {
+    throw new Error(`${url}: expected a ${redirect.statusCode}, got ${response.status}`);
+  }
+  if (response.headers.get("location") !== redirect.destination) {
+    throw new Error(`${url}: redirect target was rewritten or dropped`);
   }
 }
 
@@ -228,11 +281,16 @@ async function main() {
     for (const fixture of fixtures) {
       await cp(path.join(fixtureDir, fixture.file), path.join(staging, fixture.file));
     }
-    // Static files at the project root, served verbatim. Force the "Other"
-    // framework preset so no build step ever runs against fixture markup.
+    // Static files at the project root, served verbatim, plus the controlled
+    // redirect routes. Force the "Other" framework preset so no build step
+    // ever runs against fixture markup.
     await writeFile(
       path.join(staging, "vercel.json"),
-      JSON.stringify({ framework: null, cleanUrls: false, trailingSlash: false }, null, 2) + "\n",
+      JSON.stringify(
+        { framework: null, cleanUrls: false, trailingSlash: false, redirects: REDIRECTS },
+        null,
+        2,
+      ) + "\n",
     );
     await vercel(["link", "--yes", "--project", PROJECT_NAME], { cwd: staging });
     const deployed = await vercel(["deploy", "--prod", "--yes"], { cwd: staging });
@@ -242,8 +300,11 @@ async function main() {
     const published = [];
     for (const fixture of fixtures) {
       const url = `${baseUrl}/${fixture.file}`;
-      await verifyReadbackWithRetry(url, fixture.bytes);
+      await verifyReadbackWithRetry(url, fixture.bytes, fixture.type);
       published.push({ ...fixture, url });
+    }
+    for (const redirect of REDIRECTS) {
+      await verifyRedirectWithRetry(baseUrl, redirect);
     }
 
     const host = {

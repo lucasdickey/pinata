@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinata remote-network fixture v1</title>
+    <!--
+      Controlled remote-network safety fixture for VAL-CAPTURE-013.
+
+      This page is what an attacker-authored public page would do if it wanted
+      Pinata's capture browser to reach into the provider's network: it tries
+      to redirect, fetch, frame, spawn a worker, open a WebSocket, and load
+      images at private destinations, plus public-shaped names whose DNS
+      answers are private (static private-resolving names and a live
+      alternating rebinding name). Every probe reports into a visible status
+      line:
+
+        probe-<id>: blocked        the request never produced a response
+        probe-<id>: <leak marker>  a private destination RESPONDED — the
+                                   marker is assembled at runtime and paints
+                                   the status magenta (#ff00ff), so both the
+                                   persisted manifest text and the decoded
+                                   screenshot pixels carry a scannable signal
+        probe-<id>: attempted ...  frames only; cross-origin frame internals
+                                   can never be read back, so frame probes are
+                                   triggers whose refusal is proven by the
+                                   capture's blocked-request record
+
+      No response body is ever copied into the DOM: a resolved probe writes
+      only the marker, so even a total failure of every network defence could
+      not persist private bytes through this page — it would surface as the
+      marker and fail the suite instead.
+
+      Destinations come in two shapes. RFC1918 literals are refused by the
+      in-function request guard before any network use. The public-shaped
+      names resolve to loopback, metadata, or an alternating rebind answer;
+      the guard deliberately lets those through (it has no resolver in the
+      sandbox), so only the provider's network-level enforcement can refuse
+      them — that is the post-admission DNS-change case. Verified behavior of
+      the real provider (2026-09-09): name-form requests to private answers
+      fail fast or hang without content; literal requests to loopback,
+      link-local, metadata, or IPv6-local destinations get the whole browser
+      session destroyed by the provider's own protection. Those literal
+      destinations therefore live in the companion page remote-network-hard-v1,
+      whose expected capture outcome is a bounded safe failure with no image
+      or manifest at all. Keeping the two apart lets THIS page prove the
+      positive half: a ready capture in which every probe was refused and
+      ordinary public subresources still loaded.
+
+      Ordinary public subresources must keep working (screenshot fidelity):
+      one public image, one public fetch, and one public same-origin frame
+      prove the guard and provider policy do not over-block.
+
+      Private destinations live only inside the probe script, never in
+      visible text, so a manifest scan for them is a true leak detector.
+
+      Inert and self-contained: no third-party code, no secrets. Version this
+      file by copying it to a new -vN name; never edit a published version in
+      place.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #fdfaf4;
+        color: #1c1b19;
+        font: 16px/24px ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 36px;
+      }
+      h2 {
+        margin: 24px 0 8px;
+        font-size: 20px;
+        line-height: 28px;
+        border-bottom: 2px solid #e2d9c8;
+      }
+      p {
+        margin: 0 0 4px;
+      }
+      .probe {
+        background: #f4efe4;
+        padding: 2px 6px;
+      }
+      .probe.ok {
+        background: #e2f0e4;
+      }
+      /* The leak colour. It appears nowhere else in the fixture, so a whole
+         image scan for pure magenta is a whole-image sentinel scan. */
+      .probe.leak {
+        background: #ff00ff;
+        color: #ffffff;
+      }
+      .flag {
+        background: #fff3d6;
+        padding: 2px 6px;
+      }
+      iframe {
+        border: 2px solid #e2d9c8;
+        margin: 4px 8px 4px 0;
+        vertical-align: top;
+      }
+      #probe-images img {
+        width: 16px;
+        height: 16px;
+        border: 1px solid #b9ad97;
+        margin-right: 8px;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">NETWORK-FIXTURE-TOP</h1>
+      <p id="fixture-version">fixture-version: remote-network-v1</p>
+      <p>
+        This page attacks the capture browser through every remote-network
+        channel that can survive the attempt. Every probe must end blocked;
+        any answered private request marks itself and paints magenta.
+      </p>
+
+      <h2>Private fetch probes (guard-refused literals)</h2>
+      <p id="probe-fetch-rfc1918" class="probe">probe-fetch-rfc1918: pending</p>
+      <p id="probe-fetch-private10" class="probe">probe-fetch-private10: pending</p>
+
+      <h2>DNS-rebinding fetch probes (public name, private answer)</h2>
+      <p id="probe-fetch-rebind-loopback" class="probe">probe-fetch-rebind-loopback: pending</p>
+      <p id="probe-fetch-rebind-meta" class="probe">probe-fetch-rebind-meta: pending</p>
+      <p id="probe-fetch-rebind-live" class="probe">probe-fetch-rebind-live: pending</p>
+
+      <h2>Redirect-to-private fetch probes (same-origin start)</h2>
+      <p id="probe-fetch-redirect-meta" class="probe">probe-fetch-redirect-meta: pending</p>
+      <p id="probe-fetch-redirect-loopback" class="probe">probe-fetch-redirect-loopback: pending</p>
+
+      <h2>Private image probes</h2>
+      <div id="probe-images"></div>
+      <p id="probe-image-rfc1918" class="probe">probe-image-rfc1918: pending</p>
+      <p id="probe-image-rebind-meta" class="probe">probe-image-rebind-meta: pending</p>
+
+      <h2>Private WebSocket probes</h2>
+      <p id="probe-ws-loopback" class="probe">probe-ws-loopback: pending</p>
+      <p id="probe-ws-rebind" class="probe">probe-ws-rebind: pending</p>
+
+      <h2>Private worker probe</h2>
+      <p id="probe-worker-rebind-meta" class="probe">probe-worker-rebind-meta: pending</p>
+
+      <h2>Private frame probes (rendering surface)</h2>
+      <div id="probe-frames"></div>
+      <p id="probe-frame-rfc1918" class="probe">probe-frame-rfc1918: pending</p>
+      <p id="probe-frame-rebind-meta" class="probe">probe-frame-rebind-meta: pending</p>
+
+      <p id="probes-settled" class="flag">probes-settled: pending</p>
+
+      <h2>Ordinary public subresources must still load</h2>
+      <p id="public-image" class="flag">public-image: pending</p>
+      <p id="public-fetch" class="flag">public-fetch: pending</p>
+      <p id="public-frame" class="flag">public-frame: pending</p>
+      <img id="public-pixel" src="/pixel-v1.png" alt="NETWORK-PUBLIC-PIXEL" width="64" height="64" />
+      <iframe id="public-echo" title="NETWORK-PUBLIC-FRAME" src="/echo-v1.html" width="320" height="180"></iframe>
+
+      <h2>Interaction counters</h2>
+      <p id="counters" class="flag">counters: pending</p>
+      <p id="navigation-count">navigation-count: pending</p>
+
+      <p id="bottom">NETWORK-FIXTURE-BOTTOM</p>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+        // Assembled at runtime: no static copy of the marker exists anywhere,
+        // so finding it in a persisted artifact is always a real detection.
+        var LEAK = "PRIV" + "LEAK";
+        var PROBE_TIMEOUT_MS = 2000;
+        var FRAME_TIMEOUT_MS = 3000;
+        var startedAt = Date.now();
+
+        var set = function (id, text) {
+          document.getElementById(id).textContent = text;
+        };
+
+        var pending = {};
+        var total = 0;
+        var register = function (id) {
+          pending[id] = true;
+          total += 1;
+        };
+        var settle = function (id, outcome) {
+          if (!pending[id]) return;
+          delete pending[id];
+          var el = document.getElementById("probe-" + id);
+          if (outcome === "leak") {
+            el.textContent = "probe-" + id + ": " + LEAK;
+            el.classList.add("leak");
+          } else {
+            el.textContent = "probe-" + id + ": " + outcome;
+            el.classList.add("ok");
+          }
+          if (Object.keys(pending).length === 0) {
+            set("probes-settled", "probes-settled: " + total + "/" + total);
+          }
+        };
+
+        // Private destinations, kept inside the script only. The LITERALS are
+        // RFC1918, which the in-function request guard aborts outright. The
+        // public-shaped NAMES resolve to loopback or metadata answers; only
+        // the provider's network-level enforcement can refuse those, which is
+        // exactly the post-admission DNS-change case under test.
+        var DEST = {
+          rfc1918: "https://192.168.0.1/",
+          private10: "https://10.0.0.1/",
+          rebindLoopback: "https://127.0.0.1.nip.io/",
+          rebindMeta: "https://169.254.169.254.nip.io/latest/meta-data/",
+          rebindLive: "https://7f000001.08080808.rbndr.us/",
+          imageRfc1918: "https://10.0.0.1/favicon.ico",
+          imageRebindMeta: "http://169.254.169.254.nip.io/favicon.ico",
+          wsLoopback: "wss://127.0.0.1/",
+          wsRebind: "wss://127.0.0.1.nip.io/",
+          frameRfc1918: "https://192.168.0.1/",
+          frameRebindMeta: "https://169.254.169.254.nip.io/",
+        };
+
+        // Every probe CANCELS its attempt on timeout: the provider silently
+        // drops some private destinations, leaving the request pending
+        // forever, and a pending request keeps the page's network from ever
+        // going idle — which once stalled the capture until the total
+        // deadline (observed against the real provider 2026-09-09).
+
+        // --- fetch probes -------------------------------------------------
+        // no-cors: a resolved promise means the private server RESPONDED,
+        // which is the leak signal; the opaque body is never read.
+        var fetchProbe = function (id, url) {
+          register(id);
+          var abort = new AbortController();
+          window.setTimeout(function () {
+            abort.abort();
+            settle(id, "blocked");
+          }, PROBE_TIMEOUT_MS);
+          fetch(url, {
+            mode: "no-cors",
+            cache: "no-store",
+            credentials: "omit",
+            signal: abort.signal,
+          }).then(
+            function () {
+              settle(id, "leak");
+            },
+            function () {
+              settle(id, "blocked");
+            }
+          );
+        };
+        fetchProbe("fetch-rfc1918", DEST.rfc1918);
+        fetchProbe("fetch-private10", DEST.private10);
+        fetchProbe("fetch-rebind-loopback", DEST.rebindLoopback);
+        fetchProbe("fetch-rebind-meta", DEST.rebindMeta);
+        fetchProbe("fetch-rebind-live", DEST.rebindLive);
+        // Same-origin public URLs that the fixture host redirects to private
+        // destinations; the browser follows the chain into the private hop.
+        fetchProbe("fetch-redirect-meta", "/redirect-v1/meta");
+        fetchProbe("fetch-redirect-loopback", "/redirect-v1/loopback");
+
+        // --- image probes -------------------------------------------------
+        // An answered private image renders bytes straight into the page, so
+        // onload is the leak event; onerror is the safe outcome.
+        var imageProbe = function (id, url) {
+          register(id);
+          var img = new Image();
+          img.width = 16;
+          img.height = 16;
+          img.alt = "";
+          window.setTimeout(function () {
+            img.src = "about:blank";
+            settle(id, "blocked");
+          }, PROBE_TIMEOUT_MS);
+          img.addEventListener("load", function () {
+            settle(id, "leak");
+          });
+          img.addEventListener("error", function () {
+            settle(id, "blocked");
+          });
+          img.src = url;
+          document.getElementById("probe-images").appendChild(img);
+        };
+        imageProbe("image-rfc1918", DEST.imageRfc1918);
+        imageProbe("image-rebind-meta", DEST.imageRebindMeta);
+
+        // --- WebSocket probes ---------------------------------------------
+        // Page-level request interception does not see WebSocket handshakes,
+        // so these isolate the browser and provider network layers.
+        var wsProbe = function (id, url) {
+          register(id);
+          var socket;
+          window.setTimeout(function () {
+            try {
+              if (socket) socket.close();
+            } catch (error) {
+              /* closing a stuck probe is best-effort */
+            }
+            settle(id, "blocked");
+          }, PROBE_TIMEOUT_MS);
+          try {
+            socket = new WebSocket(url);
+            socket.addEventListener("open", function () {
+              try {
+                socket.close();
+              } catch (error) {
+                /* closing a leaked probe is best-effort */
+              }
+              settle(id, "leak");
+            });
+            socket.addEventListener("error", function () {
+              settle(id, "blocked");
+            });
+            socket.addEventListener("close", function () {
+              settle(id, "blocked");
+            });
+          } catch (error) {
+            settle(id, "blocked");
+          }
+        };
+        wsProbe("ws-loopback", DEST.wsLoopback);
+        wsProbe("ws-rebind", DEST.wsRebind);
+
+        // --- worker probe ---------------------------------------------------
+        // Page-level request interception does not see inside a worker, so
+        // this probe isolates the provider's network-level enforcement.
+        register("worker-rebind-meta");
+        var worker = null;
+        window.setTimeout(function () {
+          try {
+            if (worker) worker.terminate();
+          } catch (error) {
+            /* terminating a stuck probe is best-effort */
+          }
+          settle("worker-rebind-meta", "blocked");
+        }, PROBE_TIMEOUT_MS);
+        try {
+          var workerSource =
+            "onmessage = function (event) {" +
+            "fetch(event.data, { mode: 'no-cors', cache: 'no-store', credentials: 'omit' })" +
+            ".then(function () { postMessage('resolved'); }, function () { postMessage('rejected'); });" +
+            "};";
+          worker = new Worker(
+            URL.createObjectURL(new Blob([workerSource], { type: "text/javascript" }))
+          );
+          worker.addEventListener("message", function (event) {
+            settle("worker-rebind-meta", event.data === "resolved" ? "leak" : "blocked");
+            worker.terminate();
+          });
+          worker.addEventListener("error", function () {
+            settle("worker-rebind-meta", "blocked");
+            worker.terminate();
+          });
+          worker.postMessage(DEST.rebindMeta);
+        } catch (error) {
+          settle("worker-rebind-meta", "blocked");
+        }
+
+        // --- frame probes ---------------------------------------------------
+        // Cross-origin frame internals can never be read back or enter the
+        // manifest by construction, so these are pure triggers: their refusal
+        // is proven by the capture's blocked-request record, and a successful
+        // private load could only ever paint an unreadable error page. They
+        // are inserted only after the window load event: a connected frame
+        // delays its parent's load, and a silently dropped private
+        // destination would then stall navigation itself (observed against
+        // the real provider 2026-09-09).
+        var frameProbe = function (id, url) {
+          register(id);
+          var frame = document.createElement("iframe");
+          frame.width = 220;
+          frame.height = 140;
+          frame.title = "probe frame " + id;
+          frame.addEventListener("load", function () {
+            settle(id, "attempted load=yes");
+          });
+          frame.addEventListener("error", function () {
+            settle(id, "attempted load=no");
+          });
+          frame.src = url;
+          document.getElementById("probe-frames").appendChild(frame);
+          window.setTimeout(function () {
+            try {
+              frame.remove();
+            } catch (error) {
+              /* removing a stuck probe frame is best-effort */
+            }
+            settle(id, "attempted load=timeout");
+          }, FRAME_TIMEOUT_MS);
+        };
+        var startFrameProbes = function () {
+          frameProbe("frame-rfc1918", DEST.frameRfc1918);
+          frameProbe("frame-rebind-meta", DEST.frameRebindMeta);
+        };
+        if (document.readyState === "complete") startFrameProbes();
+        else window.addEventListener("load", startFrameProbes);
+
+        // --- ordinary public subresources ---------------------------------
+        var pixel = document.getElementById("public-pixel");
+        var reportPixel = function () {
+          set(
+            "public-image",
+            "public-image: " +
+              (pixel.complete && pixel.naturalWidth === 64 ? "loaded 64x64" : "failed")
+          );
+        };
+        pixel.addEventListener("load", reportPixel);
+        pixel.addEventListener("error", reportPixel);
+        reportPixel();
+
+        fetch("/echo-v1.html", { cache: "no-store", credentials: "omit" }).then(
+          function (response) {
+            set("public-fetch", "public-fetch: " + response.status);
+          },
+          function () {
+            set("public-fetch", "public-fetch: failed");
+          }
+        );
+
+        var echo = document.getElementById("public-echo");
+        var reportFrame = function () {
+          var readable = false;
+          try {
+            readable = Boolean(
+              echo.contentDocument &&
+                echo.contentDocument.body &&
+                echo.contentDocument.body.children.length > 0
+            );
+          } catch (error) {
+            readable = false;
+          }
+          set("public-frame", "public-frame: " + (readable ? "loaded-readable" : "unreadable"));
+        };
+        echo.addEventListener("load", reportFrame);
+        echo.addEventListener("error", reportFrame);
+
+        // Keep the network busy until every probe settled (and for a minimum
+        // floor), so the capture's network-idle wait cannot race ahead and
+        // inspect the manifest while a probe is still pending.
+        var heartbeat = 0;
+        var beat = function () {
+          if (Object.keys(pending).length === 0 && Date.now() - startedAt >= 3000) return;
+          heartbeat += 1;
+          fetch("/pixel-v1.png?heartbeat=" + heartbeat, {
+            cache: "no-store",
+            credentials: "omit",
+          }).catch(function () {
+            /* a failed heartbeat only delays idle, which is the safe side */
+          });
+          window.setTimeout(beat, 300);
+        };
+        window.setTimeout(beat, 300);
+
+        // --- interaction counters ------------------------------------------
+        var counts = { click: 0, keydown: 0, pointerdown: 0, touchstart: 0, submit: 0, focusin: 0 };
+        var renderCounts = function () {
+          set(
+            "counters",
+            "counters: click:" +
+              counts.click +
+              " keydown:" +
+              counts.keydown +
+              " pointerdown:" +
+              counts.pointerdown +
+              " touchstart:" +
+              counts.touchstart +
+              " submit:" +
+              counts.submit +
+              " focusin:" +
+              counts.focusin
+          );
+        };
+        Object.keys(counts).forEach(function (name) {
+          document.addEventListener(
+            name,
+            function () {
+              counts[name] += 1;
+              renderCounts();
+            },
+            true
+          );
+        });
+        renderCounts();
+
+        set(
+          "navigation-count",
+          "navigation-count: " + performance.getEntriesByType("navigation").length
+        );
+      })();
+    </script>
+  </body>
+</html>

@@ -67,6 +67,10 @@ describe("subresource policy", () => {
     ["a loopback fetch", "http://127.0.0.1:8080/admin", "ip-literal"],
     ["a private-range fetch", "https://10.0.0.5/secret", "ip-literal"],
     ["an IPv6 loopback fetch", "http://[::1]:9000/", "ip-literal"],
+    ["an IPv6 unique-local fetch", "https://[fd00::1]/", "ip-literal"],
+    ["a link-local fetch", "https://169.254.1.10/", "ip-literal"],
+    ["a loopback WebSocket", "wss://127.0.0.1/", "ip-literal"],
+    ["a private-range image", "http://10.0.0.1/favicon.ico", "ip-literal"],
     ["a localhost frame", "https://localhost:3100/api/projects", "reserved-host"],
     ["an internal host", "https://vault.internal/token", "reserved-host"],
     ["a credentialed asset", "https://user:pass@cdn.example.com/app.js", "credentials"],
@@ -74,6 +78,20 @@ describe("subresource policy", () => {
     ["an FTP fetch", "ftp://files.example.com/secret", "scheme"],
   ])("%s is refused as %s", (_label, url, reason) => {
     expect(guard.checkSubresource(url), url).toBe(reason);
+  });
+
+  // VAL-CAPTURE-013: the remote-network fixture's rebinding probes use public
+  // host *shapes* whose DNS answers are private. The sandbox has no resolver,
+  // so the guard deliberately lets these through to the one layer that can
+  // see the answer: the provider's private-network enforcement. The live
+  // fixture suite proves that layer holds.
+  test.each([
+    "https://127.0.0.1.nip.io/",
+    "https://169.254.169.254.nip.io/latest/meta-data/",
+    "https://7f000001.08080808.rbndr.us/",
+  ])("rebind-shaped name %s passes the shape guard to the provider layer", (url) => {
+    expect(guard.checkSubresource(url)).toBeNull();
+    expect(guard.checkNavigation(url)).toBeNull();
   });
 });
 

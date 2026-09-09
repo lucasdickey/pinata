@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 23 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042 |
+| Agent decided alone | 24 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **42** | |
+| **Total** | **43** | |
 
 ## Index
 
@@ -68,6 +68,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D040](#d040--publish-capture-fixtures-to-a-dedicated-public-vercel-blob-store) | validate | Publish capture fixtures to a dedicated public Vercel Blob store | Human directed | superseded |
 | [D041](#d041--capture-fixtures-are-served-by-a-separate-unprotected-static-vercel-project) | validate | Capture fixtures are served by a separate unprotected static Vercel project | Human directed | accepted |
 | [D042](#d042--browserless-concurrency-is-a-durable-two-slot-lease-table-the-editor-polls-the-hierarchy-on-a-published-backoff-schedule) | build | Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule | Agent decided alone | accepted |
+| [D043](#d043--remote-network-safety-is-proven-against-the-real-provider-with-a-two-page-fixture-split-driven-by-the-provider-kill-switch-map) | build | Remote-network safety is proven against the real provider with a two-page fixture split driven by the provider kill-switch map | Agent decided alone | accepted |
 
 ---
 
@@ -1622,4 +1623,41 @@ Safe to decide unilaterally: the mission fixes max-2 concurrency as binding arch
 
 ---
 
-<sub>Generated from 42 record(s) as of 2026-09-09 · source `4c78ebdcfe03`</sub>
+## D043 — Remote-network safety is proven against the real provider with a two-page fixture split driven by the provider kill-switch map
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The in-function request guard and server-side admission are proven by focused tests, but neither can prove what the provider network does when a public-shaped name resolves private a moment after admission, and a naive all-in-one attack fixture (18 probes against every private destination shape) was destroyed outright by the provider: Browserless returned HTTP 400 Target closed for the whole session, so no outcome at all was provable. The safety property had to be mapped empirically before it could be asserted.
+
+**Decision**
+
+Map the provider enforcement boundary with bounded instrumented runs, then encode the map as two version-pinned fixtures on the durable pinata-fixtures Vercel project. remote-network-v1 (expected ready) carries the survivable matrix: RFC1918-literal fetches, image, and frame that the in-function guard aborts (recorded as bounded blocked reasons), fetches to private-resolving names (static nip.io names plus the live-alternating rbndr.us name) and through the fixture host own 302 routes into private-resolving names, WebSocket handshakes the request guard cannot see, and a worker-internal fetch. Every probe cancels its own attempt on timeout (AbortController, socket close, worker terminate, frame removal) because a silently dropped private request otherwise pends forever and keeps the page network from ever going idle, which once stalled the capture until the total deadline. Private frame probes insert only after the window load event because a connected frame delays its parent load and a dropped destination would then stall navigation itself. remote-network-hard-v1 (expected bounded safe failure with zero artifacts) carries the session-fatal literals: loopback, link-local, metadata, and both IPv6-local forms, any one of which the provider answers by destroying the browser target. The live integration suite executes both against the real provider, scans the exact persisted manifest JSON and every decoded screenshot pixel for the runtime-assembled leak marker, asserts ordinary public subresources still load, and models the post-admission DNS-change window with seeded capturing rows.
+
+**Alternatives considered**
+
+- *One fixture covering every destination shape in a single page* — The provider destroys the session when a page attempts a literal loopback, link-local, metadata, or IPv6-local request, even when the in-function guard aborts it first; one mixed page can therefore never produce a ready artifact, and the survivable vectors would lose their proof.
+- *Mock the provider enforcement in unit tests only* — The entire risk lives in the provider network layer after admission; a mock asserts the shape of our own assumptions and could never have discovered the kill-switch, the silent-drop behavior for private-resolving names, or the WebSocket interception gap.
+- *Let hanging private probes burn the per-phase timeouts* — A silently dropped request pends for the whole capture: waitForNetworkIdle never idles and the attempt dies at the total deadline with no artifact. Probe self-cancellation turns the same attack into a five-second ready capture, which is what makes the positive sentinel scan meaningful.
+
+**Rationale**
+
+Safe to decide unilaterally: the mission contract (VAL-CAPTURE-013) fixes the property to prove and the durable fixture host as the publication mechanism; only the empirical provider behavior was unknown, and discovering it required exactly the bounded debug runs performed. The two-page split is the smallest fixture design that matches the observed enforcement boundary without weakening any probe.
+
+**Consequences**
+
+- test/fixtures/capture/remote-network-v1.html and remote-network-hard-v1.html are version-pinned and immutable once published; pixel-v1.png joins the host as the public-subresource fidelity proof, and the fixture host gains two 302 redirect routes (/redirect-v1/meta, /redirect-v1/loopback) into private-resolving names.
+- Provider behavior map of record (2026-09-09): literal loopback, link-local, metadata, and IPv6-local requests destroy the session; RFC1918 literals are guard-aborted and recorded; private-resolving names are fast-refused or silently dropped at the network layer; WebSocket handshakes are invisible to request interception; the DNS alternation of 7f000001.08080808.rbndr.us was observed live (6 public, 2 non-public verdicts in the recorded run).
+- The integration suite treats a ready capture of any private-resolving target as a loud test failure, never as a blessed outcome.
+- Fixture probes must always self-cancel: any future version that omits cancellation reintroduces the total-deadline stall.
+
+**Artifacts**
+
+- `test/fixtures/capture/remote-network-v1.html` — Survivable 14-probe matrix with self-canceling probes and runtime-assembled leak marker
+- `test/fixtures/capture/remote-network-hard-v1.html` — Session-fatal literal destinations; expected outcome is a bounded safe failure with zero artifacts
+- `test/integration/browserless-network-safety.integration.test.ts` — Real-provider proof: sentinel scans of manifest and pixels, live DNS-alternation evidence, post-admission seeded attempts, hard-fixture failure bound
+
+---
+
+<sub>Generated from 43 record(s) as of 2026-09-09 · source `e6790283d525`</sub>

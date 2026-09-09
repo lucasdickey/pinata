@@ -1288,3 +1288,66 @@ Roughly two hours of mission-worker time across two sessions.
 
 - None. Browser-surface assertions (screenshots, curl matrices) remain for
   the milestone validators.
+
+---
+
+## 2026-09-08/09 (late): remote-network safety proof against the real provider
+
+### What happened
+
+- Built the VAL-CAPTURE-013 proof: two new version-pinned fixtures on the
+  durable pinata-fixtures host, a real-provider integration suite, and new
+  guard/fixture unit pins. Started test-first; the naive 18-probe single-page
+  fixture was destroyed by the provider (HTTP 400 "Target closed"), which
+  forced an empirical mapping of the provider's private-network enforcement.
+- Mapped the enforcement boundary with bounded instrumented runs: literal
+  loopback/link-local/metadata/IPv6-local requests get the browser session
+  destroyed even when the in-function guard aborts them; RFC1918 literals are
+  guard-aborted and recorded; private-resolving names are fast-refused or
+  silently dropped; WebSocket handshakes are invisible to request
+  interception; a connected frame delays its parent's load event.
+- Split the matrix into `remote-network-v1` (survivable, expected ready) and
+  `remote-network-hard-v1` (session-fatal literals, expected bounded safe
+  failure with zero artifacts), added the pixel-v1 public-subresource fixture
+  and two 302 redirect routes into private-resolving names, and published all
+  of it through `npm run fixtures:publish`.
+- Live suite results: survivable page ready in ~9 s with all 14 probes
+  blocked, 4 guard-recorded refusals, zero leak pixels in the decoded
+  screenshot, zero sentinels in the persisted manifest, public subresources
+  loaded; live DNS alternation observed on the rebinding name (6 public, 2
+  non-public verdicts); three seeded post-admission attempts ended as bounded
+  safe failures (navigation-timeout) with no artifacts; the hard page ended
+  as a bounded safe failure (browserless-provider) in ~1.3 s.
+
+### What broke
+
+- The single-page fixture was unprovable: the provider killed the session
+  before any outcome existed. Fixed by the two-page split (D043).
+- After the split the survivable page still hit `total-timeout`: silently
+  dropped private requests pend forever, so the page's network never idles.
+  Every probe now cancels its own attempt on timeout (abort, close,
+  terminate, frame removal).
+- Parse-time frame insertion stalled navigation; frame probes now insert only
+  after the window load event.
+- The guard recorded only 2 of 4 expected literal refusals: `http:` image and
+  frame destinations are swallowed by Chrome's mixed-content layer before
+  request interception. Switching the literal image/frame probes to `https:`
+  puts all four refusals on the guard record.
+
+### Elapsed
+
+Roughly two and a half hours of mission-worker time, including provider
+debugging.
+
+### Decisions and assertions
+
+- D043 (provider kill-switch map, two-page fixture split, probe
+  self-cancellation rule).
+- Evidence for VAL-CAPTURE-013: no private/metadata sentinel in image or
+  manifest across redirect/fetch/frame/worker/WebSocket/image vectors,
+  provider safety under post-admission DNS change, preserved public
+  subresources, bounded termination for every attempt.
+
+### Open questions at end of session
+
+- None.

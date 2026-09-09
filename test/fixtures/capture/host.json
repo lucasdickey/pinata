@@ -32,6 +32,24 @@
       "file": "links-v2.html",
       "bytes": 7540,
       "sha256": "dc4904971412a6108103d4d7c2512dd564c8d89b377261e89acb408f78c461ac"
+    },
+    "remote-network-v1": {
+      "url": "https://pinata-fixtures.vercel.app/remote-network-v1.html",
+      "file": "remote-network-v1.html",
+      "bytes": 20353,
+      "sha256": "334f67a15be9f2179b4af01ce7a98a8b6e89cc1c2994197193e025fdfa640b91"
+    },
+    "remote-network-hard-v1": {
+      "url": "https://pinata-fixtures.vercel.app/remote-network-hard-v1.html",
+      "file": "remote-network-hard-v1.html",
+      "bytes": 3969,
+      "sha256": "8efe52ee1ccd54069333f995bd8e01695632f40df2e8cf3e0fd5573232ba1353"
+    },
+    "pixel-v1": {
+      "url": "https://pinata-fixtures.vercel.app/pixel-v1.png",
+      "file": "pixel-v1.png",
+      "bytes": 179,
+      "sha256": "84ccbcaf718a227509972dd9bd08957db387d4f0db78f5d60b36d423d14492b9"
     }
   }
 }
