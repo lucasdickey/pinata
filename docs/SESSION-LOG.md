@@ -1486,3 +1486,44 @@ Roughly one hour of mission-worker time.
 ### Open questions at end of session
 
 - None.
+
+## Markdown list continuation fix (2026-09-09, scrutiny round 1)
+
+### What was attempted
+
+Milestone-1 scrutiny flagged VAL-REQS-002: the hand-rolled renderer consumed
+only list-marker lines, severing 80 wrapped continuations across the four
+source docs and splitting every multi-line ordered item into its own
+single-item list. Wrote the failing tests first — wrapped-item fixtures in
+`test/requirements-markdown.test.ts` plus a real-source-doc structural
+assertion in `test/requirements-sources.test.ts` that recomputes expected
+`<ul>`/`<ol>`/`<li>`/`<p>` counts from each source (the systemic gap: the
+renderer had only ever seen synthetic single-line fixtures) — confirmed all
+five failed against the old renderer, then consumed non-blank,
+non-block-start continuation lines into the current item in both list loops.
+
+### What broke or dead-ended
+
+One self-inflicted failure: the Functional-requirements assertion used a
+`[^<]*` regex that cannot span the `<strong>` tag inside the first `<li>`;
+replaced it with a joined-text `toContain` check. Before fixing, an analysis
+script confirmed no source doc has a non-blank line directly after a list and
+no continuation line is table-like, so absorption cannot swallow a paragraph
+or table.
+
+### Elapsed
+
+Roughly 45 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- D046 (continuation absorption; a blank line is the only way to end a list;
+  nested lists remain unsupported).
+- Evidence for VAL-REQS-002 on the local surface: the Functional
+  requirements section renders as one ordered list of eight items, and the
+  real-doc structural assertion proves zero severed continuations across all
+  four sources.
+
+### Open questions at end of session
+
+- None.

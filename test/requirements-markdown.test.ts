@@ -141,6 +141,41 @@ describe("renderMarkdown structure and order", () => {
     expect(html).toContain("<li>second</li>");
   });
 
+  test("wraps multi-line unordered items into a single li", () => {
+    const { html } = renderMarkdown(
+      "- first line of the item\n  continues on a second line\n- next item",
+    );
+    expect((html.match(/<ul>/g) ?? []).length).toBe(1);
+    expect((html.match(/<li>/g) ?? []).length).toBe(2);
+    expect(html).toContain(
+      "<li>first line of the item continues on a second line</li>",
+    );
+    expect(html).toContain("<li>next item</li>");
+    expect(html).not.toContain("<p>");
+  });
+
+  test("wraps multi-line ordered items into one ol with one li per item", () => {
+    const { html } = renderMarkdown(
+      "1. Alpha starts here\n   and keeps going.\n2. Beta.\n3. Gamma wraps\n   onto a second line.",
+    );
+    expect((html.match(/<ol>/g) ?? []).length).toBe(1);
+    expect((html.match(/<li>/g) ?? []).length).toBe(3);
+    expect(html).toContain("<li>Alpha starts here and keeps going.</li>");
+    expect(html).toContain("<li>Gamma wraps onto a second line.</li>");
+    expect(html).not.toContain("<p>");
+  });
+
+  test("continuation absorption stops at blank lines and block starts", () => {
+    const { html } = renderMarkdown(
+      "- item\nnot a marker, absorbed\n\nafter the list\n\n- second list\n# heading",
+    );
+    expect((html.match(/<ul>/g) ?? []).length).toBe(2);
+    expect(html).toContain("<li>item not a marker, absorbed</li>");
+    expect(html).toContain("<p>after the list</p>");
+    expect(html).toContain("<li>second list</li>");
+    expect(html).toContain('<h1 id="heading">heading</h1>');
+  });
+
   test("escapes fenced code block contents", () => {
     const { html } = renderMarkdown('```html\n<div onclick="x()">hi</div>\n```');
     expect(html).toContain("<pre><code>");

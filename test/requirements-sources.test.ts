@@ -79,6 +79,101 @@ describe("requirements source documents", () => {
       expect(new Set(ids).size, source.sourcePath).toBe(ids.length);
     }
   });
+
+  // Independent structural model of the real sources: every wrapped list
+  // continuation must land inside its <li>, never in a stray <p>, and every
+  // list group must render as exactly one <ul>/<ol>. This is the systemic
+  // guard for the milestone-1 scrutiny defect (80 severed continuations)
+  // that synthetic single-line fixtures could not catch.
+  function expectedStructure(md: string) {
+    const lines = md.replace(/\r\n/g, "\n").split("\n");
+    const startsBlock = (l: string) =>
+      /^```/.test(l) ||
+      /^#{1,6}\s/.test(l) ||
+      /^>\s?/.test(l) ||
+      /^\s*[-*]\s+/.test(l) ||
+      /^\s*\d+\.\s+/.test(l) ||
+      /^\s*(-{3,}|\*{3,})\s*$/.test(l);
+    const isTableSeparator = (l: string) =>
+      /^\|?[\s:|-]*-[\s:|-]*$/.test(l.trim()) && l.includes("-");
+    const counts = { p: 0, blockquote: 0, ul: 0, ol: 0, li: 0 };
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.trim() === "") {
+        i++;
+        continue;
+      }
+      if (/^```/.test(line)) {
+        i++;
+        while (i < lines.length && !/^```\s*$/.test(lines[i])) i++;
+        i++;
+        continue;
+      }
+      if (/^#{1,6}\s/.test(line) || /^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+        i++;
+        continue;
+      }
+      if (/^>\s?/.test(line)) {
+        counts.blockquote++;
+        while (i < lines.length && /^>\s?/.test(lines[i])) i++;
+        continue;
+      }
+      if (line.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        i += 2;
+        while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") i++;
+        continue;
+      }
+      if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+        const marker = /^\s*\d+\.\s+/.test(line) ? /^\s*\d+\.\s+/ : /^\s*[-*]\s+/;
+        if (marker.source.startsWith("^\\s*\\d")) counts.ol++;
+        else counts.ul++;
+        while (i < lines.length && marker.test(lines[i])) {
+          counts.li++;
+          i++;
+          while (i < lines.length && lines[i].trim() !== "" && !startsBlock(lines[i])) i++;
+        }
+        continue;
+      }
+      counts.p++;
+      while (i < lines.length && lines[i].trim() !== "" && !startsBlock(lines[i])) i++;
+    }
+    return counts;
+  }
+
+  test("real source docs render lists with zero severed continuations", () => {
+    const count = (html: string, re: RegExp) => (html.match(re) ?? []).length;
+    for (const source of REQUIREMENTS_SOURCES) {
+      const md = read(source.sourcePath);
+      const { html } = renderMarkdown(md);
+      const expected = expectedStructure(md);
+      const label = source.sourcePath;
+      expect(count(html, /<ul>/g), `${label} <ul>`).toBe(expected.ul);
+      expect(count(html, /<ol>/g), `${label} <ol>`).toBe(expected.ol);
+      expect(count(html, /<li>/g), `${label} <li>`).toBe(expected.li);
+      expect(count(html, /<blockquote>/g), `${label} <blockquote>`).toBe(
+        expected.blockquote,
+      );
+      // Blockquotes contribute one <p> each; the rest must be real paragraphs.
+      expect(count(html, /<p>/g) - expected.blockquote, `${label} <p>`).toBe(
+        expected.p,
+      );
+    }
+  });
+
+  test("REQUIREMENTS.md functional requirements render as one ordered list of eight", () => {
+    const doc = read("docs/REQUIREMENTS.md");
+    const start = doc.indexOf("## Functional requirements");
+    expect(start).toBeGreaterThan(-1);
+    const rest = doc.slice(start);
+    const end = rest.indexOf("\n## ", 1);
+    const { html } = renderMarkdown(end === -1 ? rest : rest.slice(0, end));
+    expect((html.match(/<ol>/g) ?? []).length).toBe(1);
+    expect((html.match(/<li>/g) ?? []).length).toBe(8);
+    expect(html).not.toContain("<p>");
+    // Continuation text must live inside the first item, not a stray <p>.
+    expect(html).toContain("navigation links — never crawls, ever.</li>");
+  });
 });
 
 describe("requirements route table", () => {

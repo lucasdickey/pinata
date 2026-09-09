@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 26 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045 |
+| Agent decided alone | 27 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **45** | |
+| **Total** | **46** | |
 
 ## Index
 
@@ -71,6 +71,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D043](#d043--remote-network-safety-is-proven-against-the-real-provider-with-a-two-page-fixture-split-driven-by-the-provider-kill-switch-map) | build | Remote-network safety is proven against the real provider with a two-page fixture split driven by the provider kill-switch map | Agent decided alone | accepted |
 | [D044](#d044--private-screenshot-delivery-is-one-non-redirecting-route-that-reauthorizes-every-request-and-revalidates-bytes-before-serving) | build | Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving | Agent decided alone | accepted |
 | [D045](#d045--editor-project-entry-is-one-explicit-four-state-list-machine-with-a-single-flight-retry-and-e2e-run-cleanup-lives-in-teardown) | build | Editor project entry is one explicit four-state list machine with a single-flight retry, and e2e run cleanup lives in teardown | Agent decided alone | accepted |
+| [D046](#d046--markdown-list-loops-absorb-wrapped-continuation-lines-so-a-blank-line-is-the-only-way-to-end-a-list) | build | Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list | Agent decided alone | accepted |
 
 ---
 
@@ -1737,4 +1738,39 @@ Safe to decide unilaterally: the state-machine shapes follow the experience work
 
 ---
 
-<sub>Generated from 45 record(s) as of 2026-09-09 · source `3f50705cc7b9`</sub>
+## D046 — Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Milestone-1 scrutiny found the hand-rolled requirements renderer consuming only list-marker lines: indented continuation lines rendered as stray paragraphs (80 severed continuations across the four source docs) and every multi-line ordered item became its own single-item <ol>, so /reqs Functional requirements rendered as eight lists numbered 1. The defect shipped because the renderer had only ever been tested against synthetic single-line fixtures.
+
+**Decision**
+
+Both list loops in src/lib/markdown.ts now consume non-blank lines that do not start another block (fence, heading, blockquote, list marker, thematic break) into the current item, joining them with a single space like paragraph wrapping. A blank line is the only terminator of a list; a non-blank line directly after a list item is absorbed into that item, so the four source documents must separate a following paragraph from a list with a blank line. The renderer is now tested against the real source documents: a structural assertion recomputes expected <ul>/<ol>/<li>/<p> counts from each source and the Functional requirements section is pinned to one ordered list of eight items.
+
+**Alternatives considered**
+
+- *Require continuation lines to be indented deeper than their marker (CommonMark-style)* — The source docs wrap items at a fixed three-space indent under a one-character marker; a strict indent rule would still sever items and would force a rewrite of all four human-edited sources for no semantic gain.
+- *Adopt a real Markdown package* — D021/D022 keep the renderer zero-dependency and the approved dependency set fixed; continuation absorption is a ten-line change inside the existing safety contract.
+
+**Rationale**
+
+Safe to decide unilaterally: the behavior was mandated by the milestone-1 scrutiny finding assigned to this feature, the absorption rule matches how the four source documents are actually written (verified: no list is followed by a non-blank non-marker line and no continuation line is table-like), and the change stays inside the renderer's existing allow-listed, raw-HTML-disabled contract.
+
+**Consequences**
+
+- Authors of docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, docs/MILESTONES.md, and docs/EVALS.md must end every list with a blank line; a non-blank line directly under a list item becomes part of that item.
+- Nested lists remain unsupported: an indented marker line starts a new sibling item, matching the flat-list usage in all four sources.
+- test/requirements-sources.test.ts now guards the real documents structurally, so any future renderer change that severs continuations fails the gate.
+
+**Artifacts**
+
+- `src/lib/markdown.ts` — List loops consume wrapped continuation lines into the current item
+- `test/requirements-markdown.test.ts` — Wrapped multi-line ordered and unordered item fixtures that fail on the old renderer
+- `test/requirements-sources.test.ts` — Real-source-doc list-structure assertion proving zero severed continuations across all four docs
+
+---
+
+<sub>Generated from 46 record(s) as of 2026-09-09 · source `fd5fe471d714`</sub>

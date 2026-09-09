@@ -2,8 +2,9 @@
 //
 // There is deliberately no Markdown package in the approved dependency set
 // (see docs/decisions D021/D022), so this module implements the small subset
-// the requirements documents use: ATX headings, paragraphs, flat lists,
-// pipe tables, fenced code, blockquotes, and inline code/strong/em/links.
+// the requirements documents use: ATX headings, paragraphs, lists whose items
+// may wrap onto continuation lines, pipe tables, fenced code, blockquotes,
+// and inline code/strong/em/links.
 //
 // Safety contract (pinned by test/requirements-markdown.test.ts):
 // - Raw HTML is disabled: every source character passes through escapeHtml
@@ -197,11 +198,20 @@ export function renderMarkdown(source: string): RenderedMarkdown {
       continue;
     }
 
+    // Both list loops consume wrapped continuation lines: any non-blank
+    // line that does not start another block belongs to the current item.
+    // A blank line therefore ends a list, and the source documents must
+    // separate a following paragraph from the list with one (D046).
     if (/^\s*[-*]\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*[-*]\s+/, ""));
+        let item = lines[i].replace(/^\s*[-*]\s+/, "");
         i++;
+        while (i < lines.length && lines[i].trim() !== "" && !startsBlock(lines[i])) {
+          item += ` ${lines[i].trim()}`;
+          i++;
+        }
+        items.push(item);
       }
       html.push(`<ul>${items.map((it) => `<li>${renderInline(it)}</li>`).join("")}</ul>`);
       continue;
@@ -210,8 +220,13 @@ export function renderMarkdown(source: string): RenderedMarkdown {
     if (/^\s*\d+\.\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
-        items.push(lines[i].replace(/^\s*\d+\.\s+/, ""));
+        let item = lines[i].replace(/^\s*\d+\.\s+/, "");
         i++;
+        while (i < lines.length && lines[i].trim() !== "" && !startsBlock(lines[i])) {
+          item += ` ${lines[i].trim()}`;
+          i++;
+        }
+        items.push(item);
       }
       html.push(`<ol>${items.map((it) => `<li>${renderInline(it)}</li>`).join("")}</ol>`);
       continue;

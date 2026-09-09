@@ -1942,8 +1942,54 @@ window.PINATA = {
           "caption": "Failure/retry request-count e2e and teardown-based run-scoped cleanup verified absent in afterAll"
         }
       ]
+    },
+    {
+      "id": "D046",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Milestone-1 scrutiny found the hand-rolled requirements renderer consuming only list-marker lines: indented continuation lines rendered as stray paragraphs (80 severed continuations across the four source docs) and every multi-line ordered item became its own single-item <ol>, so /reqs Functional requirements rendered as eight lists numbered 1. The defect shipped because the renderer had only ever been tested against synthetic single-line fixtures.",
+      "decision": "Both list loops in src/lib/markdown.ts now consume non-blank lines that do not start another block (fence, heading, blockquote, list marker, thematic break) into the current item, joining them with a single space like paragraph wrapping. A blank line is the only terminator of a list; a non-blank line directly after a list item is absorbed into that item, so the four source documents must separate a following paragraph from a list with a blank line. The renderer is now tested against the real source documents: a structural assertion recomputes expected <ul>/<ol>/<li>/<p> counts from each source and the Functional requirements section is pinned to one ordered list of eight items.",
+      "alternatives": [
+        {
+          "option": "Require continuation lines to be indented deeper than their marker (CommonMark-style)",
+          "why_not": "The source docs wrap items at a fixed three-space indent under a one-character marker; a strict indent rule would still sever items and would force a rewrite of all four human-edited sources for no semantic gain."
+        },
+        {
+          "option": "Adopt a real Markdown package",
+          "why_not": "D021/D022 keep the renderer zero-dependency and the approved dependency set fixed; continuation absorption is a ten-line change inside the existing safety contract."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the behavior was mandated by the milestone-1 scrutiny finding assigned to this feature, the absorption rule matches how the four source documents are actually written (verified: no list is followed by a non-blank non-marker line and no continuation line is table-like), and the change stays inside the renderer's existing allow-listed, raw-HTML-disabled contract.",
+      "consequences": [
+        "Authors of docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, docs/MILESTONES.md, and docs/EVALS.md must end every list with a blank line; a non-blank line directly under a list item becomes part of that item.",
+        "Nested lists remain unsupported: an indented marker line starts a new sibling item, matching the flat-list usage in all four sources.",
+        "test/requirements-sources.test.ts now guards the real documents structurally, so any future renderer change that severs continuations fails the gate."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/markdown.ts",
+          "caption": "List loops consume wrapped continuation lines into the current item"
+        },
+        {
+          "type": "file",
+          "path": "test/requirements-markdown.test.ts",
+          "caption": "Wrapped multi-line ordered and unordered item fixtures that fail on the old renderer"
+        },
+        {
+          "type": "file",
+          "path": "test/requirements-sources.test.ts",
+          "caption": "Real-source-doc list-structure assertion proving zero severed continuations across all four docs"
+        }
+      ]
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "3f50705cc7b9"
+  "source_hash": "fd5fe471d714"
 };
