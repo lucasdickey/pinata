@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 27 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046 |
+| Agent decided alone | 28 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **46** | |
+| **Total** | **47** | |
 
 ## Index
 
@@ -72,6 +72,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D044](#d044--private-screenshot-delivery-is-one-non-redirecting-route-that-reauthorizes-every-request-and-revalidates-bytes-before-serving) | build | Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving | Agent decided alone | accepted |
 | [D045](#d045--editor-project-entry-is-one-explicit-four-state-list-machine-with-a-single-flight-retry-and-e2e-run-cleanup-lives-in-teardown) | build | Editor project entry is one explicit four-state list machine with a single-flight retry, and e2e run cleanup lives in teardown | Agent decided alone | accepted |
 | [D046](#d046--markdown-list-loops-absorb-wrapped-continuation-lines-so-a-blank-line-is-the-only-way-to-end-a-list) | build | Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list | Agent decided alone | accepted |
+| [D047](#d047--darken-the-brand-accent-token-to-wcag-aa-match-the-markdown-external-host-treatment-on-decision-artifact-links-and-repair-heading-order-and-landmark-uniqueness-on-reqsdecisions) | validate | Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions | Agent decided alone | accepted |
 
 ---
 
@@ -1773,4 +1774,42 @@ Safe to decide unilaterally: the behavior was mandated by the milestone-1 scruti
 
 ---
 
-<sub>Generated from 46 record(s) as of 2026-09-09 · source `fd5fe471d714`</sub>
+## D047 — Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions
+
+*2026-09-09 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+User-testing round 1 found four blocking defects on the /reqs surface. The three external decision-artifact links rendered by src/components/decisions-catalog.tsx showed no visible HTTPS destination, unlike links emitted by the Markdown renderer. The brand red #d1495b failed WCAG AA as link text on the cream background (4.06:1) and as the badge fill behind white nav text (4.29:1); both need 4.5:1. Decision card titles were h3 directly under the page h1 (a heading-order skip), and the repeated Artifacts/Provenance/Alternatives/Consequences <section> landmarks carried identical aria-labels across every card (landmark-unique).
+
+**Decision**
+
+Darken the single global --accent token in app/globals.css from #d1495b to #c43448, which keeps the warm brand red hue while reaching 4.98:1 on --bg and 5.25:1 with --surface text, fixing the links, wordmark, home h1, error text, and the current-page nav badge in one move because every surface reads the same token. In src/components/decisions-catalog.tsx, artifact links now append the same visible (host) suffix the Markdown renderer emits, computed with new URL(url).host; card titles become h2 with in-card section labels as h3 so no heading level is skipped under the page h1; and the repeated region landmarks are scoped per decision (for example "Artifacts for D002"). The new ratios and structure are locked by test/visual-tokens.test.ts and test/requirements-decisions.test.tsx.
+
+**Alternatives considered**
+
+- *Introduce a separate darker link color and keep #d1495b for decorative uses* — Two brand reds would drift apart and invite the next contrast regression; one token that satisfies every use keeps the palette honest and the gate enforceable.
+- *Darken only to the 4.5:1 boundary (#c94054)* — A ratio at the exact boundary leaves no margin for rounding differences between axe and the test's luminance math; #c43448 lands at 4.98:1 with room to spare.
+- *Remove the aria-labels from the repeated sections so they stop being landmarks* — The sections are genuine navigable regions on a 46-record page; scoping their labels per decision preserves the navigation value instead of flattening it.
+
+**Rationale**
+
+Safe to decide unilaterally: the violations were found by user testing against the already-approved WCAG AA and safe-rendering requirements (VAL-REQS-004 and VAL-REQS-006), so this is a correctness fix inside an approved direction, not a product choice. The only open parameter was the exact darker hex, which is constrained by the 4.5:1 floor and reversible by editing one token.
+
+**Consequences**
+
+- --accent must never be lightened below 4.5:1 against --bg and --surface; test/visual-tokens.test.ts fails the gate if it drifts.
+- Every surface that reads --accent (links, landing h1, wordmark, field/capture errors, nav badge, focus outlines, blockquote borders) darkens together; the focus outline and decorative borders gain contrast as a side effect.
+- Decision card sub-section headings render at the same visual size as before, but the markup now descends h1 -> h2 -> h3 with no skips.
+- Future decision fields rendered as repeated <section> regions must carry per-decision labels to keep landmark-unique clean.
+
+**Artifacts**
+
+- `app/globals.css` — Single darkened --accent token with the AA floor documented at the point of definition
+- `src/components/decisions-catalog.tsx` — External-host suffix on artifact links, h2/h3 heading order, per-decision landmark labels
+- `test/visual-tokens.test.ts` — WCAG luminance checks locking --accent at >=4.5:1 on both backgrounds and as badge fill
+- `test/requirements-decisions.test.tsx` — Host-suffix, heading-order, and landmark-uniqueness assertions against the real decision log
+
+---
+
+<sub>Generated from 47 record(s) as of 2026-09-09 · source `62236fa854bd`</sub>

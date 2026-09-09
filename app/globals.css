@@ -6,7 +6,11 @@
   --surface: #fffdf8;
   --ink: #33261a;
   --ink-soft: #6b5a48;
-  --accent: #d1495b;
+  /* WCAG AA floor: --accent is link/heading text on --bg and --surface and
+     the badge fill behind --surface text. #c43448 keeps the warm brand red
+     at 4.98:1 on cream and 5.25:1 with surface text (D047); do not lighten
+     below 4.5:1 on either pairing. Locked by test/visual-tokens.test.ts. */
+  --accent: #c43448;
   --accent-soft: #f6dfd3;
   --line: #ead9c2;
   --code-bg: #f5ead9;
@@ -372,8 +376,22 @@ pre code {
   margin: 1.25rem 0;
 }
 
-.decision-card h3 {
+/* Heading order is part of the accessibility contract (VAL-REQS-006): card
+   titles are h2 under the page h1, and in-card section labels are h3. The
+   rules below keep the pre-fix visual look on the corrected levels. */
+.decision-card h2 {
   margin-top: 0;
+  font-size: 1.25rem;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.decision-card h3 {
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 1.25rem 0 0.25rem;
 }
 
 .decision-meta {

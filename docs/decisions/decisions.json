@@ -1985,6 +1985,62 @@
           "caption": "Real-source-doc list-structure assertion proving zero severed continuations across all four docs"
         }
       ]
+    },
+    {
+      "id": "D047",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "User-testing round 1 found four blocking defects on the /reqs surface. The three external decision-artifact links rendered by src/components/decisions-catalog.tsx showed no visible HTTPS destination, unlike links emitted by the Markdown renderer. The brand red #d1495b failed WCAG AA as link text on the cream background (4.06:1) and as the badge fill behind white nav text (4.29:1); both need 4.5:1. Decision card titles were h3 directly under the page h1 (a heading-order skip), and the repeated Artifacts/Provenance/Alternatives/Consequences <section> landmarks carried identical aria-labels across every card (landmark-unique).",
+      "decision": "Darken the single global --accent token in app/globals.css from #d1495b to #c43448, which keeps the warm brand red hue while reaching 4.98:1 on --bg and 5.25:1 with --surface text, fixing the links, wordmark, home h1, error text, and the current-page nav badge in one move because every surface reads the same token. In src/components/decisions-catalog.tsx, artifact links now append the same visible (host) suffix the Markdown renderer emits, computed with new URL(url).host; card titles become h2 with in-card section labels as h3 so no heading level is skipped under the page h1; and the repeated region landmarks are scoped per decision (for example \"Artifacts for D002\"). The new ratios and structure are locked by test/visual-tokens.test.ts and test/requirements-decisions.test.tsx.",
+      "alternatives": [
+        {
+          "option": "Introduce a separate darker link color and keep #d1495b for decorative uses",
+          "why_not": "Two brand reds would drift apart and invite the next contrast regression; one token that satisfies every use keeps the palette honest and the gate enforceable."
+        },
+        {
+          "option": "Darken only to the 4.5:1 boundary (#c94054)",
+          "why_not": "A ratio at the exact boundary leaves no margin for rounding differences between axe and the test's luminance math; #c43448 lands at 4.98:1 with room to spare."
+        },
+        {
+          "option": "Remove the aria-labels from the repeated sections so they stop being landmarks",
+          "why_not": "The sections are genuine navigable regions on a 46-record page; scoping their labels per decision preserves the navigation value instead of flattening it."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the violations were found by user testing against the already-approved WCAG AA and safe-rendering requirements (VAL-REQS-004 and VAL-REQS-006), so this is a correctness fix inside an approved direction, not a product choice. The only open parameter was the exact darker hex, which is constrained by the 4.5:1 floor and reversible by editing one token.",
+      "consequences": [
+        "--accent must never be lightened below 4.5:1 against --bg and --surface; test/visual-tokens.test.ts fails the gate if it drifts.",
+        "Every surface that reads --accent (links, landing h1, wordmark, field/capture errors, nav badge, focus outlines, blockquote borders) darkens together; the focus outline and decorative borders gain contrast as a side effect.",
+        "Decision card sub-section headings render at the same visual size as before, but the markup now descends h1 -> h2 -> h3 with no skips.",
+        "Future decision fields rendered as repeated <section> regions must carry per-decision labels to keep landmark-unique clean."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "Single darkened --accent token with the AA floor documented at the point of definition"
+        },
+        {
+          "type": "file",
+          "path": "src/components/decisions-catalog.tsx",
+          "caption": "External-host suffix on artifact links, h2/h3 heading order, per-decision landmark labels"
+        },
+        {
+          "type": "file",
+          "path": "test/visual-tokens.test.ts",
+          "caption": "WCAG luminance checks locking --accent at >=4.5:1 on both backgrounds and as badge fill"
+        },
+        {
+          "type": "file",
+          "path": "test/requirements-decisions.test.tsx",
+          "caption": "Host-suffix, heading-order, and landmark-uniqueness assertions against the real decision log"
+        }
+      ]
     }
   ]
 }

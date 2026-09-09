@@ -7,25 +7,46 @@ import type { Decision } from "../lib/decisions";
 import { DECISIONS_SOURCE, originLabel } from "../lib/decisions";
 import { deployedRevision } from "../lib/requirements-server";
 
+// External artifact links get the same visible destination treatment the
+// Markdown renderer applies (src/lib/markdown.ts): a (host) suffix after the
+// anchor so the HTTPS destination is identifiable without hovering.
+function externalHost(url: string): string | null {
+  if (!/^https?:\/\//i.test(url)) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
+
 function ArtifactList({ decision }: { decision: Decision }) {
   if (decision.artifacts.length === 0) return null;
   return (
-    <section aria-label="Artifacts">
-      <h4>Artifacts</h4>
+    <section aria-label={`Artifacts for ${decision.id}`}>
+      <h3>Artifacts</h3>
       <ul>
-        {decision.artifacts.map((artifact, index) => (
-          <li key={index}>
-            <span className="artifact-type">{artifact.type}</span>{" "}
-            {artifact.type === "link" && artifact.url ? (
-              <a href={artifact.url} target="_blank" rel="noopener noreferrer">
-                {artifact.caption}
-              </a>
-            ) : (
-              <code>{artifact.path}</code>
-            )}{" "}
-            {artifact.type === "link" ? null : <span>— {artifact.caption}</span>}
-          </li>
-        ))}
+        {decision.artifacts.map((artifact, index) => {
+          const host = artifact.type === "link" && artifact.url ? externalHost(artifact.url) : null;
+          return (
+            <li key={index}>
+              <span className="artifact-type">{artifact.type}</span>{" "}
+              {artifact.type === "link" && artifact.url ? (
+                <a href={artifact.url} target="_blank" rel="noopener noreferrer">
+                  {artifact.caption}
+                </a>
+              ) : (
+                <code>{artifact.path}</code>
+              )}
+              {host ? (
+                <>
+                  {" "}
+                  <span className="external-host">({host})</span>
+                </>
+              ) : null}{" "}
+              {artifact.type === "link" ? null : <span>— {artifact.caption}</span>}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
@@ -35,8 +56,8 @@ function Transcript({ decision }: { decision: Decision }) {
   const { request, proposal, approval } = decision.transcript;
   if (!request && !proposal && !approval) return null;
   return (
-    <section aria-label="Provenance transcript">
-      <h4>Provenance</h4>
+    <section aria-label={`Provenance transcript for ${decision.id}`}>
+      <h3>Provenance</h3>
       {request ? (
         <blockquote>
           <p>
@@ -65,21 +86,21 @@ function Transcript({ decision }: { decision: Decision }) {
 function DecisionCard({ decision }: { decision: Decision }) {
   return (
     <article className="decision-card" id={decision.id} data-decision-id={decision.id}>
-      <h3>
+      <h2>
         {decision.id} — {decision.title}
-      </h3>
+      </h2>
       <p className="decision-meta">
         <span>{decision.date}</span> · <span>{decision.phase}</span> ·{" "}
         <span className={`status status-${decision.status}`}>{decision.status}</span> ·{" "}
         <span className="origin">{originLabel(decision.origin)}</span>
       </p>
-      <h4>Problem</h4>
+      <h3>Problem</h3>
       <p>{decision.problem}</p>
-      <h4>Decision</h4>
+      <h3>Decision</h3>
       <p>{decision.decision}</p>
       {decision.alternatives.length > 0 ? (
-        <section aria-label="Alternatives considered">
-          <h4>Alternatives considered</h4>
+        <section aria-label={`Alternatives considered for ${decision.id}`}>
+          <h3>Alternatives considered</h3>
           <ul>
             {decision.alternatives.map((alt, index) => (
               <li key={index}>
@@ -89,11 +110,11 @@ function DecisionCard({ decision }: { decision: Decision }) {
           </ul>
         </section>
       ) : null}
-      <h4>Rationale</h4>
+      <h3>Rationale</h3>
       <p>{decision.rationale}</p>
       {decision.consequences.length > 0 ? (
-        <section aria-label="Consequences">
-          <h4>Consequences</h4>
+        <section aria-label={`Consequences for ${decision.id}`}>
+          <h3>Consequences</h3>
           <ul>
             {decision.consequences.map((c, index) => (
               <li key={index}>{c}</li>

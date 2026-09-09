@@ -83,6 +83,60 @@ describe("DecisionsCatalog", () => {
     expect(file?.textContent).toContain("scripts/build-docs.mjs");
   });
 
+  test("external artifact links visibly name their HTTPS destination host", () => {
+    // VAL-REQS-004: the Markdown renderer already appends a visible
+    // (host) suffix to external links; decision artifact links must match.
+    const { container } = render(<DecisionsCatalog />);
+    const cases: Array<[string, string, string]> = [
+      ["D002", "https://github.com/lucasdickey/pinata", "github.com"],
+      ["D012", "https://app.factory.ai/sessions/901210d4-da5a-462c-b63b-07301719d17f", "app.factory.ai"],
+      ["D040", "https://vercel.com/docs/vercel-blob/public-storage", "vercel.com"],
+    ];
+    for (const [id, href, host] of cases) {
+      const card = container.querySelector(`article[data-decision-id="${id}"]`);
+      const link = card?.querySelector(`a[href="${href}"]`);
+      expect(link, `${id} artifact link`).not.toBeNull();
+      expect(link?.getAttribute("target")).toBe("_blank");
+      expect(link?.getAttribute("rel")).toContain("noreferrer");
+      const suffix = link?.parentElement?.querySelector("span.external-host");
+      expect(suffix?.textContent, `${id} host suffix`).toBe(`(${host})`);
+    }
+  });
+
+  test("card titles are h2 and in-card headings never skip a level", () => {
+    // VAL-REQS-006 heading-order: the page h1 must be followed by h2 card
+    // titles, with h3 sub-sections — no h1 -> h3 or h2 -> h4 skips.
+    const { container } = render(<DecisionsCatalog />);
+    const articles = container.querySelectorAll("article[data-decision-id]");
+    expect(articles.length).toBeGreaterThan(0);
+    for (const article of articles) {
+      const id = article.getAttribute("data-decision-id");
+      const headings = [...article.querySelectorAll("h1, h2, h3, h4, h5, h6")];
+      expect(headings[0]?.tagName, `${id} title level`).toBe("H2");
+      let previous = 1; // the page h1 precedes every card
+      for (const heading of headings) {
+        const level = Number(heading.tagName.slice(1));
+        expect(level - previous, `${id} heading order ${heading.textContent}`).toBeLessThanOrEqual(1);
+        previous = level;
+      }
+    }
+  });
+
+  test("repeated region landmarks are labeled uniquely per decision", () => {
+    // VAL-REQS-006 landmark-unique: Artifacts/Provenance/Alternatives/
+    // Consequences sections repeat across cards, so each label carries the
+    // decision ID.
+    const { container } = render(<DecisionsCatalog />);
+    const regions = [...container.querySelectorAll("section[aria-label]")];
+    expect(regions.length).toBeGreaterThan(0);
+    const labels = regions.map((r) => r.getAttribute("aria-label"));
+    expect(new Set(labels).size).toBe(labels.length);
+    for (const region of regions) {
+      const card = region.closest("article[data-decision-id]");
+      expect(region.getAttribute("aria-label")).toContain(card?.getAttribute("data-decision-id"));
+    }
+  });
+
   test("renders transcript text as escaped text, never markup", () => {
     render(<DecisionsCatalog />);
     // D011's request contains a typo ("wiht"); it must survive verbatim.

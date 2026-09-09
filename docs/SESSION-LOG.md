@@ -1527,3 +1527,53 @@ Roughly 45 minutes of mission-worker time.
 ### Open questions at end of session
 
 - None.
+
+## Reqs link visibility and contrast fixes (2026-09-09, user-testing round 1)
+
+### What was attempted
+
+User-testing round 1 found four blocking defects on the /reqs surface. Wrote
+the failing tests first: `test/visual-tokens.test.ts` recomputes the WCAG
+luminance of the global tokens straight from `app/globals.css` (it reproduced
+axe's exact 4.06:1 and 4.29:1 failures before the fix, which validated the
+math), and three new assertions in `test/requirements-decisions.test.tsx` for
+the artifact-link host suffix, h2 card titles with no in-card level skips,
+and per-decision unique landmark labels. All six failed red against the old
+code. Then darkened the single `--accent` token from `#d1495b` to `#c43448`
+(4.98:1 on cream, 5.25:1 with surface text — fixing links, wordmark, landing
+h1, error text, and the nav badge in one move), gave decision artifact links
+the Markdown renderer's visible `(host)` suffix via `new URL(url).host`,
+moved card titles to h2 with h3 section labels, and scoped the repeated
+region aria-labels per decision ID.
+
+### What broke or dead-ended
+
+One self-inflicted failure: the first host-suffix render put the leading
+space inside the `<span>` (" (github.com)"); moved the space outside the
+element so the suffix matches the Markdown renderer's exact
+` <span class="external-host">(host)</span>` shape. A scratch contrast script
+also produced nonsense ratios until its sRGB channel math was corrected —
+the lesson was to verify the harness against axe's known 4.06:1 reading
+before trusting candidate colors.
+
+### Elapsed
+
+Roughly 60 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- D047 (darkened `--accent` with the AA floor documented at the token,
+  external-host suffix on artifact links, h1 -> h2 -> h3 heading order,
+  per-decision landmark labels).
+- Evidence for VAL-REQS-004: the three external artifact links on
+  /reqs/decisions (D002, D012, D040) now render with visible
+  `(github.com)` / `(app.factory.ai)` / `(vercel.com)` suffixes, asserted
+  against the real decision log.
+- Evidence for VAL-REQS-006: `test/visual-tokens.test.ts` locks `--accent`
+  at >=4.5:1 on both backgrounds and as the nav-badge fill; heading order
+  and landmark uniqueness on /reqs/decisions are asserted in
+  `test/requirements-decisions.test.tsx`.
+
+### Open questions at end of session
+
+- None.
