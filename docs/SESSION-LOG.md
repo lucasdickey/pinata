@@ -1418,3 +1418,71 @@ Roughly one hour of mission-worker time.
 ### Open questions at end of session
 
 - None.
+
+## Session — editor project-entry states (2026-09-09)
+
+### What happened
+
+- Completed the authenticated project-list and project-create entry states
+  (VAL-AUTH-008, VAL-AUTH-009). `EditorHome` now renders the list as one
+  explicit state machine inside the named Projects region (`aria-busy` while
+  loading): a `role=status` loading line, a named empty state whose single
+  New project control lives inside the region as the one primary action, the
+  populated workspace, and a `role=alert` failure state with a single-flight
+  Try again that issues exactly one GET and is disabled while in flight.
+  Sign-out renders outside the list state, and a failed background read never
+  unmounts or clears an open create form.
+- TDD: `test/editor-home-entry.test.tsx` went red on the missing status
+  region, busy flag, and retry control, then green across five cases.
+- `e2e/projects.spec.ts` gained a failure/retry test that forces the first
+  list read to 500 through route interception and counts requests (one retry
+  = one read, zero writes across reload), and the create test now asserts the
+  project appears exactly once, the workspace is reached without manual
+  route entry, and reload plus Back/Forward never add a POST.
+- Moved run-scoped cleanup out of the trailing test into `test.afterAll`
+  with absence assertions inside the hook, extending it to idempotency keys
+  that reference the run's page ids (capture-retry keys store page ids, not
+  the run id — the gap that leaked two keys per workspace test).
+- Real-Turso housekeeping: the orphan project
+  `valrun-mtta24to-4a6e7ff9-proj` was already absent (verified by re-query);
+  twelve orphaned idempotency keys from earlier aborted runs, all referencing
+  deleted pages, were deleted and the store re-queried to zero across
+  projects, pages, captures, and keys.
+- agent-browser on the anonymous surface: named Editor sign in region,
+  labeled password textbox with a 3px solid focus outline, decoy wrong
+  password announced generically with the field cleared and no keyboard
+  trap. axe (wcag2a/aa): one pre-existing color-contrast violation on links
+  (accent on background), not introduced here; flagged for the milestone-3
+  token/contrast feature.
+- Form inputs added to the global `:focus-visible` rule so login and create
+  fields show the same visible focus as buttons and links.
+
+### What broke
+
+- The first e2e run of the new create assertions failed because the
+  deliberate 422 correction submission is itself a POST; the no-resubmit
+  assertion now snapshots the post count after creation and requires it to
+  stay flat across reload/history instead of assuming one total POST.
+- The new failure test tripped the known `#__next-route-announcer__`
+  `role=alert` collision; the query is scoped to `p[role='alert']`.
+- Inline `node -e` SQL with double-quoted `like` patterns fails (SQLite
+  treats double quotes as identifiers); run Turso one-offs from a script
+  file with single-quoted literals.
+
+### Elapsed
+
+Roughly one hour of mission-worker time.
+
+### Decisions and assertions
+
+- D045 (four-state list machine with single-flight retry; e2e run cleanup in
+  teardown with page-id-keyed idempotency rows included).
+- Evidence for VAL-AUTH-008 and VAL-AUTH-009 on the local surface:
+  component tests for the state machine and request counts, Playwright for
+  the real login, create-once, retry-count, reload, and history behavior
+  against the production build and real Turso, agent-browser for the login
+  surface semantics.
+
+### Open questions at end of session
+
+- None.

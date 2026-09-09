@@ -23,6 +23,10 @@ export function EditorHome() {
   const [pending, setPending] = useState(false);
   const [creating, setCreating] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
+  // Single-flight guard for the failure-state retry: while one retry read is
+  // in flight there is no way to start a second, so a transient failure can
+  // never multiply reads.
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -98,32 +102,54 @@ export function EditorHome() {
     void load();
   }
 
+  async function retryList() {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await load();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   return (
     <main className="home-main">
       <h1>pinata</h1>
       <p>Signed in as Lucas (editor).</p>
 
-      <section aria-labelledby="projects-heading">
+      {/* The list is one explicit state machine (VAL-AUTH-008/009): loading,
+          empty, populated, and failure are mutually exclusive and announced,
+          and a failure keeps logout and any open form intact while offering
+          exactly one single-flight retry. The create control lives inside
+          this region so the empty list itself offers the one primary action. */}
+      <section aria-labelledby="projects-heading" aria-busy={list.status === "loading"}>
         <h2 id="projects-heading">Projects</h2>
-        {list.status === "loading" ? <p>Loading projects…</p> : null}
+        {list.status === "loading" ? <p role="status">Loading projects…</p> : null}
         {list.status === "failed" ? (
-          <p role="alert">Projects could not be loaded. Refresh to try again.</p>
+          <div className="list-failure">
+            <p role="alert">Projects could not be loaded. Your work is untouched.</p>
+            <button type="button" onClick={() => void retryList()} disabled={retrying}>
+              {retrying ? "Retrying…" : "Try again"}
+            </button>
+          </div>
         ) : null}
         {list.status === "ready" && list.projects.length === 0 ? (
-          <p>No projects yet.</p>
+          <p className="list-empty">
+            No projects yet. Create your first project to capture a page.
+          </p>
         ) : null}
         {list.status === "ready" && list.projects.length > 0 ? (
           <ProjectWorkspace projects={list.projects} onChanged={() => void load()} />
         ) : null}
-      </section>
 
-      {creating ? (
-        <ProjectCreateForm onCreated={onCreated} onCancel={() => setCreating(false)} />
-      ) : (
-        <button type="button" onClick={() => setCreating(true)}>
-          New project
-        </button>
-      )}
+        {creating ? (
+          <ProjectCreateForm onCreated={onCreated} onCancel={() => setCreating(false)} />
+        ) : (
+          <button type="button" onClick={() => setCreating(true)}>
+            New project
+          </button>
+        )}
+      </section>
 
       <p className="home-nav">
         <Link href="/reqs">Requirements, architecture, milestones, decisions, and evals</Link>

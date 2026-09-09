@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 25 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044 |
+| Agent decided alone | 26 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **44** | |
+| **Total** | **45** | |
 
 ## Index
 
@@ -70,6 +70,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D042](#d042--browserless-concurrency-is-a-durable-two-slot-lease-table-the-editor-polls-the-hierarchy-on-a-published-backoff-schedule) | build | Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule | Agent decided alone | accepted |
 | [D043](#d043--remote-network-safety-is-proven-against-the-real-provider-with-a-two-page-fixture-split-driven-by-the-provider-kill-switch-map) | build | Remote-network safety is proven against the real provider with a two-page fixture split driven by the provider kill-switch map | Agent decided alone | accepted |
 | [D044](#d044--private-screenshot-delivery-is-one-non-redirecting-route-that-reauthorizes-every-request-and-revalidates-bytes-before-serving) | build | Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving | Agent decided alone | accepted |
+| [D045](#d045--editor-project-entry-is-one-explicit-four-state-list-machine-with-a-single-flight-retry-and-e2e-run-cleanup-lives-in-teardown) | build | Editor project entry is one explicit four-state list machine with a single-flight retry, and e2e run cleanup lives in teardown | Agent decided alone | accepted |
 
 ---
 
@@ -1700,4 +1701,40 @@ Safe to decide unilaterally: the mission architecture already fixes private Blob
 
 ---
 
-<sub>Generated from 44 record(s) as of 2026-09-09 · source `0fce7a77a731`</sub>
+## D045 — Editor project entry is one explicit four-state list machine with a single-flight retry, and e2e run cleanup lives in teardown
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+VAL-AUTH-008/009 require the authenticated project list to have distinct, announced loading, empty, populated, and failure states, with a failure retry that cannot multiply reads and an empty state offering exactly one create action. Separately, two validation sessions leaked run-scoped rows into the real Turso database because run cleanup lived in a trailing Playwright test, which an aborted or failed run never reaches.
+
+**Decision**
+
+Model the project list in EditorHome as one explicit state machine (loading / ready-empty / ready-populated / failed) rendered inside the named Projects region with aria-busy: loading is a role=status line, failure is a role=alert plus a single-flight Try again button that is disabled while its one GET is in flight, and the single New project control lives inside the region so the empty state itself offers the primary action; a failed background read never unmounts or clears an open create form, and logout renders outside the list state entirely. In e2e, all run-scoped Turso deletion (captures, pages, projects, and idempotency keys matched by run id and by the run’s page ids, since capture-retry keys store page ids) runs in test.afterAll with absence assertions inside the hook, never in a trailing test.
+
+**Alternatives considered**
+
+- *Keep cleanup as a final verification test* — An aborted or failed run skips trailing tests, and this already leaked two projects and a dozen idempotency keys into the real database; teardown hooks run on abort, trailing tests do not.
+- *Let the retry button re-click freely and dedupe server-side* — The list read is idempotent, but the contract asks for one request per retry intent; disabling the in-flight control makes the single-read guarantee a client-side fact provable by request counting instead of an inference.
+- *Route the empty state to a separate /projects/new page* — VAL-AUTH-009 requires entry without manual route entry and no resubmission on Back/Forward; an in-place form on the single landing route satisfies both with no history entries at all.
+
+**Rationale**
+
+Safe to decide unilaterally: the state-machine shapes follow the experience worker’s scoped-deterministic-states rules, and teardown-based cleanup is explicit orchestrator guidance recorded in the mission AGENTS.md after the 2026-09-09 leak; both are mechanical choices inside the approved architecture that this record pins for future editor-surface work.
+
+**Consequences**
+
+- Any new editor list state must join the same discriminated union in editor-home.tsx rather than adding a sibling flag.
+- Every Playwright spec that writes run-scoped rows must clean them in afterAll/global teardown with absence verified in the hook; projects.spec.ts is the reference pattern, including page-id-keyed idempotency rows.
+- The orphan project valrun-mtta24to-4a6e7ff9-proj and twelve orphaned idempotency keys from earlier aborted runs were deleted from real Turso and their absence re-queried (projects, pages, captures, keys all zero).
+
+**Artifacts**
+
+- `src/components/editor-home.tsx` — Four-state project list with single-flight retry and in-region create control
+- `test/editor-home-entry.test.tsx` — Component proof: distinct announced states, one-read retry, form retention across background failure
+- `e2e/projects.spec.ts` — Failure/retry request-count e2e and teardown-based run-scoped cleanup verified absent in afterAll
+
+---
+
+<sub>Generated from 45 record(s) as of 2026-09-09 · source `3f50705cc7b9`</sub>

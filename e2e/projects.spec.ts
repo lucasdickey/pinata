@@ -6,8 +6,9 @@
 //
 // The spec gates on the configuration the flow genuinely needs and skips with
 // a name-only reason otherwise. Every row it creates carries a unique
-// non-secret run id and is deleted through the same authorized surface plus a
-// scoped database cleanup, which the last test verifies.
+// non-secret run id and is deleted — and verified absent — in afterAll, never
+// in a trailing test: an aborted or failed run skips trailing tests but still
+// runs teardown, so run-scoped rows cannot leak into the real database.
 
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
@@ -51,6 +52,7 @@ async function projectsOf(request: APIRequestContext): Promise<
   {
     publicId: string;
     title: string;
+    rootUrl: string;
     pages: { id: string; normalizedUrl: string; devices: DeviceSummary[] }[];
     counts: { pages: number; attempts: number; ready: number; failed: number; inProgress: number };
   }[]
@@ -59,6 +61,19 @@ async function projectsOf(request: APIRequestContext): Promise<
   expect(response.status()).toBe(200);
   const payload = await response.json();
   return payload.projects;
+}
+
+type ProjectList = Awaited<ReturnType<typeof projectsOf>>;
+
+/**
+ * The real database is shared with other e2e specs running in the second
+ * Playwright worker, so whole-store equality is racy by design. Every
+ * assertion here is scoped to rows carrying this run id.
+ */
+function runScoped(projects: ProjectList): ProjectList {
+  return projects.filter(
+    (project) => project.title.startsWith(RUN_ID) || project.rootUrl.includes(RUN_ID),
+  );
 }
 
 test.describe.configure({ mode: "serial" });
@@ -75,9 +90,15 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
       consoleErrors.push(msg.text());
     }
   });
+  let projectPosts = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/projects") {
+      projectPosts += 1;
+    }
+  });
 
   await signIn(page);
-  const before = await projectsOf(page.request);
+  const before = runScoped(await projectsOf(page.request));
 
   // Cancel writes nothing.
   await page.getByRole("button", { name: "New project" }).click();
@@ -85,7 +106,7 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await addRow(page, PRICING);
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("button", { name: "New project" })).toBeVisible();
-  expect(await projectsOf(page.request)).toEqual(before);
+  expect(runScoped(await projectsOf(page.request))).toEqual(before);
 
   // Rows are added, reordered, and removed with named controls.
   await page.getByRole("button", { name: "New project" }).click();
@@ -103,14 +124,29 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await expect(page.getByText("Only public https:// addresses can be captured.")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "URL 3" })).toHaveValue(PRICING);
   await expect(page.getByRole("textbox", { name: "URL 4" })).toHaveValue(ABOUT);
-  expect(await projectsOf(page.request)).toEqual(before);
+  expect(runScoped(await projectsOf(page.request))).toEqual(before);
 
   // Correcting the offending row lets the same submission through.
   await page.getByRole("button", { name: "Remove URL 2" }).click();
   await page.getByRole("button", { name: "Create project" }).click();
 
-  await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toBeVisible();
-  const after = await projectsOf(page.request);
+  // VAL-AUTH-009: the project shows up exactly once and the workspace
+  // (capture progress included) is right there — no manual route entry.
+  await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
+  await expect(
+    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+  ).toBeVisible();
+
+  // Reload and Back/Forward traversal never resubmit the form and never
+  // create a second project.
+  const postsAfterCreate = projectPosts;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
+  await page.goBack();
+  await page.goForward();
+  await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
+  expect(projectPosts).toBe(postsAfterCreate);
+  const after = runScoped(await projectsOf(page.request));
   expect(after.length).toBe(before.length + 1);
   const created = after.find((project) => project.title === `${RUN_ID} review`);
   expect(created?.pages.map((p) => p.normalizedUrl)).toEqual([ROOT, PRICING, ABOUT]);
@@ -233,22 +269,102 @@ test("the workspace keeps one active device, retries one variant, and survives r
   expect(consoleErrors).toEqual([]);
 });
 
-test("this run's projects are removed and the store is left clean", async ({ page }) => {
+test("a failed list load retries with exactly one read and never loses logout", async ({
+  page,
+}) => {
   test.skip(!projectEnv.ready, projectEnv.reason);
-  // Cleanup runs through the same server-only database boundary the
-  // application uses; it touches only rows whose URLs carry this run id.
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    // The intercepted 500 below is logged by the browser as a failed
+    // resource load; everything else is a defect.
+    if (msg.type() === "error" && !msg.text().includes("status of 500")) {
+      consoleErrors.push(msg.text());
+    }
+  });
+
+  // Force the first list read to fail, then let everything else through,
+  // counting exactly what the editor asks for.
+  let listReads = 0;
+  let projectWrites = 0;
+  await page.route("**/api/projects", async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      projectWrites += 1;
+      await route.continue();
+      return;
+    }
+    listReads += 1;
+    if (listReads === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "unavailable" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await signIn(page);
+  // Loading finished in a distinct, announced failure state; logout survives.
+  // (Scoped to `p` — the Next route announcer div also carries role=alert.)
+  await expect(page.locator("p[role='alert']")).toContainText(
+    "Projects could not be loaded.",
+  );
+  await expect(page.getByRole("button", { name: "Sign out" })).toBeEnabled();
+  await expect(page.getByText("No projects yet.")).toHaveCount(0);
+  expect(listReads).toBe(1);
+
+  // One press of the retry control issues exactly one more read and
+  // recovers to the populated list.
+  const readsBeforeRetry = listReads;
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+  ).toBeVisible();
+  expect(listReads).toBe(readsBeforeRetry + 1);
+
+  // A reload re-reads but never writes.
+  await page.reload();
+  await expect(
+    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+  ).toBeVisible();
+  expect(projectWrites).toBe(0);
+  expect(consoleErrors).toEqual([]);
+});
+
+// Run-scoped cleanup lives in teardown, not in a test: an aborted or failed
+// run skips trailing tests but still runs afterAll, so rows carrying this
+// run id cannot leak into the real database. Deletion goes through the same
+// server-only database boundary the application uses and is verified absent.
+test.afterAll(async () => {
+  if (!projectEnv.ready) return;
   const { createClient } = await import("@libsql/client");
   const client = createClient({
     url: requireLocalEnvValue("TURSO_DATABASE_URL"),
     authToken: requireLocalEnvValue("TURSO_AUTH_TOKEN"),
   });
   try {
+    // Capture-retry idempotency keys carry the page id (not the run id) in
+    // their stored result, so collect this run's page ids before deleting
+    // the pages they reference.
+    const runPages = await client.execute({
+      sql: `select id from pages where project_id in (
+              select id from projects where root_url like ?)`,
+      args: [`%${RUN_ID}%`],
+    });
     await client.execute({
       sql: `delete from captures where page_id in (
               select id from pages where project_id in (
                 select id from projects where root_url like ?))`,
       args: [`%${RUN_ID}%`],
     });
+    for (const row of runPages.rows) {
+      await client.execute({
+        sql: "delete from idempotency_keys where result_json like ?",
+        args: [`%${row.id}%`],
+      });
+    }
     await client.execute({
       sql: `delete from pages where project_id in (
               select id from projects where root_url like ?)`,
@@ -266,15 +382,21 @@ test("this run's projects are removed and the store is left clean", async ({ pag
     });
 
     const remaining = await client.execute({
-      sql: "select count(*) as n from projects where root_url like ?",
-      args: [`%${RUN_ID}%`],
+      sql: `select
+              (select count(*) from projects where root_url like ?) as projects,
+              (select count(*) from idempotency_keys where key like ? or result_json like ?) as keys`,
+      args: [`%${RUN_ID}%`, `${RUN_ID}%`, `%${RUN_ID}%`],
     });
-    expect(Number(remaining.rows[0]!.n)).toBe(0);
+    expect(Number(remaining.rows[0]!.projects)).toBe(0);
+    expect(Number(remaining.rows[0]!.keys)).toBe(0);
+    for (const row of runPages.rows) {
+      const orphanKeys = await client.execute({
+        sql: "select count(*) as n from idempotency_keys where result_json like ?",
+        args: [`%${row.id}%`],
+      });
+      expect(Number(orphanKeys.rows[0]!.n)).toBe(0);
+    }
   } finally {
     client.close();
   }
-
-  await signIn(page);
-  const projects = await projectsOf(page.request);
-  expect(projects.filter((p) => p.title.startsWith(RUN_ID))).toEqual([]);
 });

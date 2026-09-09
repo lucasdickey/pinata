@@ -66,6 +66,29 @@ Representative scenarios:
 5. The hub stays usable at phone width, at 320 CSS pixels with 200% zoom, and
    with reduced motion preferred, with no horizontal scrolling of the page.
 
+## Editor entry scenarios
+
+How Lucas gets from the password prompt to a project. Representative
+scenarios (VAL-AUTH-008, VAL-AUTH-009):
+
+1. While the project list loads, the region reports itself busy and says so
+   in text; loading, empty, populated, and failure never render at once.
+2. With zero projects, the named list says it is empty and offers exactly one
+   create action; submitting once shows the project exactly once, already in
+   the workspace, with no address-bar navigation.
+3. When the list read fails, the failure is announced, sign-out stays
+   available, any half-typed create form keeps its safe input, and one press
+   of Try again issues exactly one read; a press while that read is in flight
+   does nothing.
+4. Reload and Back/Forward after a create never resubmit the form and never
+   create a second project.
+5. Login, list, and create controls all have accessible names, associated
+   errors, visible focus, and no keyboard trap; a wrong password announces a
+   generic error and clears the password field.
+6. End-to-end runs delete their own rows in teardown, not in a trailing
+   test, so an aborted run cannot leak run-scoped projects, pages, captures,
+   or idempotency keys into the real database.
+
 ## Role and thread scenarios
 
 1. A founder link opens a read/reply-only view; editing controls are absent
