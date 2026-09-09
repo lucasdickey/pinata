@@ -2041,6 +2041,66 @@
           "caption": "Host-suffix, heading-order, and landmark-uniqueness assertions against the real decision log"
         }
       ]
+    },
+    {
+      "id": "D048",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Make scrollable /reqs regions keyboard-focusable named groups and codify the axe sweep at desktop and 390px with @axe-core/playwright",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "User-testing round 2 found the last blocking VAL-REQS-006 defect: at 390 CSS px, axe reported scrollable-region-focusable [serious, WCAG 2.1.1] on /reqs/architecture (the horizontally scrolling <pre> ASCII diagram) and /reqs/evals (a wide .table-scroll table). Keyboard-only users could not scroll these regions because they were not focusable. Round 1 had missed this because the axe sweep ran at desktop width only, so the narrow-viewport sweep also had to become a permanent, in-repo regression test rather than a manual validator step.",
+      "decision": "In src/lib/markdown.ts, fenced-code blocks now render as <pre tabindex=\"0\" role=\"group\" aria-label=\"Code sample\"> and wide tables render inside <div class=\"table-scroll\" tabindex=\"0\" role=\"group\" aria-label=\"Data table, scroll horizontally to view all columns\">, so both potentially overflowing containers are in the tab order and carry an accessible name. The axe sweep is codified in e2e/requirements-a11y.spec.ts using @axe-core/playwright 4.13.0 (added to the approved dev-dependency allowlist in scripts/lib/approved-deps.mjs): all five /reqs routes are swept with wcag2a/wcag2aa tags at both 1440px and 390px and must show zero serious-or-critical violations, and the two known scrolling regions must prove real keyboard operability at 390px by receiving Tab focus and moving scrollLeft with ArrowRight.",
+      "alternatives": [
+        {
+          "option": "Make the regions non-overflowing at narrow widths instead of focusable",
+          "why_not": "The ASCII architecture diagram and the boundary-catalog tables are intrinsically wide; wrapping or shrinking them would mangle the diagram's alignment and truncate eval data. Focusable scroll regions are the WAI/Deque-recommended pattern for exactly this case."
+        },
+        {
+          "option": "Add aria-label without a role",
+          "why_not": "aria-label on a plain <pre> or <div> is a prohibited attribute (axe aria-prohibited-attr); naming the regions requires a role that supports naming."
+        },
+        {
+          "option": "Use role=\"region\" instead of role=\"group\"",
+          "why_not": "Named regions are landmarks; several code samples per page would create duplicate-landmark noise for screen-reader users. role=\"group\" supplies the accessible name without landmark semantics, matching the Deque guidance for scrollable code examples."
+        },
+        {
+          "option": "Keep the axe sweep manual via agent-browser a11y instead of adding a dependency",
+          "why_not": "Round 1 proved a manual, validator-only sweep silently narrows in scope (desktop-only); an in-repo Playwright spec runs on every npm run validate locally and in CI, so the regression cannot escape again. @axe-core/playwright is the standard thin wrapper over the same axe-core 4.13 the validators already use, pinned exactly, dev-only."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the feature assignment from user-testing round 2 directed both the focusable-scroll-region fix and the in-suite narrow axe sweep, so this implements an approved correction rather than a product choice. The only open parameters were the ARIA role/label wording and the specific axe package, both constrained by WCAG 2.1.1 and the existing validator tooling, and both reversible in one module.",
+      "consequences": [
+        "Any future renderer or component that emits a potentially overflowing container on a public page must give it tabindex, a naming-capable role, and an accessible name, or the e2e sweep fails the gate.",
+        "@axe-core/playwright joins the approved dev-dependency set; the a11y sweep now runs in CI on every validate, at desktop and 390px.",
+        "The renderer contract comment in src/lib/markdown.ts now documents the focusable-named-scroll-region guarantee alongside the escaping and link-safety guarantees.",
+        "The keyboard-scroll e2e locates the overflowing instance of each region by measuring scrollWidth > clientWidth, so adding more (narrower) tables or code blocks cannot produce a false target."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/markdown.ts",
+          "caption": "Fenced-code <pre> and .table-scroll render as tabindex=0 role=group named scroll regions"
+        },
+        {
+          "type": "file",
+          "path": "e2e/requirements-a11y.spec.ts",
+          "caption": "axe wcag2a/2aa sweep at desktop and 390px on all five /reqs routes plus real keyboard-scroll proof"
+        },
+        {
+          "type": "file",
+          "path": "test/requirements-markdown.test.ts",
+          "caption": "Renderer contract tests pinning the focusable, named scroll-region markup"
+        },
+        {
+          "type": "file",
+          "path": "scripts/lib/approved-deps.mjs",
+          "caption": "Approved dev-dependency allowlist extended with @axe-core/playwright"
+        }
+      ]
     }
   ]
 }

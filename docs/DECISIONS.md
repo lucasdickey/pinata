@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 28 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047 |
+| Agent decided alone | 29 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **47** | |
+| **Total** | **48** | |
 
 ## Index
 
@@ -73,6 +73,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D045](#d045--editor-project-entry-is-one-explicit-four-state-list-machine-with-a-single-flight-retry-and-e2e-run-cleanup-lives-in-teardown) | build | Editor project entry is one explicit four-state list machine with a single-flight retry, and e2e run cleanup lives in teardown | Agent decided alone | accepted |
 | [D046](#d046--markdown-list-loops-absorb-wrapped-continuation-lines-so-a-blank-line-is-the-only-way-to-end-a-list) | build | Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list | Agent decided alone | accepted |
 | [D047](#d047--darken-the-brand-accent-token-to-wcag-aa-match-the-markdown-external-host-treatment-on-decision-artifact-links-and-repair-heading-order-and-landmark-uniqueness-on-reqsdecisions) | validate | Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions | Agent decided alone | accepted |
+| [D048](#d048--make-scrollable-reqs-regions-keyboard-focusable-named-groups-and-codify-the-axe-sweep-at-desktop-and-390px-with-axe-coreplaywright) | validate | Make scrollable /reqs regions keyboard-focusable named groups and codify the axe sweep at desktop and 390px with @axe-core/playwright | Agent decided alone | accepted |
 
 ---
 
@@ -1812,4 +1813,43 @@ Safe to decide unilaterally: the violations were found by user testing against t
 
 ---
 
-<sub>Generated from 47 record(s) as of 2026-09-09 · source `62236fa854bd`</sub>
+## D048 — Make scrollable /reqs regions keyboard-focusable named groups and codify the axe sweep at desktop and 390px with @axe-core/playwright
+
+*2026-09-09 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+User-testing round 2 found the last blocking VAL-REQS-006 defect: at 390 CSS px, axe reported scrollable-region-focusable [serious, WCAG 2.1.1] on /reqs/architecture (the horizontally scrolling <pre> ASCII diagram) and /reqs/evals (a wide .table-scroll table). Keyboard-only users could not scroll these regions because they were not focusable. Round 1 had missed this because the axe sweep ran at desktop width only, so the narrow-viewport sweep also had to become a permanent, in-repo regression test rather than a manual validator step.
+
+**Decision**
+
+In src/lib/markdown.ts, fenced-code blocks now render as <pre tabindex="0" role="group" aria-label="Code sample"> and wide tables render inside <div class="table-scroll" tabindex="0" role="group" aria-label="Data table, scroll horizontally to view all columns">, so both potentially overflowing containers are in the tab order and carry an accessible name. The axe sweep is codified in e2e/requirements-a11y.spec.ts using @axe-core/playwright 4.13.0 (added to the approved dev-dependency allowlist in scripts/lib/approved-deps.mjs): all five /reqs routes are swept with wcag2a/wcag2aa tags at both 1440px and 390px and must show zero serious-or-critical violations, and the two known scrolling regions must prove real keyboard operability at 390px by receiving Tab focus and moving scrollLeft with ArrowRight.
+
+**Alternatives considered**
+
+- *Make the regions non-overflowing at narrow widths instead of focusable* — The ASCII architecture diagram and the boundary-catalog tables are intrinsically wide; wrapping or shrinking them would mangle the diagram's alignment and truncate eval data. Focusable scroll regions are the WAI/Deque-recommended pattern for exactly this case.
+- *Add aria-label without a role* — aria-label on a plain <pre> or <div> is a prohibited attribute (axe aria-prohibited-attr); naming the regions requires a role that supports naming.
+- *Use role="region" instead of role="group"* — Named regions are landmarks; several code samples per page would create duplicate-landmark noise for screen-reader users. role="group" supplies the accessible name without landmark semantics, matching the Deque guidance for scrollable code examples.
+- *Keep the axe sweep manual via agent-browser a11y instead of adding a dependency* — Round 1 proved a manual, validator-only sweep silently narrows in scope (desktop-only); an in-repo Playwright spec runs on every npm run validate locally and in CI, so the regression cannot escape again. @axe-core/playwright is the standard thin wrapper over the same axe-core 4.13 the validators already use, pinned exactly, dev-only.
+
+**Rationale**
+
+Safe to decide unilaterally: the feature assignment from user-testing round 2 directed both the focusable-scroll-region fix and the in-suite narrow axe sweep, so this implements an approved correction rather than a product choice. The only open parameters were the ARIA role/label wording and the specific axe package, both constrained by WCAG 2.1.1 and the existing validator tooling, and both reversible in one module.
+
+**Consequences**
+
+- Any future renderer or component that emits a potentially overflowing container on a public page must give it tabindex, a naming-capable role, and an accessible name, or the e2e sweep fails the gate.
+- @axe-core/playwright joins the approved dev-dependency set; the a11y sweep now runs in CI on every validate, at desktop and 390px.
+- The renderer contract comment in src/lib/markdown.ts now documents the focusable-named-scroll-region guarantee alongside the escaping and link-safety guarantees.
+- The keyboard-scroll e2e locates the overflowing instance of each region by measuring scrollWidth > clientWidth, so adding more (narrower) tables or code blocks cannot produce a false target.
+
+**Artifacts**
+
+- `src/lib/markdown.ts` — Fenced-code <pre> and .table-scroll render as tabindex=0 role=group named scroll regions
+- `e2e/requirements-a11y.spec.ts` — axe wcag2a/2aa sweep at desktop and 390px on all five /reqs routes plus real keyboard-scroll proof
+- `test/requirements-markdown.test.ts` — Renderer contract tests pinning the focusable, named scroll-region markup
+- `scripts/lib/approved-deps.mjs` — Approved dev-dependency allowlist extended with @axe-core/playwright
+
+---
+
+<sub>Generated from 48 record(s) as of 2026-09-09 · source `138fae4e17a2`</sub>

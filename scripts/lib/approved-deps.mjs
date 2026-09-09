@@ -18,6 +18,7 @@ export const APPROVED_DEPENDENCIES = Object.freeze({
     "zod",
   ]),
   devDependencies: Object.freeze([
+    "@axe-core/playwright",
     "@playwright/test",
     "@testing-library/jest-dom",
     "@testing-library/react",

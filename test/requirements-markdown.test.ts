@@ -178,9 +178,28 @@ describe("renderMarkdown structure and order", () => {
 
   test("escapes fenced code block contents", () => {
     const { html } = renderMarkdown('```html\n<div onclick="x()">hi</div>\n```');
-    expect(html).toContain("<pre><code>");
+    expect(html).toContain("<code>");
     expect(html).toContain("&lt;div onclick=&quot;x()&quot;&gt;");
     expect(html).not.toContain("<div");
+  });
+
+  // VAL-REQS-006: horizontally scrollable regions must be keyboard-focusable
+  // with an accessible name (axe scrollable-region-focusable, WCAG 2.1.1).
+  test("fenced code blocks render a focusable, named scroll region", () => {
+    const { html } = renderMarkdown("```\nconst x = 1;\n```");
+    expect(html).toContain("<pre tabindex=\"0\"");
+    expect(html).toMatch(/<pre[^>]*role="group"/);
+    expect(html).toMatch(/<pre[^>]*aria-label="[^"]+"/);
+  });
+
+  test("wide tables render inside a focusable, named scroll region", () => {
+    const { html } = renderMarkdown(
+      "| A | B |\n| --- | --- |\n| 1 | 2 |",
+    );
+    expect(html).toContain('class="table-scroll"');
+    expect(html).toContain('tabindex="0"');
+    expect(html).toMatch(/<div[^>]*class="table-scroll"[^>]*role="group"/);
+    expect(html).toMatch(/<div[^>]*class="table-scroll"[^>]*aria-label="[^"]+"/);
   });
 
   test("renders inline code, strong, and emphasis with escaping", () => {

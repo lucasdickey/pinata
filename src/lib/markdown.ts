@@ -15,6 +15,10 @@
 // - External links open in a new tab with rel="noopener noreferrer" and
 //   visibly name their destination host.
 // - Heading anchors are unique: collisions get deterministic -2, -3 suffixes.
+// - The two potentially horizontally scrollable containers (fenced-code <pre>
+//   and the .table-scroll wrapper) are keyboard-focusable named groups
+//   (tabindex="0", role="group", aria-label) so keyboard-only users can
+//   scroll them at narrow widths (WCAG 2.1.1, axe scrollable-region-focusable).
 
 export interface MarkdownHeading {
   depth: number;
@@ -149,7 +153,9 @@ export function renderMarkdown(source: string): RenderedMarkdown {
         i++;
       }
       i++; // consume closing fence (or EOF)
-      html.push(`<pre><code>${escapeHtml(buf.join("\n"))}</code></pre>`);
+      html.push(
+        `<pre tabindex="0" role="group" aria-label="Code sample"><code>${escapeHtml(buf.join("\n"))}</code></pre>`,
+      );
       continue;
     }
 
@@ -193,7 +199,7 @@ export function renderMarkdown(source: string): RenderedMarkdown {
         .map((row) => `<tr>${row.map((c) => `<td>${renderInline(c)}</td>`).join("")}</tr>`)
         .join("");
       html.push(
-        `<div class="table-scroll"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`,
+        `<div class="table-scroll" tabindex="0" role="group" aria-label="Data table, scroll horizontally to view all columns"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`,
       );
       continue;
     }

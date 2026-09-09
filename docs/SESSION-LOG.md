@@ -1577,3 +1577,52 @@ Roughly 60 minutes of mission-worker time.
 ### Open questions at end of session
 
 - None.
+## Reqs scrollable-region keyboard fix (2026-09-09, user-testing round 2)
+
+### What was attempted
+
+User-testing round 2 found the last failing milestone-1 assertion
+(VAL-REQS-006): at 390 CSS px, axe reported scrollable-region-focusable
+[serious, WCAG 2.1.1] on /reqs/architecture (the horizontally scrolling
+`<pre>` ASCII diagram, 572px of content in a 359px box) and /reqs/evals (a
+wide `.table-scroll` wrapper, 551px in 361px). Wrote the failing renderer
+tests first in `test/requirements-markdown.test.ts` (tabindex, naming-capable
+role, and aria-label on both containers), watched them fail red, then made
+the fenced-code `<pre>` and the `.table-scroll` wrapper focusable named
+groups in `src/lib/markdown.ts`. Codified the regression guard as
+`e2e/requirements-a11y.spec.ts`: an axe wcag2a/2aa sweep over all five /reqs
+routes at both 1440px and 390px with zero serious-or-critical violations
+allowed, plus a real keyboard-operability proof that Tab reaches each
+overflowing region at 390px and ArrowRight moves its scrollLeft. Added
+`@axe-core/playwright` 4.13.0 to the approved dev-dependency allowlist so
+the sweep runs on every `npm run validate`, locally and in CI.
+
+### What broke or dead-ended
+
+Two self-inflicted test failures, both in the new e2e keyboard proof: (1)
+reading `scrollLeft` immediately after `keyboard.press("ArrowRight")`
+returned 0 because Chromium performs keyboard scrolling on the compositor
+thread and the offset lands asynchronously — fixed with `expect.poll`;
+(2) `locator(".table-scroll").first()` on /reqs/evals picked a narrow table
+that does not overflow at 390px — fixed by measuring every candidate's
+scrollWidth/clientWidth and targeting the actually-overflowing instance,
+which also keeps the test honest if narrower tables are added later.
+
+### Elapsed
+
+Roughly 40 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- D048 (focusable named scroll regions in the Markdown renderer;
+  `role="group"` chosen over `role="region"` to avoid duplicate-landmark
+  noise; `@axe-core/playwright` added to the approved dev set; the axe
+  sweep codified at desktop and 390px).
+- Evidence for VAL-REQS-006 on the local surface: axe wcag2a/2aa reports
+  zero serious-or-critical violations on all five /reqs routes at both
+  1440px and 390px, and the overflowing code diagram and wide table both
+  receive Tab focus and scroll via ArrowRight at 390px.
+
+### Open questions at end of session
+
+- None.
