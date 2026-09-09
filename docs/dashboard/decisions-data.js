@@ -2199,8 +2199,84 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D051",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Materially descope the post-milestone-1 roadmap: keep pins, pin comments, landing page, first deployment, short pins session, and closeout; punt everything else",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "After the milestone-1 capture checkpoint, the remaining roadmap (founder capability links and read/reply surface, append-only threads, rich marks, the warm visual system, performance and one-minute-demo work, milestone-3 accessibility, production hardening, editor session-lifecycle hardening, cross-surface auth/secret hardening, and the final production acceptance session) was larger than the user's remaining budget. The user wanted to validate only the two things the product exists for: the screenshot captures and pinned-annotation commenting.",
+      "decision": "Per the user's direction, the mission is materially descoped. In scope: the editor canvas with pins and pin comments, nearby-DOM metadata on pins, the branded landing page, the first Vercel production deployment with production Chickpea captures, a short headed pins session with the user, and final docs closeout. Punted for later revisit: founder capability links and the founder read/reply surface, append-only two-way threads, rich marks (rectangles, circles, arrows), the warm-visual-system milestone, performance/one-minute-demo, milestone-3 accessibility features, production hardening (partial-failure drills, redeployment continuity, capability rotation, dogfood project), editor session-lifecycle hardening, cross-surface auth/secret hardening, and the final production acceptance session (replaced by the short pins session).",
+      "alternatives": [
+        {
+          "option": "Continue with the full milestone plan",
+          "why_not": "The user has a strict budget and explicitly directed the descope; the punted items are the product vision, not current work."
+        },
+        {
+          "option": "Cut scope silently without a record",
+          "why_not": "The descope forecloses whole milestone surfaces and changes what 'done' means for validation; it must be auditable."
+        }
+      ],
+      "rationale": "The user directed the descope verbatim after the milestone-1 checkpoint, so this is recorded as user-directed. The kept slice (captures plus pinned comments) is exactly what the user said they want to validate; everything else remains documented as the product vision for later revisit.",
+      "consequences": [
+        "Validation scope shrinks to capture, pins/comments, landing page, deployment, a short pins session, and closeout docs; founder, thread, rich-mark, and hardening assertions are out of the executable contract.",
+        "Known weaknesses in punted areas (in-memory logout revocation across serverless instances, login-throttle test-safety override, the /reqs axe 'incomplete' node) are documented at closeout, not fixed.",
+        "The mission documents note that architecture sections describing founder/capability/thread/rich-mark scope describe the vision, not current work."
+      ],
+      "transcript": {
+        "request": "after we do this test, let's MATERIALLY descope the rest of the project - punting major milestones for later. I have a strict budget I need to manage, and I just really want to validate the data capture (teh screen shots) and the abilit to comment with pinned annotations. We can revisit the rest of the milestones thereafter."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D052",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Add a temporary local-only editor auth bypass flag (PINATA_AUTH_DISABLED), default off, never in .env.local or any deployment",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "For live local checkpoint sessions the user does not want to sign in through the editor password prompt every time; auth is deliberately low priority right now. But the real auth posture (anonymous denial, login, throttling) must keep being proven by the validation gate and validators, and production must keep auth.",
+      "decision": "Add PINATA_AUTH_DISABLED as a server-only environment flag, default OFF. When set to exactly '1' (inline on the server command line, e.g. PINATA_AUTH_DISABLED=1 npm run start), server-side session verification treats every request as an authenticated editor with a synthetic session: the landing page renders the editor workspace directly and all editor APIs authorize, with the double-submit CSRF proof skipped because no real session cookie exists (route-level same-origin checks still apply). When unset, behavior is byte-identical to before, and the login route keeps working in both modes. The flag is never a NEXT_PUBLIC_* variable, never read from client code, never added to .env.local (so the gate and validators keep proving real auth), and never set in any Vercel environment.",
+      "alternatives": [
+        {
+          "option": "Remove or comment out the password check in the auth code",
+          "why_not": "That would change the committed default posture, break the gate's anonymous-denial and login coverage, and risk shipping disabled auth to production. A default-off flag keeps the real behavior the committed default."
+        },
+        {
+          "option": "Put the flag in .env.local for convenience",
+          "why_not": "The validation gate and all validators run with .env.local present; the flag living there would silently disable auth in every validation run and destroy the evidence that the real posture works."
+        }
+      ],
+      "rationale": "The user directed the bypass verbatim and framed it as temporary ('for now'), so this is user-directed and scoped as narrowly as possible: one server-only check in the session guard and the landing route, default off, with focused tests proving both modes and source checks proving the flag never reaches client code or .env.local.",
+      "consequences": [
+        "Checkpoint and live user sessions start the server with PINATA_AUTH_DISABLED=1 inline; no sign-in prompt appears and all editor surfaces authorize anonymously on that local server only.",
+        "The validation gate runs without the flag and continues to prove anonymous denial, login, and throttling; .env.local must never contain the flag.",
+        "Production keeps auth: the flag must never be set in any Vercel environment, and the bypass is expected to be removed or revisited when auth becomes a priority again.",
+        "Known weakness while enabled locally: any process able to reach 127.0.0.1:3100 on the user's machine has editor authority; acceptable only because the flag is local, inline, and temporary."
+      ],
+      "transcript": {
+        "request": "remove the password / comment it out for now. i just want to use it. auth is low priority."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/auth/bypass.ts",
+          "caption": "The server-only flag reader: true only for the exact value '1', default off"
+        },
+        {
+          "type": "file",
+          "path": "test/server/auth-bypass.test.ts",
+          "caption": "Focused tests for both modes plus source checks that the flag never reaches client code or .env.local"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "08cf5febdbe2"
+  "source_hash": "042889c91096"
 };

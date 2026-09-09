@@ -5,7 +5,9 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { EDITOR_CSRF_HEADER, EDITOR_SESSION_COOKIE } from "../../auth-constants";
+import { EDITOR_SESSION_ABSOLUTE_LIFETIME_MS } from "../../boundaries";
 import { ERRORS, jsonError, parseCookieHeader } from "../http";
+import { isAuthDisabled } from "./bypass";
 import { getSessionSecret } from "./secrets";
 import {
   renewEditorSessionToken,
@@ -22,11 +24,32 @@ function denied(status: number, message: string): EditorAuthResult {
 }
 
 /**
+ * The synthetic session every request carries while the local-only bypass
+ * (PINATA_AUTH_DISABLED=1, D052) is enabled. It is not a real signed token:
+ * no cookie is issued, nothing is revocable, and the double-submit CSRF
+ * proof is skipped in requireEditorMutation because the browser holds no
+ * CSRF cookie. Route-level same-origin checks still apply.
+ */
+function syntheticBypassSession(): EditorSessionPayload {
+  const now = Date.now();
+  return {
+    v: 1,
+    sid: "auth-disabled-local",
+    iat: now,
+    exp: now + EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
+    csrf: "auth-disabled-local",
+  };
+}
+
+/**
  * Authorize an editor read. Returns the verified session, plus a renewed
  * token when the session is inside its renewal threshold (the caller must
  * set it as a cookie).
  */
 export function requireEditor(request: Request): EditorAuthResult {
+  if (isAuthDisabled()) {
+    return { ok: true, session: syntheticBypassSession(), renewedToken: null };
+  }
   const secret = getSessionSecret();
   if (!secret) return denied(503, ERRORS.unavailable);
   const token = parseCookieHeader(request.headers.get("cookie"))[EDITOR_SESSION_COOKIE];
@@ -48,6 +71,10 @@ export function requireEditor(request: Request): EditorAuthResult {
 export function requireEditorMutation(request: Request): EditorAuthResult {
   const base = requireEditor(request);
   if (!base.ok) return base;
+  // Under the local-only bypass (D052) there is no real session and the
+  // browser holds no CSRF cookie, so there is no double-submit proof to
+  // check; the route-level same-origin check still applies.
+  if (isAuthDisabled()) return base;
   const proof = request.headers.get(EDITOR_CSRF_HEADER);
   if (!proof) return denied(403, ERRORS.rejected);
   const expected = Buffer.from(base.session.csrf, "utf8");

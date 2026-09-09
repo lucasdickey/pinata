@@ -1731,3 +1731,67 @@ Roughly 25 minutes of mission-worker time (gate run excluded).
 
 - None. The checkpoint itself, and any user feedback from it, is recorded in
   a later section after the headed session runs.
+
+## Local-only editor auth bypass flag (2026-09-09, pins-and-feedback)
+
+### What was attempted
+
+User-directed (D052, verbatim: "remove the password / comment it out for now.
+i just want to use it. auth is low priority."): added PINATA_AUTH_DISABLED as
+a server-only, default-off environment flag so the running checkpoint app
+skips the editor password for the user's live session. Implemented as a
+single reader (src/lib/server/auth/bypass.ts) consumed by the authorization
+guard (src/lib/server/auth/guard.ts — synthetic session in requireEditor,
+CSRF double-submit check skipped in requireEditorMutation since no real
+session cookie exists; route-level same-origin checks still apply) and by the
+landing route (app/page.tsx renders the editor workspace directly). The login
+route keeps working in both modes; logout stays a safe no-op under the
+bypass.
+
+Hard constraints honored: the flag is not NEXT_PUBLIC_*, lives only in
+server-only modules, and is NOT in .env.local, so the validation gate (run
+with .env.local present, flag unset) keeps proving the real auth posture.
+Focused tests in test/server/auth-bypass.test.ts cover both modes plus source
+checks that no client-reachable module names the flag and that .env.local
+does not contain it.
+
+While recording D052, found D051 (the 2026-09-09 material descope) referenced
+throughout the mission docs but never recorded in the repository decision
+log; the gapless-id integrity rule blocked D052 without it. Recorded D051
+from the verbatim quote preserved in the mission plan, then D052. Regenerated
+docs (52 decisions).
+
+Sequence per the feature: stopped the checkpoint server (was PID 20782) by
+PID, ran the full npm run validate gate under Node 24 with the flag unset
+(green: lint 206 files, typecheck, Vitest 868 passed / 44 skipped,
+docs:check, build, Playwright e2e 28 passed), committed, then restarted the
+checkpoint server with PINATA_AUTH_DISABLED=1 inline and verified anonymous
+access renders the editor workspace with the seeded Chickpea project.
+
+### What broke or dead-ended
+
+- First gate run failed in test/requirements-decisions.test.tsx (11 tests):
+  the decisions-catalog component assumes every record carries an artifacts
+  array and D051 had none. Fixed by recording an explicit empty artifacts
+  array on D051; re-ran the focused file, then the full gate green.
+- One self-inflicted focused-test failure first: a source check asserting
+  the bypass module never contains the string NEXT_PUBLIC tripped on the
+  module's own prose comment naming the constraint. Tightened the assertion
+  to the env-read pattern instead.
+
+### Elapsed
+
+Roughly 30 minutes of mission-worker time (gate runs excluded).
+
+### Decisions and assertions
+
+- D051 (material post-milestone-1 descope; recorded here because the log was
+  missing it and the gapless-id rule requires it before D052).
+- D052 (temporary local-only PINATA_AUTH_DISABLED bypass, default off;
+  production keeps auth).
+
+### Open questions at end of session
+
+- None. The checkpoint server is left running with the bypass flag for the
+  user's session; removing or revisiting the bypass is deferred until auth
+  becomes a priority again (see D052 consequences).
