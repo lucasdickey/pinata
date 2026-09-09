@@ -41,6 +41,7 @@ import { schema, type Database } from "../db/client";
 import type { BrowserlessClient, BrowserlessRunError } from "../providers/browserless";
 import type { ScreenshotStore } from "../providers/blob";
 import { deviceProfile } from "./devices";
+import { recordOrphanCleanup } from "./cleanup";
 import { buildCaptureFunctionSource } from "./function-source";
 import { validateCaptureImage } from "./image";
 import { boundManifest, DOCUMENT_TITLE_MAX_CHARS, type BoundedManifest } from "./manifest";
@@ -341,8 +342,18 @@ async function runClaimedCapture(
   });
   if (transition === "fenced") {
     // The claim was lost or the row already reached a terminal state, so this
-    // object can never be referenced. Delete it rather than orphan it.
-    await store.del(stored.value.pathname);
+    // object can never be referenced. Delete it rather than orphan it. When
+    // the delete itself fails, record bounded cleanup state so the known
+    // orphan is never silently dropped; the terminal row is untouched either
+    // way.
+    const removed = await store.del(stored.value.pathname);
+    if (!removed.ok && removed.error !== "not-found") {
+      await recordOrphanCleanup(
+        db,
+        { blobPath: stored.value.pathname, captureId: capture.id },
+        now(),
+      );
+    }
     return { ok: false, outcome: "finalization-failure" };
   }
 

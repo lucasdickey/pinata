@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 21 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038 |
+| Agent decided alone | 22 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **38** | |
+| **Total** | **39** | |
 
 ## Index
 
@@ -64,6 +64,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D036](#d036--browserless-is-authenticated-with-http-basic-because-bearer-fails-and-the-url-is-not-an-option) | build | Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option | Agent decided alone | accepted |
 | [D037](#d037--controlled-capture-fixtures-live-in-the-repository-and-are-published-to-a-disposable-public-host-per-run) | validate | Controlled capture fixtures live in the repository and are published to a disposable public host per run | Agent decided alone | accepted |
 | [D038](#d038--the-dom-manifest-is-bounded-twice-in-page-for-response-size-server-side-for-what-is-persisted) | build | The DOM manifest is bounded twice: in-page for response size, server-side for what is persisted | Agent decided alone | accepted |
+| [D039](#d039--track-a-known-orphan-object-in-its-own-bounded-table-never-by-rewriting-the-terminal-capture-row) | build | Track a known orphan object in its own bounded table, never by rewriting the terminal capture row | Agent decided alone | accepted |
 
 ---
 
@@ -1458,4 +1459,40 @@ Defense in depth with distinct jobs at each layer: the page-side pass keeps the 
 
 ---
 
-<sub>Generated from 38 record(s) as of 2026-09-09 · source `28e43761986b`</sub>
+## D039 — Track a known orphan object in its own bounded table, never by rewriting the terminal capture row
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Turso and Blob are not transactional. A capture can upload a private object and then lose its finalization fence — the capture row is already terminal and immutable, so it can never reference the object, which makes the object an orphan. The object must be deleted, but the delete itself can fail. VAL-CAPTURE-009 requires a known orphan to be deleted or represented by bounded cleanup state, and VAL-CAPTURE-008 forbids rewriting a terminal row to carry that state.
+
+**Decision**
+
+A new capture_cleanups table records exactly one known orphan per internal blob pathname, with the uploading capture id for correlation, a bounded attempts counter, a retry deadline (the new CAPTURE_CLEANUP_WINDOW_MS = 3,600,000 ms), and a last-error label — no target URL, credential, or provider URL is ever persisted. execute.ts records a cleanup row when the fenced finalization's orphan delete fails, and reconcileCaptureCleanups() deletes pending orphans (an absent object completes cleanup), retries failures inside the window, and stops incrementing past the deadline while still deleting on sight. Cleanup state lives in its own table so terminal capture rows stay untouched. POLICY_VERSION moved to 2026-09-08.8.
+
+**Alternatives considered**
+
+- *Record the orphan on the capture row* — The row is already terminal when the orphan exists; rewriting it to track cleanup violates the immutable-attempts invariant the whole feature rests on.
+- *Best-effort delete with no tracking row* — A failed delete would leave an untracked orphan with no record that it ever existed, which is exactly the false-clean state the assertion forbids.
+- *Retry the orphan delete forever* — An unbounded retry loop is unbounded work; the window bounds retry effort while the obligation to delete on sight never expires.
+
+**Rationale**
+
+The table makes the orphan a first-class, durable, queryable fact instead of a side effect, which is what lets a later cleanup pass prove no untracked orphan remains. Keeping it off the capture row preserves terminal immutability, and the attempts-plus-deadline shape satisfies the bounded-cleanup requirement. This is safe to decide unilaterally: it implements the assigned feature's published assertion inside the approved persistence architecture, using the existing migration tooling.
+
+**Consequences**
+
+- capture_cleanups gains a committed migration (0002); the schema test table list and migration count were updated.
+- CAPTURE_CLEANUP_WINDOW_MS joins the versioned boundary catalog (five-file change) at POLICY_VERSION 2026-09-08.8.
+- A future cleanup pass must call reconcileCaptureCleanups; the rows are the durable backlog.
+
+**Artifacts**
+
+- `src/lib/server/captures/cleanup.ts` — Bounded orphan-cleanup record and reconcile pass
+- `src/lib/server/captures/execute.ts` — Fenced finalization now records a cleanup row on a failed orphan delete
+- `test/server/capture-cleanup.test.ts` — Bounded retry, deadline, and confirm-gone behavior
+
+---
+
+<sub>Generated from 39 record(s) as of 2026-09-09 · source `1e552453995d`</sub>

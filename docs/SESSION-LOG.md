@@ -1032,3 +1032,80 @@ Roughly 1 hour of mission-worker time.
   canvas/nearby-element work), so the contract's curl sentinel scan is
   satisfied by scanning the exact persisted bytes in the integration suite
   instead. Revisit when a manifest read route exists.
+
+---
+
+## Session 09 — 2026-09-09
+
+**Timebox:** capture-state, retry, and storage-faults feature. Consumed this
+session: _in progress_.
+
+### What happened
+
+1. The capture attempt state machine, idempotency, leases, terminal
+   immutability, retry/recapture version ordering, stale reconciliation, and
+   late-result fencing were already landed by
+   `project-hierarchy-persistence-and-partial-status` and
+   `browserless-device-static-image`. The remaining feature-owned work was the
+   bounded orphan-cleanup state (VAL-CAPTURE-009), the version-pinned
+   link-laden no-crawl fixture (VAL-PROJECT-003), and the deterministic
+   Desktop-only / Mobile-only / URL-level partial-failure integration fixtures
+   (VAL-PROJECT-005).
+2. Found and closed a real gap: a fenced finalization deleted the object it
+   just wrote, but if that delete failed the object was orphaned with no
+   cleanup record. Added the `capture_cleanups` table (migration `0002`) and
+   `src/lib/server/captures/cleanup.ts` so a known orphan is recorded with a
+   bounded retry window instead of being silently dropped, without rewriting
+   the terminal capture row. → `D039`, `POLICY_VERSION 2026-09-08.8`.
+3. Wrote `test/fixtures/capture/links-v1.html`, a self-contained fixture
+   saturated with every discovery surface a crawler would follow (canonical,
+   alternate, sitemap, JSON-LD, iframe, inline anchor, form action, and a
+   delayed script-inserted anchor), plus ordinary same-origin subresources
+   that must still load. Extended the real-provider integration suite with a
+   no-crawl suite and a partial-failure suite.
+4. **Dead end / blocker:** the disposable fixture host (`litterbox.catbox.moe`)
+   began returning HTTP 403 behind a BunkerWeb anti-bot for every upload
+   (node fetch and curl alike, IP/ASN-level), and the alternates are unusable:
+   `0x0.st` has disabled uploads, `x0.at` serves `text/plain` + `nosniff` so
+   Chromium will not render it, `filebin.net` forces a 302 +
+   `Content-Disposition: attachment` (download, not render), `paste.rs` fails
+   TLS from this machine, and no tunnel client (cloudflared/ngrok/tailscale)
+   is installed. The new integration suites are written, typecheck, and skip
+   cleanly in CI, but their real-Browserless runs could not be executed this
+   session because no public HTTPS fixture URL could be published.
+
+### What broke
+
+- The schema migration count assertion in `db-schema.test.ts` (`2` → `3`) and
+  its table list needed updating for `capture_cleanups`; the drift guard needed
+  the new `CAPTURE_CLEANUP_WINDOW_MS` row.
+- The publish-fixture host regression is a mission infrastructure blocker for
+  any future real-provider capture run, not specific to this feature.
+
+### Elapsed
+
+Roughly 1 hour of mission-worker time.
+
+### Decisions and assertions
+
+- `D039` (agent-autonomous): a known orphan object is tracked in its own
+  bounded table, never by rewriting the terminal capture row.
+- VAL-CAPTURE-008: state machine, idempotency, version ordering, stale
+  reconciliation, and late-result fencing verified by 80 focused tests and the
+  real-Turso hierarchy suite (`valrun` runs green this session).
+- VAL-CAPTURE-009: orphan-cleanup record, bounded retry, deadline, and
+  confirm-gone covered by 6 new cleanup tests plus 2 new execute-fence tests;
+  no false ready, no lost sibling, terminal rows untouched.
+- VAL-PROJECT-005: partial-failure sibling preservation, scoped idempotent
+  retry, and late-result fencing verified against real Turso by the hierarchy
+  integration suite this session.
+- VAL-PROJECT-003 (link-laden no-crawl) and the real-Browserless half of
+  VAL-PROJECT-005: integration suites written and CI-safe but **not executed
+  against the real provider** — blocked by the fixture-host 403.
+
+### Open questions at end of session
+
+- The disposable fixture host must be replaced or restored before any
+  real-provider capture validation can run. This blocks the Browserless
+  execution proof for the link-laden and partial-failure fixtures; the focused
+  and real-Turso proofs for the state model are unaffected.

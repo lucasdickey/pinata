@@ -450,6 +450,61 @@ describe("storage and finalization faults", () => {
     expect(await row(id)).toMatchObject({ status: "failed", errorCode: "stale-lease" });
   });
 
+  test("a failed orphan delete records bounded cleanup state without touching the terminal row", async () => {
+    const id = await seedClaimedCapture("cap-orphan");
+    const client = clientReturning(async () => {
+      await applyCaptureTransition(testDb.db, {
+        captureId: id,
+        from: "capturing",
+        to: "failed",
+        now: T0 + 1_000,
+        errorCode: "stale-lease",
+        errorMessage: "stale",
+      });
+      return successEnvelope();
+    });
+    const store = storeSpy({ del: async () => ({ ok: false, error: "unavailable" }) });
+    const result = await executeCapture(testDb.db, id, deps(client, store));
+    expect(result).toEqual({ ok: false, outcome: "finalization-failure" });
+    expect(puts).toHaveLength(1);
+
+    // The orphan is tracked for bounded cleanup, with no false ready and the
+    // sibling terminal row exactly as the other worker left it.
+    const cleanups = await testDb.db.select().from(schema.captureCleanups);
+    expect(cleanups).toHaveLength(1);
+    expect(cleanups[0]).toMatchObject({
+      blobPath: puts[0]!.pathname,
+      captureId: id,
+      attempts: 0,
+      lastError: "orphan-delete-failed",
+    });
+    expect(cleanups[0]!.deadlineAt).toBeGreaterThan(T0 + 5_000);
+    expect(await row(id)).toMatchObject({ status: "failed", errorCode: "stale-lease" });
+    // The pathname is internal and non-secret; no target URL is persisted.
+    expect(JSON.stringify(cleanups[0])).not.toContain("fixture.example");
+  });
+
+  test("an orphan already gone from the store is not tracked as cleanup", async () => {
+    const id = await seedClaimedCapture("cap-orphan-gone");
+    const client = clientReturning(async () => {
+      await applyCaptureTransition(testDb.db, {
+        captureId: id,
+        from: "capturing",
+        to: "failed",
+        now: T0 + 1_000,
+        errorCode: "stale-lease",
+        errorMessage: "stale",
+      });
+      return successEnvelope();
+    });
+    const store = storeSpy({ del: async () => ({ ok: false, error: "not-found" }) });
+    expect(await executeCapture(testDb.db, id, deps(client, store))).toEqual({
+      ok: false,
+      outcome: "finalization-failure",
+    });
+    expect(await testDb.db.select().from(schema.captureCleanups)).toHaveLength(0);
+  });
+
   test("an attempt that is not a live claim is left exactly as it is", async () => {
     const id = await seedClaimedCapture("cap-notclaimed");
     await applyCaptureTransition(testDb.db, {

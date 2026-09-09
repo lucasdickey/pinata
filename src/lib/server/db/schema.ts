@@ -237,3 +237,35 @@ export const schemaMeta = sqliteTable("schema_meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/**
+ * Bounded, retryable cleanup state for a known orphan object (VAL-CAPTURE-009).
+ *
+ * Turso and Blob are not transactional, so a capture can upload a private
+ * object and then lose its finalization fence: the row is already terminal
+ * and can never reference the object. The object must be deleted. When that
+ * deletion itself fails, this row is the durable record that a specific,
+ * known object still needs cleanup — the alternative to an untracked orphan.
+ *
+ * A row here never names credentials, provider URLs, or target URLs: the
+ * pathname is an internal, non-secret store reference. `attempts` and the
+ * published cleanup deadline bound the retry work; a row past its deadline is
+ * still deleted by the cleanup path, never silently kept.
+ */
+export const captureCleanups = sqliteTable(
+  "capture_cleanups",
+  {
+    /** Internal private-Blob pathname of the orphaned object. */
+    blobPath: text("blob_path").primaryKey(),
+    /** Capture attempt that uploaded the object, for correlation only. */
+    captureId: text("capture_id").notNull(),
+    /** Bounded delete attempts so far. */
+    attempts: integer("attempts").notNull().default(0),
+    /** No cleanup work may continue after this UTC instant. */
+    deadlineAt: integer("deadline_at").notNull(),
+    lastError: text("last_error"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("capture_cleanups_deadline_idx").on(t.deadlineAt)],
+);

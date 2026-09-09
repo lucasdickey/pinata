@@ -76,5 +76,12 @@ export const MAX_ACTIVE_CAPTURES = 2;
 /** A `capturing` attempt older than this computes to stale (5 minutes). */
 export const STALE_CAPTURE_AGE_MS = 300_000;
 
+/**
+ * Orphan-cleanup work stops retrying after this window (1 hour). A known
+ * orphan past its deadline is deleted by the cleanup path on sight, never
+ * kept: the bound is on retry effort, not on the obligation to delete.
+ */
+export const CAPTURE_CLEANUP_WINDOW_MS = 3_600_000;
+
 /** Hard byte cap on a capture mutation request body (variant plus key). */
 export const CAPTURE_REQUEST_MAX_BYTES = 1_024;

@@ -30,6 +30,7 @@ const FIXTURES = [
   { envName: "CAPTURE_ECHO_FIXTURE_URL", file: "echo-v1.html", version: "echo-v1" },
   { envName: "CAPTURE_TALL_FIXTURE_URL", file: "tall-motion-v1.html", version: "tall-motion-v1" },
   { envName: "CAPTURE_MANIFEST_FIXTURE_URL", file: "manifest-v1.html", version: "manifest-v1" },
+  { envName: "CAPTURE_LINKS_FIXTURE_URL", file: "links-v1.html", version: "links-v1" },
 ];
 
 const here = path.dirname(fileURLToPath(import.meta.url));

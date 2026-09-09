@@ -42,6 +42,7 @@ import { decodePngPixels, type DecodedPixels } from "../helpers/png";
 const echoUrl = process.env.CAPTURE_ECHO_FIXTURE_URL;
 const tallUrl = process.env.CAPTURE_TALL_FIXTURE_URL;
 const manifestUrl = process.env.CAPTURE_MANIFEST_FIXTURE_URL;
+const linksUrl = process.env.CAPTURE_LINKS_FIXTURE_URL;
 const ready = Boolean(
   process.env.BROWSERLESS_TOKEN &&
     process.env.BLOB_READ_WRITE_TOKEN &&
@@ -529,5 +530,311 @@ describe.skipIf(!ready || !manifestUrl)(
         expect(executed.row.domManifestJson!).not.toContain("\\u2028");
       }
     });
+  },
+);
+
+describe.skipIf(!ready || !linksUrl)(
+  "a link-laden page creates no pages or attempts beyond the submitted URL (VAL-PROJECT-003)",
+  () => {
+    let desktop: Executed;
+
+    beforeAll(async () => {
+      desktop = await execute("links", "desktop", linksUrl!);
+    }, EXECUTION_TIMEOUT_MS);
+
+    test("the capture completes and ordinary public subresources remain available", () => {
+      const text = manifestText(desktop.manifest);
+      expect(text).toContain("fixture-version: links-v1");
+      expect(text).toContain("LINKS-FIXTURE-TOP");
+      expect(text).toContain("LINKS-FIXTURE-BOTTOM");
+      // The stylesheet and image subresources loaded; a network policy that
+      // blocked ordinary public subresources would leave these pending.
+      expect(text).toContain("subresource-css: loaded");
+      expect(text).toContain("subresource-image: loaded");
+      // The capture never interacted with the page.
+      expect(text).toContain("counters: click:0 keydown:0 pointerdown:0 touchstart:0 submit:0");
+      expect(text).toContain("navigation-count: 1");
+    });
+
+    test("linked URLs never became pages, attempts, or captured content", async () => {
+      // Every linked target — canonical, alternate, sitemap, JSON-LD, iframe,
+      // inline anchor, form action, and the delayed script-inserted anchor —
+      // names a distinct host so any leaked attempt is attributable.
+      const linkedHosts = [
+        "canonical.example",
+        "feed.example",
+        "sitemap.example",
+        "jsonld.example",
+        "framed.example",
+        "inline.example",
+        "formaction.example",
+        "script-inserted.example",
+      ];
+
+      // The run's project holds exactly the one submitted page; no page row
+      // exists for any linked target.
+      const pages = await db
+        .select()
+        .from(schema.pages)
+        .where(like(schema.pages.id, `${RUN_ID}-links-%`));
+      expect(pages).toHaveLength(1);
+      expect(pages[0]!.normalizedUrl).toBe(linksUrl);
+      for (const host of linkedHosts) {
+        expect(pages[0]!.normalizedUrl).not.toContain(host);
+      }
+
+      // Exactly the two initial attempts (desktop + mobile) exist for that
+      // page, and every attempt row in this run names the submitted URL only.
+      const attempts = await db
+        .select()
+        .from(schema.captures)
+        .where(like(schema.captures.pageId, `${RUN_ID}-links-%`));
+      expect(attempts).toHaveLength(2);
+      for (const attempt of attempts) {
+        expect(attempt.requestedUrl).toBe(linksUrl);
+        if (attempt.finalUrl !== null) expect(attempt.finalUrl).toBe(linksUrl);
+      }
+
+      // The persisted manifest names none of the linked hosts: nothing
+      // followed them. The script-inserted anchor connected 400 ms into the
+      // page life, inside the capture window; its href target is absent.
+      const storedJson = desktop.row.domManifestJson!;
+      for (const host of linkedHosts) {
+        expect(storedJson).not.toContain(host);
+      }
+    });
+
+    test("the delayed script-inserted anchor never gained a sibling", async () => {
+      // Re-reading through a fresh handle after the run, the project still
+      // contains exactly one page and two attempts for it. A crawler that
+      // woke late would have left rows behind; none exist.
+      const fresh = createDatabase(process.env)!;
+      const pages = await fresh
+        .select()
+        .from(schema.pages)
+        .where(like(schema.pages.id, `${RUN_ID}-links-%`));
+      const attempts = await fresh
+        .select()
+        .from(schema.captures)
+        .where(like(schema.captures.pageId, `${RUN_ID}-links-%`));
+      expect(pages).toHaveLength(1);
+      expect(attempts).toHaveLength(2);
+      expect(attempts.map((row) => row.variant).sort()).toEqual(["desktop", "mobile"]);
+    });
+  },
+);
+
+describe.skipIf(!ready || !echoUrl)(
+  "deterministic partial failure keeps successful siblings usable (VAL-PROJECT-005)",
+  () => {
+    // The version-pinned deterministic failure fixtures: a URL that resolves
+    // nowhere public fails admission identically on every run, so it is the
+    // URL-level failure; failing exactly one variant row of a two-variant
+    // page is the Desktop-only / Mobile-only failure. Successful siblings
+    // come from real provider executions against the echo fixture.
+
+    test("a URL-level failure fails both variants while sibling pages stay ready", async () => {
+      const now = Date.now();
+      const scope = `${RUN_ID}-urlfail`;
+      const projectId = `${scope}-project`;
+      // A syntactically valid public HTTPS name under example.com that no
+      // DNS zone serves: it fails admission deterministically on every run,
+      // for every variant, as `dns-failed`.
+      const failureUrl = "https://capture-fixture-unreachable.example.com/";
+      await db.insert(schema.projects).values({
+        id: projectId,
+        publicId: scope,
+        title: `${RUN_ID} partial failure`,
+        rootUrl: echoUrl!,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Page one succeeds on both variants through the real provider. The
+      // `execute` helper seeds one project+page per call, so this page simply
+      // gathers their rows by moving them onto one page id.
+      const okPageId = `${scope}-page-ok`;
+      await db.insert(schema.pages).values({
+        id: okPageId,
+        projectId,
+        requestedUrl: echoUrl!,
+        normalizedUrl: echoUrl!,
+        sortIndex: 0,
+        createdAt: now,
+      });
+      const okDesktop = await execute(`${scope}-ok`, "desktop", echoUrl!);
+      const okMobile = await execute(`${scope}-ok`, "mobile", echoUrl!);
+      for (const executed of [okDesktop, okMobile]) {
+        await db
+          .update(schema.captures)
+          .set({ pageId: okPageId })
+          .where(eq(schema.captures.id, executed.row.id));
+      }
+
+      // Page two targets the deterministic failure URL on both variants.
+      const badPageId = `${scope}-page-bad`;
+      await db.insert(schema.pages).values({
+        id: badPageId,
+        projectId,
+        requestedUrl: failureUrl,
+        normalizedUrl: failureUrl,
+        sortIndex: 1,
+        createdAt: now,
+      });
+      const badIds: string[] = [];
+      for (const variant of ["desktop", "mobile"] as const) {
+        const viewport = variant === "mobile" ? MOBILE_VIEWPORT : DESKTOP_VIEWPORT;
+        const id = `${scope}-bad-${variant}`;
+        await db.insert(schema.captures).values({
+          id,
+          pageId: badPageId,
+          variant,
+          attempt: 1,
+          status: "pending",
+          idempotencyKey: `${id}-key`,
+          requestedUrl: failureUrl,
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+          deviceScaleFactor: viewport.deviceScaleFactor,
+          createdAt: now,
+          updatedAt: now,
+        });
+        badIds.push(id);
+      }
+
+      // Both variants of the unreachable URL fail admission with the same
+      // bounded outcome; no provider job or object is ever created for them.
+      const { dispatchCapture } = await import("../../src/lib/server/captures/dispatch");
+      const { getAdmissionDeps } = await import("../../src/lib/server/captures/deps");
+      for (const id of badIds) {
+        const result = await dispatchCapture(db, { captureId: id }, getAdmissionDeps());
+        expect(result).toMatchObject({ ok: false, error: "rejected" });
+        if (!result.ok && result.error === "rejected") {
+          expect(result.outcome).toBe("dns-failed");
+        }
+      }
+
+      const { readProjectHierarchy } = await import(
+        "../../src/lib/server/projects/hierarchy"
+      );
+      const hierarchy = await readProjectHierarchy(db, scope, Date.now());
+      expect(hierarchy).not.toBeNull();
+      expect(hierarchy!.pages).toHaveLength(2);
+      // Successful siblings: usable, ordered, untouched.
+      expect(hierarchy!.pages[0]!.devices[0]!.usable).toBe(true);
+      expect(hierarchy!.pages[0]!.devices[1]!.usable).toBe(true);
+      // Failed URL: both variants failed with the same retryable outcome.
+      expect(hierarchy!.pages[1]!.devices[0]!.latest?.state).toBe("failed");
+      expect(hierarchy!.pages[1]!.devices[0]!.latest?.errorCode).toBe("dns-failed");
+      expect(hierarchy!.pages[1]!.devices[1]!.latest?.state).toBe("failed");
+      expect(hierarchy!.pages[1]!.devices[1]!.latest?.errorCode).toBe("dns-failed");
+      expect(hierarchy!.counts).toMatchObject({ ready: 2, failed: 2 });
+      expect(okDesktop.ready.imageHash).toBeTruthy();
+      expect(okMobile.ready.imageHash).toBeTruthy();
+    }, EXECUTION_TIMEOUT_MS * 2);
+
+    test("a Desktop-only failure keeps the Mobile sibling selected and retryable", async () => {
+      const scope = `${RUN_ID}-desktop-fail`;
+      // The mobile sibling succeeds through the real provider first.
+      const mobile = await execute(scope, "mobile", echoUrl!);
+      // The desktop attempt fails terminally on the same page.
+      const desktopId = `${scope}-desktop`;
+      const now = Date.now();
+      await db.insert(schema.captures).values({
+        id: desktopId,
+        pageId: mobile.row.pageId,
+        variant: "desktop",
+        attempt: 1,
+        status: "pending",
+        idempotencyKey: `${desktopId}-key`,
+        requestedUrl: echoUrl!,
+        viewportWidth: DESKTOP_VIEWPORT.width,
+        viewportHeight: DESKTOP_VIEWPORT.height,
+        deviceScaleFactor: DESKTOP_VIEWPORT.deviceScaleFactor,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await applyCaptureTransition(db, {
+        captureId: desktopId,
+        from: "pending",
+        to: "failed",
+        errorCode: "navigation-timeout",
+        errorMessage: "The page did not finish navigating in time.",
+        now,
+      });
+
+      const attempts = await db
+        .select()
+        .from(schema.captures)
+        .where(eq(schema.captures.pageId, mobile.row.pageId));
+      const desktopRow = attempts.find((row) => row.variant === "desktop")!;
+      expect(desktopRow).toMatchObject({ status: "failed", errorCode: "navigation-timeout" });
+      // Retry is enabled only for the terminal desktop attempt, and the same
+      // key creates exactly one new attempt.
+      const retry = await retryCapture(db, {
+        pageId: mobile.row.pageId,
+        variant: "desktop",
+        idempotencyKey: `${scope}-retry`,
+      });
+      expect(retry.ok).toBe(true);
+      if (retry.ok) expect(retry.attempt.attempt).toBe(2);
+      const replay = await retryCapture(db, {
+        pageId: mobile.row.pageId,
+        variant: "desktop",
+        idempotencyKey: `${scope}-retry`,
+      });
+      expect(replay).toMatchObject({ ok: true, created: false });
+      // The ready mobile sibling was never resubmitted.
+      const mobileAttempts = attempts.filter((row) => row.variant === "mobile");
+      expect(mobileAttempts).toHaveLength(1);
+      expect(mobileAttempts[0]!.status).toBe("ready");
+    }, EXECUTION_TIMEOUT_MS);
+
+    test("a Mobile-only failure keeps the Desktop sibling selected and retryable", async () => {
+      const scope = `${RUN_ID}-mobile-fail`;
+      const desktop = await execute(scope, "desktop", echoUrl!);
+      const mobileId = `${scope}-mobile`;
+      const now = Date.now();
+      await db.insert(schema.captures).values({
+        id: mobileId,
+        pageId: desktop.row.pageId,
+        variant: "mobile",
+        attempt: 1,
+        status: "pending",
+        idempotencyKey: `${mobileId}-key`,
+        requestedUrl: echoUrl!,
+        viewportWidth: MOBILE_VIEWPORT.width,
+        viewportHeight: MOBILE_VIEWPORT.height,
+        deviceScaleFactor: MOBILE_VIEWPORT.deviceScaleFactor,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await applyCaptureTransition(db, {
+        captureId: mobileId,
+        from: "pending",
+        to: "failed",
+        errorCode: "total-timeout",
+        errorMessage: "The capture exceeded its total time budget.",
+        now,
+      });
+
+      const attempts = await db
+        .select()
+        .from(schema.captures)
+        .where(eq(schema.captures.pageId, desktop.row.pageId));
+      const mobileRow = attempts.find((row) => row.variant === "mobile")!;
+      expect(mobileRow).toMatchObject({ status: "failed", errorCode: "total-timeout" });
+      const retry = await retryCapture(db, {
+        pageId: desktop.row.pageId,
+        variant: "mobile",
+        idempotencyKey: `${scope}-retry`,
+      });
+      expect(retry.ok).toBe(true);
+      if (retry.ok) expect(retry.attempt.attempt).toBe(2);
+      // The ready desktop sibling was never resubmitted.
+      const desktopAttempts = attempts.filter((row) => row.variant === "desktop");
+      expect(desktopAttempts).toHaveLength(1);
+      expect(desktopAttempts[0]!.status).toBe("ready");
+    }, EXECUTION_TIMEOUT_MS);
   },
 );

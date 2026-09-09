@@ -15,6 +15,13 @@
       "when": 1788908349740,
       "tag": "0001_thread_entries_immutable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788923171294,
+      "tag": "0002_pretty_thor_girl",
+      "breakpoints": true
     }
   ]
 }
