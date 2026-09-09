@@ -22,9 +22,17 @@ keep them organized.
 - A bounded, sanitized DOM metadata manifest from the same browser session as
   each screenshot.
 - Private Vercel Blob for images; Turso/libSQL for metadata.
-- A working preview/production deployment on Vercel.
-- Validation against [Chickpea](https://chickpea.co/) and its explicit
-  `/pricing`, `/about`, and `/privacy` URLs.
+- Local validation of capture and organization against controlled fixtures and
+  live public pages, including [Chickpea](https://chickpea.co/) and its
+  explicit `/pricing`, `/about`, and `/privacy` URL array, run against the
+  production build on `127.0.0.1:3100`.
+
+Scope trim (2026-09-08, user-directed — D050): to shorten the critical path,
+milestone 1 drops the first Vercel deployment and the standalone
+variant/retry integration matrix; the variant-isolation, stabilization,
+no-crawl, and partial-failure assertions moved into the surviving capture
+features, so no coverage was lost. The first production deployment and the
+real Chickpea project now live in milestone 2.
 
 ## Milestone 2: Pins and founder feedback — pending
 
@@ -43,8 +51,11 @@ The feedback loop itself.
   delete annotations.
 - Chronological, append-only two-way threads: founders reply as `founder`,
   Lucas follows up, and founder replies are immutable for everyone.
-- Validation of exact placement, metadata selection, reload persistence, role
-  boundaries, sharing, and replies against a real Chickpea project.
+- The first Vercel production deployment of the validated build.
+- The real Chickpea project in production: root plus the explicit
+  `/pricing`, `/about`, and `/privacy` URL array, captured as eight ordered
+  Desktop/Mobile captures, and used to validate exact placement, metadata
+  selection, reload persistence, role boundaries, sharing, and replies.
 
 ## Milestone 3: Rich marks, polish, and handoff — pending
 

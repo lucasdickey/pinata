@@ -1684,3 +1684,50 @@ Roughly 75 minutes of mission-worker time.
 ### Open questions at end of session
 
 - None.
+
+## Milestone 1 checkpoint preparation and scope-trim documentation (2026-09-09, pins-and-feedback)
+
+### What was attempted
+
+Prepared the first live headed-browser checkpoint (feature
+checkpoint-capture-and-organize) after the capture-and-organize scrutiny and
+user-testing validators passed (rounds 1-3; final round green at 7c6a3e6).
+Found the repository docs out of sync with the mission: the user's 2026-09-08
+scope trim was already reflected in the mission plan and feature list (two
+features cancelled, assertions re-homed) but had never been recorded in the
+repository's own decision log, and docs/MILESTONES.md still promised a
+milestone-1 Vercel deployment and milestone-1 Chickpea validation. Recorded
+the trim as D050 (user-directed, verbatim request preserved, including the
+original spelling) and corrected the milestone document: milestone 1 now
+validates capture and organization locally against the production build on
+127.0.0.1:3100, and milestone 2 owns the first Vercel production deployment
+and the real production Chickpea project.
+
+Also verified checkpoint seed state read-only against the real Turso
+database: zero projects, zero annotations, zero pending cleanups, and one
+expired capture lease (reclaimed in place by design, so no action). The
+headed session therefore starts from a clean project list and the user drives
+project creation and live Chickpea capture themselves, which is the milestone
+1 checkpoint route.
+
+### What broke or dead-ended
+
+- Nothing broke. One near-miss worth recording: a scratch seed-check script
+  placed in /tmp could not resolve @libsql/client (module resolution walks
+  up from the script location); running it from the repository root fixed
+  it.
+
+### Elapsed
+
+Roughly 25 minutes of mission-worker time (gate run excluded).
+
+### Decisions and assertions
+
+- D050 (scope trim: milestone 1 drops the first Vercel deployment and the
+  variant/retry integration matrix; assertions re-homed; first deployment and
+  the production Chickpea project move to milestone 2).
+
+### Open questions at end of session
+
+- None. The checkpoint itself, and any user feedback from it, is recorded in
+  a later section after the headed session runs.

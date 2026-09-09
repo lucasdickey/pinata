@@ -2157,6 +2157,45 @@
           "caption": "Real-provider proof: four attempts reach ready with zero manual dispatch calls and at most two in flight"
         }
       ]
+    },
+    {
+      "id": "D050",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Trim milestone 1: defer first Vercel deployment and the variant/retry integration matrix to milestone 2",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Milestone 1's critical path ran through its two longest-lead items before the user could ever see the product: a first Vercel production deployment carrying the real Chickpea project, and a standalone variant/retry integration matrix feature. Both were validation surfaces, not new product behavior \u2014 the underlying variant-isolation, stabilization, no-crawl, and partial-failure assertions were already covered by the surviving capture features \u2014 and waiting on them delayed the first live headed-browser checkpoint.",
+      "decision": "Per the user's scope trim, milestone 1 no longer includes a Vercel deployment or the standalone variant/retry integration feature. The capture-variant-partial-retry-integration and production-chickpea-capture-and-deployment features are cancelled with their assertions re-homed into the surviving capture features (no coverage lost). Milestone 1 validates the capture-and-organize slice locally as a production build on 127.0.0.1:3100, including live captures of Chickpea's root and its explicit /pricing, /about, and /privacy URL array. The first Vercel production deployment and the real production Chickpea project move to milestone 2 (real-chickpea-pin-and-founder-review), where deployment-backed assertions are re-verified against the real deployment.",
+      "alternatives": [
+        {
+          "option": "Keep the original milestone 1 scope",
+          "why_not": "The user explicitly asked to trim scope to shorten the critical path; the deployment and the integration matrix were the two items standing between green automated validators and the first human checkpoint."
+        },
+        {
+          "option": "Drop the re-homed assertions entirely with the cancelled features",
+          "why_not": "Rejected by the trim itself: the user asked to remove the deployment and the matrix feature, not the behavior coverage. Variant isolation, stabilization, no-crawl, and partial-failure assertions moved into the surviving capture features so nothing became untested."
+        }
+      ],
+      "rationale": "The user directed both the trim and its contents, so the decision is recorded as user-directed with the verbatim request. The trim is coverage-neutral by construction \u2014 every assertion from the cancelled features was re-homed \u2014 and it is reversible: milestone 2 reinstates the deployment and the production Chickpea project as its own validation surface.",
+      "consequences": [
+        "Milestone 1 has no Vercel deployment: 'production/deployed' contract clauses are satisfied by the local production build (npm run start on 127.0.0.1:3100) with the substitution recorded per assertion, and must be re-verified against the real deployment in milestones 2 and 3.",
+        "docs/MILESTONES.md milestone 1 no longer promises a Vercel deployment or the production Chickpea validation; both are milestone 2 bullets.",
+        "The first live headed-browser checkpoint runs against the local production build instead of a public deployment.",
+        "Capture test fixtures are unaffected: they remain on the separate unprotected pinata-fixtures project (D041), and the main project's deployment protection stays on."
+      ],
+      "transcript": {
+        "request": "\"Trim scope to shorten critical path\" \u2014 \"remove Chickpea deployment, and variant/retry integraiton matrix\""
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "docs/MILESTONES.md",
+          "caption": "Milestone 1 bullets corrected: no deployment, local-only Chickpea validation; milestone 2 now owns the first production deployment and the real Chickpea project"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

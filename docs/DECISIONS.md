@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
+| Human directed | 10 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 30 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **49** | |
+| **Total** | **50** | |
 
 ## Index
 
@@ -75,6 +75,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D047](#d047--darken-the-brand-accent-token-to-wcag-aa-match-the-markdown-external-host-treatment-on-decision-artifact-links-and-repair-heading-order-and-landmark-uniqueness-on-reqsdecisions) | validate | Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions | Agent decided alone | accepted |
 | [D048](#d048--make-scrollable-reqs-regions-keyboard-focusable-named-groups-and-codify-the-axe-sweep-at-desktop-and-390px-with-axe-coreplaywright) | validate | Make scrollable /reqs regions keyboard-focusable named groups and codify the axe sweep at desktop and 390px with @axe-core/playwright | Agent decided alone | accepted |
 | [D049](#d049--drive-pending-capture-dispatch-from-the-editor-client-bounded-by-the-durable-lease-cap-and-re-driven-by-the-polling-loop) | build | Drive pending capture dispatch from the editor client, bounded by the durable lease cap and re-driven by the polling loop | Agent decided alone | accepted |
+| [D050](#d050--trim-milestone-1-defer-first-vercel-deployment-and-the-variantretry-integration-matrix-to-milestone-2) | build | Trim milestone 1: defer first Vercel deployment and the variant/retry integration matrix to milestone 2 | Human directed | accepted |
 
 ---
 
@@ -1891,4 +1892,44 @@ Safe to decide unilaterally: the architecture document already states the client
 
 ---
 
-<sub>Generated from 49 record(s) as of 2026-09-09 · source `4cc4915b6923`</sub>
+## D050 — Trim milestone 1: defer first Vercel deployment and the variant/retry integration matrix to milestone 2
+
+*2026-09-08 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Milestone 1's critical path ran through its two longest-lead items before the user could ever see the product: a first Vercel production deployment carrying the real Chickpea project, and a standalone variant/retry integration matrix feature. Both were validation surfaces, not new product behavior — the underlying variant-isolation, stabilization, no-crawl, and partial-failure assertions were already covered by the surviving capture features — and waiting on them delayed the first live headed-browser checkpoint.
+
+**Decision**
+
+Per the user's scope trim, milestone 1 no longer includes a Vercel deployment or the standalone variant/retry integration feature. The capture-variant-partial-retry-integration and production-chickpea-capture-and-deployment features are cancelled with their assertions re-homed into the surviving capture features (no coverage lost). Milestone 1 validates the capture-and-organize slice locally as a production build on 127.0.0.1:3100, including live captures of Chickpea's root and its explicit /pricing, /about, and /privacy URL array. The first Vercel production deployment and the real production Chickpea project move to milestone 2 (real-chickpea-pin-and-founder-review), where deployment-backed assertions are re-verified against the real deployment.
+
+**Alternatives considered**
+
+- *Keep the original milestone 1 scope* — The user explicitly asked to trim scope to shorten the critical path; the deployment and the integration matrix were the two items standing between green automated validators and the first human checkpoint.
+- *Drop the re-homed assertions entirely with the cancelled features* — Rejected by the trim itself: the user asked to remove the deployment and the matrix feature, not the behavior coverage. Variant isolation, stabilization, no-crawl, and partial-failure assertions moved into the surviving capture features so nothing became untested.
+
+**Rationale**
+
+The user directed both the trim and its contents, so the decision is recorded as user-directed with the verbatim request. The trim is coverage-neutral by construction — every assertion from the cancelled features was re-homed — and it is reversible: milestone 2 reinstates the deployment and the production Chickpea project as its own validation surface.
+
+**Consequences**
+
+- Milestone 1 has no Vercel deployment: 'production/deployed' contract clauses are satisfied by the local production build (npm run start on 127.0.0.1:3100) with the substitution recorded per assertion, and must be re-verified against the real deployment in milestones 2 and 3.
+- docs/MILESTONES.md milestone 1 no longer promises a Vercel deployment or the production Chickpea validation; both are milestone 2 bullets.
+- The first live headed-browser checkpoint runs against the local production build instead of a public deployment.
+- Capture test fixtures are unaffected: they remain on the separate unprotected pinata-fixtures project (D041), and the main project's deployment protection stays on.
+
+**Provenance evidence**
+
+Human instruction:
+
+> "Trim scope to shorten critical path" — "remove Chickpea deployment, and variant/retry integraiton matrix"
+
+**Artifacts**
+
+- `docs/MILESTONES.md` — Milestone 1 bullets corrected: no deployment, local-only Chickpea validation; milestone 2 now owns the first production deployment and the real Chickpea project
+
+---
+
+<sub>Generated from 50 record(s) as of 2026-09-09 · source `08cf5febdbe2`</sub>
