@@ -239,6 +239,35 @@ export const schemaMeta = sqliteTable("schema_meta", {
 });
 
 /**
+ * Durable Browserless concurrency admission (VAL-CAPTURE-007): exactly
+ * MAX_ACTIVE_CAPTURES slot rows, one per provider slot the whole deployment
+ * may hold at once. An in-process counter cannot enforce the limit across
+ * clients and application instances; this table can, because claiming a slot
+ * is one atomic conditional write in the durable store.
+ *
+ * A lease expires at STALE_CAPTURE_AGE_MS, the same published age at which
+ * the claimed `capturing` attempt computes to stale: an abandoned claim frees
+ * its slot exactly when the attempt becomes retryable. Expired leases are
+ * reclaimed in place by the next claim; a release is conditional on the
+ * capture id, so a late release can never free a slot another attempt already
+ * reclaimed. Lease rows name no URL, credential, or provider detail.
+ */
+export const captureLeases = sqliteTable(
+  "capture_leases",
+  {
+    /** Slot number, 0 .. MAX_ACTIVE_CAPTURES - 1. */
+    slot: integer("slot").primaryKey(),
+    /** The capture attempt holding this slot; unique so one attempt holds one slot. */
+    captureId: text("capture_id").notNull().unique(),
+    /** UTC instant after which any worker may reclaim this slot. */
+    expiresAt: integer("expires_at").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [index("capture_leases_expiry_idx").on(t.expiresAt)],
+);
+
+/**
  * Bounded, retryable cleanup state for a known orphan object (VAL-CAPTURE-009).
  *
  * Turso and Blob are not transactional, so a capture can upload a private

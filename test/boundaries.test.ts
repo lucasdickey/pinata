@@ -19,6 +19,9 @@ import {
   BLANK_URL_ROW_POLICY,
   CAPTURE_CLEANUP_WINDOW_MS,
   CAPTURE_OUTCOMES,
+  CAPTURE_POLL_DEADLINE_MS,
+  CAPTURE_POLL_INITIAL_INTERVAL_MS,
+  CAPTURE_POLL_MAX_INTERVAL_MS,
   CAPTURE_REQUEST_MAX_BYTES,
   CLIENT_REQUEST_TIMEOUT_MS,
   DESKTOP_VIEWPORT,
@@ -154,6 +157,9 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "STALE_CAPTURE_AGE_MS", value: fmtMs(STALE_CAPTURE_AGE_MS) },
   { name: "CAPTURE_CLEANUP_WINDOW_MS", value: fmtMs(CAPTURE_CLEANUP_WINDOW_MS) },
   { name: "CAPTURE_REQUEST_MAX_BYTES", value: fmtBytes(CAPTURE_REQUEST_MAX_BYTES) },
+  { name: "CAPTURE_POLL_INITIAL_INTERVAL_MS", value: fmtMs(CAPTURE_POLL_INITIAL_INTERVAL_MS) },
+  { name: "CAPTURE_POLL_MAX_INTERVAL_MS", value: fmtMs(CAPTURE_POLL_MAX_INTERVAL_MS) },
+  { name: "CAPTURE_POLL_DEADLINE_MS", value: fmtMs(CAPTURE_POLL_DEADLINE_MS) },
 ];
 
 const MANIFEST_ROWS: DocRow[] = [
@@ -335,6 +341,16 @@ describe("boundary catalog coverage and consistency", () => {
     expect(MAX_ACTIVE_CAPTURES).toBe(2);
     expect(MAX_MANIFEST_ELEMENTS).toBe(500);
     expect(MAX_MANIFEST_BYTES).toBe(256 * 1024);
+  });
+
+  test("capture polling backs off inside a deadline that outlives stale detection", () => {
+    expect(CAPTURE_POLL_INITIAL_INTERVAL_MS).toBeGreaterThan(0);
+    expect(CAPTURE_POLL_MAX_INTERVAL_MS).toBeGreaterThanOrEqual(
+      CAPTURE_POLL_INITIAL_INTERVAL_MS,
+    );
+    // The poller must still be alive when an abandoned attempt crosses the
+    // stale age, so the stop state a user sees is "stale", never a timeout.
+    expect(CAPTURE_POLL_DEADLINE_MS).toBeGreaterThan(STALE_CAPTURE_AGE_MS);
   });
 
   test("hit targets and feedback bounds meet their floors", () => {
@@ -572,6 +588,7 @@ describe("no duplicated runtime literals", () => {
     EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
     TOTAL_CAPTURE_TIMEOUT_MS,
     STALE_CAPTURE_AGE_MS,
+    CAPTURE_POLL_DEADLINE_MS,
     CLIENT_REQUEST_TIMEOUT_MS,
     PERF_RETAINED_HEAP_MAX_BYTES,
   ];

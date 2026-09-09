@@ -1233,3 +1233,58 @@ Roughly 40 minutes of mission-worker time.
 - None. The capture-state feature's remaining assertions are
   validator-surface work (browser screenshots and curl matrices run by the
   milestone validators).
+
+## Capture quotas, outcome catalog, and polling (2026-09-09)
+
+### What was attempted
+
+- Gave the published max-2 Browserless limit teeth: a durable `capture_leases`
+  table (migration 0003) with an atomic conditional-upsert claim per slot,
+  expiry at exactly the published stale age, and an id-conditional release.
+  Dispatch claims before admission; a full budget leaves the attempt pending
+  and answers 429 with the quota-exceeded outcome; the route releases after
+  execution finalizes the row.
+- Wired the editor to poll the hierarchy GET on the published backoff
+  schedule (2 s doubling to 10 s, 10 minute deadline), stopping on
+  terminal/stale and never issuing anything but the read.
+- Proved the exact 18-row outcome catalog end to end at the dispatch route,
+  including sentinel-leak scans (provider body, stack, token, signed URL,
+  internal address, source HTML) over responses and persisted rows.
+- Added the real-provider concurrency proof to the Browserless integration
+  suite: three concurrent dispatches, exactly two overlapping executions,
+  the third pending and resumed through a second database handle, zero
+  leases left held.
+- Gave `verifyReadback` in the fixture publish script a bounded retry
+  (6 attempts, 10 s apart) so alias propagation lag cannot fail a publish.
+
+### What broke
+
+- Drizzle wraps the libsql UNIQUE error, so the first idempotent-reclaim
+  check missed it; the detector now scans the whole cause chain.
+- The live-slot count and the reclaim predicate disagreed at the exact
+  expiry instant (strict vs non-strict); both now treat the expiry instant
+  as still-held, matching computed stale.
+- Two real gaps in execute.ts surfaced while writing the sentinel tests: a
+  throwing Blob put escaped as a provider error (now blob-failure), and a
+  throwing orphan delete in the fenced path lost cleanup tracking (now
+  recorded). Both fixed in place.
+- React defers effect re-runs until the enclosing act completes, so one
+  giant fake-timer advance only ever fires the timer already scheduled; the
+  deadline test advances in 10 s steps instead.
+
+### Elapsed
+
+Roughly two hours of mission-worker time across two sessions.
+
+### Decisions and assertions
+
+- D042 (leases, polling schedule, publish readback retry).
+- Evidence for VAL-CAPTURE-007 (at-limit/limit-plus-one, cross-instance
+  overlap proof with timestamps, pending resume, stale-lease reconciliation)
+  and VAL-CAPTURE-012 (catalog matrix, route-driven outcomes, backoff/stop
+  polling, leak scans).
+
+### Open questions at end of session
+
+- None. Browser-surface assertions (screenshots, curl matrices) remain for
+  the milestone validators.

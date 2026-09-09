@@ -137,7 +137,7 @@ describe("migrations", () => {
     const applied = await client.execute(
       "SELECT COUNT(*) AS n FROM __drizzle_migrations",
     );
-    expect(Number(applied.rows[0]?.n)).toBe(3);
+    expect(Number(applied.rows[0]?.n)).toBe(4);
     const tables = await client.execute(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     );
@@ -147,6 +147,7 @@ describe("migrations", () => {
       "pages",
       "captures",
       "capture_cleanups",
+      "capture_leases",
       "annotations",
       "thread_entries",
       "idempotency_keys",
@@ -425,6 +426,38 @@ describe("operational tables", () => {
         createdAt: NOW,
       }),
       /UNIQUE|PRIMARY/i,
+    );
+    client.close();
+  });
+
+  test("capture leases grant one slot per capture and one capture per slot", async () => {
+    const { client, db } = await createTestDb();
+    await db.insert(schema.captureLeases).values({
+      slot: 0,
+      captureId: "cap-a",
+      expiresAt: NOW + 1_000,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await expectRejection(
+      db.insert(schema.captureLeases).values({
+        slot: 0,
+        captureId: "cap-b",
+        expiresAt: NOW + 1_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      /UNIQUE|PRIMARY/i,
+    );
+    await expectRejection(
+      db.insert(schema.captureLeases).values({
+        slot: 1,
+        captureId: "cap-a",
+        expiresAt: NOW + 1_000,
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      /UNIQUE/i,
     );
     client.close();
   });

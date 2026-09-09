@@ -6,8 +6,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
+import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
 import { readCsrfProof } from "../lib/csrf";
 import { ProjectCreateForm } from "./project-create-form";
 import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
@@ -40,6 +41,42 @@ export function EditorHome() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Capture-progress polling (VAL-CAPTURE-012): while any attempt is pending
+  // or capturing, re-read the hierarchy on the published backoff schedule.
+  // Polling is read-only — it issues only the hierarchy GET, so it can never
+  // create or duplicate an attempt — and it stops as soon as every attempt
+  // is terminal or computed stale, or at the published deadline.
+  const poll = useRef<{ startedAt: number | null; count: number }>({
+    startedAt: null,
+    count: 0,
+  });
+  useEffect(() => {
+    if (list.status !== "ready") return;
+    const inProgress = list.projects.some((project) =>
+      project.pages.some((page) =>
+        page.devices.some((device) => captureWorkInProgress(device.attempts)),
+      ),
+    );
+    if (!inProgress) {
+      poll.current = { startedAt: null, count: 0 };
+      return;
+    }
+    const now = Date.now();
+    if (poll.current.startedAt === null) poll.current = { startedAt: now, count: 0 };
+    const startedAt = poll.current.startedAt ?? now;
+    const decision = nextCapturePoll({
+      inProgress: true,
+      elapsedMs: now - startedAt,
+      pollCount: poll.current.count,
+    });
+    if (decision.action === "stop") return;
+    const timer = setTimeout(() => {
+      poll.current.count += 1;
+      void load();
+    }, decision.delayMs);
+    return () => clearTimeout(timer);
+  }, [list, load]);
 
   async function logout() {
     if (pending) return;

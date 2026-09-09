@@ -321,7 +321,14 @@ async function runClaimedCapture(
   const warnings = readyWarnings(result, manifest);
 
   const blobPath = `captures/${capture.pageId}/${capture.id}-${image.sha256.slice(0, 16)}.${IMAGE_TYPE}`;
-  const stored = await store.put(blobPath, bytes, image.contentType);
+  // A store that throws and a store that declines are the same outcome: the
+  // bytes were not stored, and the catalog's storage case applies.
+  let stored: Awaited<ReturnType<ScreenshotStore["put"]>>;
+  try {
+    stored = await store.put(blobPath, bytes, image.contentType);
+  } catch {
+    return fail("blob-failure");
+  }
   if (!stored.ok) return fail("blob-failure");
 
   const transition = await applyCaptureTransition(db, {
@@ -343,11 +350,17 @@ async function runClaimedCapture(
   if (transition === "fenced") {
     // The claim was lost or the row already reached a terminal state, so this
     // object can never be referenced. Delete it rather than orphan it. When
-    // the delete itself fails, record bounded cleanup state so the known
-    // orphan is never silently dropped; the terminal row is untouched either
-    // way.
-    const removed = await store.del(stored.value.pathname);
-    if (!removed.ok && removed.error !== "not-found") {
+    // the delete itself fails — whether the store reports it or throws —
+    // record bounded cleanup state so the known orphan is never silently
+    // dropped; the terminal row is untouched either way.
+    let removed = false;
+    try {
+      const result = await store.del(stored.value.pathname);
+      removed = result.ok || result.error === "not-found";
+    } catch {
+      removed = false;
+    }
+    if (!removed) {
       await recordOrphanCleanup(
         db,
         { blobPath: stored.value.pathname, captureId: capture.id },

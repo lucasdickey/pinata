@@ -26,11 +26,15 @@ import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import {
   DESKTOP_VIEWPORT,
+  MAX_ACTIVE_CAPTURES,
   MOBILE_VIEWPORT,
   MOTION_ANCHOR_TOLERANCE_CSS_PX,
   MOTION_MASKED_MAX_DIFF_RATIO,
+  STALE_CAPTURE_AGE_MS,
 } from "../../src/lib/boundaries";
-import { getCaptureExecutionDeps } from "../../src/lib/server/captures/deps";
+import { getAdmissionDeps, getCaptureExecutionDeps } from "../../src/lib/server/captures/deps";
+import { dispatchCapture } from "../../src/lib/server/captures/dispatch";
+import { releaseCaptureLease } from "../../src/lib/server/captures/leases";
 import { executeCapture, type ReadyCapture } from "../../src/lib/server/captures/execute";
 import { sha256Hex } from "../../src/lib/server/captures/image";
 import { retryCapture } from "../../src/lib/server/captures/retry";
@@ -85,7 +89,12 @@ let db: Database;
 let store: ScreenshotStore;
 const storedPaths: string[] = [];
 
-async function seedCapture(label: string, variant: "desktop" | "mobile", url: string) {
+async function seedCapture(
+  label: string,
+  variant: "desktop" | "mobile",
+  url: string,
+  status: "pending" | "capturing" = "capturing",
+) {
   const now = Date.now();
   const scope = `${RUN_ID}-${label}-${variant}`;
   const projectId = `${scope}-project`;
@@ -113,7 +122,7 @@ async function seedCapture(label: string, variant: "desktop" | "mobile", url: st
     pageId,
     variant,
     attempt: 1,
-    status: "capturing",
+    status,
     idempotencyKey: `${captureId}-key`,
     requestedUrl: url,
     finalUrl: url,
@@ -223,6 +232,7 @@ afterAll(async () => {
   // Match on the page, not the capture id: a retry attempt is created by the
   // application and carries its own generated id.
   await db.delete(schema.captures).where(like(schema.captures.pageId, `${RUN_ID}-%`));
+  await db.delete(schema.captureLeases).where(like(schema.captureLeases.captureId, `${RUN_ID}-%`));
   await db.delete(schema.idempotencyKeys).where(like(schema.idempotencyKeys.key, `${RUN_ID}-%`));
   await db.delete(schema.pages).where(like(schema.pages.id, `${RUN_ID}-%`));
   await db.delete(schema.projects).where(like(schema.projects.id, `${RUN_ID}-%`));
@@ -856,3 +866,129 @@ describe.skipIf(!ready || !echoUrl)(
     }, EXECUTION_TIMEOUT_MS);
   },
 );
+
+describe.skipIf(!ready)("durable capture concurrency (VAL-CAPTURE-007)", () => {
+  interface TimedExecution {
+    captureId: string;
+    startedAt: number;
+    endedAt: number;
+  }
+
+  /** Execute one admitted attempt with the route's composition, timed. */
+  async function timedExecute(handle: Database, captureId: string): Promise<TimedExecution> {
+    const startedAt = Date.now();
+    const result = await executeCapture(handle, captureId, getCaptureExecutionDeps());
+    const endedAt = Date.now();
+    if (!result.ok) throw new Error(`execution ${captureId} failed: ${JSON.stringify(result)}`);
+    const row = (
+      await handle.select().from(schema.captures).where(eq(schema.captures.id, captureId))
+    )[0]!;
+    if (row.status !== "ready" || !row.blobPath) {
+      throw new Error(`execution ${captureId} did not finalize ready`);
+    }
+    storedPaths.push(row.blobPath);
+    // Execution finalized the row, so the route releases the slot now.
+    await releaseCaptureLease(handle, captureId);
+    return { captureId, startedAt, endedAt };
+  }
+
+  /** Largest number of intervals overlapping any instant. */
+  function maxOverlap(intervals: TimedExecution[]): number {
+    const events = intervals
+      .flatMap(({ startedAt, endedAt }) => [
+        { at: startedAt, delta: 1 },
+        { at: endedAt, delta: -1 },
+      ])
+      // An end at the same millisecond as a start is not an overlap.
+      .sort((a, b) => a.at - b.at || a.delta - b.delta);
+    let active = 0;
+    let peak = 0;
+    for (const event of events) {
+      active += event.delta;
+      peak = Math.max(peak, active);
+    }
+    return peak;
+  }
+
+  test(
+    "the limit-plus-one attempt stays pending across handles and resumes once a slot frees",
+    async () => {
+      const ids = await Promise.all(
+        ["conc-a", "conc-b", "conc-c"].map(async (label) => {
+          const { captureId } = await seedCapture(label, "desktop", echoUrl!, "pending");
+          return captureId;
+        }),
+      );
+
+      // Dispatch all three together: the lease claim decides who runs.
+      const dispatches = await Promise.all(
+        ids.map((captureId) => dispatchCapture(db, { captureId }, getAdmissionDeps())),
+      );
+      const admitted = ids.filter((_, index) => dispatches[index]!.ok);
+      const queued = ids.filter(
+        (_, index) =>
+          !dispatches[index]!.ok &&
+          (dispatches[index] as { error: string }).error === "quota",
+      );
+      expect(admitted).toHaveLength(MAX_ACTIVE_CAPTURES);
+      expect(queued).toHaveLength(ids.length - MAX_ACTIVE_CAPTURES);
+
+      // Lease readback: exactly the admitted attempts hold unexpired slots.
+      const held = await db
+        .select()
+        .from(schema.captureLeases)
+        .where(like(schema.captureLeases.captureId, `${RUN_ID}-%`));
+      expect(held.map((row) => row.captureId).sort()).toEqual([...admitted].sort());
+      for (const row of held) {
+        expect(row.expiresAt).toBeGreaterThan(Date.now());
+        expect(row.expiresAt).toBeLessThanOrEqual(Date.now() + STALE_CAPTURE_AGE_MS);
+      }
+
+      // The rejected attempt is untouched: still pending, resumable, no error.
+      const queuedRow = (
+        await db.select().from(schema.captures).where(eq(schema.captures.id, queued[0]!))
+      )[0]!;
+      expect(queuedRow).toMatchObject({
+        status: "pending",
+        attempt: 1,
+        errorCode: null,
+        blobPath: null,
+      });
+
+      // Run the admitted pair against the real provider, timestamped.
+      const first = await Promise.all(admitted.map((captureId) => timedExecute(db, captureId)));
+      expect(maxOverlap(first)).toBeLessThanOrEqual(MAX_ACTIVE_CAPTURES);
+      for (const execution of first) {
+        console.log(
+          `[${RUN_ID}] concurrency ${execution.captureId} ` +
+            `window=${execution.startedAt}..${execution.endedAt}`,
+        );
+      }
+
+      // A fresh handle — a different instance or a reloaded process — finds
+      // the attempt still pending and resumes it now that a slot is free.
+      const secondHandle = createDatabase(process.env)!;
+      const resumed = await dispatchCapture(
+        secondHandle,
+        { captureId: queued[0]! },
+        getAdmissionDeps(),
+      );
+      expect(resumed.ok).toBe(true);
+      const later = await timedExecute(secondHandle, queued[0]!);
+      expect(later.startedAt).toBeGreaterThanOrEqual(first[0]!.endedAt);
+      expect(maxOverlap([...first, later])).toBeLessThanOrEqual(MAX_ACTIVE_CAPTURES);
+
+      // Everything finished ready with its own object, and every lease freed.
+      const rows = await db.select().from(schema.captures).where(like(schema.captures.pageId, `${RUN_ID}-conc-%`));
+      expect(rows).toHaveLength(3);
+      for (const row of rows) expect(row.status).toBe("ready");
+      expect(new Set(rows.map((row) => row.blobPath)).size).toBe(3);
+      const remaining = await db
+        .select()
+        .from(schema.captureLeases)
+        .where(like(schema.captureLeases.captureId, `${RUN_ID}-%`));
+      expect(remaining).toHaveLength(0);
+    },
+    EXECUTION_TIMEOUT_MS * 2,
+  );
+});

@@ -1,10 +1,11 @@
 // POST /api/captures/[captureId]/dispatch — admission, then the provider run,
-// in one request (VAL-CAPTURE-001 … VAL-CAPTURE-004).
+// in one request (VAL-CAPTURE-001 … VAL-CAPTURE-004, VAL-CAPTURE-007).
 //
 // The point of these tests is what does *not* happen: a rejected target must
 // leave a bounded failed attempt, no provider call, and no ready image, while
 // a safe chain claims the attempt, captures it, and finalizes it before the
-// response is written. No path may leave an open `capturing` claim.
+// response is written. No path may leave an open `capturing` claim — and no
+// dispatch may exceed the durable Browserless concurrency budget.
 
 import { and, asc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -15,7 +16,7 @@ import {
   PUT as dispatchPUT,
 } from "../../app/api/captures/[captureId]/dispatch/route";
 import { POST as projectsPOST } from "../../app/api/projects/route";
-import { CAPTURE_REQUEST_MAX_BYTES } from "../../src/lib/boundaries";
+import { CAPTURE_REQUEST_MAX_BYTES, MAX_ACTIVE_CAPTURES } from "../../src/lib/boundaries";
 import { EDITOR_CSRF_HEADER, EDITOR_SESSION_COOKIE } from "../../src/lib/auth-constants";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import type { AdmissionDeps, RedirectProbe } from "../../src/lib/server/captures/admission";
@@ -25,6 +26,11 @@ import {
 } from "../../src/lib/server/captures/deps";
 import type { DnsResolver } from "../../src/lib/server/captures/dns";
 import type { CaptureExecutionDeps } from "../../src/lib/server/captures/execute";
+import {
+  claimCaptureLease,
+  countActiveCaptureLeases,
+  releaseCaptureLease,
+} from "../../src/lib/server/captures/leases";
 import { applyCaptureTransition } from "../../src/lib/server/captures/transitions";
 import {
   __resetDatabaseCacheForTests,
@@ -481,5 +487,76 @@ describe("unsafe targets fail before provider work", () => {
     expect((await firstAttempt(pageIds[0]!)).status).toBe("failed");
     expect((await firstAttempt(pageIds[1]!)).status).toBe("pending");
     expect(await attemptsFor(pageIds[0]!, "desktop")).toHaveLength(1);
+  });
+});
+
+describe("durable concurrency admission (VAL-CAPTURE-007)", () => {
+  test("a full budget answers 429 with the published quota outcome and consumes nothing", async () => {
+    // Every slot is held by work from other clients/instances.
+    for (let slot = 0; slot < MAX_ACTIVE_CAPTURES; slot += 1) {
+      const held = await claimCaptureLease(testDb.db, `cap-elsewhere-${slot}`, T0);
+      expect(held.ok).toBe(true);
+    }
+    const attempt = await firstAttempt(pageIds[0]!);
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Too many captures are active or scheduled right now.",
+      code: "quota-exceeded",
+      remediation: "Wait for a running capture to finish, then retry.",
+    });
+    // The attempt is unconsumed — pending and resumable — and no provider
+    // job, image, or admission work happened for it.
+    expect(await firstAttempt(pageIds[0]!)).toMatchObject({
+      status: "pending",
+      errorCode: null,
+      blobPath: null,
+    });
+    expect(provider.requests).toEqual([]);
+    expect(await countActiveCaptureLeases(testDb.db, T0)).toBe(MAX_ACTIVE_CAPTURES);
+  });
+
+  test("an at-limit dispatch passes, and its lease frees the moment the row is terminal", async () => {
+    // One slot short of full: this dispatch is the at-limit operation.
+    await claimCaptureLease(testDb.db, "cap-elsewhere", T0);
+    const attempt = await firstAttempt(pageIds[0]!);
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(response.status).toBe(200);
+
+    // The finalized attempt released its lease, so the only held slot is
+    // the foreign one — and the freed slot admits new work immediately.
+    expect(await countActiveCaptureLeases(testDb.db, T0)).toBe(1);
+    const resumed = await firstAttempt(pageIds[0]!, "mobile");
+    const second = await dispatchPOST(build(resumed.id), routeContext(resumed.id));
+    expect(second.status).toBe(200);
+    expect(provider.requests).toHaveLength(2);
+  });
+
+  test("a pending attempt left by a full budget resumes after a slot frees", async () => {
+    for (let slot = 0; slot < MAX_ACTIVE_CAPTURES; slot += 1) {
+      await claimCaptureLease(testDb.db, `cap-elsewhere-${slot}`, T0);
+    }
+    const attempt = await firstAttempt(pageIds[0]!);
+    const refused = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(refused.status).toBe(429);
+
+    // Reload/redeployment stands in here as a fresh authorized request: the
+    // same pending row dispatches once the foreign lease is released.
+    await releaseCaptureLease(testDb.db, "cap-elsewhere-0");
+    const resumed = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(resumed.status).toBe(200);
+    expect(await firstAttempt(pageIds[0]!)).toMatchObject({ status: "ready" });
+  });
+
+  test("an admission rejection frees the slot it claimed", async () => {
+    await claimCaptureLease(testDb.db, "cap-elsewhere", T0);
+    injectDeps({ "safe.example": ["10.0.0.5"] });
+    const attempt = await firstAttempt(pageIds[0]!);
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(response.status).toBe(502);
+    // The row failed without reaching `capturing`, so its slot is already
+    // back: only the foreign lease remains.
+    expect(await countActiveCaptureLeases(testDb.db, T0)).toBe(1);
   });
 });

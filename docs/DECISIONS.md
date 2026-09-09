@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 22 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039 |
+| Agent decided alone | 23 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **41** | |
+| **Total** | **42** | |
 
 ## Index
 
@@ -67,6 +67,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D039](#d039--track-a-known-orphan-object-in-its-own-bounded-table-never-by-rewriting-the-terminal-capture-row) | build | Track a known orphan object in its own bounded table, never by rewriting the terminal capture row | Agent decided alone | accepted |
 | [D040](#d040--publish-capture-fixtures-to-a-dedicated-public-vercel-blob-store) | validate | Publish capture fixtures to a dedicated public Vercel Blob store | Human directed | superseded |
 | [D041](#d041--capture-fixtures-are-served-by-a-separate-unprotected-static-vercel-project) | validate | Capture fixtures are served by a separate unprotected static Vercel project | Human directed | accepted |
+| [D042](#d042--browserless-concurrency-is-a-durable-two-slot-lease-table-the-editor-polls-the-hierarchy-on-a-published-backoff-schedule) | build | Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule | Agent decided alone | accepted |
 
 ---
 
@@ -1582,4 +1583,43 @@ Human instruction:
 
 ---
 
-<sub>Generated from 41 record(s) as of 2026-09-09 · source `25651c305c8b`</sub>
+## D042 — Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+MAX_ACTIVE_CAPTURES was a published constant with no enforcement: dispatch admitted every pending attempt immediately, so two browsers or two application instances could overlap more than two Browserless jobs, and a quota-rejected attempt had no defined state. The editor also had no way to watch an attempt finish: creation redirected to a list that showed pending/capturing rows forever until a manual reload, and a naive fixed-interval poller could spin forever on abandoned work.
+
+**Decision**
+
+A durable capture_leases table (migration 0003) holds exactly MAX_ACTIVE_CAPTURES slots. A dispatch claims a slot with an atomic conditional upsert that only succeeds when the slot is free or expired, so the limit holds across clients and application instances without any in-process counter. A lease expires at the published stale age (STALE_CAPTURE_AGE_MS), so an abandoned attempt becomes reclaimable at exactly the instant its row computes stale; release is conditional on the capture id, so a late release from an abandoned worker cannot free a slot a newer attempt reclaimed. A quota-rejected attempt stays pending with the catalog's quota-exceeded outcome (429 plus bounded retry guidance), resumable by any later authorized client. The editor polls the hierarchy GET on the published schedule (2 s initial, doubling to a 10 s ceiling, 10 minute deadline) and stops as soon as every attempt is terminal or computed stale; polling is read-only and can never create an attempt. The outcome catalog drives the dispatch route end to end, and two real gaps found while proving it were closed: a throwing Blob put now maps to blob-failure, and a throwing orphan delete in the fenced path now records bounded cleanup state instead of escaping as a provider error. The fixture publish readback gained a bounded retry (6 attempts, 10 s apart) so post-deploy alias propagation lag cannot fail a publish.
+
+**Alternatives considered**
+
+- *In-process concurrency counter per server instance* — It silently multiplies the limit by the instance count and vanishes on redeploy; the contract requires the limit across instances and resumability after redeployment.
+- *Derive concurrency from capturing rows in the captures table* — A capturing row outlives its worker (crash after the claim, before execution), and fencing already treats the row as the worker's claim; overloading it with slot accounting couples quota to finalization order and cannot express expiry independently of the row.
+- *Server-sent events or websockets for progress* — The hierarchy read is already the authorized, tested shape of progress; a second live channel adds a surface for a demo-scale need. Polling the existing GET with a bounded schedule carries zero new server code.
+
+**Rationale**
+
+Safe to decide unilaterally: the mission fixes max-2 concurrency as binding architecture, and a lease table is the smallest durable mechanism that enforces it across instances while sharing its expiry with the computed-stale boundary the state machine already publishes. The polling schedule reuses the existing authorized hierarchy read, so no new endpoint or permission shape was introduced.
+
+**Consequences**
+
+- Every dispatch now takes the lease claim before admission; the dispatch route answers 429 with the quota-exceeded outcome and releases the lease only after execution finalizes the row.
+- capture_leases is run-state, not content: rows are deleted on release or reclaimed on expiry, and tests prove one attempt can never hold two slots.
+- Three polling constants (CAPTURE_POLL_INITIAL_INTERVAL_MS, CAPTURE_POLL_MAX_INTERVAL_MS, CAPTURE_POLL_DEADLINE_MS) join the boundary catalog under POLICY_VERSION 2026-09-08.9, with the five-file change applied (catalog, EVALS, ARCHITECTURE, drift test, version).
+- scripts/publish-capture-fixtures.mjs verifyReadback retries 6 times 10 s apart before failing a publish.
+- Real-provider proof: the integration suite now runs three concurrent dispatches against real Turso plus Browserless and asserts exactly two overlapping executions, a pending-and-resumable third attempt resumed through a second database handle, and zero remaining leases.
+
+**Artifacts**
+
+- `src/lib/server/captures/leases.ts` — Durable slot claim, conditional release, and live-slot count
+- `src/lib/capture-polling.ts` — Published backoff/stop polling state machine consumed by the editor
+- `test/server/capture-outcomes.test.ts` — Exact 18-row outcome catalog matrix plus route-driven cases and sentinel leak scans
+- `test/integration/browserless-capture.integration.test.ts` — Real-provider overlap-timestamp and pending-resume proof
+
+---
+
+<sub>Generated from 42 record(s) as of 2026-09-09 · source `4c78ebdcfe03`</sub>

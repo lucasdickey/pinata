@@ -73,8 +73,26 @@ export const MAX_CAPTURE_ATTEMPTS_PER_PROJECT = 64;
 /** Active captures at once, matching the Browserless concurrency limit. */
 export const MAX_ACTIVE_CAPTURES = 2;
 
-/** A `capturing` attempt older than this computes to stale (5 minutes). */
+/**
+ * A `capturing` attempt older than this computes to stale (5 minutes). The
+ * durable concurrency lease for an attempt expires at the same age, so an
+ * abandoned claim frees its Browserless slot exactly when the attempt becomes
+ * retryable — one published value governs both views of abandonment.
+ */
 export const STALE_CAPTURE_AGE_MS = 300_000;
+
+/** First delay between capture-progress polls while work is in progress. */
+export const CAPTURE_POLL_INITIAL_INTERVAL_MS = 2_000;
+
+/** Longest delay between capture-progress polls (backoff ceiling). */
+export const CAPTURE_POLL_MAX_INTERVAL_MS = 10_000;
+
+/**
+ * Longest a client polls one capture workload before stopping (10 minutes).
+ * The deadline exceeds the stale age so an abandoned attempt is always
+ * observed as computed stale before the poller stands down.
+ */
+export const CAPTURE_POLL_DEADLINE_MS = 600_000;
 
 /**
  * Orphan-cleanup work stops retrying after this window (1 hour). A known

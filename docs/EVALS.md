@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.8`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.9`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.8 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.9 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -251,9 +251,23 @@ These prefixes are never a capture destination:
 | --- | --- | --- |
 | `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Initial attempts plus retries; a maximum-size project starts with 32. |
 | `MAX_ACTIVE_CAPTURES` | 2 | Matches the Browserless free-tier concurrency limit; dispatch beyond it fails as `quota-exceeded`. |
-| `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale and becomes retryable. |
+| `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale and becomes retryable. The durable concurrency lease for the attempt expires at the same age, so an abandoned claim frees its Browserless slot exactly when the attempt becomes retryable. |
 | `CAPTURE_CLEANUP_WINDOW_MS` | 3,600,000 ms (1 hour) | Orphan-cleanup retry window; a known orphan past it is still deleted on sight, never kept. |
 | `CAPTURE_REQUEST_MAX_BYTES` | 1,024 bytes | Hard cap on a capture mutation body, enforced before parsing. |
+| `CAPTURE_POLL_INITIAL_INTERVAL_MS` | 2,000 ms | First delay between read-only capture-progress polls. |
+| `CAPTURE_POLL_MAX_INTERVAL_MS` | 10,000 ms | Backoff ceiling for capture-progress polls (doubling from the initial interval). |
+| `CAPTURE_POLL_DEADLINE_MS` | 600,000 ms (10 minutes) | A poller stands down after this even if work looks unfinished; longer than the stale age so abandonment is always observed as computed stale first. |
+
+Concurrency admission is durable: `capture_leases` holds exactly
+`MAX_ACTIVE_CAPTURES` slot rows in Turso, and claiming a slot is one atomic
+conditional upsert, so the limit holds across browsers and application
+instances. When every slot is held, dispatch fails as `quota-exceeded`
+(HTTP 429) without consuming the attempt — it stays `pending` and any later
+authorized client can resume it. A lease releases when its attempt reaches a
+terminal state and is reclaimed in place once it expires; a late release can
+never free a slot another attempt already reclaimed. Polling issues hierarchy
+GETs only — it can never create, duplicate, or mutate an attempt — and stops
+on any terminal or computed-stale state.
 
 ### DOM manifest schema
 

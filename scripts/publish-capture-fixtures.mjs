@@ -160,6 +160,30 @@ async function productionAlias(token, orgId, deploymentUrl) {
   return `https://${aliases[0]}`;
 }
 
+// Right after a deploy the production alias can lag the deployment by a few
+// seconds and answer 404 until propagation settles, so the readback gets a
+// short bounded retry before it is allowed to fail a publish. The bound
+// keeps a genuinely broken host (attachment disposition, wrong bytes) from
+// turning into an endless loop: six attempts, ten seconds apart.
+const READBACK_MAX_ATTEMPTS = 6;
+const READBACK_RETRY_DELAY_MS = 10_000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function verifyReadbackWithRetry(url, bytes) {
+  let lastError;
+  for (let attempt = 1; attempt <= READBACK_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await verifyReadback(url, bytes);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < READBACK_MAX_ATTEMPTS) await sleep(READBACK_RETRY_DELAY_MS);
+    }
+  }
+  throw lastError;
+}
+
 // A candidate fixture host must prove four things per fixture before any URL
 // is trusted: a direct 200 (no interstitial/SSO redirect), inline text/html,
 // no attachment disposition, and bytes identical to the repository file.
@@ -218,7 +242,7 @@ async function main() {
     const published = [];
     for (const fixture of fixtures) {
       const url = `${baseUrl}/${fixture.file}`;
-      await verifyReadback(url, fixture.bytes);
+      await verifyReadbackWithRetry(url, fixture.bytes);
       published.push({ ...fixture, url });
     }
 

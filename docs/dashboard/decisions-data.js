@@ -1723,8 +1723,65 @@ window.PINATA = {
       ],
       "supersedes": "D040",
       "superseded_by": null
+    },
+    {
+      "id": "D042",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Browserless concurrency is a durable two-slot lease table; the editor polls the hierarchy on a published backoff schedule",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "MAX_ACTIVE_CAPTURES was a published constant with no enforcement: dispatch admitted every pending attempt immediately, so two browsers or two application instances could overlap more than two Browserless jobs, and a quota-rejected attempt had no defined state. The editor also had no way to watch an attempt finish: creation redirected to a list that showed pending/capturing rows forever until a manual reload, and a naive fixed-interval poller could spin forever on abandoned work.",
+      "decision": "A durable capture_leases table (migration 0003) holds exactly MAX_ACTIVE_CAPTURES slots. A dispatch claims a slot with an atomic conditional upsert that only succeeds when the slot is free or expired, so the limit holds across clients and application instances without any in-process counter. A lease expires at the published stale age (STALE_CAPTURE_AGE_MS), so an abandoned attempt becomes reclaimable at exactly the instant its row computes stale; release is conditional on the capture id, so a late release from an abandoned worker cannot free a slot a newer attempt reclaimed. A quota-rejected attempt stays pending with the catalog's quota-exceeded outcome (429 plus bounded retry guidance), resumable by any later authorized client. The editor polls the hierarchy GET on the published schedule (2 s initial, doubling to a 10 s ceiling, 10 minute deadline) and stops as soon as every attempt is terminal or computed stale; polling is read-only and can never create an attempt. The outcome catalog drives the dispatch route end to end, and two real gaps found while proving it were closed: a throwing Blob put now maps to blob-failure, and a throwing orphan delete in the fenced path now records bounded cleanup state instead of escaping as a provider error. The fixture publish readback gained a bounded retry (6 attempts, 10 s apart) so post-deploy alias propagation lag cannot fail a publish.",
+      "alternatives": [
+        {
+          "option": "In-process concurrency counter per server instance",
+          "why_not": "It silently multiplies the limit by the instance count and vanishes on redeploy; the contract requires the limit across instances and resumability after redeployment."
+        },
+        {
+          "option": "Derive concurrency from capturing rows in the captures table",
+          "why_not": "A capturing row outlives its worker (crash after the claim, before execution), and fencing already treats the row as the worker's claim; overloading it with slot accounting couples quota to finalization order and cannot express expiry independently of the row."
+        },
+        {
+          "option": "Server-sent events or websockets for progress",
+          "why_not": "The hierarchy read is already the authorized, tested shape of progress; a second live channel adds a surface for a demo-scale need. Polling the existing GET with a bounded schedule carries zero new server code."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the mission fixes max-2 concurrency as binding architecture, and a lease table is the smallest durable mechanism that enforces it across instances while sharing its expiry with the computed-stale boundary the state machine already publishes. The polling schedule reuses the existing authorized hierarchy read, so no new endpoint or permission shape was introduced.",
+      "consequences": [
+        "Every dispatch now takes the lease claim before admission; the dispatch route answers 429 with the quota-exceeded outcome and releases the lease only after execution finalizes the row.",
+        "capture_leases is run-state, not content: rows are deleted on release or reclaimed on expiry, and tests prove one attempt can never hold two slots.",
+        "Three polling constants (CAPTURE_POLL_INITIAL_INTERVAL_MS, CAPTURE_POLL_MAX_INTERVAL_MS, CAPTURE_POLL_DEADLINE_MS) join the boundary catalog under POLICY_VERSION 2026-09-08.9, with the five-file change applied (catalog, EVALS, ARCHITECTURE, drift test, version).",
+        "scripts/publish-capture-fixtures.mjs verifyReadback retries 6 times 10 s apart before failing a publish.",
+        "Real-provider proof: the integration suite now runs three concurrent dispatches against real Turso plus Browserless and asserts exactly two overlapping executions, a pending-and-resumable third attempt resumed through a second database handle, and zero remaining leases."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/leases.ts",
+          "caption": "Durable slot claim, conditional release, and live-slot count"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/capture-polling.ts",
+          "caption": "Published backoff/stop polling state machine consumed by the editor"
+        },
+        {
+          "type": "file",
+          "path": "test/server/capture-outcomes.test.ts",
+          "caption": "Exact 18-row outcome catalog matrix plus route-driven cases and sentinel leak scans"
+        },
+        {
+          "type": "file",
+          "path": "test/integration/browserless-capture.integration.test.ts",
+          "caption": "Real-provider overlap-timestamp and pending-resume proof"
+        }
+      ]
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "25651c305c8b"
+  "source_hash": "4c78ebdcfe03"
 };
