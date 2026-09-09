@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
+| Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 22 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **39** | |
+| **Total** | **41** | |
 
 ## Index
 
@@ -62,9 +62,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D034](#d034--capture-screenshots-are-png-and-only-png-or-webp-may-ever-be-stored) | build | Capture screenshots are PNG, and only PNG or WebP may ever be stored | Agent decided alone | accepted |
 | [D035](#d035--dispatch-admits-captures-and-finalizes-in-one-request-there-is-no-claim-endpoint) | build | Dispatch admits, captures, and finalizes in one request; there is no claim endpoint | Agent decided alone | accepted |
 | [D036](#d036--browserless-is-authenticated-with-http-basic-because-bearer-fails-and-the-url-is-not-an-option) | build | Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option | Agent decided alone | accepted |
-| [D037](#d037--controlled-capture-fixtures-live-in-the-repository-and-are-published-to-a-disposable-public-host-per-run) | validate | Controlled capture fixtures live in the repository and are published to a disposable public host per run | Agent decided alone | accepted |
+| [D037](#d037--controlled-capture-fixtures-live-in-the-repository-and-are-published-to-a-disposable-public-host-per-run) | validate | Controlled capture fixtures live in the repository and are published to a disposable public host per run | Agent decided alone | superseded |
 | [D038](#d038--the-dom-manifest-is-bounded-twice-in-page-for-response-size-server-side-for-what-is-persisted) | build | The DOM manifest is bounded twice: in-page for response size, server-side for what is persisted | Agent decided alone | accepted |
 | [D039](#d039--track-a-known-orphan-object-in-its-own-bounded-table-never-by-rewriting-the-terminal-capture-row) | build | Track a known orphan object in its own bounded table, never by rewriting the terminal capture row | Agent decided alone | accepted |
+| [D040](#d040--publish-capture-fixtures-to-a-dedicated-public-vercel-blob-store) | validate | Publish capture fixtures to a dedicated public Vercel Blob store | Human directed | superseded |
+| [D041](#d041--capture-fixtures-are-served-by-a-separate-unprotected-static-vercel-project) | validate | Capture fixtures are served by a separate unprotected static Vercel project | Human directed | accepted |
 
 ---
 
@@ -1390,7 +1392,8 @@ This preserves the invariant that matters (the credential travels only in the Au
 
 ## D037 — Controlled capture fixtures live in the repository and are published to a disposable public host per run
 
-*2026-09-09 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+*2026-09-09 · phase: validate · origin: **Agent decided alone** · status: **superseded***
+*Superseded by D041.*
 
 **Problem**
 
@@ -1495,4 +1498,88 @@ The table makes the orphan a first-class, durable, queryable fact instead of a s
 
 ---
 
-<sub>Generated from 39 record(s) as of 2026-09-09 · source `1e552453995d`</sub>
+## D040 — Publish capture fixtures to a dedicated public Vercel Blob store
+
+*2026-09-09 · phase: validate · origin: **Human directed** · status: **superseded***
+*Superseded by D041.*
+
+**Problem**
+
+The disposable fixture host behind D037 died: litterbox.catbox.moe began refusing every upload with HTTP 403 behind a BunkerWeb anti-bot, and the alternates were unusable (0x0.st disabled uploads, x0.at serves text/plain + nosniff so Chromium will not render it, filebin.net forces a redirect plus attachment disposition, paste.rs fails TLS from this machine, no tunnel client is installed). Every real-provider capture suite was blocked, so a durable fixture host needed a user decision.
+
+**Decision**
+
+Per the user's direction, publish the fixtures to a dedicated public-access Vercel Blob store. The store pinata-fixtures (store_6lu0gxibrNzwskvk) was created and connected to the pinata project's Development environment under the FIXTURE_BLOB prefix, keeping it separate from the private capture store.
+
+**Alternatives considered**
+
+- *A separate unprotected Vercel project serving the fixtures as static files* — Declined at the time in favour of the Blob store; later proven to be the only option of the two that can serve renderable HTML, and adopted as D041.
+- *Restore catbox.moe upload access* — The 403 is IP/ASN-level anti-bot enforcement outside our control; a durable host was preferable to depending on it again.
+
+**Rationale**
+
+The user chose the Blob store from the options presented. On execution it proved platform-incapable: Vercel Blob force-serves every HTML-family content type with Content-Disposition: attachment, a documented anti-phishing measure ('This also prevents hosting HTML pages on Vercel Blob'). A content-type matrix probe (text/html, text/html;charset, application/xhtml+xml all attachment; only displayable types like text/plain inline) and a real Playwright Chromium navigation (page.goto aborted with 'Download is starting', the download event fired, the h1 never rendered) confirmed no upload-time override exists in @vercel/blob 2.8.0. Upload and readback otherwise worked: exact sha256 match and declared text/html.
+
+**Consequences**
+
+- No repository files were changed for this attempt; the empty store and its Development-only FIXTURE_BLOB_READ_WRITE_TOKEN were rolled back under D041.
+- The private capture store pinata-captures and its BLOB_READ_WRITE_TOKEN were verified untouched throughout.
+- Any candidate fixture host must now be probed for attachment disposition on HTML and a real browser navigation before adoption — three host choices in a row failed only at serve time.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Public Vercel Blob store (recommended)
+
+**Artifacts**
+
+- [Vercel documents the forced attachment disposition on HTML as anti-phishing](https://vercel.com/docs/vercel-blob/public-storage)
+
+---
+
+## D041 — Capture fixtures are served by a separate unprotected static Vercel project
+
+*2026-09-09 · phase: validate · origin: **Human directed** · status: **accepted***
+*Supersedes D040.*
+
+**Problem**
+
+The user's first directed durable host (D040, a public Vercel Blob store) was proven platform-incapable of serving renderable HTML — Blob forces Content-Disposition: attachment on every HTML-family content type, verified by a content-type matrix and a real Chromium navigation that downloaded instead of rendering. The real-provider fixture pipeline was still blocked and needed a re-decision.
+
+**Decision**
+
+Per the user's re-decision, the fixtures are served by a tiny separate Vercel project, pinata-fixtures, deploying test/fixtures/capture/ (echo-v1, tall-motion-v1, manifest-v1, links-v1) as static files with deployment protection disabled. npm run fixtures:publish ensures the project exists, disables its protection, deploys the exact repository bytes, and refuses to print a URL unless each fixture reads back as a direct 200 (no interstitial or SSO redirect), inline text/html with no attachment disposition, and a byte-exact sha256 match. The durable base URL is committed in test/fixtures/capture/host.json (public and non-secret), so fixture URLs no longer depend on a per-run host. The failed D040 store (store_6lu0gxibrNzwskvk) was deleted and .env.local re-verified to hold all required variable names afterwards. This also supersedes D037's disposable-per-run host mechanism; its fixture versioning, hash-verified readback, and environment handoff all carry forward.
+
+**Alternatives considered**
+
+- *Disable deployment protection on the main pinata project and host the fixtures there* — It trades a real safety control on the product surface for test convenience, and puts test pages on the application's public surface. Protection on the main project was verified unchanged (ssoProtection all_except_custom_domains).
+- *Keep searching disposable hosts* — Three have now failed at serve time (catbox anti-bot 403, x0.at nosniff text/plain, filebin.net attachment redirect) and none are durable; every real-provider run would keep depending on a per-run upload.
+- *Repurpose the public Blob store with non-HTML content types* — Serving HTML as text/plain makes Chromium refuse to render it; the fixture must be a page a real browser navigates to.
+
+**Rationale**
+
+A separate unprotected project is the one option that satisfies every constraint at once: inline text/html (plain static file serving, no forced disposition), durable public HTTPS URLs reachable from Browserless's network, zero coupling to the main project's protection, and no fixture content in the private capture Blob store. The published content is inert versioned markup with no secrets and no application data, so an unprotected static host carries no meaningful exposure.
+
+**Consequences**
+
+- Fixture URLs are durable: https://pinata-fixtures.vercel.app/<fixture>.html. The publish step is now an idempotent deploy plus verification instead of a per-run upload to an expiring host.
+- The fixture project hosts fixtures only; capture screenshots and all product data stay in the private Blob store, and no fixture content enters it.
+- The rule is now recorded for any future host candidate: probe for Content-Disposition: attachment on text/html and prove a real browser navigation renders the page before adoption.
+- vercel blob delete-store silently rewrites .env.local via an env pull; after deleting store_6lu0gxibrNzwskvk the local file was re-verified to contain exactly the required variable names (the stale FIXTURE_BLOB_READ_WRITE_TOKEN line was removed).
+
+**Provenance evidence**
+
+Human instruction:
+
+> Separate unprotected Vercel project
+
+**Artifacts**
+
+- `scripts/publish-capture-fixtures.mjs` — Idempotent deploy plus verified readback against the durable fixture project
+- `test/fixtures/capture/host.json` — Committed durable base URL and per-fixture byte/hash record
+- `test/fixture-host.test.mjs` — Gate-time integrity check that the committed host record matches the fixtures
+
+---
+
+<sub>Generated from 41 record(s) as of 2026-09-09 · source `25651c305c8b`</sub>

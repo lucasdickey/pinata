@@ -22,9 +22,9 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
 - ESLint covers the JavaScript surface only; TypeScript/TSX relies on
   `tsc --noEmit` because typescript-eslint is outside the approved dependency
   set (`D021`). Style-level TS issues are not machine-caught.
-- The controlled capture fixtures are published to a disposable public host for
-  the length of a run (`D037`), because the project's own deployments sit
-  behind deployment protection. The fixtures themselves are versioned in the
-  repository, but the real-provider capture suite needs a publish step and
-  skips without one. A durable public fixture origin would make that proof
-  runnable unattended.
+- The controlled capture fixtures are served by a separate unprotected static
+  Vercel project (`pinata-fixtures`, `D041`) with durable URLs committed in
+  `test/fixtures/capture/host.json`; the publish step is now an idempotent
+  re-verification. The real-provider suite still opts in via the
+  `CAPTURE_*_FIXTURE_URL` environment and skips without it, so the gate never
+  spends Browserless quota unless asked.

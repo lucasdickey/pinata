@@ -1109,3 +1109,62 @@ Roughly 1 hour of mission-worker time.
   real-provider capture validation can run. This blocks the Browserless
   execution proof for the link-laden and partial-failure fixtures; the focused
   and real-Turso proofs for the state model are unaffected.
+
+## Session — the durable fixture host (2026-09-09)
+
+### What was attempted
+
+1. Restored the blocked real-provider fixture pipeline with the user's
+   re-decision: a separate unprotected static Vercel project,
+   `pinata-fixtures`, serving `test/fixtures/capture/` (echo-v1,
+   tall-motion-v1, manifest-v1, links-v1) over durable public HTTPS.
+2. Rolled back the failed first attempt (D040): deleted the empty
+   `pinata-fixtures` Blob store (`store_6lu0gxibrNzwskvk`), which triggered
+   the known silent `.env.local` rewrite; re-verified the file holds exactly
+   the required variable names and removed the stale
+   `FIXTURE_BLOB_READ_WRITE_TOKEN` line the pull had kept. The private
+   `pinata-captures` store and the main project's deployment protection
+   (`ssoProtection: all_except_custom_domains`) were verified untouched.
+3. Rewrote `scripts/publish-capture-fixtures.mjs`: ensures the project exists,
+   disables its deployment protection through the Vercel API (all three
+   protection fields confirmed null), deploys the exact repository bytes,
+   resolves the production alias from the deployment record, and refuses to
+   print a URL unless each fixture reads back as a direct 200, inline
+   `text/html`, no attachment disposition, byte-exact sha256. The durable base
+   URL is committed in `test/fixtures/capture/host.json`; the script is
+   idempotent (a second run changed nothing).
+4. Proved one real Browserless execution pair against the new host (run
+   `capv-mttmb4cg-04ebf9d1`): echo desktop 1440×900 and mobile 390×844 both
+   rendered (21 queryable manifest elements each, no download), stored
+   privately, finalized in Turso, and the run's rows and Blob objects were
+   verified deleted afterwards.
+
+### What broke
+
+- The first draft of the publish script read `orgId` from the wrong place in
+  `.vercel/repo.json` (it lives under `projects[0]`), fixed before the first
+  successful deploy.
+- A hasty audit query assumed `idempotency_keys` has an `id` column; it does
+  not. Re-ran the count against `key`: zero leftovers.
+
+### Elapsed
+
+Roughly 45 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- `D040` (user-directed, superseded): publish fixtures to a dedicated public
+  Vercel Blob store — recorded retroactively with the verbatim direction so
+  the reversal trail is complete; proven platform-incapable (forced
+  `Content-Disposition: attachment`).
+- `D041` (user-directed): the separate unprotected static Vercel project,
+  verbatim direction "Separate unprotected Vercel project", superseding D040
+  and D037's disposable-per-run host mechanism.
+- Unblocks the real-Browserless halves of `capture-state-retry-and-storage-faults`
+  (VAL-PROJECT-003/005), `browserless-remote-network-safety`, and every future
+  real-provider suite run.
+
+### Open questions at end of session
+
+- None for the fixture host. The durable URLs are committed; the publish step
+  is now a re-verification rather than a per-run gamble.

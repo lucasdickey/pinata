@@ -1490,7 +1490,7 @@ window.PINATA = {
       "phase": "validate",
       "title": "Controlled capture fixtures live in the repository and are published to a disposable public host per run",
       "origin": "agent-autonomous",
-      "status": "accepted",
+      "status": "superseded",
       "problem": "Proving device emulation, context isolation, lazy loading, and motion stabilization needs pages that Browserless can actually load, which means public HTTPS. This project's own Vercel deployments sit behind deployment protection and answer an SSO redirect, no tunnel tooling is installed, and publishing fixtures through the application's own routes would put test pages on its public surface.",
       "decision": "The fixtures are versioned files in test/fixtures/capture/ (echo-v1.html, tall-motion-v1.html). scripts/publish-capture-fixtures.mjs uploads them to a disposable public host with a one-hour lifetime, refuses to print a URL unless the served bytes hash to exactly the repository bytes and arrive as text/html, and the real-provider suite reads those URLs from the environment and skips when they are absent.",
       "alternatives": [
@@ -1531,7 +1531,7 @@ window.PINATA = {
         }
       ],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D041"
     },
     {
       "id": "D038",
@@ -1632,8 +1632,99 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D040",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Publish capture fixtures to a dedicated public Vercel Blob store",
+      "origin": "user-directed",
+      "status": "superseded",
+      "problem": "The disposable fixture host behind D037 died: litterbox.catbox.moe began refusing every upload with HTTP 403 behind a BunkerWeb anti-bot, and the alternates were unusable (0x0.st disabled uploads, x0.at serves text/plain + nosniff so Chromium will not render it, filebin.net forces a redirect plus attachment disposition, paste.rs fails TLS from this machine, no tunnel client is installed). Every real-provider capture suite was blocked, so a durable fixture host needed a user decision.",
+      "decision": "Per the user's direction, publish the fixtures to a dedicated public-access Vercel Blob store. The store pinata-fixtures (store_6lu0gxibrNzwskvk) was created and connected to the pinata project's Development environment under the FIXTURE_BLOB prefix, keeping it separate from the private capture store.",
+      "alternatives": [
+        {
+          "option": "A separate unprotected Vercel project serving the fixtures as static files",
+          "why_not": "Declined at the time in favour of the Blob store; later proven to be the only option of the two that can serve renderable HTML, and adopted as D041."
+        },
+        {
+          "option": "Restore catbox.moe upload access",
+          "why_not": "The 403 is IP/ASN-level anti-bot enforcement outside our control; a durable host was preferable to depending on it again."
+        }
+      ],
+      "rationale": "The user chose the Blob store from the options presented. On execution it proved platform-incapable: Vercel Blob force-serves every HTML-family content type with Content-Disposition: attachment, a documented anti-phishing measure ('This also prevents hosting HTML pages on Vercel Blob'). A content-type matrix probe (text/html, text/html;charset, application/xhtml+xml all attachment; only displayable types like text/plain inline) and a real Playwright Chromium navigation (page.goto aborted with 'Download is starting', the download event fired, the h1 never rendered) confirmed no upload-time override exists in @vercel/blob 2.8.0. Upload and readback otherwise worked: exact sha256 match and declared text/html.",
+      "consequences": [
+        "No repository files were changed for this attempt; the empty store and its Development-only FIXTURE_BLOB_READ_WRITE_TOKEN were rolled back under D041.",
+        "The private capture store pinata-captures and its BLOB_READ_WRITE_TOKEN were verified untouched throughout.",
+        "Any candidate fixture host must now be probed for attachment disposition on HTML and a real browser navigation before adoption — three host choices in a row failed only at serve time."
+      ],
+      "transcript": {
+        "request": "Public Vercel Blob store (recommended)"
+      },
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://vercel.com/docs/vercel-blob/public-storage",
+          "caption": "Vercel documents the forced attachment disposition on HTML as anti-phishing"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": "D041"
+    },
+    {
+      "id": "D041",
+      "date": "2026-09-09",
+      "phase": "validate",
+      "title": "Capture fixtures are served by a separate unprotected static Vercel project",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The user's first directed durable host (D040, a public Vercel Blob store) was proven platform-incapable of serving renderable HTML — Blob forces Content-Disposition: attachment on every HTML-family content type, verified by a content-type matrix and a real Chromium navigation that downloaded instead of rendering. The real-provider fixture pipeline was still blocked and needed a re-decision.",
+      "decision": "Per the user's re-decision, the fixtures are served by a tiny separate Vercel project, pinata-fixtures, deploying test/fixtures/capture/ (echo-v1, tall-motion-v1, manifest-v1, links-v1) as static files with deployment protection disabled. npm run fixtures:publish ensures the project exists, disables its protection, deploys the exact repository bytes, and refuses to print a URL unless each fixture reads back as a direct 200 (no interstitial or SSO redirect), inline text/html with no attachment disposition, and a byte-exact sha256 match. The durable base URL is committed in test/fixtures/capture/host.json (public and non-secret), so fixture URLs no longer depend on a per-run host. The failed D040 store (store_6lu0gxibrNzwskvk) was deleted and .env.local re-verified to hold all required variable names afterwards. This also supersedes D037's disposable-per-run host mechanism; its fixture versioning, hash-verified readback, and environment handoff all carry forward.",
+      "alternatives": [
+        {
+          "option": "Disable deployment protection on the main pinata project and host the fixtures there",
+          "why_not": "It trades a real safety control on the product surface for test convenience, and puts test pages on the application's public surface. Protection on the main project was verified unchanged (ssoProtection all_except_custom_domains)."
+        },
+        {
+          "option": "Keep searching disposable hosts",
+          "why_not": "Three have now failed at serve time (catbox anti-bot 403, x0.at nosniff text/plain, filebin.net attachment redirect) and none are durable; every real-provider run would keep depending on a per-run upload."
+        },
+        {
+          "option": "Repurpose the public Blob store with non-HTML content types",
+          "why_not": "Serving HTML as text/plain makes Chromium refuse to render it; the fixture must be a page a real browser navigates to."
+        }
+      ],
+      "rationale": "A separate unprotected project is the one option that satisfies every constraint at once: inline text/html (plain static file serving, no forced disposition), durable public HTTPS URLs reachable from Browserless's network, zero coupling to the main project's protection, and no fixture content in the private capture Blob store. The published content is inert versioned markup with no secrets and no application data, so an unprotected static host carries no meaningful exposure.",
+      "consequences": [
+        "Fixture URLs are durable: https://pinata-fixtures.vercel.app/<fixture>.html. The publish step is now an idempotent deploy plus verification instead of a per-run upload to an expiring host.",
+        "The fixture project hosts fixtures only; capture screenshots and all product data stay in the private Blob store, and no fixture content enters it.",
+        "The rule is now recorded for any future host candidate: probe for Content-Disposition: attachment on text/html and prove a real browser navigation renders the page before adoption.",
+        "vercel blob delete-store silently rewrites .env.local via an env pull; after deleting store_6lu0gxibrNzwskvk the local file was re-verified to contain exactly the required variable names (the stale FIXTURE_BLOB_READ_WRITE_TOKEN line was removed)."
+      ],
+      "transcript": {
+        "request": "Separate unprotected Vercel project"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "scripts/publish-capture-fixtures.mjs",
+          "caption": "Idempotent deploy plus verified readback against the durable fixture project"
+        },
+        {
+          "type": "file",
+          "path": "test/fixtures/capture/host.json",
+          "caption": "Committed durable base URL and per-fixture byte/hash record"
+        },
+        {
+          "type": "file",
+          "path": "test/fixture-host.test.mjs",
+          "caption": "Gate-time integrity check that the committed host record matches the fixtures"
+        }
+      ],
+      "supersedes": "D040",
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "1e552453995d"
+  "source_hash": "25651c305c8b"
 };

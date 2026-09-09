@@ -1,0 +1,31 @@
+{
+  "project": "pinata-fixtures",
+  "baseUrl": "https://pinata-fixtures.vercel.app",
+  "deploymentProtection": "disabled",
+  "fixtures": {
+    "echo-v1": {
+      "url": "https://pinata-fixtures.vercel.app/echo-v1.html",
+      "file": "echo-v1.html",
+      "bytes": 6522,
+      "sha256": "f7ed8dc859ad974c53441a7e03bc2ad6b0233450a6b64424ac97bdea43ce95dd"
+    },
+    "tall-motion-v1": {
+      "url": "https://pinata-fixtures.vercel.app/tall-motion-v1.html",
+      "file": "tall-motion-v1.html",
+      "bytes": 12528,
+      "sha256": "944fed8a3d19076b96c8e5e411549a21a0dd4b72f481dce5d2d1376ff2f42dad"
+    },
+    "manifest-v1": {
+      "url": "https://pinata-fixtures.vercel.app/manifest-v1.html",
+      "file": "manifest-v1.html",
+      "bytes": 5723,
+      "sha256": "d684a3f4f698fae2c4038296e05200f62a9ee1cf58b17cd772cfe230a3eb8ee7"
+    },
+    "links-v1": {
+      "url": "https://pinata-fixtures.vercel.app/links-v1.html",
+      "file": "links-v1.html",
+      "bytes": 7421,
+      "sha256": "dd3f389eb2e6dad01a0ef595989bc4d5e02140f9d29297799e29a5fe9e23ae6e"
+    }
+  }
+}
