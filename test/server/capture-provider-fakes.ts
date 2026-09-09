@@ -29,6 +29,22 @@ export interface EnvelopeOverrides {
   finalUrl?: string;
   image?: { contentType?: string; base64?: string };
   warnings?: string[];
+  manifest?: unknown;
+}
+
+/** The layout-nonce entry every honest manifest carries (VAL-CAPTURE-005). */
+function nonceElement(nonce: string) {
+  return {
+    id: "nonce",
+    kind: "text",
+    tag: "div",
+    role: "",
+    text: nonce,
+    accessibleName: nonce,
+    hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+    path: ["html:1", "body:1", "div:1"],
+    rect: { x: 0, y: 0, width: 148, height: 20 },
+  };
 }
 
 /** Wrap a capture envelope the way the Function API transport does. */
@@ -39,11 +55,12 @@ function transport(data: unknown): string {
 /** A well-formed successful provider envelope, minus whatever a test breaks. */
 export function successEnvelope(overrides: EnvelopeOverrides = {}): string {
   const document = { ...FIXTURE_DOC, ...overrides.document };
+  const layoutNonce = overrides.layoutNonce ?? FIXTURE_NONCE;
   return transport({
     schemaVersion: 1,
     ok: true,
     variant: overrides.variant ?? "desktop",
-    layoutNonce: overrides.layoutNonce ?? FIXTURE_NONCE,
+    layoutNonce,
     requestedUrl: FIXTURE_URL,
     finalUrl: overrides.finalUrl ?? FIXTURE_URL,
     viewport: {
@@ -67,12 +84,13 @@ export function successEnvelope(overrides: EnvelopeOverrides = {}): string {
       anchorsMeasured: 12,
       maxAnchorShiftPx: 0,
     },
-    manifest: {
+    manifest: overrides.manifest ?? {
       schemaVersion: 1,
       truncated: false,
       elements: [
+        nonceElement(layoutNonce),
         {
-          id: "e1",
+          id: "e2",
           kind: "heading",
           tag: "h1",
           role: "",
@@ -80,7 +98,7 @@ export function successEnvelope(overrides: EnvelopeOverrides = {}): string {
           accessibleName: "Fixture heading",
           hints: { id: "top", classes: ["hero"], alt: "", title: "", testId: "" },
           path: ["html:1", "body:1", "h1:1"],
-          rect: { x: 0, y: 0, width: 400, height: 40 },
+          rect: { x: 0, y: 40, width: 400, height: 40 },
         },
       ],
     },

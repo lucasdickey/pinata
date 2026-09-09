@@ -124,7 +124,8 @@ describe("a successful execution finalizes exactly one ready attempt", () => {
         bytes: PNG.byteLength,
         imageHash: sha256Hex(PNG),
         layoutNonce: NONCE,
-        manifestElements: 1,
+        manifestElements: 2,
+        manifestTruncated: false,
       },
     });
 
@@ -147,7 +148,10 @@ describe("a successful execution finalizes exactly one ready attempt", () => {
       capturedAt: T0 + 5_000,
     });
     expect(stored.blobPath).toBe(puts[0]!.pathname);
-    expect(JSON.parse(stored.domManifestJson!).elements).toHaveLength(1);
+    const manifest = JSON.parse(stored.domManifestJson!);
+    expect(manifest.elements).toHaveLength(2);
+    // The nonce element is the image/manifest correlation anchor.
+    expect(manifest.elements[0]).toMatchObject({ id: "nonce", text: NONCE });
     expect(JSON.parse(stored.warningJson!).codes).toEqual([
       "motion-unsupported-warn:canvas-js",
     ]);
@@ -323,6 +327,88 @@ describe("untrustworthy provider results never become ready", () => {
       outcome: "unsafe-redirect",
     });
     expect(puts).toEqual([]);
+  });
+});
+
+describe("manifest correlation and bounding (VAL-CAPTURE-005)", () => {
+  test("a manifest without the layout nonce never becomes ready", async () => {
+    const id = await seedClaimedCapture("cap-nomatch");
+    const envelope = successEnvelope({
+      manifest: {
+        schemaVersion: 1,
+        truncated: false,
+        elements: [
+          {
+            id: "e1",
+            kind: "heading",
+            tag: "h1",
+            role: "",
+            text: "Fixture heading",
+            accessibleName: "Fixture heading",
+            hints: { id: "top", classes: [], alt: "", title: "", testId: "" },
+            path: ["html:1", "body:1", "h1:1"],
+            rect: { x: 0, y: 0, width: 400, height: 40 },
+          },
+        ],
+      },
+    });
+    expect(await executeCapture(testDb.db, id, deps(clientReturning(envelope)))).toEqual({
+      ok: false,
+      outcome: "browserless-provider",
+    });
+    expect(puts).toEqual([]);
+    expect((await row(id)).status).toBe("failed");
+  });
+
+  test("an oversized manifest stays ready, bounded, and warned", async () => {
+    const id = await seedClaimedCapture("cap-overflow");
+    const nonce = {
+      id: "nonce",
+      kind: "text",
+      tag: "div",
+      role: "",
+      text: NONCE,
+      accessibleName: NONCE,
+      hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+      path: ["html:1", "body:1", "div:1"],
+      rect: { x: 0, y: 0, width: 148, height: 20 },
+    };
+    const rows = Array.from({ length: 499 }, (_, i) => ({
+      id: `e${i + 1}`,
+      kind: "text",
+      tag: "p",
+      role: "",
+      text: `row-${i} ${"x".repeat(110)}`,
+      accessibleName: `row-${i}`,
+      hints: {
+        id: `row-${i}`,
+        classes: Array.from({ length: 8 }, (_, c) => `c${c}${"y".repeat(56)}`),
+        alt: "",
+        title: "",
+        testId: "",
+      },
+      path: ["html:1", "body:1", "main:1", `p:${i + 1}`],
+      rect: { x: 0, y: 40 + i * 2, width: 400, height: 2 },
+    }));
+    // The schema admits at most 500; the byte cap is what overflows here.
+    const envelope = successEnvelope({
+      manifest: { schemaVersion: 1, truncated: false, elements: [nonce, ...rows] },
+    });
+    const result = await executeCapture(testDb.db, id, deps(clientReturning(envelope)));
+    expect(result).toMatchObject({ ok: true, capture: { manifestTruncated: true } });
+    if (result.ok) {
+      expect(result.capture.warnings).toContain("manifest-truncated");
+      expect(result.capture.manifestBytes).toBeLessThanOrEqual(262_144);
+    }
+
+    const stored = await row(id);
+    expect(stored.status).toBe("ready");
+    const manifest = JSON.parse(stored.domManifestJson!);
+    expect(manifest.truncated).toBe(true);
+    expect(Buffer.byteLength(stored.domManifestJson!, "utf8")).toBeLessThanOrEqual(262_144);
+    expect(JSON.parse(stored.warningJson!).codes).toContain("manifest-truncated");
+    // Correlation survives truncation: the nonce is still the first element.
+    expect(manifest.elements[0]).toMatchObject({ id: "nonce", text: NONCE });
   });
 });
 

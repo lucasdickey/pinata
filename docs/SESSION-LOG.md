@@ -976,3 +976,59 @@ Roughly 1 hour 15 minutes of mission-worker time.
 - Desktop capture keeps the provider's own headless user agent rather than
   claiming a consumer browser identity. If a target serves different markup to
   headless Chrome, that is the trade to reconsider.
+
+## Session — the bounded sanitized DOM manifest (2026-09-09)
+
+### What was attempted
+
+The manifest half of the capture result (`browserless-dom-manifest`,
+VAL-CAPTURE-005/006): effective visibility through clipped ancestors, closed
+`<details>`/menus, off-canvas drawers, and the screen-reader-only clip
+patterns; visible-text-only assembly so hidden descendants cannot ride out in
+a visible parent; hostile-value neutralization (controls, bidi, U+2028/2029,
+stacked combining marks, nonfinite or oversized rectangles); deterministic
+vertical-stride truncation under the 500-element and 256 KiB caps; and
+image/manifest correlation through the layout nonce.
+
+### What broke
+
+- The in-page pass grew inside `function-source.ts` until the file was doing
+  two jobs; the inspection pass moved to `manifest-source.ts` so the exact
+  provider text can run under jsdom in `capture-manifest-page.test.ts`.
+- jsdom does not decompose the `overflow` shorthand into longhands (and vice
+  versa), so the clip check consults both. jsdom computes legacy `clip` as
+  `auto`, so the `rect(0 0 0 0)` case is proven only by the real-browser
+  fixture.
+- `textContent` leaked hidden descendants and closed `<details>` panels into
+  visible parents' entries; text is now assembled from visible text nodes.
+- The nonce correlation check initially had no fixture support; the provider
+  fakes now model the nonce entry every honest manifest carries.
+- First real-provider run of the new `manifest-v1` fixture caught one fixture
+  bug (the shadow host was a `<div>`, which is deliberately not a semantic
+  candidate) and passed everything else, desktop and mobile.
+
+### Elapsed
+
+Roughly 1 hour of mission-worker time.
+
+### Decisions and assertions
+
+- `D038` (agent-autonomous): the manifest is bounded twice — in-page for
+  response size, server-side for what is persisted — with degrade-and-warn on
+  overflow instead of capture failure.
+- VAL-CAPTURE-005: 28 jsdom page-source tests, 15 server-side bounding tests,
+  execute-level nonce-correlation and overflow tests, and the real-provider
+  run (`capv-mttgzy4b-2dd61610`: desktop 1440x2613, mobile 390x2745, 24
+  elements, ~7.2 KiB manifests, landmark ink at claimed rectangles).
+- VAL-CAPTURE-006: the fixture plants SENTINEL- markers in every forbidden
+  source (hidden/clipped/closed content, href/src/srcset/action/formaction,
+  form values, cookies, storage, script/style/template/noscript, shadow root,
+  iframe title); the exact persisted JSON from the real runs contains none of
+  them, and the interaction counters stayed zero.
+
+### Open questions at end of session
+
+- No HTTP route serves manifest JSON yet (the read surface is milestone 2
+  canvas/nearby-element work), so the contract's curl sentinel scan is
+  satisfied by scanning the exact persisted bytes in the integration suite
+  instead. Revisit when a manifest read route exists.

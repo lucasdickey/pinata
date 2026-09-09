@@ -160,6 +160,55 @@ describe("stabilization follows the published motion matrix", () => {
   });
 });
 
+describe("the manifest pass stays inside its data-minimization boundary", () => {
+  test("it never touches sensitive sources", () => {
+    for (const forbidden of [
+      "document.cookie",
+      "localStorage",
+      "sessionStorage",
+      "outerHTML",
+      "innerHTML",
+      "shadowRoot",
+      "contentDocument",
+      "contentWindow",
+      ".srcset",
+      "formaction",
+      "getAttribute(\"href\")",
+      "getAttribute(\"src\")",
+      "getAttribute(\"action\")",
+      "getAttribute(\"value\")",
+      "getAttribute(\"data-\",",
+      "el.value",
+      ".attributes",
+    ]) {
+      expect(source, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  test("it reads only the approved visibility and label attributes", () => {
+    const reads = source.match(/getAttribute\("[^"]+"\)/g) ?? [];
+    expect([...new Set(reads)].sort()).toEqual([
+      'getAttribute("alt")',
+      'getAttribute("aria-hidden")',
+      'getAttribute("aria-label")',
+      'getAttribute("data-testid")',
+      'getAttribute("id")',
+      'getAttribute("role")',
+      'getAttribute("title")',
+    ]);
+  });
+
+  test("it keeps the layout nonce correlatable through truncation", () => {
+    expect(source).toContain('data-pinata-capture="nonce"');
+    expect(source).toContain('id = "nonce"');
+  });
+
+  test("its truncation is an even stride over vertical order", () => {
+    expect(source).toContain("manifest-truncated");
+    expect(source.indexOf("a.rect.y - b.rect.y")).toBeGreaterThan(-1);
+  });
+});
+
 describe("device profiles", () => {
   test("desktop and mobile are the contract devices at DPR 1", () => {
     expect(DEVICE_PROFILES.desktop.viewport).toEqual({

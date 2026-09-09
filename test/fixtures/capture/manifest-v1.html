@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pinata manifest fixture v1</title>
+    <!--
+      Controlled manifest fixture for VAL-CAPTURE-005 and VAL-CAPTURE-006.
+
+      Every SENTINEL-* value names a source the manifest must never contain:
+      hidden/clipped/closed content, URL-bearing attributes, form values,
+      cookies, storage, scripts, styles, templates, shadow roots, and frame
+      internals. The MANIFEST-* landmarks are the visible semantic siblings
+      that must remain, with dark text painted where their rectangles claim.
+
+      Inert and self-contained: no network requests beyond one same-origin
+      (failing) iframe probe, no third-party code, no secrets. Version this
+      file by copying it to a new -vN name; never edit a published version in
+      place.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #fdfaf4;
+        color: #1c1b19;
+        font: 16px/24px ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+        line-height: 36px;
+      }
+      h2 {
+        margin: 24px 0 8px;
+        font-size: 20px;
+        line-height: 28px;
+        border-bottom: 2px solid #e2d9c8;
+      }
+      p {
+        margin: 0 0 4px;
+      }
+      .spacer {
+        height: 900px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .clipped {
+        overflow: hidden;
+        height: 0;
+      }
+      .offscreen {
+        position: absolute;
+        left: -2000px;
+        top: 0;
+        width: 300px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="top-landmark">MANIFEST-TOP-LANDMARK</h1>
+      <p id="fixture-version">fixture-version: manifest-v1</p>
+      <p id="counters">interactions: pending</p>
+
+      <h2>Hidden and clipped</h2>
+      <p style="display: none">SENTINEL-HIDDEN-DISPLAY</p>
+      <p style="visibility: hidden">SENTINEL-HIDDEN-VISIBILITY</p>
+      <p style="opacity: 0">SENTINEL-HIDDEN-OPACITY</p>
+      <p hidden>SENTINEL-HIDDEN-ATTR</p>
+      <div aria-hidden="true"><p>SENTINEL-ARIA-HIDDEN</p></div>
+      <p class="sr-only">SENTINEL-SR-ONLY</p>
+      <p class="offscreen">SENTINEL-OFF-CANVAS</p>
+      <div class="clipped">
+        <p>SENTINEL-CLIPPED-CONTAINER</p>
+      </div>
+      <p id="visible-after-hidden">MANIFEST-VISIBLE-SIBLING-ONE</p>
+      <p id="hidden-rider">
+        Visible lead-in
+        <span style="display: none">SENTINEL-HIDDEN-RIDER</span>
+        visible tail
+      </p>
+
+      <h2>Closed menu</h2>
+      <details id="menu">
+        <summary id="menu-button">MANIFEST-MENU-SUMMARY</summary>
+        <nav>
+          <a href="/SENTINEL-CLOSED-MENU-HREF">SENTINEL-CLOSED-MENU</a>
+        </nav>
+      </details>
+
+      <h2>Sensitive sources</h2>
+      <form action="https://fixture.invalid/SENTINEL-ACTION">
+        <input id="email" name="email" value="SENTINEL-FORM-VALUE" />
+        <button id="go" formaction="https://fixture.invalid/SENTINEL-FORMACTION">
+          MANIFEST-FORM-BUTTON
+        </button>
+      </form>
+      <a id="docs" href="https://fixture.invalid/?token=SENTINEL-HREF">
+        MANIFEST-LINK visible docs text
+      </a>
+      <img
+        id="pixel"
+        alt="MANIFEST-IMAGE-ALT"
+        src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+        srcset="https://fixture.invalid/SENTINEL-SRCSET.png 2x"
+        width="8"
+        height="8"
+      />
+      <iframe title="SENTINEL-IFRAME-TITLE" src="about:blank" width="40" height="40"></iframe>
+      <p id="shadow-host">MANIFEST-SHADOW-HOST</p>
+      <template><p>SENTINEL-TEMPLATE</p></template>
+      <noscript><p>SENTINEL-NOSCRIPT</p></noscript>
+
+      <h2>Hostile but visible</h2>
+      <p id="hostile">MANIFEST-HOSTILE visible &#x202e;desrever&#x202c; z&#x301;&#x301;&#x301;&#x301;&#x301;&#x301;&#x301;&#x301;&#x301;&#x301;algo</p>
+
+      <div class="spacer"></div>
+      <h2 id="middle-landmark">MANIFEST-MIDDLE-LANDMARK</h2>
+      <p>middle body copy</p>
+
+      <div class="spacer"></div>
+      <footer>
+        <p id="bottom-landmark">MANIFEST-BOTTOM-LANDMARK</p>
+      </footer>
+    </main>
+
+    <script>
+      // Sentinels planted only in script, style, cookie, and storage. The
+      // manifest must never read any of them.
+      const SENTINEL_SCRIPT = "SENTINEL-SCRIPT";
+      document.cookie = "pinata_fixture=SENTINEL-COOKIE; path=/; SameSite=Lax";
+      try {
+        window.localStorage.setItem("pinata_fixture", "SENTINEL-LOCALSTORAGE");
+        window.sessionStorage.setItem("pinata_fixture", "SENTINEL-SESSIONSTORAGE");
+      } catch (error) {
+        /* storage may be disabled; the manifest must not read it either way */
+      }
+      document
+        .getElementById("shadow-host")
+        .attachShadow({ mode: "open" }).innerHTML = "<p>SENTINEL-SHADOW-ROOT</p>";
+
+      const counters = { click: 0, keydown: 0, pointerdown: 0, submit: 0 };
+      for (const name of Object.keys(counters)) {
+        document.addEventListener(name, () => {
+          counters[name] += 1;
+        }, true);
+      }
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("counters").textContent =
+          "interactions: click:" + counters.click +
+          " keydown:" + counters.keydown +
+          " pointerdown:" + counters.pointerdown +
+          " submit:" + counters.submit;
+      });
+    </script>
+  </body>
+</html>

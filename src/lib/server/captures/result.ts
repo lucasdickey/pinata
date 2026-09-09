@@ -8,49 +8,75 @@
 
 import { z } from "zod";
 import {
+  MANIFEST_ACCESSIBLE_NAME_MAX_CHARS,
   MANIFEST_ELEMENT_KINDS,
+  MANIFEST_HINT_MAX_CHARS,
+  MANIFEST_MAX_CLASSES,
+  MANIFEST_PATH_MAX_DEPTH,
   MANIFEST_SCHEMA_VERSION,
+  MANIFEST_TEXT_MAX_CHARS,
   MAX_MANIFEST_BYTES,
   MAX_MANIFEST_ELEMENTS,
 } from "../../boundaries";
 import { CAPTURE_FUNCTION_FAILURE_CODES, CAPTURE_RESULT_SCHEMA_VERSION } from "./function-source";
+import { DOCUMENT_TITLE_MAX_CHARS } from "./manifest";
 
 const finite = z.number().finite();
 const nonNegative = finite.min(0);
 const positiveInt = z.number().int().positive();
 
-const rectSchema = z.object({
-  x: finite,
-  y: finite,
-  width: nonNegative,
-  height: nonNegative,
-});
+const rectSchema = z
+  .object({
+    x: finite,
+    y: finite,
+    width: nonNegative,
+    height: nonNegative,
+  })
+  .strict();
 
-const elementSchema = z.object({
-  id: z.string().max(16),
-  kind: z.enum(MANIFEST_ELEMENT_KINDS as [string, ...string[]]),
-  tag: z.string().max(32),
-  role: z.string().max(64),
-  text: z.string(),
-  accessibleName: z.string(),
-  hints: z.object({
-    id: z.string(),
-    classes: z.array(z.string()),
-    alt: z.string(),
-    title: z.string(),
-    testId: z.string(),
-  }),
-  path: z.array(z.string().max(64)),
-  rect: rectSchema,
-});
+/**
+ * String slack over the published character caps. The parse stage owns
+ * structure — exact keys, enums, counts, finite numbers — while `boundManifest`
+ * owns content, so a page that finds a gap in the in-page cleaner is trimmed
+ * rather than failing an otherwise good capture. The slack is still bounded:
+ * an unbounded field would let one element eat the whole response.
+ */
+const SLACK = 8;
 
-export const captureManifestSchema = z.object({
-  schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
-  truncated: z.boolean(),
-  elements: z.array(elementSchema).max(MAX_MANIFEST_ELEMENTS),
-});
+const elementSchema = z
+  .object({
+    id: z.string().max(16),
+    kind: z.enum(MANIFEST_ELEMENT_KINDS as [string, ...string[]]),
+    tag: z.string().max(32),
+    role: z.string().max(MANIFEST_HINT_MAX_CHARS * SLACK),
+    text: z.string().max(MANIFEST_TEXT_MAX_CHARS * SLACK),
+    accessibleName: z.string().max(MANIFEST_ACCESSIBLE_NAME_MAX_CHARS * SLACK),
+    hints: z
+      .object({
+        id: z.string().max(MANIFEST_HINT_MAX_CHARS * SLACK),
+        classes: z
+          .array(z.string().max(MANIFEST_HINT_MAX_CHARS * SLACK))
+          .max(MANIFEST_MAX_CLASSES * SLACK),
+        alt: z.string().max(MANIFEST_ACCESSIBLE_NAME_MAX_CHARS * SLACK),
+        title: z.string().max(MANIFEST_ACCESSIBLE_NAME_MAX_CHARS * SLACK),
+        testId: z.string().max(MANIFEST_HINT_MAX_CHARS * SLACK),
+      })
+      .strict(),
+    path: z.array(z.string().max(MANIFEST_HINT_MAX_CHARS)).max(MANIFEST_PATH_MAX_DEPTH * SLACK),
+    rect: rectSchema,
+  })
+  .strict();
+
+export const captureManifestSchema = z
+  .object({
+    schemaVersion: z.literal(MANIFEST_SCHEMA_VERSION),
+    truncated: z.boolean(),
+    elements: z.array(elementSchema).max(MAX_MANIFEST_ELEMENTS),
+  })
+  .strict();
 
 export type CaptureManifest = z.infer<typeof captureManifestSchema>;
+export type CaptureManifestElement = z.infer<typeof elementSchema>;
 
 const successSchema = z.object({
   schemaVersion: z.literal(CAPTURE_RESULT_SCHEMA_VERSION),
@@ -72,7 +98,7 @@ const successSchema = z.object({
   document: z.object({
     width: positiveInt,
     height: positiveInt,
-    title: z.string().max(200),
+    title: z.string().max(DOCUMENT_TITLE_MAX_CHARS),
     scrollX: finite,
     scrollY: finite,
     scrollSteps: nonNegative,
@@ -145,15 +171,9 @@ export function parseCaptureResponse(body: Uint8Array): CaptureResult | null {
 }
 
 /**
- * Serialize a manifest to the exact UTF-8 JSON that will be persisted, and
- * refuse it if that text exceeds the published cap. The provider computed the
- * same bound in-page; this is the check that actually gates the write.
+ * True when a manifest's exact persisted UTF-8 JSON is inside the published
+ * cap. `boundManifest` guarantees this; this is the assertion that says so.
  */
-export function serializeManifest(
-  manifest: CaptureManifest,
-): { ok: true; json: string; bytes: number } | { ok: false; bytes: number } {
-  const json = JSON.stringify(manifest);
-  const bytes = Buffer.byteLength(json, "utf8");
-  if (bytes > MAX_MANIFEST_BYTES) return { ok: false, bytes };
-  return { ok: true, json, bytes };
+export function manifestFits(manifest: CaptureManifest): boolean {
+  return Buffer.byteLength(JSON.stringify(manifest), "utf8") <= MAX_MANIFEST_BYTES;
 }

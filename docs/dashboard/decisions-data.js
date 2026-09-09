@@ -1532,8 +1532,58 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D038",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "The DOM manifest is bounded twice: in-page for response size, server-side for what is persisted",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The manifest is produced by code running in a remote sandbox against a page Pinata does not control, then crosses a network. Trusting the in-page pass alone would let a hostile or drifting page write unbounded, markup-bearing, or privacy-compromising data straight into Turso; re-fetching metadata in a second provider call would break the same-layout correlation with the screenshot.",
+      "decision": "The single Function API execution builds the manifest in-page with effective-visibility clipping (ancestor overflow, closed details/dialog, off-canvas, clip-path), a closed attribute allowlist, visible-text-only assembly, and deterministic vertical-stride truncation, and draws the layout nonce into the screenshot while describing it as a pinned manifest element. Server-side, result.ts enforces the exact-key schema with finite bounded numbers, then boundManifest() in src/lib/server/captures/manifest.ts re-sanitizes every string and rectangle, re-applies both caps (500 elements, 262,144 UTF-8 bytes), re-samples with the same vertical stride, adds the manifest-truncated warning when it had to drop anything, and execute.ts refuses a ready transition unless the nonce survives in the bounded manifest. POLICY_VERSION moved to 2026-09-08.7 with three new constants: MANIFEST_HINT_MAX_CHARS, MANIFEST_MAX_COMBINING_MARKS, MANIFEST_RECT_MAX_PX.",
+      "alternatives": [
+        {
+          "option": "Trust the in-page bounds and persist what arrives",
+          "why_not": "The response is untrusted input; a page that finds a gap in the sandbox cleaner would land hostile content in the database and later in the UI."
+        },
+        {
+          "option": "Fail the capture when the provider manifest exceeds a cap",
+          "why_not": "The screenshot is perfectly good; dropping a whole capture over a trimmable metadata overflow makes a bounded problem fatal. Degrade-and-warn keeps the capture ready, which is what the published outcome catalog says."
+        },
+        {
+          "option": "Sample truncation by document order without vertical sorting",
+          "why_not": "Document order is not visual order on pages with positioned or multi-column content; sorting by rectangle top makes top/middle/bottom coverage a property of what the user sees."
+        }
+      ],
+      "rationale": "Defense in depth with distinct jobs at each layer: the page-side pass keeps the response small and does the layout-aware visibility work only a browser can do, while the server-side pass is the authority on what is persisted and can degrade rather than fail. The nonce element pinned ahead of sampled candidates makes image/manifest correlation survive worst-case truncation. This is safe to decide unilaterally: it implements the assigned feature's published assertions inside the already-approved architecture and constants discipline.",
+      "consequences": [
+        "Every manifest string passes through two sanitizers; the page-side one must stay behaviorally in lockstep with sanitizeManifestString().",
+        "Any new manifest field is a five-file catalog change plus schema, in-page, and sanitizer updates.",
+        "A capture whose manifest loses its nonce element fails as browserless-provider rather than ready."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/manifest-source.ts",
+          "caption": "In-page visibility, sanitization, and deterministic sampling pass"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/manifest.ts",
+          "caption": "Server-side bounding that gates what is persisted"
+        },
+        {
+          "type": "file",
+          "path": "test/fixtures/capture/manifest-v1.html",
+          "caption": "Controlled sentinel fixture for real-provider exclusion proof"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-09",
-  "source_hash": "cfe793b27e74"
+  "source_hash": "28e43761986b"
 };

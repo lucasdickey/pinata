@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.6`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.7`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.6 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.7 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -264,6 +264,9 @@ These prefixes are never a capture destination:
 | `MANIFEST_TEXT_MAX_CHARS` | 120 | Short visible text per element. |
 | `MANIFEST_ACCESSIBLE_NAME_MAX_CHARS` | 120 | Accessible name per element. |
 | `MANIFEST_MAX_CLASSES` | 8 | Bounded class hints per element. |
+| `MANIFEST_HINT_MAX_CHARS` | 64 | Any single safe hint value (`id`, class, `testId`). |
+| `MANIFEST_MAX_COMBINING_MARKS` | 8 | Consecutive combining marks kept on one base character. |
+| `MANIFEST_RECT_MAX_PX` | 100,000 px | Absolute bound on a rectangle coordinate or extent; anything larger is dropped. |
 | `MANIFEST_PATH_MAX_DEPTH` | 12 | Structural-path segments per element. |
 | `MANIFEST_RECT_DECIMALS` | 2 | Decimal places on document-space rectangle coordinates. |
 | `MANIFEST_ELEMENT_KEYS` | id, kind, tag, role, text, accessibleName, hints, path, rect | The exact element key set; no other keys may appear. |

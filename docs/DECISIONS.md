@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 20 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037 |
+| Agent decided alone | 21 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **37** | |
+| **Total** | **38** | |
 
 ## Index
 
@@ -63,6 +63,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D035](#d035--dispatch-admits-captures-and-finalizes-in-one-request-there-is-no-claim-endpoint) | build | Dispatch admits, captures, and finalizes in one request; there is no claim endpoint | Agent decided alone | accepted |
 | [D036](#d036--browserless-is-authenticated-with-http-basic-because-bearer-fails-and-the-url-is-not-an-option) | build | Browserless is authenticated with HTTP basic, because bearer fails and the URL is not an option | Agent decided alone | accepted |
 | [D037](#d037--controlled-capture-fixtures-live-in-the-repository-and-are-published-to-a-disposable-public-host-per-run) | validate | Controlled capture fixtures live in the repository and are published to a disposable public host per run | Agent decided alone | accepted |
+| [D038](#d038--the-dom-manifest-is-bounded-twice-in-page-for-response-size-server-side-for-what-is-persisted) | build | The DOM manifest is bounded twice: in-page for response size, server-side for what is persisted | Agent decided alone | accepted |
 
 ---
 
@@ -1421,4 +1422,40 @@ The repository stays the source of truth for fixture behaviour — the host only
 
 ---
 
-<sub>Generated from 37 record(s) as of 2026-09-09 · source `cfe793b27e74`</sub>
+## D038 — The DOM manifest is bounded twice: in-page for response size, server-side for what is persisted
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The manifest is produced by code running in a remote sandbox against a page Pinata does not control, then crosses a network. Trusting the in-page pass alone would let a hostile or drifting page write unbounded, markup-bearing, or privacy-compromising data straight into Turso; re-fetching metadata in a second provider call would break the same-layout correlation with the screenshot.
+
+**Decision**
+
+The single Function API execution builds the manifest in-page with effective-visibility clipping (ancestor overflow, closed details/dialog, off-canvas, clip-path), a closed attribute allowlist, visible-text-only assembly, and deterministic vertical-stride truncation, and draws the layout nonce into the screenshot while describing it as a pinned manifest element. Server-side, result.ts enforces the exact-key schema with finite bounded numbers, then boundManifest() in src/lib/server/captures/manifest.ts re-sanitizes every string and rectangle, re-applies both caps (500 elements, 262,144 UTF-8 bytes), re-samples with the same vertical stride, adds the manifest-truncated warning when it had to drop anything, and execute.ts refuses a ready transition unless the nonce survives in the bounded manifest. POLICY_VERSION moved to 2026-09-08.7 with three new constants: MANIFEST_HINT_MAX_CHARS, MANIFEST_MAX_COMBINING_MARKS, MANIFEST_RECT_MAX_PX.
+
+**Alternatives considered**
+
+- *Trust the in-page bounds and persist what arrives* — The response is untrusted input; a page that finds a gap in the sandbox cleaner would land hostile content in the database and later in the UI.
+- *Fail the capture when the provider manifest exceeds a cap* — The screenshot is perfectly good; dropping a whole capture over a trimmable metadata overflow makes a bounded problem fatal. Degrade-and-warn keeps the capture ready, which is what the published outcome catalog says.
+- *Sample truncation by document order without vertical sorting* — Document order is not visual order on pages with positioned or multi-column content; sorting by rectangle top makes top/middle/bottom coverage a property of what the user sees.
+
+**Rationale**
+
+Defense in depth with distinct jobs at each layer: the page-side pass keeps the response small and does the layout-aware visibility work only a browser can do, while the server-side pass is the authority on what is persisted and can degrade rather than fail. The nonce element pinned ahead of sampled candidates makes image/manifest correlation survive worst-case truncation. This is safe to decide unilaterally: it implements the assigned feature's published assertions inside the already-approved architecture and constants discipline.
+
+**Consequences**
+
+- Every manifest string passes through two sanitizers; the page-side one must stay behaviorally in lockstep with sanitizeManifestString().
+- Any new manifest field is a five-file catalog change plus schema, in-page, and sanitizer updates.
+- A capture whose manifest loses its nonce element fails as browserless-provider rather than ready.
+
+**Artifacts**
+
+- `src/lib/server/captures/manifest-source.ts` — In-page visibility, sanitization, and deterministic sampling pass
+- `src/lib/server/captures/manifest.ts` — Server-side bounding that gates what is persisted
+- `test/fixtures/capture/manifest-v1.html` — Controlled sentinel fixture for real-provider exclusion proof
+
+---
+
+<sub>Generated from 38 record(s) as of 2026-09-09 · source `28e43761986b`</sub>

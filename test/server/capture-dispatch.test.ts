@@ -247,7 +247,8 @@ describe("safe targets are admitted, captured, and finalized in one request", ()
       status: "ready",
       contentType: "image/png",
       bytes: FIXTURE_PNG.byteLength,
-      manifestElements: 1,
+      // The nonce entry plus the fixture heading.
+      manifestElements: 2,
     });
     expect(capture.imageHash).toMatch(/^[0-9a-f]{64}$/);
 

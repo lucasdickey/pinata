@@ -113,14 +113,14 @@ attempt is ever left as an open `capturing` claim waiting for a second call
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.6`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-08.7`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.6 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.7 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |

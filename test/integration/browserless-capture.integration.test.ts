@@ -41,6 +41,7 @@ import { decodePngPixels, type DecodedPixels } from "../helpers/png";
 
 const echoUrl = process.env.CAPTURE_ECHO_FIXTURE_URL;
 const tallUrl = process.env.CAPTURE_TALL_FIXTURE_URL;
+const manifestUrl = process.env.CAPTURE_MANIFEST_FIXTURE_URL;
 const ready = Boolean(
   process.env.BROWSERLESS_TOKEN &&
     process.env.BLOB_READ_WRITE_TOKEN &&
@@ -65,6 +66,7 @@ interface Executed {
 interface ManifestElement {
   id: string;
   kind: string;
+  accessibleName: string;
   tag: string;
   text: string;
   hints: { id: string; classes: string[]; alt: string; title: string; testId: string };
@@ -439,3 +441,93 @@ describe.skipIf(!ready)("real Browserless motion stabilization (VAL-CAPTURE-004)
     expect(ratio).toBeLessThanOrEqual(MOTION_MASKED_MAX_DIFF_RATIO);
   });
 });
+
+describe.skipIf(!ready || !manifestUrl)(
+  "real Browserless DOM manifest (VAL-CAPTURE-005, VAL-CAPTURE-006)",
+  () => {
+    let desktop: Executed;
+    let mobile: Executed;
+
+    beforeAll(async () => {
+      desktop = await execute("manifest", "desktop", manifestUrl!);
+      mobile = await execute("manifest", "mobile", manifestUrl!);
+    }, EXECUTION_TIMEOUT_MS * 2);
+
+    test("the manifest and the screenshot describe one stabilized layout", () => {
+      for (const executed of [desktop, mobile]) {
+        const elements = executed.manifest;
+        // The nonce drawn into the image is the nonce described here.
+        const nonce = elementWithText(elements, executed.ready.layoutNonce)!;
+        expect(nonce.rect.x).toBeLessThanOrEqual(1);
+        expect(nonce.rect.y).toBeLessThanOrEqual(1);
+        expect(inkRatio(executed.pixels, nonce.rect)).toBeGreaterThan(0.002);
+
+        // Known landmark rectangles land on painted glyphs in the decoded
+        // image: document-space coordinates and pixels agree at DPR 1.
+        const landmarks = ["MANIFEST-TOP-LANDMARK", "MANIFEST-MIDDLE-LANDMARK", "MANIFEST-BOTTOM-LANDMARK"]
+          .map((needle) => elementWithText(elements, needle)!);
+        for (const landmark of landmarks) {
+          expect(landmark.rect.y + landmark.rect.height).toBeLessThanOrEqual(executed.pixels.height);
+          expect(inkRatio(executed.pixels, landmark.rect)).toBeGreaterThan(0.002);
+        }
+        expect(landmarks[0]!.rect.y).toBeLessThan(landmarks[1]!.rect.y);
+        expect(landmarks[1]!.rect.y).toBeLessThan(landmarks[2]!.rect.y);
+
+        // The exact persisted JSON obeys both published caps.
+        expect(executed.row.domManifestVersion).toBe(1);
+        expect(elements.length).toBeLessThanOrEqual(500);
+        expect(executed.ready.manifestBytes).toBeLessThanOrEqual(262_144);
+        expect(Buffer.byteLength(executed.row.domManifestJson!, "utf8")).toBe(
+          executed.ready.manifestBytes,
+        );
+        expect(executed.ready.manifestTruncated).toBe(false);
+      }
+    });
+
+    test("hidden, closed, clipped, and sensitive sources are absent; siblings remain", () => {
+      for (const executed of [desktop, mobile]) {
+        // Every forbidden source carries a SENTINEL- marker; none may appear
+        // anywhere in the exact persisted JSON.
+        expect(executed.row.domManifestJson!).not.toContain("SENTINEL-");
+
+        const text =
+          manifestText(executed.manifest) +
+          "\n" +
+          executed.manifest.map((element) => element.accessibleName).join("\n");
+        for (const sibling of [
+          "MANIFEST-TOP-LANDMARK",
+          "MANIFEST-VISIBLE-SIBLING-ONE",
+          "MANIFEST-MENU-SUMMARY",
+          "MANIFEST-FORM-BUTTON",
+          "MANIFEST-LINK visible docs text",
+          "MANIFEST-IMAGE-ALT",
+          "MANIFEST-SHADOW-HOST",
+          "MANIFEST-MIDDLE-LANDMARK",
+          "MANIFEST-BOTTOM-LANDMARK",
+        ]) {
+          expect(text, sibling).toContain(sibling);
+        }
+
+        // A hidden descendant does not ride out inside its visible parent.
+        expect(elementWithHintId(executed.manifest, "hidden-rider")!.text).toBe(
+          "Visible lead-in visible tail",
+        );
+        // The closed menu keeps its summary and nothing else.
+        expect(elementWithHintId(executed.manifest, "menu")).toBeDefined();
+        // Capture never interacted with the page.
+        expect(text).toContain("interactions: click:0 keydown:0 pointerdown:0 submit:0");
+      }
+    });
+
+    test("hostile visible text stays bounded and inert", () => {
+      for (const executed of [desktop, mobile]) {
+        const hostile = elementWithHintId(executed.manifest, "hostile")!;
+        expect(hostile.text).toContain("MANIFEST-HOSTILE");
+        expect(hostile.text).not.toMatch(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/);
+        expect(hostile.text).not.toMatch(/\u0301{9,}/);
+        expect(executed.row.domManifestJson!).not.toMatch(/[\u2028\u2029]/);
+        expect(executed.row.domManifestJson!).not.toContain("\\u2028");
+      }
+    });
+  },
+);

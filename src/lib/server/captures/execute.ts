@@ -19,9 +19,12 @@ import {
   LAZY_SCROLL_STEP_DELAY_MS,
   LAZY_SCROLL_STEP_PX,
   MANIFEST_ACCESSIBLE_NAME_MAX_CHARS,
+  MANIFEST_HINT_MAX_CHARS,
   MANIFEST_MAX_CLASSES,
+  MANIFEST_MAX_COMBINING_MARKS,
   MANIFEST_PATH_MAX_DEPTH,
   MANIFEST_RECT_DECIMALS,
+  MANIFEST_RECT_MAX_PX,
   MANIFEST_SCHEMA_VERSION,
   MANIFEST_TEXT_MAX_CHARS,
   MAX_DOCUMENT_HEIGHT_PX,
@@ -40,7 +43,8 @@ import type { ScreenshotStore } from "../providers/blob";
 import { deviceProfile } from "./devices";
 import { buildCaptureFunctionSource } from "./function-source";
 import { validateCaptureImage } from "./image";
-import { parseCaptureResponse, serializeManifest, type CaptureSuccessResult } from "./result";
+import { boundManifest, DOCUMENT_TITLE_MAX_CHARS, type BoundedManifest } from "./manifest";
+import { parseCaptureResponse, type CaptureSuccessResult } from "./result";
 import { applyCaptureTransition } from "./transitions";
 
 /** Slack between the in-page budget and the HTTP deadline, so the function
@@ -52,6 +56,11 @@ const ANCHOR_SAMPLE_MAX = 48;
 const STICKY_SCAN_MAX = 2_000;
 const ANIMATED_IMAGE_SCAN_MAX = 12;
 const ANIMATED_IMAGE_MAX_BYTES = 4_194_304;
+const VISIBILITY_MAX_DEPTH = 64;
+const TEXT_NODE_SCAN_MAX = 400;
+const CANDIDATE_SCAN_MAX = 20_000;
+const SIBLING_SCAN_MAX = 5_000;
+const MANIFEST_SHRINK_MAX_ROUNDS = 32;
 
 const IMAGE_CONTENT_TYPE = ALLOWED_IMAGE_CONTENT_TYPES[0]!;
 const IMAGE_TYPE = IMAGE_CONTENT_TYPE.split("/")[1]!;
@@ -77,6 +86,7 @@ export interface ReadyCapture {
   layoutNonce: string;
   manifestElements: number;
   manifestBytes: number;
+  manifestTruncated: boolean;
   warnings: string[];
 }
 
@@ -93,7 +103,11 @@ const PROVIDER_ERROR_OUTCOMES: Record<BrowserlessRunError, string> = {
   "too-large": "provider-bytes-exceeded",
 };
 
-function limitsForFunction() {
+/**
+ * The exact `context.limits` object every capture function receives. Exported
+ * so the in-page manifest tests run against the same budgets production does.
+ */
+export function captureFunctionLimits() {
   return {
     navigationTimeoutMs: NAVIGATION_TIMEOUT_MS,
     networkIdleTimeoutMs: NETWORK_IDLE_TIMEOUT_MS,
@@ -106,11 +120,20 @@ function limitsForFunction() {
     manifestSchemaVersion: MANIFEST_SCHEMA_VERSION,
     manifestMaxElements: MAX_MANIFEST_ELEMENTS,
     manifestMaxBytes: MAX_MANIFEST_BYTES,
+    manifestShrinkMaxRounds: MANIFEST_SHRINK_MAX_ROUNDS,
     textMaxChars: MANIFEST_TEXT_MAX_CHARS,
     nameMaxChars: MANIFEST_ACCESSIBLE_NAME_MAX_CHARS,
+    hintMaxChars: MANIFEST_HINT_MAX_CHARS,
+    documentTitleMaxChars: DOCUMENT_TITLE_MAX_CHARS,
     maxClasses: MANIFEST_MAX_CLASSES,
     pathMaxDepth: MANIFEST_PATH_MAX_DEPTH,
     rectDecimals: MANIFEST_RECT_DECIMALS,
+    rectMaxPx: MANIFEST_RECT_MAX_PX,
+    markMaxRun: MANIFEST_MAX_COMBINING_MARKS,
+    visibilityMaxDepth: VISIBILITY_MAX_DEPTH,
+    textNodeScanMax: TEXT_NODE_SCAN_MAX,
+    candidateScanMax: CANDIDATE_SCAN_MAX,
+    siblingScanMax: SIBLING_SCAN_MAX,
     anchorSampleMax: ANCHOR_SAMPLE_MAX,
     stickyScanMax: STICKY_SCAN_MAX,
     animatedImageScanMax: ANIMATED_IMAGE_SCAN_MAX,
@@ -137,11 +160,50 @@ function decodeBase64(value: string): Uint8Array | null {
   return new Uint8Array(bytes);
 }
 
-function warningPayload(result: CaptureSuccessResult, manifestBytes: number): string {
+/** Published warning for a manifest that did not fit both caps whole. */
+const MANIFEST_TRUNCATED_WARNING = captureOutcome("manifest-truncated").code;
+
+/**
+ * The codes persisted with a ready capture: whatever the function reported,
+ * plus the truncation warning when this side had to bound the manifest too.
+ */
+function readyWarnings(result: CaptureSuccessResult, manifest: BoundedManifest): string[] {
+  const codes = [...result.warnings];
+  if (manifest.truncated && !codes.includes(MANIFEST_TRUNCATED_WARNING)) {
+    codes.push(MANIFEST_TRUNCATED_WARNING);
+  }
+  return codes;
+}
+
+/**
+ * The layout nonce is drawn into the screenshot and described in the manifest
+ * from one stabilized state, so finding it in the bounded manifest is the
+ * proof that image and metadata describe the same layout. It is kept ahead of
+ * the sampled candidates precisely so truncation cannot lose it.
+ */
+function manifestMatchesLayout(manifest: BoundedManifest, nonce: string, height: number): boolean {
+  const entry = manifest.manifest.elements.find((element) => element.text === nonce);
+  if (!entry) return false;
+  return (
+    entry.rect.width >= 1 &&
+    entry.rect.height >= 1 &&
+    entry.rect.x >= -1 &&
+    entry.rect.y >= -1 &&
+    entry.rect.y + entry.rect.height <= height + 1
+  );
+}
+
+function warningPayload(
+  result: CaptureSuccessResult,
+  manifest: BoundedManifest,
+  codes: string[],
+): string {
   return JSON.stringify({
-    codes: result.warnings,
+    codes,
     blockedRequests: result.blocked.length,
-    manifestBytes,
+    manifestBytes: manifest.bytes,
+    manifestElements: manifest.manifest.elements.length,
+    manifestTruncated: manifest.truncated,
     // The scroll pass is part of the evidence: a capture is only reproducible
     // if the page ended back at the top of the stabilized layout.
     scroll: {
@@ -224,7 +286,7 @@ async function runClaimedCapture(
       userAgent: profile.userAgent,
       imageType: IMAGE_TYPE,
       imageContentType: IMAGE_CONTENT_TYPE,
-      limits: limitsForFunction(),
+      limits: captureFunctionLimits(),
     },
     timeoutMs: TOTAL_CAPTURE_TIMEOUT_MS,
   });
@@ -251,8 +313,11 @@ async function runClaimedCapture(
   });
   if (!image.ok) return fail(image.outcome);
 
-  const manifest = serializeManifest(result.manifest);
-  if (!manifest.ok) return fail("browserless-provider");
+  const manifest = boundManifest(result.manifest);
+  if (!manifestMatchesLayout(manifest, layoutNonce, result.document.height)) {
+    return fail("browserless-provider");
+  }
+  const warnings = readyWarnings(result, manifest);
 
   const blobPath = `captures/${capture.pageId}/${capture.id}-${image.sha256.slice(0, 16)}.${IMAGE_TYPE}`;
   const stored = await store.put(blobPath, bytes, image.contentType);
@@ -272,7 +337,7 @@ async function runClaimedCapture(
     imageHash: image.sha256,
     domManifestJson: manifest.json,
     domManifestVersion: MANIFEST_SCHEMA_VERSION,
-    warningJson: warningPayload(result, manifest.bytes),
+    warningJson: warningPayload(result, manifest, warnings),
   });
   if (transition === "fenced") {
     // The claim was lost or the row already reached a terminal state, so this
@@ -294,9 +359,10 @@ async function runClaimedCapture(
       bytes: image.bytes,
       imageHash: image.sha256,
       layoutNonce,
-      manifestElements: result.manifest.elements.length,
+      manifestElements: manifest.manifest.elements.length,
       manifestBytes: manifest.bytes,
-      warnings: result.warnings,
+      manifestTruncated: manifest.truncated,
+      warnings,
     },
   };
 }
