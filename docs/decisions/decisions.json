@@ -1265,6 +1265,106 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D032",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "Capture admission is two defences: a bounded server-side check and an in-function request guard",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Project creation admits URLs without touching the network, so a public hostname that resolves to a private address passes it. Capture then hands that hostname to Browserless, which runs in a different network from this application. A single application-side DNS check is not proof of anything the remote browser will do a moment later, and a purely remote check gives the application no bounded verdict before it spends provider quota.",
+      "decision": "Capture admission runs in two places. Server-side, admitCaptureTarget canonicalizes once with WHATWG URL, rejects every unsafe syntax and IP spelling, resolves a bounded CNAME chain plus A and AAAA under DNS_TIMEOUT_MS, refuses the host if any answer is non-public, then walks the redirect chain with redirect: manual, revalidating every top-level hop under the identical rules up to MAX_REDIRECT_HOPS. Only then is the attempt claimed as capturing with its requested and final public URL persisted. Inside the Browserless function, an emitted request guard revalidates every top-level navigation and aborts subresource requests to credentialed hosts, reserved hosts, non-HTTP(S)/WebSocket schemes, and IP-literal hosts, without disabling web security, TLS validation, sandboxing, or the provider blocklist.",
+      "alternatives": [
+        {
+          "option": "Trust the application-side DNS check alone",
+          "why_not": "It cannot see a rebind, and the browser resolves the name again from a different network."
+        },
+        {
+          "option": "Trust the provider private-network blocklist alone",
+          "why_not": "It gives the application no bounded pre-provider verdict, so an unsafe target would still consume quota and produce an attempt with no explanation."
+        },
+        {
+          "option": "Validate only the initial URL and let the browser follow redirects",
+          "why_not": "A public first hop redirecting to 169.254.169.254 is the exact attack this boundary exists to refuse."
+        }
+      ],
+      "rationale": "Neither side is sufficient alone and the two fail in different directions, so running both is what makes the boundary defensible. Both sides follow from the approved architecture, so no product direction was decided here.",
+      "consequences": [
+        "Rejected targets never reach a provider: dispatch fails the attempt with a catalog outcome before a Browserless client is built.",
+        "A safe redirect chain persists both the requested and the final public URL on the claimed attempt.",
+        "DNS_TIMEOUT_MS, MAX_CNAME_HOPS, REDIRECT_PROBE_TIMEOUT_MS, and the non-public address range catalog join the versioned boundary catalog (POLICY_VERSION 2026-09-08.5).",
+        "POST /api/captures/[captureId]/dispatch claims an admitted attempt as capturing; the provider execution that turns it into ready lands in the following capture feature, and until then an admitted attempt reaches computed stale and stays retryable."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/admission.ts",
+          "caption": "Canonicalize, bounded DNS, and redirect-hop revalidation"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/guard.ts",
+          "caption": "The emitted Browserless in-function request guard"
+        },
+        {
+          "type": "file",
+          "path": "app/api/captures/[captureId]/dispatch/route.ts",
+          "caption": "Admission before any provider work"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D033",
+      "date": "2026-09-08",
+      "phase": "build",
+      "title": "DNS admission fails closed on any ambiguity, and one non-public answer rejects the host",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "A resolver can answer in more ways than yes and no. A host may return one public A record and a private AAAA record, a SERVFAIL for one family and an answer for the other, two CNAMEs, a chain that loops, or nothing at all within the budget. Treating any of those as good enough leaves a path where the browser picks the answer we did not check.",
+      "decision": "A host is admitted only when every answer parses as an address and every answer is public. A timeout, an ambiguous failure such as SERVFAIL or REFUSED from either family, more than one CNAME, a loop, a chain longer than MAX_CNAME_HOPS, an unparseable answer, and an empty result all reject the host. A definitive ENODATA/NXDOMAIN for one family is the one non-answer that is treated as information rather than ambiguity, so an IPv4-only host still resolves. Rejections report a bounded reason and never the resolved address.",
+      "alternatives": [
+        {
+          "option": "Admit the host if any family answers publicly",
+          "why_not": "The browser may prefer the family whose answer we could not read, which is the rebinding case restated."
+        },
+        {
+          "option": "Retry ambiguous answers until one resolves",
+          "why_not": "It turns an unbounded resolver into an unbounded capture, and a determined attacker controls how long that lasts."
+        },
+        {
+          "option": "Report the matched address or range in the error",
+          "why_not": "That turns the rejection into an internal-network oracle for anyone who can submit a URL."
+        }
+      ],
+      "rationale": "Every rejected case is one where the application cannot state what the browser will connect to, and the cost of refusing is one retryable failed attempt. The address catalog is published as enumerated policy so the refusal is auditable without disclosing any particular answer.",
+      "consequences": [
+        "A misconfigured but genuinely public host can be refused; the outcome is dns-failed, which the catalog marks retryable.",
+        "The non-public range catalog is the single executable source for both the address classifier and the published docs, so adding a range is one catalog edit plus its published rows."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/dns.ts",
+          "caption": "Bounded, fail-closed CNAME/A/AAAA resolution"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/net/address.ts",
+          "caption": "Prefix-match classification against the published range catalog"
+        },
+        {
+          "type": "file",
+          "path": "src/lib/boundaries/network.ts",
+          "caption": "The published DNS budget and non-public address ranges"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

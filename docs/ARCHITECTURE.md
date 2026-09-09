@@ -102,14 +102,14 @@ Every redirect hop is revalidated under the same rules before following it.
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-08.4`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-08.5`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.4 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.5 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -127,6 +127,9 @@ minimums, quotas, interaction limits, and performance budgets.
 | `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
 | `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap. |
 | `MAX_REDIRECT_HOPS` | 5 | Redirect hops revalidated before failure. |
+| `DNS_TIMEOUT_MS` | 3,000 ms | Per-query DNS budget; exceeding it fails closed. |
+| `MAX_CNAME_HOPS` | 8 | CNAME hops followed before the chain is refused. |
+| `REDIRECT_PROBE_TIMEOUT_MS` | 5,000 ms | Per-hop budget for the redirect preflight. |
 | `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Persisted attempts per project, initial plus retries. |
 | `MAX_ACTIVE_CAPTURES` | 2 | The Browserless free-tier concurrency limit. |
 | `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale. |

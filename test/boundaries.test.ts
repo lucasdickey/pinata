@@ -20,6 +20,7 @@ import {
   CAPTURE_REQUEST_MAX_BYTES,
   CLIENT_REQUEST_TIMEOUT_MS,
   DESKTOP_VIEWPORT,
+  DNS_TIMEOUT_MS,
   EDITOR_PASSWORD_MAX_CHARS,
   EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
   EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
@@ -43,6 +44,7 @@ import {
   MAX_ACTIVE_CAPTURES,
   MAX_ANNOTATIONS_PER_CAPTURE,
   MAX_CAPTURE_ATTEMPTS_PER_PROJECT,
+  MAX_CNAME_HOPS,
   MAX_DOCUMENT_HEIGHT_PX,
   MAX_DOCUMENT_PIXELS,
   MAX_IMAGE_BYTES,
@@ -64,6 +66,7 @@ import {
   NAVIGATION_TIMEOUT_MS,
   NEARBY_CANDIDATES_MAX,
   NETWORK_IDLE_TIMEOUT_MS,
+  NON_PUBLIC_ADDRESS_RANGES,
   PERFORMANCE_PROTOCOL,
   PERF_CAMERA_REQUEST_BUDGET,
   PERF_DETACHED_NODES_MAX,
@@ -76,6 +79,7 @@ import {
   POLICY_VERSION,
   PROJECT_REQUEST_MAX_BYTES,
   PROJECT_TITLE_MAX_CHARS,
+  REDIRECT_PROBE_TIMEOUT_MS,
   REPLY_MAX_PER_WINDOW,
   REPLY_WINDOW_MS,
   STALE_CAPTURE_AGE_MS,
@@ -136,6 +140,9 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "LAZY_SCROLL_STEP_DELAY_MS", value: fmtMs(LAZY_SCROLL_STEP_DELAY_MS) },
   { name: "TOTAL_CAPTURE_TIMEOUT_MS", value: fmtMs(TOTAL_CAPTURE_TIMEOUT_MS) },
   { name: "MAX_REDIRECT_HOPS", value: fmtNum(MAX_REDIRECT_HOPS) },
+  { name: "DNS_TIMEOUT_MS", value: fmtMs(DNS_TIMEOUT_MS) },
+  { name: "MAX_CNAME_HOPS", value: fmtNum(MAX_CNAME_HOPS) },
+  { name: "REDIRECT_PROBE_TIMEOUT_MS", value: fmtMs(REDIRECT_PROBE_TIMEOUT_MS) },
   { name: "MAX_CAPTURE_ATTEMPTS_PER_PROJECT", value: fmtNum(MAX_CAPTURE_ATTEMPTS_PER_PROJECT) },
   { name: "MAX_ACTIVE_CAPTURES", value: fmtNum(MAX_ACTIVE_CAPTURES) },
   { name: "STALE_CAPTURE_AGE_MS", value: fmtMs(STALE_CAPTURE_AGE_MS) },
@@ -283,6 +290,23 @@ describe("boundary catalog coverage and consistency", () => {
     expect(TOTAL_CAPTURE_TIMEOUT_MS).toBeLessThan(120_000);
     // Stale is strictly older than the worst-case healthy capture.
     expect(STALE_CAPTURE_AGE_MS).toBeGreaterThan(TOTAL_CAPTURE_TIMEOUT_MS);
+  });
+
+  test("the whole admission preflight fits inside the capture deadline", () => {
+    // Worst case before the provider is even called: one DNS round per hop
+    // plus one probe per hop.
+    const perHop = DNS_TIMEOUT_MS + REDIRECT_PROBE_TIMEOUT_MS;
+    expect(perHop * (MAX_REDIRECT_HOPS + 1)).toBeLessThan(TOTAL_CAPTURE_TIMEOUT_MS);
+    expect(MAX_CNAME_HOPS).toBeGreaterThan(0);
+  });
+
+  test("the non-public address catalog is unique and canonical", () => {
+    const cidrs = NON_PUBLIC_ADDRESS_RANGES.map((range) => range.cidr);
+    expect(new Set(cidrs).size).toBe(cidrs.length);
+    for (const range of NON_PUBLIC_ADDRESS_RANGES) {
+      expect(range.cidr, range.cidr).toMatch(/^[0-9a-f.:]+\/\d{1,3}$/);
+      expect(range.label.length, range.cidr).toBeGreaterThan(0);
+    }
   });
 
   test("attempt quota admits the initial attempts of a maximum-size project", () => {
@@ -482,6 +506,12 @@ describe("documentation publication", () => {
   test("EVALS.md publishes the full capture outcome catalog", () => {
     for (const o of CAPTURE_OUTCOMES) {
       expect(evalsDoc, o.code).toContain(outcomeRow(o));
+    }
+  });
+
+  test("EVALS.md publishes every non-public address range", () => {
+    for (const range of NON_PUBLIC_ADDRESS_RANGES) {
+      expect(evalsDoc, range.cidr).toContain(`| \`${range.cidr}\` | ${range.label} |`);
     }
   });
 

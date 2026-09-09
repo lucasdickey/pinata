@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 7 | D001, D002, D004, D007, D011, D012, D013 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 14 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031 |
+| Agent decided alone | 16 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **31** | |
+| **Total** | **33** | |
 
 ## Index
 
@@ -57,6 +57,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D029](#d029--a-project-its-pages-and-two-pending-capture-attempts-per-page-are-created-in-one-transaction-keyed-for-idempotent-retry) | build | A project, its pages, and two pending capture attempts per page are created in one transaction, keyed for idempotent retry | Agent decided alone | accepted |
 | [D030](#d030--the-active-capture-is-the-highest-numbered-ready-attempt-and-staleness-is-computed-at-read-time) | build | The active capture is the highest-numbered ready attempt, and staleness is computed at read time | Agent decided alone | accepted |
 | [D031](#d031--retry-is-scoped-to-one-page-and-one-viewport-keyed-to-that-exact-target) | build | Retry is scoped to one page and one viewport, keyed to that exact target | Agent decided alone | accepted |
+| [D032](#d032--capture-admission-is-two-defences-a-bounded-server-side-check-and-an-in-function-request-guard) | build | Capture admission is two defences: a bounded server-side check and an in-function request guard | Agent decided alone | accepted |
+| [D033](#d033--dns-admission-fails-closed-on-any-ambiguity-and-one-non-public-answer-rejects-the-host) | build | DNS admission fails closed on any ambiguity, and one non-public answer rejects the host | Agent decided alone | accepted |
 
 ---
 
@@ -1210,4 +1212,76 @@ Scoping the mutation to the smallest addressable unit is what makes partial fail
 
 ---
 
-<sub>Generated from 31 record(s) as of 2026-09-08 · source `14e2a504d24b`</sub>
+## D032 — Capture admission is two defences: a bounded server-side check and an in-function request guard
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Project creation admits URLs without touching the network, so a public hostname that resolves to a private address passes it. Capture then hands that hostname to Browserless, which runs in a different network from this application. A single application-side DNS check is not proof of anything the remote browser will do a moment later, and a purely remote check gives the application no bounded verdict before it spends provider quota.
+
+**Decision**
+
+Capture admission runs in two places. Server-side, admitCaptureTarget canonicalizes once with WHATWG URL, rejects every unsafe syntax and IP spelling, resolves a bounded CNAME chain plus A and AAAA under DNS_TIMEOUT_MS, refuses the host if any answer is non-public, then walks the redirect chain with redirect: manual, revalidating every top-level hop under the identical rules up to MAX_REDIRECT_HOPS. Only then is the attempt claimed as capturing with its requested and final public URL persisted. Inside the Browserless function, an emitted request guard revalidates every top-level navigation and aborts subresource requests to credentialed hosts, reserved hosts, non-HTTP(S)/WebSocket schemes, and IP-literal hosts, without disabling web security, TLS validation, sandboxing, or the provider blocklist.
+
+**Alternatives considered**
+
+- *Trust the application-side DNS check alone* — It cannot see a rebind, and the browser resolves the name again from a different network.
+- *Trust the provider private-network blocklist alone* — It gives the application no bounded pre-provider verdict, so an unsafe target would still consume quota and produce an attempt with no explanation.
+- *Validate only the initial URL and let the browser follow redirects* — A public first hop redirecting to 169.254.169.254 is the exact attack this boundary exists to refuse.
+
+**Rationale**
+
+Neither side is sufficient alone and the two fail in different directions, so running both is what makes the boundary defensible. Both sides follow from the approved architecture, so no product direction was decided here.
+
+**Consequences**
+
+- Rejected targets never reach a provider: dispatch fails the attempt with a catalog outcome before a Browserless client is built.
+- A safe redirect chain persists both the requested and the final public URL on the claimed attempt.
+- DNS_TIMEOUT_MS, MAX_CNAME_HOPS, REDIRECT_PROBE_TIMEOUT_MS, and the non-public address range catalog join the versioned boundary catalog (POLICY_VERSION 2026-09-08.5).
+- POST /api/captures/[captureId]/dispatch claims an admitted attempt as capturing; the provider execution that turns it into ready lands in the following capture feature, and until then an admitted attempt reaches computed stale and stays retryable.
+
+**Artifacts**
+
+- `src/lib/server/captures/admission.ts` — Canonicalize, bounded DNS, and redirect-hop revalidation
+- `src/lib/server/captures/guard.ts` — The emitted Browserless in-function request guard
+- `app/api/captures/[captureId]/dispatch/route.ts` — Admission before any provider work
+
+---
+
+## D033 — DNS admission fails closed on any ambiguity, and one non-public answer rejects the host
+
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+A resolver can answer in more ways than yes and no. A host may return one public A record and a private AAAA record, a SERVFAIL for one family and an answer for the other, two CNAMEs, a chain that loops, or nothing at all within the budget. Treating any of those as good enough leaves a path where the browser picks the answer we did not check.
+
+**Decision**
+
+A host is admitted only when every answer parses as an address and every answer is public. A timeout, an ambiguous failure such as SERVFAIL or REFUSED from either family, more than one CNAME, a loop, a chain longer than MAX_CNAME_HOPS, an unparseable answer, and an empty result all reject the host. A definitive ENODATA/NXDOMAIN for one family is the one non-answer that is treated as information rather than ambiguity, so an IPv4-only host still resolves. Rejections report a bounded reason and never the resolved address.
+
+**Alternatives considered**
+
+- *Admit the host if any family answers publicly* — The browser may prefer the family whose answer we could not read, which is the rebinding case restated.
+- *Retry ambiguous answers until one resolves* — It turns an unbounded resolver into an unbounded capture, and a determined attacker controls how long that lasts.
+- *Report the matched address or range in the error* — That turns the rejection into an internal-network oracle for anyone who can submit a URL.
+
+**Rationale**
+
+Every rejected case is one where the application cannot state what the browser will connect to, and the cost of refusing is one retryable failed attempt. The address catalog is published as enumerated policy so the refusal is auditable without disclosing any particular answer.
+
+**Consequences**
+
+- A misconfigured but genuinely public host can be refused; the outcome is dns-failed, which the catalog marks retryable.
+- The non-public range catalog is the single executable source for both the address classifier and the published docs, so adding a range is one catalog edit plus its published rows.
+
+**Artifacts**
+
+- `src/lib/server/captures/dns.ts` — Bounded, fail-closed CNAME/A/AAAA resolution
+- `src/lib/net/address.ts` — Prefix-match classification against the published range catalog
+- `src/lib/boundaries/network.ts` — The published DNS budget and non-public address ranges
+
+---
+
+<sub>Generated from 33 record(s) as of 2026-09-08 · source `9366ac364400`</sub>

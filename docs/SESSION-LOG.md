@@ -794,3 +794,88 @@ Roughly 1.5 hours of mission-worker time.
   `private-capture-asset-delivery` will supply.
 - The orphan `valrun-…` project from an earlier session is still in the
   database; this session again left it alone.
+
+## Session — capture admission and remote-network safety (2026-09-08)
+
+### What was attempted
+
+The public-HTTPS admission boundary for capture: canonicalization, bounded
+DNS, redirect-hop revalidation, and the Browserless in-function request
+guard, so nothing private can reach an image or a manifest
+(`VAL-CAPTURE-001`, `VAL-CAPTURE-002`).
+
+### What landed
+
+- `src/lib/boundaries/network.ts` — `DNS_TIMEOUT_MS`, `MAX_CNAME_HOPS`,
+  `REDIRECT_PROBE_TIMEOUT_MS`, and `NON_PUBLIC_ADDRESS_RANGES`: 27 IPv4 and
+  IPv6 prefixes published as enumerated policy in `docs/EVALS.md`.
+- `src/lib/net/address.ts` — prefix-match classification over parsed bytes, so
+  compressed IPv6, embedded IPv4, and IPv4-mapped spellings cannot spell their
+  way past a range. Anything that does not parse is non-public.
+- `src/lib/server/captures/dns.ts` — bounded CNAME chain plus A and AAAA,
+  fail-closed on timeout, ambiguous failure, loop, hop cap, empty result, or a
+  single non-public answer. Results carry a count, never an address.
+- `src/lib/server/captures/admission.ts` — canonicalize once, check the
+  initial destination, then revalidate every top-level redirect hop under the
+  identical rules up to `MAX_REDIRECT_HOPS`.
+- `src/lib/server/captures/guard.ts` — the emitted in-function guard that
+  revalidates navigations and refuses credentialed, reserved, non-HTTP(S), and
+  IP-literal subresource destinations inside the provider sandbox.
+- `src/lib/server/captures/dispatch.ts` and
+  `app/api/captures/[captureId]/dispatch/route.ts` — admission strictly before
+  provider work; a rejected target fails the attempt with its catalog outcome,
+  a safe one claims `capturing` with both public URLs persisted.
+
+### What broke or surprised
+
+- Adding three constants plus a published range table moved five files again
+  (catalog, both docs, the drift test rows, `POLICY_VERSION`), and the
+  `POLICY_VERSION` string itself appears in prose as well as a table row in
+  both documents.
+- Emitting the guard as JavaScript source means it cannot import the address
+  catalog, so it refuses the entire IP-literal space instead of doing address
+  arithmetic remotely. That is strictly stricter and removes the duplicate
+  implementation the alternative would have required; a test evaluates the
+  exact emitted source and cross-checks it against the shared catalog.
+- Real DNS made the rebinding case cheap to prove: `10.0.0.1.nip.io` and
+  `169.254.169.254.nip.io` are genuine public names, and both are refused by
+  the real resolver path rather than by a fixture.
+
+### How it was verified
+
+- Focused Vitest: 60 address-range cases, 52 admission cases (canonicalization
+  order, CNAME chain/loop/hop cap, mixed A/AAAA answers, DNS timeout,
+  ambiguous-family failure, the redirect matrix at and over the hop cap), 38
+  guard cases including catalog agreement, and 19 dispatch-route cases.
+- Real DNS and real HTTPS through the live adapters: `example.com` admitted,
+  `www.github.com` admitted after one revalidated hop to `github.com`,
+  `127.0.0.1.nip.io` / `10.0.0.1.nip.io` / `169.254.169.254.nip.io` refused as
+  `dns-failed`, NXDOMAIN refused as unresolved.
+- The live app on `127.0.0.1:3100` against real Turso: a run-scoped project
+  dispatched four desktop attempts — two claimed `capturing` with their final
+  URLs persisted, two failed as `dns-failed` with no `final_url`, no
+  `blob_path`, and no `image_hash`. Anonymous, foreign-origin, and unsupported
+  -method probes answered 403/401/405 with bounded generic messages. Every
+  run-scoped row was deleted and its absence verified.
+
+### Elapsed
+
+Roughly 1 hour of mission-worker time.
+
+### Decisions and assertions
+
+- `D032` (agent-autonomous): admission is two defences — a bounded
+  server-side check and an in-function request guard.
+- `D033` (agent-autonomous): DNS admission fails closed on any ambiguity and
+  one non-public answer rejects the host.
+- `VAL-CAPTURE-001` and `VAL-CAPTURE-002` are covered on the local surface.
+  The remote half of `VAL-CAPTURE-002` — proving the guard against live
+  private-destination fixtures — belongs to `browserless-remote-network-safety`
+  once images and manifests exist.
+
+### Open questions at end of session
+
+- An admitted attempt now sits in `capturing` until the provider step exists.
+  That is a legal state with computed staleness and retry, but the next
+  capture feature should call the provider immediately after
+  `dispatchCapture` returns rather than leaving the claim open.

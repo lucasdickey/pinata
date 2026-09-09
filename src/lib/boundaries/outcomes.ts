@@ -207,3 +207,15 @@ export const CAPTURE_OUTCOMES: readonly CaptureOutcome[] = Object.freeze([
     remediation: "Pins still work; some areas may offer no element context.",
   },
 ]);
+
+const BY_CODE = new Map(CAPTURE_OUTCOMES.map((outcome) => [outcome.code, outcome]));
+
+/**
+ * The catalog entry for one outcome code. Throwing on an unknown code is
+ * deliberate: no caller may invent an outcome outside the published set.
+ */
+export function captureOutcome(code: string): CaptureOutcome {
+  const outcome = BY_CODE.get(code);
+  if (!outcome) throw new Error(`Unknown capture outcome code: ${code}`);
+  return outcome;
+}

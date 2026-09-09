@@ -81,7 +81,7 @@ Representative scenarios:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-08.4`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-08.5`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -89,7 +89,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-08.4 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-08.5 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -183,6 +183,66 @@ before any capture attempt or project row exists.
 | `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
 | `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap; exceeding it fails as `total-timeout`. |
 | `MAX_REDIRECT_HOPS` | 5 | Every hop is revalidated under the same public-HTTPS rules. |
+| `DNS_TIMEOUT_MS` | 3,000 ms | Per-query DNS budget; a query that outlives it fails the capture as `dns-failed`. |
+| `MAX_CNAME_HOPS` | 8 | CNAME hops followed before the chain is refused as unresolvable. |
+| `REDIRECT_PROBE_TIMEOUT_MS` | 5,000 ms | Per-hop budget for the server-side redirect preflight. |
+
+### Capture destination admission
+
+A capture target is admitted only when it canonicalizes to an absolute public
+HTTPS URL *and* resolves publicly. Canonicalization runs first, so every IP
+spelling is rejected as a literal before any range check. DNS then follows a
+bounded CNAME chain and queries both A and AAAA: the host is admitted only if
+every answer parses and every answer is public. A timeout, a server failure,
+an ambiguous answer from either family, an empty result, a loop, or a single
+non-public answer rejects the host. Rejections never disclose a resolved
+address.
+
+Every top-level redirect hop is revalidated under the identical scheme,
+credential, port, canonical-host, DNS-answer, and address-range rules, up to
+`MAX_REDIRECT_HOPS`; a chain that stays public completes and the capture
+stores both the requested and the final public URL.
+
+Browserless runs in a different network, so application-side DNS proves
+nothing about what the remote browser resolves. The capture function
+therefore installs a request guard that revalidates every top-level
+navigation and refuses subresource requests to credentialed hosts, reserved
+hosts, non-HTTP(S)/WebSocket schemes, and *all* IP-literal hosts, while
+ordinary public subresources continue to load. The guard never disables web
+security, TLS validation, sandboxing, or the provider's private-network
+blocklist.
+
+These prefixes are never a capture destination:
+
+| Range | Why |
+| --- | --- |
+| `0.0.0.0/8` | this network |
+| `10.0.0.0/8` | private |
+| `100.64.0.0/10` | carrier-grade NAT |
+| `127.0.0.0/8` | loopback |
+| `169.254.0.0/16` | link-local and cloud metadata |
+| `172.16.0.0/12` | private |
+| `192.0.0.0/24` | IETF protocol assignments |
+| `192.0.2.0/24` | documentation (TEST-NET-1) |
+| `192.88.99.0/24` | 6to4 relay anycast |
+| `192.168.0.0/16` | private |
+| `198.18.0.0/15` | benchmarking |
+| `198.51.100.0/24` | documentation (TEST-NET-2) |
+| `203.0.113.0/24` | documentation (TEST-NET-3) |
+| `224.0.0.0/4` | multicast |
+| `240.0.0.0/4` | reserved and broadcast |
+| `::/96` | unspecified and IPv4-compatible |
+| `::ffff:0:0/96` | IPv4-mapped |
+| `64:ff9b::/96` | NAT64 |
+| `64:ff9b:1::/48` | local-use NAT64 |
+| `100::/64` | discard-only |
+| `2001::/32` | Teredo |
+| `2001:2::/48` | benchmarking |
+| `2001:db8::/32` | documentation |
+| `2002::/16` | 6to4 |
+| `fc00::/7` | unique-local |
+| `fe80::/10` | link-local |
+| `ff00::/8` | multicast |
 
 ### Capture attempts, concurrency, and staleness
 
