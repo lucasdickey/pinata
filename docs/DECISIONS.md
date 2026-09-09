@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 9 | D001, D002, D004, D007, D011, D012, D013, D040, D041 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 29 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048 |
+| Agent decided alone | 30 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049 |
 | Raised and deferred | 1 | D003 |
-| **Total** | **48** | |
+| **Total** | **49** | |
 
 ## Index
 
@@ -74,6 +74,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D046](#d046--markdown-list-loops-absorb-wrapped-continuation-lines-so-a-blank-line-is-the-only-way-to-end-a-list) | build | Markdown list loops absorb wrapped continuation lines, so a blank line is the only way to end a list | Agent decided alone | accepted |
 | [D047](#d047--darken-the-brand-accent-token-to-wcag-aa-match-the-markdown-external-host-treatment-on-decision-artifact-links-and-repair-heading-order-and-landmark-uniqueness-on-reqsdecisions) | validate | Darken the brand accent token to WCAG AA, match the Markdown external-host treatment on decision artifact links, and repair heading order and landmark uniqueness on /reqs/decisions | Agent decided alone | accepted |
 | [D048](#d048--make-scrollable-reqs-regions-keyboard-focusable-named-groups-and-codify-the-axe-sweep-at-desktop-and-390px-with-axe-coreplaywright) | validate | Make scrollable /reqs regions keyboard-focusable named groups and codify the axe sweep at desktop and 390px with @axe-core/playwright | Agent decided alone | accepted |
+| [D049](#d049--drive-pending-capture-dispatch-from-the-editor-client-bounded-by-the-durable-lease-cap-and-re-driven-by-the-polling-loop) | build | Drive pending capture dispatch from the editor client, bounded by the durable lease cap and re-driven by the polling loop | Agent decided alone | accepted |
 
 ---
 
@@ -1852,4 +1853,42 @@ Safe to decide unilaterally: the feature assignment from user-testing round 2 di
 
 ---
 
-<sub>Generated from 48 record(s) as of 2026-09-09 · source `138fae4e17a2`</sub>
+## D049 — Drive pending capture dispatch from the editor client, bounded by the durable lease cap and re-driven by the polling loop
+
+*2026-09-09 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+User-testing round 1 found the capture-driver gap: project creation commits two pending attempts per page, but nothing ever dispatched them, so every capture sat in the Queued state forever unless someone hand-called POST /api/captures/:id/dispatch. The server deliberately schedules nothing itself — the durable two-slot lease table is the only concurrency authority — so the missing piece was a client that turns committed pending rows into dispatch requests, including after a reload or a return to the editor with work still pending.
+
+**Decision**
+
+The editor home now runs a dispatch driver next to the existing capture-progress poller, with the policy kept pure in src/lib/capture-dispatch.ts. Every hierarchy read that shows pending attempts (the initial load, the post-create re-read, a retry's re-read, or a poll tick) feeds pendingDispatchTargets, which lists pending attempts in deterministic project/page/device order, and nextDispatchBatch, which keeps at most MAX_ACTIVE_CAPTURES dispatches in flight from this client and skips attempts already in flight or inside their re-drive delay. A dispatch that settles (ready, or any attempt-consuming catalog outcome read from the response body) triggers one hierarchy re-read so the workspace surfaces the outcome and the freed slot drives the next pending attempt. A quota-exceeded 429 leaves the attempt pending and defers it for CAPTURE_DISPATCH_REDRIVE_DELAY_MS (defined as the published initial poll interval, not a new constant), so the polling loop is what re-drives it once a slot has had time to free; a 409 conflict or an untrustworthy answer defers the same way, which makes even a stale-read race a bounded one-attempt-per-poll-tick retry rather than a storm. No new endpoint exists, the hierarchy GET stays read-only, and provider execution still happens inside the dispatch request.
+
+**Alternatives considered**
+
+- *Dispatch from the server immediately after project creation commits* — A server-side scheduler would need its own re-drive mechanism for quota-held and abandoned work, duplicating the lease reconciliation that already exists, and would create provider jobs with no client attached to observe them. The architecture had already assigned scheduling to the authorized client (at most two in parallel); the gap was that the client never did it.
+- *Add a claim endpoint or a queue table the dispatch route polls* — A second surface that finalizes attempts it did not admit violates the one-request dispatch invariant (admit, claim, execute, finalize in one request, D035) and adds a background-job failure mode. The durable pending rows already are the queue.
+- *Re-dispatch quota-held attempts immediately on every hierarchy read* — When another client or instance holds both slots, an immediate re-drive on every read is a hammer loop against the 429 fence. Deferring one initial poll interval bounds the re-drive to the published polling cadence, which is already backed off and deadline-capped.
+
+**Rationale**
+
+Safe to decide unilaterally: the architecture document already states the client schedules captures at most two in parallel, and the feature assignment (from the user-testing round 1 finding) directed closing exactly this gap, so the remaining choices — deterministic target order, an in-flight guard, and a deferral window equal to the initial poll interval — are mechanical and reversible inside src/lib/capture-dispatch.ts.
+
+**Consequences**
+
+- Any open editor session drives every pending attempt it can see; captures no longer require a manual dispatch call, and a reload with pending work resumes driving automatically.
+- The editor projects e2e must stub the dispatch route with the quota outcome to stay hermetic — an open editor page with pending attempts now really dispatches against the real provider otherwise.
+- Dispatch answers are classified by the attempt-consuming catalog code in the body (settled) versus quota-exceeded/conflict/other (defer), so a terminal outcome can never be re-driven and a held attempt is always re-driven later.
+- The re-drive delay rides on CAPTURE_POLL_INITIAL_INTERVAL_MS; changing polling cadence changes re-drive cadence with it.
+
+**Artifacts**
+
+- `src/lib/capture-dispatch.ts` — Pure driver policy (targets, capped batching, re-drive deferral) plus the scoped-route dispatch helper
+- `src/components/editor-home.tsx` — Driver effect wired next to the polling effect on every ready hierarchy read
+- `test/editor-home-dispatch.test.tsx` — Wired driver proof: cap respected, quota re-drive, terminal outcomes never loop, conflicts never storm
+- `e2e/capture-driver.spec.ts` — Real-provider proof: four attempts reach ready with zero manual dispatch calls and at most two in flight
+
+---
+
+<sub>Generated from 49 record(s) as of 2026-09-09 · source `4cc4915b6923`</sub>

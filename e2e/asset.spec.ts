@@ -21,6 +21,7 @@ import { createDatabase, schema, type Database } from "../src/lib/server/db/clie
 import { createVercelBlobStore, type ScreenshotStore } from "../src/lib/server/providers/blob";
 import { encodeSolidPng } from "../test/helpers/png";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
+import { stubDispatchQuota } from "./stub-dispatch";
 
 const gate = localEnvGate([
   "SESSION_SECRET",
@@ -246,8 +247,15 @@ test("a warmed, rendered image is unreachable after logout", async ({ page, requ
   test.skip(!gate.ready, gate.reason);
   const consoleErrors: string[] = [];
   page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
+    // The stubbed dispatch answers 429 (the editor home drives pending
+    // captures by design, D049); Chromium logs that as a resource error.
+    if (msg.type() === "error" && !msg.text().includes("status of 429")) {
+      consoleErrors.push(msg.text());
+    }
   });
+  // This spec is about asset delivery, not provider execution: keep the
+  // editor home's dispatch driver from consuming real capture quota.
+  await stubDispatchQuota(page);
 
   await page.context().addCookies([
     {

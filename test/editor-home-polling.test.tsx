@@ -65,14 +65,29 @@ function projectWith(state: AttemptView["state"]): WorkspaceProject {
   };
 }
 
-/** A fetch double answering the hierarchy GET from a queue of states. */
+/**
+ * A fetch double answering the hierarchy GET from a queue of states. The
+ * dispatch driver fires for pending attempts; its POST stays unresolved here
+ * (a capture takes seconds), which also proves the in-flight guard keeps the
+ * poller from re-dispatching an attempt it already sent.
+ */
 function queueStates(...states: AttemptView["state"][]): void {
   let index = 0;
-  fetchMock.mockImplementation(() => {
+  fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+    if ((init?.method ?? "GET") !== "GET") {
+      return new Promise<Response>(() => {});
+    }
     const state = states[Math.min(index, states.length - 1)]!;
     index += 1;
     return Promise.resolve(Response.json({ projects: [projectWith(state)] }));
   });
+}
+
+/** The polling schedule is about hierarchy reads; count only those. */
+function hierarchyReads(): number {
+  return fetchMock.mock.calls.filter(
+    (call) => ((call[1] as RequestInit | undefined)?.method ?? "GET") === "GET",
+  ).length;
 }
 
 async function tick(ms: number): Promise<void> {
@@ -82,10 +97,16 @@ async function tick(ms: number): Promise<void> {
 }
 
 function expectReadOnlyPolling(): void {
-  // Polling must never create work: every call is the hierarchy GET.
+  // Polling must never create work: every read is the hierarchy GET, and the
+  // only writes anywhere are dispatches through the one scoped route.
   for (const call of fetchMock.mock.calls) {
-    expect(call[0]).toBe("/api/projects");
-    expect((call[1] as RequestInit | undefined)?.method ?? "GET").toBe("GET");
+    const method = (call[1] as RequestInit | undefined)?.method ?? "GET";
+    if (method === "GET") {
+      expect(call[0]).toBe("/api/projects");
+    } else {
+      expect(method).toBe("POST");
+      expect(String(call[0])).toMatch(/^\/api\/captures\/[^/]+\/dispatch$/);
+    }
   }
 }
 
@@ -106,23 +127,23 @@ describe("capture-progress polling", () => {
     queueStates("pending", "pending", "ready");
     render(<EditorHome />);
     await act(async () => {}); // the initial load
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hierarchyReads()).toBe(1);
 
     // Nothing before the published initial interval.
     await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS - 1);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hierarchyReads()).toBe(1);
     await tick(1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(hierarchyReads()).toBe(2);
 
     // The backoff doubled: the next poll is twice the initial interval out.
     await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS * 2 - 1);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(hierarchyReads()).toBe(2);
     await tick(1);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(hierarchyReads()).toBe(3);
 
     // The last read returned all-ready: polling stopped for good.
     await tick(CAPTURE_POLL_DEADLINE_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(hierarchyReads()).toBe(3);
     expectReadOnlyPolling();
   });
 
@@ -130,13 +151,13 @@ describe("capture-progress polling", () => {
     queueStates("capturing", "stale");
     render(<EditorHome />);
     await act(async () => {});
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hierarchyReads()).toBe(1);
 
     await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(hierarchyReads()).toBe(2);
 
     await tick(CAPTURE_POLL_DEADLINE_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(hierarchyReads()).toBe(2);
     expectReadOnlyPolling();
   });
 
@@ -157,13 +178,13 @@ describe("capture-progress polling", () => {
     ) {
       await tick(10_000);
     }
-    const pollsAtDeadline = fetchMock.mock.calls.length;
+    const pollsAtDeadline = hierarchyReads();
     // The run polled repeatedly, then stopped: one deadline later nothing
     // more is scheduled.
     expect(pollsAtDeadline).toBeGreaterThan(3);
     expect(pollsAtDeadline).toBeLessThan(200);
     await tick(CAPTURE_POLL_DEADLINE_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(pollsAtDeadline);
+    expect(hierarchyReads()).toBe(pollsAtDeadline);
     expectReadOnlyPolling();
   });
 
@@ -171,9 +192,9 @@ describe("capture-progress polling", () => {
     queueStates("ready");
     render(<EditorHome />);
     await act(async () => {});
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hierarchyReads()).toBe(1);
     await tick(CAPTURE_POLL_DEADLINE_MS);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(hierarchyReads()).toBe(1);
     expectReadOnlyPolling();
   });
 });

@@ -8,6 +8,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
+import {
+  CAPTURE_DISPATCH_REDRIVE_DELAY_MS,
+  nextDispatchBatch,
+  pendingDispatchTargets,
+  postCaptureDispatch,
+} from "../lib/capture-dispatch";
 import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
 import { readCsrfProof } from "../lib/csrf";
 import { ProjectCreateForm } from "./project-create-form";
@@ -80,6 +86,55 @@ export function EditorHome() {
       void load();
     }, decision.delayMs);
     return () => clearTimeout(timer);
+  }, [list, load]);
+
+  // Capture-dispatch driver: the server deliberately schedules nothing, so
+  // every committed pending attempt is dispatched from here — after a project
+  // is created, after a retry, and on any load or reload that finds pending
+  // work, so navigation can never orphan a pending row. Dispatches go through
+  // the one scoped route, at most MAX_ACTIVE_CAPTURES in flight; a
+  // quota-exceeded answer defers the attempt for one re-drive delay and the
+  // polling loop's next read re-drives it once a slot has had time to free.
+  const dispatchInFlight = useRef(new Set<string>());
+  const dispatchDeferred = useRef(new Map<string, number>());
+  useEffect(() => {
+    if (list.status !== "ready") return;
+    const batch = nextDispatchBatch(
+      pendingDispatchTargets(list.projects),
+      dispatchInFlight.current,
+      dispatchDeferred.current,
+      Date.now(),
+    );
+    for (const captureId of batch) {
+      dispatchInFlight.current.add(captureId);
+      void (async () => {
+        const outcome = await postCaptureDispatch(captureId);
+        dispatchInFlight.current.delete(captureId);
+        if (outcome === "settled" || outcome === "conflict") {
+          // The attempt resolved (or another client owns it now): re-read so
+          // the workspace surfaces the catalog outcome and the next pending
+          // attempt gets the freed slot. A conflict is deferred too: if the
+          // re-read somehow still shows the row pending, the driver waits out
+          // one re-drive delay instead of storming the fence.
+          if (outcome === "conflict") {
+            dispatchDeferred.current.set(
+              captureId,
+              Date.now() + CAPTURE_DISPATCH_REDRIVE_DELAY_MS,
+            );
+          } else {
+            dispatchDeferred.current.delete(captureId);
+          }
+          void load();
+          return;
+        }
+        // quota / transient: the attempt stays pending. Defer it; the polling
+        // loop's next read re-drives it — never a tight retry loop.
+        dispatchDeferred.current.set(
+          captureId,
+          Date.now() + CAPTURE_DISPATCH_REDRIVE_DELAY_MS,
+        );
+      })();
+    }
   }, [list, load]);
 
   async function logout() {

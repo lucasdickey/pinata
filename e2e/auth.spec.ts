@@ -13,6 +13,7 @@
 
 import { expect, test } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
+import { stubDispatchQuota } from "./stub-dispatch";
 
 const sessionEnv = localEnvGate(["SESSION_SECRET"]);
 const loginEnv = localEnvGate([
@@ -51,6 +52,10 @@ test("wrong password is denied; the configured password establishes a session; l
   page,
 }) => {
   test.skip(!loginEnv.ready, loginEnv.reason);
+  // The signed-in editor home drives pending captures by design (D049); this
+  // spec is about auth, so dispatch is stubbed to keep provider quota out of
+  // the login flow.
+  await stubDispatchQuota(page);
   await page.goto("/");
 
   // Wrong password: generic error, no session cookie.

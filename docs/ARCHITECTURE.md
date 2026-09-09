@@ -78,6 +78,15 @@ active captures at a time (the Browserless free-tier concurrency limit).
 Status is persisted before provider work starts, so partial failures are
 visible and retryable.
 
+The server schedules nothing itself: the editor client drives committed
+pending attempts through the scoped dispatch route — on load, after project
+creation or retry, and on every poll tick that still finds pending work
+(`D049`). The driver keeps at most `MAX_ACTIVE_CAPTURES` dispatches in
+flight; a quota-exceeded answer leaves the attempt pending and defers it for
+one re-drive delay, so the polling loop re-drives it as slots free, and a
+terminal catalog outcome is surfaced by the next hierarchy read and never
+re-driven.
+
 1. Revalidate the normalized public HTTPS URL on the server: no credentials,
    no IP literals, no non-443 ports, no private, loopback, link-local,
    reserved, or metadata destinations — by parser and by DNS answers.

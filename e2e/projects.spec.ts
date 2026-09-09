@@ -12,12 +12,17 @@
 
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
+import { stubDispatchQuota } from "./stub-dispatch";
 
 const projectEnv = localEnvGate([
   "EDITOR_PASSWORD",
   "SESSION_SECRET",
   "TURSO_DATABASE_URL",
   "TURSO_AUTH_TOKEN",
+  // Cleanup deletes Blob objects too: a concurrent spec's editor page runs
+  // the real dispatch driver and may legitimately carry this run's pending
+  // attempts all the way to ready in the shared store.
+  "BLOB_READ_WRITE_TOKEN",
 ]);
 
 const RUN_ID = `e2e-${Date.now().toString(36)}`;
@@ -31,6 +36,16 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 }
+
+/**
+ * Keep this spec hermetic: the editor's dispatch driver automatically drives
+ * every pending attempt it can see, and this spec is about organization, not
+ * provider execution. The shared stub (e2e/stub-dispatch.ts) answers every
+ * dispatch with the durable quota-exceeded outcome, so this run's attempts
+ * are never driven by its own page. A concurrent spec's real driver page may
+ * still pick them up in the shared database, so state assertions below are
+ * structural and cleanup deletes any Blob objects those captures produced.
+ */
 
 /** Add one URL row and type into it. */
 async function addRow(page: Page, value: string): Promise<void> {
@@ -85,8 +100,13 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   const consoleErrors: string[] = [];
   page.on("console", (msg) => {
     // The deliberate correction below is a 422 the browser always logs as a
-    // failed resource load; everything else is a defect.
-    if (msg.type() === "error" && !msg.text().includes("status of 422")) {
+    // failed resource load; the stubbed dispatch above answers 429, which the
+    // driver expects and handles. Everything else is a defect.
+    if (
+      msg.type() === "error" &&
+      !msg.text().includes("status of 422") &&
+      !msg.text().includes("status of 429")
+    ) {
       consoleErrors.push(msg.text());
     }
   });
@@ -97,6 +117,7 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
     }
   });
 
+  await stubDispatchQuota(page);
   await signIn(page);
   const before = runScoped(await projectsOf(page.request));
 
@@ -151,15 +172,22 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   const created = after.find((project) => project.title === `${RUN_ID} review`);
   expect(created?.pages.map((p) => p.normalizedUrl)).toEqual([ROOT, PRICING, ABOUT]);
   for (const created_page of created!.pages) {
-    expect(
-      created_page.devices.map((d) => `${d.variant}:${d.latest?.state ?? "none"}`),
-    ).toEqual(["desktop:pending", "mobile:pending"]);
+    // Creation commits exactly one initial attempt per device. The state is
+    // not asserted: the dispatch driver is live by design (D049), so a
+    // concurrent real-driver page may already be carrying these attempts to
+    // capturing or ready in the shared store.
+    expect(created_page.devices.map((d) => d.variant)).toEqual(["desktop", "mobile"]);
+    for (const d of created_page.devices) {
+      expect(d.attempts).toHaveLength(1);
+      expect(d.attempts[0]!.attempt).toBe(1);
+    }
   }
   expect(consoleErrors).toEqual([]);
 });
 
 test("an idempotent retry of the same submission creates nothing new", async ({ page }) => {
   test.skip(!projectEnv.ready, projectEnv.reason);
+  await stubDispatchQuota(page);
   await signIn(page);
   const csrf = (await page.context().cookies()).find((c) => c.name === "pinata_csrf")!.value;
   // Playwright's request context sends no Origin; a real browser fetch does,
@@ -204,9 +232,13 @@ test("the workspace keeps one active device, retries one variant, and survives r
   test.skip(!projectEnv.ready, projectEnv.reason);
   const consoleErrors: string[] = [];
   page.on("console", (msg) => {
-    if (msg.type() === "error") consoleErrors.push(msg.text());
+    // The stubbed dispatch answers 429; the driver expects and handles it.
+    if (msg.type() === "error" && !msg.text().includes("status of 429")) {
+      consoleErrors.push(msg.text());
+    }
   });
 
+  await stubDispatchQuota(page);
   await signIn(page);
   const created = (await projectsOf(page.request)).find((p) => p.title === `${RUN_ID} review`)!;
   const pricing = created.pages[1]!;
@@ -253,7 +285,9 @@ test("the workspace keeps one active device, retries one variant, and survives r
   )!;
   const retriedPage = afterRetry.pages[1]!;
   expect(retriedPage.devices[1]!.attempts.map((a) => a.attempt)).toEqual([2, 1]);
-  expect(retriedPage.devices[1]!.latest?.state).toBe("pending");
+  // The retry committed attempt 2 as the latest; the live driver (D049) may
+  // already be dispatching it, so its state is deliberately not asserted.
+  expect(retriedPage.devices[1]!.latest?.attempt).toBe(2);
   // Exactly one variant of one page was retried.
   expect(retriedPage.devices[0]!.attempts).toHaveLength(1);
   expect(afterRetry.pages[0]!.devices.every((d) => d.attempts.length === 1)).toBe(true);
@@ -276,8 +310,13 @@ test("a failed list load retries with exactly one read and never loses logout", 
   const consoleErrors: string[] = [];
   page.on("console", (msg) => {
     // The intercepted 500 below is logged by the browser as a failed
-    // resource load; everything else is a defect.
-    if (msg.type() === "error" && !msg.text().includes("status of 500")) {
+    // resource load, as is the stubbed dispatch 429; everything else is a
+    // defect.
+    if (
+      msg.type() === "error" &&
+      !msg.text().includes("status of 500") &&
+      !msg.text().includes("status of 429")
+    ) {
       consoleErrors.push(msg.text());
     }
   });
@@ -305,6 +344,7 @@ test("a failed list load retries with exactly one read and never loses logout", 
     await route.continue();
   });
 
+  await stubDispatchQuota(page);
   await signIn(page);
   // Loading finished in a distinct, announced failure state; logout survives.
   // (Scoped to `p` — the Next route announcer div also carries role=alert.)
@@ -340,11 +380,27 @@ test("a failed list load retries with exactly one read and never loses logout", 
 test.afterAll(async () => {
   if (!projectEnv.ready) return;
   const { createClient } = await import("@libsql/client");
+  const { createVercelBlobStore } = await import("../src/lib/server/providers/blob");
   const client = createClient({
     url: requireLocalEnvValue("TURSO_DATABASE_URL"),
     authToken: requireLocalEnvValue("TURSO_AUTH_TOKEN"),
   });
   try {
+    // A concurrent spec's real dispatch driver may have carried this run's
+    // attempts to ready; delete any Blob objects those captures produced
+    // before removing the rows that reference them.
+    const store = createVercelBlobStore({
+      BLOB_READ_WRITE_TOKEN: requireLocalEnvValue("BLOB_READ_WRITE_TOKEN"),
+    })!;
+    const blobbed = await client.execute({
+      sql: `select blob_path from captures where blob_path is not null and page_id in (
+              select id from pages where project_id in (
+                select id from projects where root_url like ?))`,
+      args: [`%${RUN_ID}%`],
+    });
+    for (const row of blobbed.rows) {
+      await store.del(String(row.blob_path));
+    }
     // Capture-retry idempotency keys carry the page id (not the run id) in
     // their stored result, so collect this run's page ids before deleting
     // the pages they reference.

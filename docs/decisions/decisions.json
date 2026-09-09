@@ -2101,6 +2101,62 @@
           "caption": "Approved dev-dependency allowlist extended with @axe-core/playwright"
         }
       ]
+    },
+    {
+      "id": "D049",
+      "date": "2026-09-09",
+      "phase": "build",
+      "title": "Drive pending capture dispatch from the editor client, bounded by the durable lease cap and re-driven by the polling loop",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "User-testing round 1 found the capture-driver gap: project creation commits two pending attempts per page, but nothing ever dispatched them, so every capture sat in the Queued state forever unless someone hand-called POST /api/captures/:id/dispatch. The server deliberately schedules nothing itself — the durable two-slot lease table is the only concurrency authority — so the missing piece was a client that turns committed pending rows into dispatch requests, including after a reload or a return to the editor with work still pending.",
+      "decision": "The editor home now runs a dispatch driver next to the existing capture-progress poller, with the policy kept pure in src/lib/capture-dispatch.ts. Every hierarchy read that shows pending attempts (the initial load, the post-create re-read, a retry's re-read, or a poll tick) feeds pendingDispatchTargets, which lists pending attempts in deterministic project/page/device order, and nextDispatchBatch, which keeps at most MAX_ACTIVE_CAPTURES dispatches in flight from this client and skips attempts already in flight or inside their re-drive delay. A dispatch that settles (ready, or any attempt-consuming catalog outcome read from the response body) triggers one hierarchy re-read so the workspace surfaces the outcome and the freed slot drives the next pending attempt. A quota-exceeded 429 leaves the attempt pending and defers it for CAPTURE_DISPATCH_REDRIVE_DELAY_MS (defined as the published initial poll interval, not a new constant), so the polling loop is what re-drives it once a slot has had time to free; a 409 conflict or an untrustworthy answer defers the same way, which makes even a stale-read race a bounded one-attempt-per-poll-tick retry rather than a storm. No new endpoint exists, the hierarchy GET stays read-only, and provider execution still happens inside the dispatch request.",
+      "alternatives": [
+        {
+          "option": "Dispatch from the server immediately after project creation commits",
+          "why_not": "A server-side scheduler would need its own re-drive mechanism for quota-held and abandoned work, duplicating the lease reconciliation that already exists, and would create provider jobs with no client attached to observe them. The architecture had already assigned scheduling to the authorized client (at most two in parallel); the gap was that the client never did it."
+        },
+        {
+          "option": "Add a claim endpoint or a queue table the dispatch route polls",
+          "why_not": "A second surface that finalizes attempts it did not admit violates the one-request dispatch invariant (admit, claim, execute, finalize in one request, D035) and adds a background-job failure mode. The durable pending rows already are the queue."
+        },
+        {
+          "option": "Re-dispatch quota-held attempts immediately on every hierarchy read",
+          "why_not": "When another client or instance holds both slots, an immediate re-drive on every read is a hammer loop against the 429 fence. Deferring one initial poll interval bounds the re-drive to the published polling cadence, which is already backed off and deadline-capped."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the architecture document already states the client schedules captures at most two in parallel, and the feature assignment (from the user-testing round 1 finding) directed closing exactly this gap, so the remaining choices — deterministic target order, an in-flight guard, and a deferral window equal to the initial poll interval — are mechanical and reversible inside src/lib/capture-dispatch.ts.",
+      "consequences": [
+        "Any open editor session drives every pending attempt it can see; captures no longer require a manual dispatch call, and a reload with pending work resumes driving automatically.",
+        "The editor projects e2e must stub the dispatch route with the quota outcome to stay hermetic — an open editor page with pending attempts now really dispatches against the real provider otherwise.",
+        "Dispatch answers are classified by the attempt-consuming catalog code in the body (settled) versus quota-exceeded/conflict/other (defer), so a terminal outcome can never be re-driven and a held attempt is always re-driven later.",
+        "The re-drive delay rides on CAPTURE_POLL_INITIAL_INTERVAL_MS; changing polling cadence changes re-drive cadence with it."
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/capture-dispatch.ts",
+          "caption": "Pure driver policy (targets, capped batching, re-drive deferral) plus the scoped-route dispatch helper"
+        },
+        {
+          "type": "file",
+          "path": "src/components/editor-home.tsx",
+          "caption": "Driver effect wired next to the polling effect on every ready hierarchy read"
+        },
+        {
+          "type": "file",
+          "path": "test/editor-home-dispatch.test.tsx",
+          "caption": "Wired driver proof: cap respected, quota re-drive, terminal outcomes never loop, conflicts never storm"
+        },
+        {
+          "type": "file",
+          "path": "e2e/capture-driver.spec.ts",
+          "caption": "Real-provider proof: four attempts reach ready with zero manual dispatch calls and at most two in flight"
+        }
+      ]
     }
   ]
 }

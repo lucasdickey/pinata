@@ -1626,3 +1626,61 @@ Roughly 40 minutes of mission-worker time.
 ### Open questions at end of session
 
 - None.
+
+## Capture dispatch driver (2026-09-09, pins-and-feedback)
+
+### What was attempted
+
+Closed the capture-driver gap from user-testing round 1: project creation
+committed pending attempts but nothing dispatched them, so captures stayed
+"Queued" forever in real usage. The editor home now runs a dispatch driver
+alongside the existing capture-progress poller: every hierarchy read that
+shows pending attempts (initial load, post-create re-read, retry re-read,
+poll tick) drives them through the one scoped dispatch route, at most
+MAX_ACTIVE_CAPTURES in flight, with a one-poll-interval deferral for
+quota-exceeded, conflict, and untrustworthy answers so a held attempt is
+re-driven by the polling loop instead of a busy loop. The pure policy lives
+in src/lib/capture-dispatch.ts; the fetch helper classifies answers by the
+attempt-consuming catalog code in the body rather than by status alone,
+because terminal catalog failures answer at several statuses (422/502/504).
+
+Proven with: pure policy tests (test/capture-dispatch.test.ts), a wired
+component suite against a stateful server model (test/editor-home-dispatch.test.tsx),
+the existing polling/entry suites updated for a world where pending work is
+dispatched, and a real-provider e2e (e2e/capture-driver.spec.ts): a two-page
+echo-fixture project committed entirely outside the browser was driven to
+ready on all four attempts by the editor client alone — exactly one dispatch
+per attempt, never more than two in flight — and an NXDOMAIN-rooted project
+surfaced the dns-failed catalog outcome in the workspace and was never
+re-driven. Run-scoped Turso rows and Blob objects were deleted and verified
+absent in afterAll.
+
+### What broke or dead-ended
+
+- First component-test draft modeled conflict as "re-read immediately":
+  against a snapshot that never changes state the driver looped forever
+  (409 → re-read → still pending → re-dispatch). Conflicts now defer like
+  quota, which bounds even a pathological stale-read race to one re-drive
+  per poll tick.
+- postCaptureDispatch initially mapped every 5xx to "transient", but the
+  dispatch route answers terminal catalog failures at 502 (dns-failed et
+  al.), so terminal attempts were deferred instead of settled. The helper
+  now trusts the attempt-consuming catalog code in the response body.
+- A scratch debug vitest run with `--root /` scanned the whole filesystem
+  and had to be killed; the actual act()-drain issue was diagnosed by
+  reasoning instead (one effect generation per act under fake timers —
+  the tests flush a bounded number of generations).
+
+### Elapsed
+
+Roughly 75 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- D049 (client-driven dispatch: deterministic target order, in-flight cap
+  mirroring MAX_ACTIVE_CAPTURES, re-drive deferral equal to the published
+  initial poll interval; no new endpoint, hierarchy GET stays read-only).
+
+### Open questions at end of session
+
+- None.
