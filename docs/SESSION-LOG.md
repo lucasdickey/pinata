@@ -1168,3 +1168,68 @@ Roughly 45 minutes of mission-worker time.
 
 - None for the fixture host. The durable URLs are committed; the publish step
   is now a re-verification rather than a per-run gamble.
+
+## Session — real-provider proof for capture state, retry, and storage faults (2026-09-09)
+
+### What was attempted
+
+1. Re-ran the full real-provider integration suite against the durable
+   `pinata-fixtures` host that the previous session unblocked (run
+   `capv-mttmnccz-f62ba9c0`, then `capv-mttmui3q-46ec3eea`): echo
+   desktop/mobile, tall-motion stabilization, manifest bounds and hostile
+   exclusion, the link-laden no-crawl proof (VAL-PROJECT-003), and the
+   deterministic URL-level / Desktop-only / Mobile-only partial-failure
+   matrix (VAL-PROJECT-005). 30 of 30 integration tests passed; the focused
+   fault suites for the state machine, retry idempotency, late-result
+   fencing, Blob upload/finalization/orphan-cleanup failures
+   (VAL-CAPTURE-008/009) were already green and stayed green.
+2. Fixed the two latent failures the blocked first run never reached. The
+   links-v1 fixture named its own linked hosts in visible hint paragraphs,
+   so the "no linked host anywhere in the persisted manifest" scan could
+   never pass — visible text is legitimately inert manifest data. Published
+   `links-v2` (hints no longer name the hosts; the hosts now exist only in
+   URL-bearing attributes the manifest never collects) through the normal
+   versioned publish path; links-v1 stays published and immutable. The
+   suite also seeded only the desktop attempt while asserting the
+   application shape of two initial attempts per page; it now seeds the
+   mobile sibling pending and proves the desktop execution neither
+   disturbed nor cloned it.
+3. Verified teardown: all three runs left zero run-scoped rows in Turso
+   (projects/pages/captures/idempotency keys) and zero `capture_cleanups`
+   rows; Blob objects were deleted by the suite's own teardown.
+4. Removed the documented leftover validation project
+   `valrun-mtta24to-4a6e7ff9-proj` (1 annotation, 1 capture, 1 page, 1
+   project, idempotency keys) that two earlier sessions had noted but not
+   owned; verified absence afterwards.
+5. `npm run validate` green end to end: lint, typecheck, 741 Vitest tests
+   (30 env-gated skips), docs:check, production build, 18 Playwright e2e.
+
+### What broke
+
+- The first `fixtures:publish` run for links-v2 failed its own readback with
+  a 404: the production alias took a few seconds to pick up the new
+  deployment. A re-run (the script is idempotent) passed all readbacks.
+- The orphan-project delete hit a foreign-key constraint: an annotation row
+  also referenced the capture. Deleting thread entries, then annotations,
+  then captures/pages/project in dependency order resolved it.
+
+### Elapsed
+
+Roughly 40 minutes of mission-worker time.
+
+### Decisions and assertions
+
+- No new decision records: the fixture version bump follows the
+  already-decided versioning policy (D037/D041) and the seeding change
+  mirrors the existing two-initial-attempts contract (VAL-PROJECT-006).
+- Real-provider evidence now exists for VAL-PROJECT-003 (link-laden page
+  creates no pages or attempts beyond the submitted URL, ordinary public
+  subresources load, interaction counters zero) and VAL-PROJECT-005
+  (partial failure keeps successful siblings usable and ordered; same-key
+  retry creates exactly one new attempt; ready siblings never resubmitted).
+
+### Open questions at end of session
+
+- None. The capture-state feature's remaining assertions are
+  validator-surface work (browser screenshots and curl matrices run by the
+  milestone validators).

@@ -12,7 +12,13 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 
 const fixtureDir = path.join(import.meta.dirname, "fixtures", "capture");
-const EXPECTED_FIXTURES = ["echo-v1.html", "tall-motion-v1.html", "manifest-v1.html", "links-v1.html"];
+const EXPECTED_FIXTURES = [
+  "echo-v1.html",
+  "tall-motion-v1.html",
+  "manifest-v1.html",
+  "links-v1.html",
+  "links-v2.html",
+];
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 

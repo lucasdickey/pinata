@@ -26,6 +26,12 @@
       "file": "links-v1.html",
       "bytes": 7421,
       "sha256": "dd3f389eb2e6dad01a0ef595989bc4d5e02140f9d29297799e29a5fe9e23ae6e"
+    },
+    "links-v2": {
+      "url": "https://pinata-fixtures.vercel.app/links-v2.html",
+      "file": "links-v2.html",
+      "bytes": 7540,
+      "sha256": "dc4904971412a6108103d4d7c2512dd564c8d89b377261e89acb408f78c461ac"
     }
   }
 }

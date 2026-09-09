@@ -540,11 +540,29 @@ describe.skipIf(!ready || !linksUrl)(
 
     beforeAll(async () => {
       desktop = await execute("links", "desktop", linksUrl!);
+      // The application creates exactly two initial attempts per page; mirror
+      // that row shape with the mobile sibling left pending, so the suite
+      // proves the desktop execution neither disturbed nor cloned it.
+      const now = Date.now();
+      await db.insert(schema.captures).values({
+        id: `${RUN_ID}-links-mobile`,
+        pageId: desktop.row.pageId,
+        variant: "mobile",
+        attempt: 1,
+        status: "pending",
+        idempotencyKey: `${RUN_ID}-links-mobile-key`,
+        requestedUrl: linksUrl!,
+        viewportWidth: MOBILE_VIEWPORT.width,
+        viewportHeight: MOBILE_VIEWPORT.height,
+        deviceScaleFactor: MOBILE_VIEWPORT.deviceScaleFactor,
+        createdAt: now,
+        updatedAt: now,
+      });
     }, EXECUTION_TIMEOUT_MS);
 
     test("the capture completes and ordinary public subresources remain available", () => {
       const text = manifestText(desktop.manifest);
-      expect(text).toContain("fixture-version: links-v1");
+      expect(text).toContain("fixture-version: links-v2");
       expect(text).toContain("LINKS-FIXTURE-TOP");
       expect(text).toContain("LINKS-FIXTURE-BOTTOM");
       // The stylesheet and image subresources loaded; a network policy that

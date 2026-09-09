@@ -44,7 +44,10 @@ const FIXTURES = [
   { envName: "CAPTURE_ECHO_FIXTURE_URL", file: "echo-v1.html", version: "echo-v1" },
   { envName: "CAPTURE_TALL_FIXTURE_URL", file: "tall-motion-v1.html", version: "tall-motion-v1" },
   { envName: "CAPTURE_MANIFEST_FIXTURE_URL", file: "manifest-v1.html", version: "manifest-v1" },
-  { envName: "CAPTURE_LINKS_FIXTURE_URL", file: "links-v1.html", version: "links-v1" },
+  // links-v1 stays published and immutable; the suite consumes links-v2,
+  // whose visible hints no longer name the linked hosts (VAL-PROJECT-003).
+  { envName: "CAPTURE_LINKS_V1_FIXTURE_URL", file: "links-v1.html", version: "links-v1" },
+  { envName: "CAPTURE_LINKS_FIXTURE_URL", file: "links-v2.html", version: "links-v2" },
 ];
 
 const here = path.dirname(fileURLToPath(import.meta.url));
