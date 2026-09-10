@@ -14,6 +14,9 @@ import {
   draftPinNode,
   draftPinNodeId,
   nodesForCapture,
+  PIN_TYPE,
+  pinNode,
+  type CanvasPin,
   type CaptureFrameDomain,
 } from "../../src/lib/canvas/flow-model";
 import { pinHitBox, tipFromPinBox } from "../../src/lib/canvas/geometry";
@@ -79,7 +82,7 @@ describe("draft pin node", () => {
   const tip = { x: 812.25, y: 4231.5 };
 
   test("appends after the frame, parented to it, with a namespaced deterministic id", () => {
-    const nodes = nodesForCapture(domain, tip, 1);
+    const nodes = nodesForCapture(domain, [], tip, 1);
     expect(nodes).toHaveLength(2);
     const [frame, draft] = nodes;
     expect(frame!.type).toBe(CAPTURE_FRAME_TYPE);
@@ -137,12 +140,86 @@ describe("draft pin node", () => {
   });
 
   test("is a domain-backed view: no draft at all without a tip", () => {
-    expect(nodesForCapture(domain, null, 1)).toHaveLength(1);
-    expect(nodesForCapture(domain, undefined, 1)).toHaveLength(1);
+    expect(nodesForCapture(domain, [], null, 1)).toHaveLength(1);
+    expect(nodesForCapture(domain)).toHaveLength(1);
   });
 
   test("rejects non-finite tips and zooms rather than rendering a corrupt draft", () => {
     expect(() => draftPinNode(domain, { x: Number.NaN, y: 1 }, 1)).toThrow(RangeError);
     expect(() => draftPinNode(domain, tip, 0)).toThrow(RangeError);
+  });
+});
+
+describe("persisted pin nodes", () => {
+  const pins: CanvasPin[] = [
+    { id: "ann-uuid-b", number: 2, tip: { x: 40, y: 50 }, selected: false },
+    { id: "ann-uuid-a", number: 1, tip: { x: 812.25, y: 4231.5 }, selected: false },
+  ];
+
+  test("follow the frame in stable number order, parented to it, with the draft last", () => {
+    const nodes = nodesForCapture(domain, pins, { x: 9, y: 9 }, 1);
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      PIN_TYPE,
+      DRAFT_PIN_TYPE,
+    ]);
+    const [frame, first, second, draft] = nodes;
+    // Number order is the canonical order regardless of input order.
+    expect(first!.id).toBe("ann-uuid-a");
+    expect(second!.id).toBe("ann-uuid-b");
+    // The pin node id IS the server annotation id: the domain record is
+    // canonical, and only adapter artifacts (frame, draft) are namespaced.
+    expect(first!.parentId).toBe(captureFrameNodeId(domain.captureId));
+    expect(second!.parentId).toBe(captureFrameNodeId(domain.captureId));
+    expect(draft!.parentId).toBe(frame!.id);
+  });
+
+  test("the node box preserves the exact canonical tip at every zoom", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = pinNode(domain, pins[1]!, zoom);
+      const anchor = tipFromPinBox({
+        x: node.position.x,
+        y: node.position.y,
+        size: node.width!,
+        tipOffsetX: node.data.tipOffsetX,
+        tipOffsetY: node.data.tipOffsetY,
+      });
+      expect(anchor).toEqual(pins[1]!.tip);
+    }
+    // The on-screen hit target meets the shared minimum at working zooms; at
+    // extreme overview zoom the document itself is the binding constraint
+    // (the pure adapter's documented cap), not the badge.
+    for (const zoom of [1, 8]) {
+      const node = pinNode(domain, pins[1]!, zoom);
+      expect(node.width! * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+    }
+  });
+
+  test("carry only domain facts: number, tip, selection flag, accessible label", () => {
+    const node = pinNode(domain, { ...pins[1]!, selected: true }, 4);
+    expect(node.data.annotationId).toBe("ann-uuid-a");
+    expect(node.data.number).toBe(1);
+    expect(node.data.selected).toBe(true);
+    expect(node.data.label).toContain("Pin 1");
+    expect(node.ariaLabel).toBe(node.data.label);
+    expect(node.draggable).toBe(true);
+    expect(node.selectable).toBe(false);
+    expect(node.connectable).toBe(false);
+    expect(node.deletable).toBe(false);
+    // No raw React Flow runtime serialization enters or leaves the adapter.
+    expect("positionAbsolute" in node).toBe(false);
+    expect("measured" in node).toBe(false);
+  });
+
+  test("adapter and domain ids can never collide", () => {
+    expect(pins.map((pin) => pin.id)).not.toContain(draftPinNodeId(domain.captureId));
+    expect(pins.map((pin) => pin.id)).not.toContain(captureFrameNodeId(domain.captureId));
+  });
+
+  test("reject non-finite pins rather than rendering a corrupt mark", () => {
+    expect(() => pinNode(domain, { ...pins[1]!, tip: { x: 1, y: Number.NaN } }, 1)).toThrow(
+      RangeError,
+    );
   });
 });

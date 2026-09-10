@@ -14,10 +14,15 @@
 // Navigate pans/zooms and never creates a mark; Place pin turns one
 // deliberate click/tap into exactly one transient draft pin and disables
 // drag-panning so presses cannot be mistaken for pans. Drafts are local UI
-// state — they are draggable with the pointer's grab offset preserved,
-// clamped inclusively to the frame, cleared by Escape, and dropped on any
-// capture switch (the keyed remount). Nothing here issues annotation
-// writes: persistence arrives with the pins feature.
+// state — draggable with the pointer's grab offset preserved, clamped
+// inclusively to the frame, cleared by Escape, and dropped on any capture
+// switch (the keyed remount). Persisted pins are the server-canonical
+// records passed in as props: they render as numbered badges parented to
+// the frame, drag with the same grab-offset/clamp math in Place pin mode
+// only (a Navigate press always pans; it must never move a mark), a tap on
+// one selects rather than stacking a draft, and a drag commits exactly one
+// revisioned write at drag end (onMovePin). Camera work, selection, and
+// intermediate drag frames never write.
 //
 // Camera state is local UI state only. The three named modes — entire
 // capture (the initial contain view), fit width, and natural size — come
@@ -61,11 +66,14 @@ import {
 import {
   CAPTURE_FRAME_TYPE,
   DRAFT_PIN_TYPE,
+  PIN_TYPE,
   draftPinNodeId,
   nodesForCapture,
+  type CanvasPin,
   type CaptureFrameDomain,
   type CaptureFrameNode,
   type DraftPinNode,
+  type PinNode,
 } from "../lib/canvas/flow-model";
 
 /** The named camera modes; "entire" is the initial view of every capture. */
@@ -140,8 +148,41 @@ function DraftPin({ data }: NodeProps<DraftPinNode>) {
   );
 }
 
+/**
+ * A persisted numbered pin badge. Same anchoring as the draft: the box is
+ * the zoom-aware hit area and the teardrop tip lands exactly on the
+ * canonical natural pixel. The number rides in the bulb at a size derived
+ * from the box, so badges stay screen-readable from overview to 8x while
+ * the tip never moves. The badge itself is click-transparent; presses land
+ * on the React Flow node wrapper (drag, or select via onNodeClick).
+ */
+function Pin({ data }: NodeProps<PinNode>) {
+  return (
+    <div
+      className="pin-badge pin-badge-saved"
+      data-testid="pin-badge"
+      data-pin-number={data.number}
+      data-selected={data.selected ? "true" : undefined}
+      style={{
+        left: data.tipOffsetX,
+        top: data.tipOffsetY,
+        width: data.size,
+        height: data.size,
+      }}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
+      </svg>
+      <span className="pin-badge-number" style={{ fontSize: data.size * 0.38 }} aria-hidden="true">
+        {data.number}
+      </span>
+    </div>
+  );
+}
+
 const nodeTypes: NodeTypes = {
   [CAPTURE_FRAME_TYPE]: CaptureFrame,
+  [PIN_TYPE]: Pin,
   [DRAFT_PIN_TYPE]: DraftPin,
 };
 
@@ -158,34 +199,71 @@ function ZoomReadout() {
 function CaptureCanvasInner({
   domain,
   regionName,
+  pins,
+  selectedPinId,
+  onSelectPin,
+  onMovePin,
   savedCamera,
   onCameraChange,
   onDraftChange,
+  draftResetSignal,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
+  /** This plane's persisted pins (server is canonical; never RF state). */
+  pins: Omit<CanvasPin, "selected">[];
+  selectedPinId?: string | null;
+  onSelectPin?: (annotationId: string | null) => void;
+  /** The single commit at the end of a pin drag: one clamped tip, one write. */
+  onMovePin?: (annotationId: string, tip: NaturalPoint) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (tip: NaturalPoint | null) => void;
+  /** Increments when a draft was saved; the canvas drops the unsaved draft. */
+  draftResetSignal?: number;
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const doc = useMemo(() => ({ width: domain.width, height: domain.height }), [domain]);
   // The canonical draft state is the pin tip in screenshot-natural pixels.
-  // The node array is a disposable view derived from it; the hit-box size
-  // follows the zoom the draft was placed at, tracked live while one exists.
+  // The node array is a disposable view derived from it; the hit-box sizes
+  // of drafts and persisted pins follow the live zoom, tracked on every
+  // camera change so badges stay screen-sized without their tips moving.
   const [draft, setDraft] = useState<NaturalPoint | null>(null);
-  const [draftZoom, setDraftZoom] = useState(1);
+  const [liveZoom, setLiveZoom] = useState(1);
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const draftZoomRef = useRef(draftZoom);
-  draftZoomRef.current = draftZoom;
-  const nodes = useMemo(() => nodesForCapture(domain, draft, draftZoom), [domain, draft, draftZoom]);
+  const liveZoomRef = useRef(liveZoom);
+  liveZoomRef.current = liveZoom;
+  // The interaction mode gates persisted-pin dragging: a press in Navigate
+  // mode always pans (it must never move a mark — an accidental drag would
+  // commit a real write), while Place pin mode owns mark manipulation.
+  // Draft pins stay draggable in either mode: a draft only exists because
+  // pin mode created it, and adjusting it after switching back to navigate
+  // is the shipped placement flow. The adapter marks pins draggable-capable;
+  // this layer enforces the mode.
+  const [interaction, setInteraction] = useState<InteractionMode>("navigate");
+  // A persisted pin being dragged: movement is local state, re-derived
+  // through the pure clamping adapter; the commit at drag end is one write.
+  const [pinDrag, setPinDrag] = useState<{ id: string; tip: NaturalPoint } | null>(null);
+  const effectivePins = useMemo<CanvasPin[]>(
+    () =>
+      pins.map((pin) => ({
+        ...pin,
+        tip: pinDrag?.id === pin.id ? pinDrag.tip : pin.tip,
+        selected: pin.id === selectedPinId,
+      })),
+    [pins, pinDrag, selectedPinId],
+  );
+  const nodes = useMemo(() => {
+    const built = nodesForCapture(domain, effectivePins, draft, liveZoom);
+    if (interaction === "pin") return built;
+    return built.map((node) => (node.type === PIN_TYPE ? { ...node, draggable: false } : node));
+  }, [domain, effectivePins, draft, liveZoom, interaction]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const [interaction, setInteraction] = useState<InteractionMode>("navigate");
   // While true, the active named mode re-applies when the stage resizes.
   // Any user pan/zoom gesture ends the follow; picking a mode resumes it.
   const autoFollow = useRef(true);
@@ -250,6 +328,18 @@ function CaptureCanvasInner({
     onDraftChange?.(draft);
   }, [draft, onDraftChange]);
 
+  // A successful save clears the unsaved draft from the canvas: the parent
+  // increments the reset signal and this plane drops its transient mark.
+  // The report effect above then announces the null draft as usual.
+  const lastDraftReset = useRef(draftResetSignal ?? 0);
+  useEffect(() => {
+    const signal = draftResetSignal ?? 0;
+    if (signal !== lastDraftReset.current) {
+      lastDraftReset.current = signal;
+      setDraft(null);
+    }
+  }, [draftResetSignal]);
+
   // Escape clears only the transient draft. It never fires while typing in
   // an editable element, and it never touches persisted state.
   useEffect(() => {
@@ -269,28 +359,36 @@ function CaptureCanvasInner({
     return () => window.removeEventListener("keydown", onKey);
   }, [draft]);
 
-  // Draft dragging: React Flow emits the node's new top-left position; the
-  // pure adapter re-derives the clamped canonical tip from it. The grab
-  // offset (where inside the box the tip sits) is captured once at drag
-  // start and held for the whole gesture: re-deriving it per change from a
-  // frame-clamped box would corrupt it, and React Flow's drag-end position
-  // re-emission would then advance the tip with no pointer movement at all.
-  // All movement is local state — no writes, ever.
+  // Pin dragging (draft and persisted alike): React Flow emits the node's
+  // new top-left position; the pure adapter re-derives the clamped canonical
+  // tip from it. The grab offset (where inside the box the tip sits) is
+  // captured once at drag start and held for the whole gesture: re-deriving
+  // it per change from a frame-clamped box would corrupt it, and React
+  // Flow's drag-end position re-emission would then advance the tip with no
+  // pointer movement at all. All movement is local state — the persisted
+  // commit happens exactly once, at drag end, in onNodeDragStop.
   const dragGrab = useRef<Pick<PinBox, "tipOffsetX" | "tipOffsetY"> | null>(null);
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
-        if (
-          change.type === "position" &&
-          change.position &&
-          change.id === draftPinNodeId(domain.captureId)
-        ) {
-          const position = change.position;
+        if (change.type !== "position" || !change.position) continue;
+        const position = change.position;
+        if (change.id === draftPinNodeId(domain.captureId)) {
           setDraft((current) => {
             if (!current) return current;
-            const zoom = draftZoomRef.current;
+            const zoom = liveZoomRef.current;
             const grab = dragGrab.current ?? pinHitBox(current, doc, zoom);
             return tipFromPinBox(dragPinBox(position, grab, doc, zoom));
+          });
+        } else {
+          // A persisted pin: track the clamped tip locally; the single
+          // revisioned write fires at drag stop.
+          setPinDrag((current) => {
+            const zoom = liveZoomRef.current;
+            const grab = dragGrab.current;
+            if (!grab) return current;
+            const tip = tipFromPinBox(dragPinBox(position, grab, doc, zoom));
+            return { id: change.id, tip };
           });
         }
       }
@@ -374,7 +472,9 @@ function CaptureCanvasInner({
           const travel = Math.hypot(event.clientX - start.x, event.clientY - start.y);
           if (travel > PLACEMENT_SLOP_SCREEN_PX) return;
           const target = event.target as HTMLElement | null;
-          if (target?.closest(".react-flow__node-draftPin")) return;
+          // Taps on an existing mark are selection, not placement: a draft
+          // stacked on a saved pin would be invisible and confusing.
+          if (target?.closest(".react-flow__node-draftPin, .react-flow__node-pin")) return;
           const natural = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
           // Placement is only meaningful on the screenshot itself.
           if (
@@ -391,8 +491,8 @@ function CaptureCanvasInner({
           // same draft to the new target rather than stacking marks.
           setDraft(natural);
           const zoom = instance.getViewport().zoom;
-          draftZoomRef.current = zoom;
-          setDraftZoom(zoom);
+          liveZoomRef.current = zoom;
+          setLiveZoom(zoom);
         }}
       >
         <ReactFlow
@@ -418,24 +518,41 @@ function CaptureCanvasInner({
           onNodesChange={handleNodesChange}
           onNodeDragStart={(_event, node) => {
             if (node.type === DRAFT_PIN_TYPE && draftRef.current) {
-              dragGrab.current = pinHitBox(draftRef.current, doc, draftZoomRef.current);
+              dragGrab.current = pinHitBox(draftRef.current, doc, liveZoomRef.current);
+            } else if (node.type === PIN_TYPE) {
+              // The rendered box's recorded offsets are the grab: the tip's
+              // position inside the box at drag start, held for the gesture.
+              const data = node.data as PinNode["data"];
+              dragGrab.current = { tipOffsetX: data.tipOffsetX, tipOffsetY: data.tipOffsetY };
             }
           }}
           onNodeDragStop={(_event, node) => {
-            if (node.type === DRAFT_PIN_TYPE) dragGrab.current = null;
+            if (node.type === PIN_TYPE) {
+              // The one write of a drag: the final clamped natural tip.
+              // Intermediate frames were local state only.
+              setPinDrag((current) => {
+                if (current && current.id === node.id) onMovePin?.(node.id, current.tip);
+                return null;
+              });
+            }
+            dragGrab.current = null;
           }}
+          onNodeClick={(_event, node) => {
+            if (node.type === PIN_TYPE) onSelectPin?.(node.id);
+          }}
+          onPaneClick={() => onSelectPin?.(null)}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
           zoomOnDoubleClick={false}
           panOnDrag={interaction === "navigate"}
           onMove={(_event, viewport: Viewport) => {
-            // The draft's hit box keeps the shared minimum screen target by
-            // tracking the live zoom — only while a draft exists, so camera
-            // work alone never re-renders the node array.
-            if (draftRef.current) {
-              draftZoomRef.current = viewport.zoom;
-              setDraftZoom(viewport.zoom);
+            // Badge hit boxes keep the shared minimum screen target by
+            // tracking the live zoom. Only a zoom change re-renders the
+            // node array — panning keeps the same zoom and stays cheap.
+            if (viewport.zoom !== liveZoomRef.current) {
+              liveZoomRef.current = viewport.zoom;
+              setLiveZoom(viewport.zoom);
             }
           }}
           onMoveStart={(event) => {
@@ -457,9 +574,14 @@ export function CaptureCanvas({
   attempt,
   width,
   height,
+  pins = [],
+  selectedPinId,
+  onSelectPin,
+  onMovePin,
   savedCamera,
   onCameraChange,
   onDraftChange,
+  draftResetSignal,
 }: {
   captureId: string;
   pageUrl: string;
@@ -467,9 +589,15 @@ export function CaptureCanvas({
   attempt: number;
   width: number;
   height: number;
+  /** This plane's persisted pins; empty until they load or when none exist. */
+  pins?: Omit<CanvasPin, "selected">[];
+  selectedPinId?: string | null;
+  onSelectPin?: (annotationId: string | null) => void;
+  onMovePin?: (annotationId: string, tip: NaturalPoint) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (tip: NaturalPoint | null) => void;
+  draftResetSignal?: number;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -487,9 +615,14 @@ export function CaptureCanvas({
       <CaptureCanvasInner
         domain={domain}
         regionName={name}
+        pins={pins}
+        selectedPinId={selectedPinId}
+        onSelectPin={onSelectPin}
+        onMovePin={onMovePin}
         savedCamera={savedCamera}
         onCameraChange={onCameraChange}
         onDraftChange={onDraftChange}
+        draftResetSignal={draftResetSignal}
       />
     </ReactFlowProvider>
   );

@@ -39,6 +39,10 @@ function draftNodes(): HTMLElement[] {
   return Array.from(document.querySelectorAll(".react-flow__node-draftPin"));
 }
 
+function pinNodes(): HTMLElement[] {
+  return Array.from(document.querySelectorAll(".react-flow__node-pin"));
+}
+
 /** A deliberate placement tap at one screen point. */
 function tap(target: Element, x: number, y: number): void {
   fireEvent.pointerDown(target, { clientX: x, clientY: y, isPrimary: true });
@@ -195,6 +199,113 @@ describe("transient state lifecycle", () => {
       "aria-pressed",
       "true",
     );
+  });
+});
+
+describe("persisted pins", () => {
+  const pins = [
+    { id: "ann-1", number: 1, tip: { x: 720, y: 4000 } },
+    { id: "ann-2", number: 2, tip: { x: 100, y: 200 } },
+  ];
+
+  test("render as numbered badges parented to the frame, before any draft", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} pins={pins} />);
+    const badges = pinNodes();
+    expect(badges).toHaveLength(2);
+    // Stable number order regardless of prop order.
+    expect(badges[0]!.textContent).toBe("1");
+    expect(badges[1]!.textContent).toBe("2");
+    // The draft still stacks after the persisted pins.
+    await user.click(within(stage()).getByRole("button", { name: "Place pin" }));
+    tap(frameImage(), 400, 300);
+    expect(draftNodes()).toHaveLength(1);
+    expect(pinNodes()).toHaveLength(2);
+  });
+
+  test("clicking a pin selects it; Escape does not disturb persisted pins", () => {
+    const onSelectPin = vi.fn();
+    render(<CaptureCanvas {...props} pins={pins} onSelectPin={onSelectPin} />);
+    // A bare click event: jsdom cannot run d3-drag's mousedown (event.view
+    // is null there), and selection is click-level behavior anyway. In the
+    // browser the press lands on the node wrapper (the badge is
+    // pointer-transparent) and React Flow raises onNodeClick.
+    fireEvent.click(pinNodes()[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("ann-1");
+
+    // Escape is draft-only: with no draft open it touches nothing.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(pinNodes()).toHaveLength(2);
+    expect(onSelectPin).toHaveBeenCalledTimes(1);
+  });
+
+  test("the selected pin's badge advertises the selection", () => {
+    const { rerender } = render(
+      <CaptureCanvas {...props} pins={pins} selectedPinId={null} />,
+    );
+    expect(pinNodes()[0]!.querySelector('[data-selected="true"]')).toBeNull();
+    rerender(<CaptureCanvas {...props} pins={pins} selectedPinId="ann-2" />);
+    expect(pinNodes()[1]!.querySelector('[data-selected="true"]')).not.toBeNull();
+    expect(pinNodes()[0]!.querySelector('[data-selected="true"]')).toBeNull();
+  });
+
+  test("pins are per-plane: another capture's mount shows only its own pins", () => {
+    const { unmount } = render(<CaptureCanvas {...props} pins={pins} />);
+    expect(pinNodes()).toHaveLength(2);
+    unmount();
+    render(
+      <CaptureCanvas
+        {...props}
+        captureId="cap-root-mobile-v1"
+        variant="Mobile"
+        pins={[{ id: "ann-9", number: 1, tip: { x: 50, y: 60 } }]}
+      />,
+    );
+    const badges = pinNodes();
+    expect(badges).toHaveLength(1);
+    expect(badges[0]!.textContent).toBe("1");
+  });
+
+  test("the draft reset signal clears an unsaved draft after a save", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    const { rerender } = render(
+      <CaptureCanvas {...props} onDraftChange={onDraftChange} draftResetSignal={0} />,
+    );
+    await user.click(within(stage()).getByRole("button", { name: "Place pin" }));
+    tap(frameImage(), 400, 300);
+    expect(draftNodes()).toHaveLength(1);
+
+    rerender(
+      <CaptureCanvas {...props} onDraftChange={onDraftChange} draftResetSignal={1} />,
+    );
+    await waitFor(() => expect(draftNodes()).toHaveLength(0));
+    expect(onDraftChange).toHaveBeenLastCalledWith(null);
+  });
+
+  test("a pin-mode tap on a saved pin selects it instead of stacking a draft", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} pins={pins} />);
+    await user.click(within(stage()).getByRole("button", { name: "Place pin" }));
+    // A no-travel pointer pair landing on the pin's node wrapper: placement
+    // must skip it.
+    const wrapper = pinNodes()[0]!;
+    fireEvent.pointerDown(wrapper, { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerUp(wrapper, { clientX: 400, clientY: 300, isPrimary: true });
+    expect(draftNodes()).toHaveLength(0);
+    // And a tap on clear pane still places exactly one draft.
+    tap(frameImage(), 400, 300);
+    expect(draftNodes()).toHaveLength(1);
+  });
+
+  test("pins are draggable only in Place pin mode; Navigate never moves a mark", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} pins={pins} />);
+    expect(pinNodes()[0]!.className).not.toContain("draggable");
+    await user.click(within(stage()).getByRole("button", { name: "Place pin" }));
+    expect(pinNodes()[0]!.className).toContain("draggable");
+    await user.click(within(stage()).getByRole("button", { name: "Navigate" }));
+    expect(pinNodes()[0]!.className).not.toContain("draggable");
   });
 });
 

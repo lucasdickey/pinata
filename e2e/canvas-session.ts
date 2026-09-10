@@ -243,3 +243,85 @@ export async function expectEntireCaptureVisible(
   }
   return camera;
 }
+
+/**
+ * Pan (the caller must be in Navigate mode) until a natural point sits
+ * within 40 screen px of the pane center, then return its fresh screen
+ * point. Specs that share a seeded plane with the pins spec use this to
+ * bring a pin-free target into view before placing drafts.
+ */
+export async function panUntilNaturalVisible(
+  page: Page,
+  natural: { x: number; y: number },
+): Promise<{ x: number; y: number }> {
+  for (let i = 0; i < 12; i += 1) {
+    const pane = await visiblePane(page);
+    const camera = await readCamera(page);
+    const screen = toScreen(natural, camera);
+    const delta = { x: pane.width / 2 - screen.x, y: pane.height / 2 - screen.y };
+    if (Math.hypot(delta.x, delta.y) < 40) {
+      return { x: pane.left + screen.x, y: pane.top + screen.y };
+    }
+    await page.mouse.move(pane.left + pane.width / 2, pane.top + pane.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(pane.left + pane.width / 2 + delta.x, pane.top + pane.height / 2 + delta.y, {
+      steps: 4,
+    });
+    await page.mouse.up();
+  }
+  throw new Error(`never panned ${JSON.stringify(natural)} into view`);
+}
+
+export interface PinTipRecord {
+  tip: { x: number; y: number };
+}
+
+/** This capture's persisted pin tips, read from the annotations route. */
+export async function listPinTips(page: Page, captureId: string): Promise<PinTipRecord[]> {
+  return page.evaluate(async (id) => {
+    const response = await fetch(`/api/captures/${encodeURIComponent(id)}/annotations`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { annotations?: PinTipRecord[] };
+    return Array.isArray(payload.annotations) ? payload.annotations : [];
+  }, captureId);
+}
+
+const CLEAR_MARGIN_NATURAL_PX = 48;
+
+/**
+ * A deterministic on-document natural point at least 48 natural px from
+ * every persisted pin on this capture — the aim placement/draft gestures
+ * use so they can never land on an existing pin badge. Candidates sweep a
+ * lattice inside one horizontal band of the document: gesture specs use the
+ * middle band (the default), while the pins spec writes into the bottom
+ * band, so the two never contend for a spot even running concurrently
+ * against the shared local store. (At overview zoom a badge's hit box spans
+ * hundreds of natural px, which is why separation is structural — by band —
+ * rather than by margin alone.)
+ */
+export async function findClearAim(
+  page: Page,
+  captureId: string,
+  doc: { width: number; height: number },
+  band: { from: number; to: number } = { from: 0.25, to: 0.75 },
+): Promise<{ x: number; y: number }> {
+  const pins = await listPinTips(page, captureId);
+  const rowCount = Math.max(
+    1,
+    Math.floor(((band.to - band.from) * doc.height) / CLEAR_MARGIN_NATURAL_PX),
+  );
+  for (let row = 0; row < rowCount; row += 1) {
+    const y = doc.height * (band.from + ((band.to - band.from) * (row + 0.5)) / rowCount);
+    for (let col = 0; col < 22; col += 1) {
+      const candidate = { x: doc.width * (0.06 + 0.04 * col), y };
+      const clear = pins.every(
+        (pin) =>
+          Math.hypot(pin.tip.x - candidate.x, pin.tip.y - candidate.y) >= CLEAR_MARGIN_NATURAL_PX,
+      );
+      if (clear) return candidate;
+    }
+  }
+  throw new Error("no pin-free aim candidate remained on the document");
+}

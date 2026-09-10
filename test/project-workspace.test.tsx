@@ -113,9 +113,26 @@ const secondProject = (): WorkspaceProject => ({
 
 beforeEach(() => {
   onChanged.mockReset();
-  fetchMock = vi.fn();
+  // The annotations list is a per-plane read every selection makes; the
+  // default plane has no pins. Tests that exercise writes override this.
+  fetchMock = vi.fn((url: unknown) => {
+    if (typeof url === "string" && url.includes("/annotations")) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ annotations: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
+    return Promise.reject(new Error(`unexpected fetch: ${String(url)}`));
+  });
   vi.stubGlobal("fetch", fetchMock);
 });
+
+/** Flush the annotations load the first ready selection triggers. */
+async function settleAnnotations() {
+  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+}
 
 afterEach(() => {
   cleanup();
@@ -406,17 +423,22 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("the hint explains navigation and pin placement in plain language", () => {
+  test("the hint documents pan, zoom, pin drop, saving, and opening comments (VAL-CANVAS-009)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // Plain language, no jargon, and no dead affordances: the pin control
-    // the hint describes is the real, working Place pin mode toggle.
+    // Plain language, no jargon, and no dead affordances: a first-time user
+    // can discover the whole pin workflow from the page alone.
     const hint = within(detail()).getByText(/drag to pan/i);
     expect(hint).toHaveTextContent(/scroll or pinch to zoom/i);
     expect(hint).toHaveTextContent(/static screenshot/i);
     expect(hint).toHaveTextContent(/place pin mode/i);
-    expect(hint).toHaveTextContent(/escape to cancel/i);
-    expect(hint).toHaveTextContent(/saving pins with comments arrives in the next update/i);
+    expect(hint).toHaveTextContent(/write a comment/i);
+    expect(hint).toHaveTextContent(/save pin/i);
+    expect(hint).toHaveTextContent(/escape or cancel/i);
+    expect(hint).toHaveTextContent(/click a saved pin/i);
+    expect(hint).toHaveTextContent(/pins list/i);
+    expect(hint).toHaveTextContent(/drag a pin to move it/i);
     expect(hint.textContent?.toLowerCase()).not.toContain("canvas update");
+    expect(hint.textContent?.toLowerCase()).not.toContain("next update");
     // The affordance is real: an explicit mode toggle, pressed only when on.
     const pin = within(detail()).getByRole("button", { name: "Place pin" });
     expect(pin).toHaveAttribute("aria-pressed", "false");
@@ -557,6 +579,10 @@ describe("static screenshot stage", () => {
   test("clicking the canvas issues no request and does not change location", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    // The per-plane annotations read settles at mount; after that the canvas
+    // is inert — clicks neither navigate nor write.
+    await settleAnnotations();
+    fetchMock.mockClear();
     const before = window.location.href;
     await user.click(within(detail()).getByTestId("capture-stage"));
     expect(window.location.href).toBe(before);
@@ -587,6 +613,10 @@ describe("scoped retry", () => {
       }),
     );
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    // The default plane's annotations read settles at mount; the count this
+    // test asserts is the retry write alone.
+    await settleAnnotations();
+    fetchMock.mockClear();
     await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
     await user.click(within(detail()).getByRole("button", { name: "Retry Mobile capture" }));
 
@@ -616,5 +646,208 @@ describe("scoped retry", () => {
         .some((node) => node.textContent?.includes("could not be retried")),
     ).toBe(true);
     expect(onChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe("pin placement and persistence (VAL-PIN-001, VAL-CANVAS-006)", () => {
+  const savedPin = {
+    id: "ann-saved-1",
+    captureId: "root-d1",
+    kind: "pin",
+    number: 1,
+    tip: { x: 720, y: 4000 },
+    body: "The hero headline duplicates the nav wordmark.",
+    elementSnapshot: null,
+    revision: 1,
+    createdAt: 1_800_000_000_000,
+  };
+
+  /** A stateful annotations endpoint: one in-memory list per test. */
+  function stubAnnotations(initial: typeof savedPin[] = []) {
+    const pins = [...initial];
+    const posts: { url: string; body: Record<string, unknown> }[] = [];
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (!target.includes("/annotations")) {
+        return Promise.reject(new Error(`unexpected fetch: ${target}`));
+      }
+      if (init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        posts.push({ url: target, body });
+        const created = {
+          ...savedPin,
+          id: `ann-${posts.length}`,
+          number: pins.length + 1,
+          tip: body.tip as { x: number; y: number },
+          body: body.body as string,
+        };
+        pins.push(created);
+        return Promise.resolve(
+          new Response(JSON.stringify({ annotation: created }), {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ annotations: pins }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    });
+    return { pins, posts };
+  }
+
+  /** Place one draft pin at a fixed pane point. */
+  async function placeDraft(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
+    const image = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
+    await waitFor(() =>
+      expect(within(detail()).getByTestId("panel-draft")).toBeInTheDocument(),
+    );
+  }
+
+  test("saving a draft posts one create and lists the numbered pin", async () => {
+    const user = userEvent.setup();
+    const { pins, posts } = stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+
+    await placeDraft(user);
+    const comment = within(detail()).getByLabelText("Comment");
+    await user.type(comment, "Hero copy is placeholder text.");
+    await user.click(within(detail()).getByRole("button", { name: "Save pin" }));
+
+    // Exactly one create, addressed to the selected capture, carrying the
+    // tip, the comment, and the draft's idempotency key.
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]!.url).toBe("/api/captures/root-d1/annotations");
+    expect(typeof posts[0]!.body.idempotencyKey).toBe("string");
+    expect(posts[0]!.body.body).toBe("Hero copy is placeholder text.");
+    const tip = posts[0]!.body.tip as { x: number; y: number };
+    expect(Number.isFinite(tip.x)).toBe(true);
+
+    // The draft resolved and the saved pin renders in the list and canvas.
+    await waitFor(() =>
+      expect(within(detail()).queryByTestId("panel-draft")).toBeNull(),
+    );
+    const list = within(detail()).getByRole("list", { name: "Saved pins" });
+    expect(within(list).getAllByRole("button")).toHaveLength(1);
+    expect(within(list).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-pin")).toHaveLength(1),
+    );
+    expect(pins).toHaveLength(1);
+  });
+
+  test("Save stays disabled until the comment is non-blank", async () => {
+    const user = userEvent.setup();
+    stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft(user);
+
+    const save = within(detail()).getByRole("button", { name: "Save pin" });
+    expect(save).toBeDisabled();
+    await user.type(within(detail()).getByLabelText("Comment"), "   ");
+    expect(save).toBeDisabled();
+    await user.type(within(detail()).getByLabelText("Comment"), "real feedback");
+    expect(save).toBeEnabled();
+  });
+
+  test("Cancel discards the draft without any write", async () => {
+    const user = userEvent.setup();
+    const { posts } = stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft(user);
+    await user.type(within(detail()).getByLabelText("Comment"), "never saved");
+
+    await user.click(within(detail()).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(within(detail()).queryByTestId("panel-draft")).toBeNull());
+    expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
+    expect(posts).toHaveLength(0);
+    expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+  });
+
+  test("a failed save keeps the draft and comment and reports the failure", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (init?.method === "POST") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "Service unavailable." }), { status: 503 }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ annotations: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft(user);
+    await user.type(within(detail()).getByLabelText("Comment"), "keep me");
+
+    await user.click(within(detail()).getByRole("button", { name: "Save pin" }));
+    await waitFor(() =>
+      expect(within(detail()).getByRole("alert")).toHaveTextContent(/could not be saved/i),
+    );
+    // Recoverable: the draft, the comment, and the draft node all survive.
+    expect(within(detail()).getByTestId("panel-draft")).toBeInTheDocument();
+    expect(within(detail()).getByLabelText("Comment")).toHaveValue("keep me");
+    expect(document.querySelector(".react-flow__node-draftPin")).not.toBeNull();
+    expect(within(detail()).queryByRole("list", { name: "Saved pins" })).toBeNull();
+  });
+
+  test("the pins list opens a saved pin's comment and the badge marks the selection", async () => {
+    const user = userEvent.setup();
+    stubAnnotations([savedPin]);
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await waitFor(() =>
+      expect(
+        within(detail()).getByRole("button", { name: /Pin 1 — at \(720, 4000\)/ }),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    const panel = within(detail()).getByTestId("panel-pin");
+    expect(panel).toHaveTextContent("Pin 1");
+    expect(panel).toHaveTextContent("The hero headline duplicates the nav wordmark.");
+    expect(document.querySelector('[data-selected="true"]')).not.toBeNull();
+
+    // Selecting again clears back to the empty state.
+    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
+    expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+  });
+
+  test("pins are scoped to their plane: another capture lists only its own", async () => {
+    const user = userEvent.setup();
+    stubAnnotations([savedPin]);
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await waitFor(() =>
+      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+    );
+    expect(document.querySelectorAll(".react-flow__node-pin")).toHaveLength(1);
+
+    // The mock serves the same list for any capture id; the workspace must
+    // re-fetch on switch and never show the old plane's pins mid-flight.
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    await waitFor(() =>
+      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+    );
+    const requested = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes("/annotations"));
+    expect(requested).toContain("/api/captures/root-d1/annotations");
+    expect(requested).toContain("/api/captures/root-m1/annotations");
   });
 });

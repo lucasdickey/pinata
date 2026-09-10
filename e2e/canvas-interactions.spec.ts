@@ -14,8 +14,10 @@ import { CANVAS_MAX_ZOOM } from "../src/lib/canvas/camera";
 import {
   deviceButtonName,
   expectedContainZoom,
+  findClearAim,
   findReadyTarget,
   openPlane,
+  panUntilNaturalVisible,
   readCamera,
   signIn,
   toNatural,
@@ -170,9 +172,13 @@ test("pin mode places exactly one draft at the tapped natural pixel, at 1x and 8
   await expect(page.locator(DRAFT)).toHaveCount(0);
 
   // 1x: one deliberate click in pin mode creates exactly one draft whose
-  // rendered tip inverse-transforms to the clicked natural pixel.
+  // rendered tip inverse-transforms to the clicked natural pixel. The
+  // seeded plane may already hold persisted pins at the default pane
+  // center (the pins spec writes there), and a tap on a saved pin is
+  // selection, not placement — so pan a pin-free aim into view first.
   await page.getByRole("button", { name: "Natural size" }).click();
   await waitForZoom(page, 1);
+  await panUntilNaturalVisible(page, await findClearAim(page, target.captureId, doc));
   await page.getByRole("button", { name: "Place pin" }).click();
   aim = await placeablePoint(page, doc);
   await page.mouse.click(aim.screen.x, aim.screen.y);
@@ -229,6 +235,9 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
 
   await page.getByRole("button", { name: "Natural size" }).click();
   await waitForZoom(page, 1);
+  // Pan a pin-free aim to the pane center before zooming deep: the focal
+  // zoom then keeps the placement target clear of any persisted pins.
+  await panUntilNaturalVisible(page, await findClearAim(page, target.captureId, doc));
   await zoomToMax(page);
   const camera = await readCamera(page);
   expect(camera.zoom).toBeGreaterThan(CANVAS_MAX_ZOOM / 2);
@@ -338,10 +347,15 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   test.skip(!desktop || !mobile, "need a ready desktop and a ready mobile capture");
   const tracked = await trackWrites(page);
 
-  // Desktop: natural-size camera plus a draft.
+  // Desktop: natural-size camera plus a draft, placed at a pin-free aim so
+  // a persisted pin badge can never swallow the tap.
   await openPlane(page, desktop!);
   await page.getByRole("button", { name: "Natural size" }).click();
   await waitForZoom(page, 1);
+  await panUntilNaturalVisible(
+    page,
+    await findClearAim(page, desktop!.captureId, { width: desktop!.width, height: desktop!.height }),
+  );
   await page.getByRole("button", { name: "Place pin" }).click();
   const aim = await placeablePoint(page, { width: desktop!.width, height: desktop!.height });
   await page.mouse.click(aim.screen.x, aim.screen.y);
@@ -479,13 +493,15 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
 
   // One calibrated tap in pin mode creates exactly one draft at the tapped
   // natural pixel. Reset to the contain view first so the tap target is a
-  // deterministic on-document point regardless of where the pinch settled.
+  // deterministic on-document point regardless of where the pinch settled —
+  // and pick a pin-free aim, since a tap on a saved pin is selection.
   await page.getByRole("button", { name: "Entire page" }).click();
   await waitForZoom(page, expectedContainZoom(await visiblePane(page), doc));
   pane = await visiblePane(page);
-  const tapMid = { x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 };
   const tapCamera = await readCamera(page);
-  const tapNatural = toNatural({ x: tapMid.x - pane.left, y: tapMid.y - pane.top }, tapCamera);
+  const tapNatural = await findClearAim(page, target.captureId, doc);
+  const tapAimScreen = toScreen(tapNatural, tapCamera);
+  const tapMid = { x: pane.left + tapAimScreen.x, y: pane.top + tapAimScreen.y };
   expect(tapNatural.x).toBeGreaterThanOrEqual(0);
   expect(tapNatural.x).toBeLessThanOrEqual(doc.width);
   expect(tapNatural.y).toBeGreaterThanOrEqual(0);

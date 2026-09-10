@@ -2290,3 +2290,101 @@ and synthetic-touch debugging above.
 ### Open questions at end of session
 
 - None new. D054 stays pending.
+
+## 2026-09-10 — persisted numbered pins: placement, numbering, save and move protocol
+
+### What happened
+
+Built the full pin lifecycle on top of the coordinate engine, test-first in
+thin slices. (1) The pin store (`src/lib/server/annotations/pins.ts`):
+createPinAtomically runs the idempotency record and the insert in one
+transaction, assigns the number as max(number)+1 over all rows of the
+capture INCLUDING tombstones, and retries bounded times on a unique-index
+collision, so numbering is monotonic per capture, cancelled/failed drafts
+consume nothing, and deleted numbers are never reused; movePin is a
+capture-bound, bounds-validated, revisioned update that answers foreign
+addressing with a generic 404. (2) Routes
+(`/api/captures/[captureId]/annotations`, GET/POST, plus PATCH on the pin
+route) inside the established boundary order — same-origin, session+CSRF,
+content-type and the new ANNOTATION_REQUEST_MAX_BYTES (16,384) cap, strict
+zod schema, durable write — with the generic not-found envelope. (3) The
+flow-model adapter renders persisted pins as numbered badge children after
+the frame in number order, draft last, with the node id equal to the
+annotation id (adapter and domain share one identity; no alias mapping).
+(4) The canvas: saved pins drag through the same grab-offset/clamp adapter
+as drafts and commit exactly one write at drag end; selection is
+synchronized between badges, the pins list, and the panel. (5) The
+workspace wires per-plane pin loading (scoped strictly to the selected
+capture id, stale responses discarded), one idempotency key per draft
+intent, a recoverable save failure that keeps the draft and comment, and
+an optimistic move that snaps back from the authoritative list on failure.
+The hint above the canvas now teaches the whole workflow in plain language
+(D058, user-directed: the page documents itself).
+
+### What broke and what was learned
+
+- Drizzle wraps libSQL unique-constraint errors in its own message; the
+  collision detector walks the `cause` chain for the SQLite text.
+- The workspace's inline camera-change callback gave the canvas's
+  resize-follow observer effect a new dependency identity on every
+  unrelated re-render; once pin loading started re-rendering the
+  workspace, the observer re-applied the named-mode camera over a restored
+  plane. The callbacks are now stable (useCallback), which the camera
+  component test surface now guards.
+- Playwright bounding boxes are viewport-relative: measuring a badge
+  before `scrollIntoView` and converting with the post-scroll pane rect
+  injects exactly the scroll delta as phantom tip error (read as 180
+  natural px at overview zoom). Measure after anchoring.
+- A drag commit at 1x has one screen pixel of pointer granularity per
+  natural pixel, so the e2e move assertion tolerates 1 + 1/zoom; the
+  strict ≤1 natural pixel contract is asserted for placement at 1x/8x.
+- Authoritative readback from Turso after the e2e runs: ten pins, numbers
+  1–10 gapless on the seeded desktop capture, fixture pin #1 exactly at
+  (1400, 8906), fractional tips persisted at full precision
+  (259.9921875), drag pins at revision 2/3 matching exactly one revision
+  per committed drag, nothing out of bounds, no tombstones.
+- Manual agent-browser pass (production build, D052 bypass): the fixture
+  pin's rendered tip inverse-transforms to (1400, 8906) with delta ≤ 0.015
+  natural px at overview (0.0507x), 1x, 1.2x, 1.44x, 1.728x, and 8x — and
+  exactly 0 at 1x and 8x; the badge holds 24 screen px at every zoom; the
+  mobile plane renders zero pins with the empty-state discovery note; all
+  ten pins return unmutated after a plane round trip; the console buffer
+  is empty throughout.
+- The first full-gate e2e run (two workers, shared store) caught three
+  real interaction defects the component suites had not (D060): a pin-mode
+  tap on a saved pin stacked a hidden draft on it; a camera-spec pan whose
+  press landed on a badge dragged the pin and committed a PATCH during
+  navigation; and specs that all aimed at the default pane center collided
+  with each other's pins — at overview zoom the 24px hit box spans ~480
+  natural px, so per-point margins cannot keep taps clear. Pins now drag
+  only in Place pin mode (Navigate never moves a mark), a tap on a saved
+  pin is selection only, and the e2e suite separates aims structurally:
+  gesture specs use the document's middle band via `findClearAim`, the
+  pins spec writes into the bottom band.
+
+### Elapsed
+
+Roughly two hours of mission-worker time, dominated by the observer-identity
+camera regression and the e2e measurement-ordering lessons above.
+
+### Decisions and assertions
+
+- D058 (user-directed): the canvas documents its own interactions with
+  persistent on-page instructions (VAL-CANVAS-009).
+- D059 (agent-autonomous): pin persistence protocol — server numbering in
+  the idempotency transaction, one create per saved draft, one revisioned
+  write per drag, authoritative reloads after failure.
+- D060 (agent-autonomous): Navigate never creates or moves a mark, a tap on
+  a saved pin is selection only, and e2e specs share the seeded plane by
+  horizontal bands (`findClearAim`) so concurrent specs cannot collide.
+- Evidence for VAL-CANVAS-001/003/006/008/009 and VAL-PIN-001:
+  `test/server/annotations-pins.test.ts` (19), `annotations-routes.test.ts`
+  (13), flow-model and capture-canvas adapter/component suites,
+  `test/project-workspace.test.tsx` pin-flow block, and
+  `e2e/pins.spec.ts` (persist/reload/isolation, monotonic numbering with a
+  cancelled draft, camera zero-writes, one-write drag commit with clamps).
+
+### Open questions at end of session
+
+- None new. D054 stays pending. Pin deletion and edit are future features;
+  the tombstone scheme and non-reuse rule are already in place.

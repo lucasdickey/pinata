@@ -281,6 +281,42 @@ pre code {
   color: var(--ink-soft);
   font-size: 0.9rem;
 }
+/* Draft editor and saved-pin view in the capture panel. */
+.panel-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.panel-field textarea {
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 6px;
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+.panel-hint {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+.panel-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.panel-pin {
+  margin-top: 0;
+  white-space: pre-wrap;
+}
+.pin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pin-list button {
+  text-align: left;
+}
 
 .panel-facts {
   margin: 0;
@@ -405,6 +441,30 @@ pre code {
 .pin-badge circle {
   fill: var(--surface);
   stroke: none;
+}
+/* Persisted numbered pin: identical tip anchoring to the draft; the number
+   rides in the teardrop bulb (centered at 50%/37.5% of the viewBox), sized
+   from the box so it stays screen-readable at any zoom. */
+.react-flow__node-pin {
+  pointer-events: all;
+}
+.pin-badge-saved {
+  cursor: grab;
+}
+.pin-badge-saved[data-selected="true"] svg {
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.pin-badge-number {
+  position: absolute;
+  left: 50%;
+  top: 37.5%;
+  transform: translate(-50%, -50%);
+  color: var(--surface);
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
 
 .capture-error {

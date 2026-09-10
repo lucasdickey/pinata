@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 13 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055 |
+| Human directed | 14 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 33 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057 |
+| Agent decided alone | 35 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **57** | |
+| **Total** | **60** | |
 
 ## Index
 
@@ -83,6 +83,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D055](#d055--the-canvas-opens-every-capture-with-the-entire-page-in-view-contain-width-fit-and-natural-size-remain-named-modes) | build | The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes | Human directed | accepted |
 | [D056](#d056--pin-geometry-lives-in-a-pure-adapter-canonical-tip-plus-zoom-aware-hit-box-annotation-children-carry-no-react-flow-parent-extent-and-the-drag-grab-offset-is-captured-once-per-gesture) | build | Pin geometry lives in a pure adapter (canonical tip plus zoom-aware hit box); annotation children carry no React Flow parent extent, and the drag grab offset is captured once per gesture | Agent decided alone | accepted |
 | [D057](#d057--capture-driver-e2e-asserts-the-server-fence-one-claiming-answer-fenced-redrives-instead-of-a-fixed-per-attempt-dispatch-count) | build | Capture-driver e2e asserts the server fence (one claiming answer, fenced redrives) instead of a fixed per-attempt dispatch count | Agent decided alone | accepted |
+| [D058](#d058--the-canvas-documents-its-own-interactions-on-the-page-pan-zoom-pin-drop-comment-save-cancel-and-opening-a-saved-pin-are-all-taught-by-persistent-on-page-instructions) | build | The canvas documents its own interactions on the page: pan, zoom, pin drop, comment, save, cancel, and opening a saved pin are all taught by persistent on-page instructions | Human directed | accepted |
+| [D059](#d059--pin-persistence-server-assigned-monotonic-numbering-inside-the-idempotency-transaction-one-create-per-saved-draft-one-revisioned-write-per-drag-and-authoritative-reloads-after-failure) | build | Pin persistence: server-assigned monotonic numbering inside the idempotency transaction, one create per saved draft, one revisioned write per drag, and authoritative reloads after failure | Agent decided alone | accepted |
+| [D060](#d060--navigate-mode-never-moves-a-mark-and-a-tap-on-a-saved-pin-selects-it-pin-dragging-lives-in-place-pin-mode-and-e2e-specs-share-the-seeded-plane-by-horizontal-bands) | build | Navigate mode never moves a mark and a tap on a saved pin selects it; pin dragging lives in Place pin mode, and e2e specs share the seeded plane by horizontal bands | Agent decided alone | accepted |
 
 ---
 
@@ -2193,4 +2196,114 @@ Test-only change that strengthens what is actually proven (the fence, the cap, t
 
 ---
 
-<sub>Generated from 57 record(s) as of 2026-09-10 · source `f798fb8ba7f5`</sub>
+## D058 — The canvas documents its own interactions on the page: pan, zoom, pin drop, comment, save, cancel, and opening a saved pin are all taught by persistent on-page instructions
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+A first-time user opening a capture had no way to discover the pin workflow: the canvas supported pan, zoom, an explicit Place pin mode, drafts, and saving, but nothing on the page said so. The reviewer directive was explicit that the page itself must teach the workflow.
+
+**Decision**
+
+The workspace carries a persistent plain-language hint above the canvas that names every real interaction of this build: drag to pan, scroll or pinch to zoom, the camera buttons, Place pin mode with click/tap to drop a pin, writing a comment and pressing Save pin, Escape or Cancel discarding a draft, clicking a saved pin or its Pins-list entry to read its comment, and dragging a pin to move it. The empty pins panel repeats the discovery path, and the hint names no affordance that does not exist (no dead 'coming soon' features).
+
+**Alternatives considered**
+
+- *A one-time onboarding tooltip or tour* — Dismissable UI fails the directive: the instructions must be persistent so the page stays self-documenting on every visit, and a tour is another dismissible surface to maintain.
+- *Rely on the validation contract and README to document interactions* — The directive was precisely that the page itself must teach the workflow; external documents are not the page.
+
+**Rationale**
+
+Direct execution of the verbatim request. The hint is intentionally exhaustive about the current build and nothing beyond it, so it can never drift into promising dead affordances.
+
+**Consequences**
+
+- Any future canvas interaction must be added to the hint when it ships; the workspace component test asserts the hint's coverage phrases.
+- VAL-CANVAS-009 is satisfied by the page alone, with no external documentation dependency.
+
+**Provenance evidence**
+
+Human instruction:
+
+> add instrucitons on teh page itself to make it self-documented
+
+**Artifacts**
+
+- `src/components/project-workspace.tsx` — The persistent workspace hint and the empty-pins discovery copy.
+
+---
+
+## D059 — Pin persistence: server-assigned monotonic numbering inside the idempotency transaction, one create per saved draft, one revisioned write per drag, and authoritative reloads after failure
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Persisting pins raised four coupled protocol questions: who assigns pin numbers (and how cancelled or failed drafts must never consume one), how a retried or double-submitted save stays exactly-once, how a drag move commits without write amplification, and what the UI shows when a write fails.
+
+**Decision**
+
+The server assigns numbers inside the create transaction as max(number)+1 over ALL rows of the capture including tombstones, backstopped by the (capture_id, number) unique index with a bounded collision retry, so deleted or failed numbers are never reused and drafts never reserve one. The annotations create route is idempotency-record-first: an exact replay returns the original record, a key reused with a different payload conflicts, and a failed validation consumes nothing. The client holds one idempotency key per draft intent, POSTs once per Save, and re-reads the capture's pin list after success rather than patching local state. A pin drag is local-only movement committed as exactly one revisioned PATCH at drag end (capture-bound, bounds-validated, revision-bumped); a failed move shows a bounded error and reloads the authoritative list so the pin snaps back. Camera, selection, and cancel paths issue zero writes.
+
+**Alternatives considered**
+
+- *Client-proposed numbers with server validation* — Two clients placing concurrently would collide constantly and cancelled drafts would strand visible gaps; the server is the only authority that can be both monotonic and collision-safe.
+- *Live PATCH on every drag frame* — Write amplification with no durability benefit: intermediate frames are transient by definition, and the one-natural-pixel contract only concerns the final position.
+- *Optimistically persist the new pin locally and reconcile later* — An optimistic ghost has no server number; showing it would either fake a number or violate the monotonic-visible-numbers rule. The save latency on a local store is imperceptible.
+
+**Rationale**
+
+These are protocol choices inside the already-approved pins direction (D051) and the existing idempotency/revision pattern the capture and reply routes established; they change no user-visible scope and add no dependency, so they were safe to decide without surfacing. Reusing the established boundary order (same-origin, session+CSRF, content-type and byte cap, strict schema, durable write) keeps the new routes inside the reviewed envelope.
+
+**Consequences**
+
+- Annotation records carry exactly one natural-pixel tip, a bounded body, an explicit null element snapshot, capture binding, and a revision; no React Flow state or camera data can enter persistence.
+- Move is the only pin mutation this build ships; deletion and edit remain future features with the tombstone scheme already in the schema.
+- A new boundary constant ANNOTATION_REQUEST_MAX_BYTES (16,384) joins the published catalog (POLICY_VERSION 2026-09-09.2).
+- The pins e2e intentionally leaves a numbered corner-fixture pin on the seeded Chickpea desktop capture as a regression-screenshot landmark; each full run adds at most three pins against the 200-per-capture quota.
+
+**Artifacts**
+
+- `src/lib/server/annotations/pins.ts` — createPinAtomically / movePin: transactional numbering, idempotency, and revision rules.
+- `app/api/captures/[captureId]/annotations/route.ts` — List and create routes inside the established request boundary order.
+- `e2e/pins.spec.ts` — Persist/reload/isolation, monotonic numbering with a cancelled draft, camera zero-writes, and one-write drag commits at 1x and 8x.
+
+---
+
+## D060 — Navigate mode never moves a mark and a tap on a saved pin selects it; pin dragging lives in Place pin mode, and e2e specs share the seeded plane by horizontal bands
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Once persisted pins existed on the seeded capture, the full parallel e2e suite exposed three interaction holes: a pin-mode tap on an existing pin both selected it AND stacked a hidden draft on it; a camera-spec pan that happened to press a pin badge dragged the pin and committed a real PATCH during what the user meant as navigation; and three specs independently aiming their taps at the default pane center collided with each other's pins (a badge's 24px hit box spans hundreds of natural pixels at overview zoom, so per-point margins cannot keep taps clear).
+
+**Decision**
+
+Persisted pins are draggable only in Place pin mode: in Navigate mode a press anywhere — including on a badge — pans, and camera work can never produce an annotation write. A pin-mode tap on a saved pin is selection, never placement. Draft pins stay draggable in any mode (adjusting a draft after switching back is the shipped flow) because drafts are transient and write nothing. In the e2e suite, gesture specs aim inside a middle document band while the pins spec writes into a bottom band via a shared lattice helper (findClearAim), making cross-spec collision structurally impossible rather than margin-unlikely.
+
+**Alternatives considered**
+
+- *Keep pins draggable in Navigate mode and make the camera spec avoid badges* — That codifies the real defect: an accidental press-and-drag during navigation commits a durable move the user never intended. The interaction contract says navigation moves no mark.
+- *Give every e2e spec its own scratch capture* — Scratch captures cost real provider work per run and lose the seeded deep-zoom document the canvas specs measure against; band separation keeps the shared plane usable.
+- *Clear pins from the store between e2e runs* — There is no delete route by design (D059), and test-only database surgery would bypass the API contract the suite exists to prove.
+
+**Rationale**
+
+Measured end-to-end failures forced each half: the mode gating and tap-selects rule resolve real write-on-pan and draft-stacking behavior, and band separation is the only aim strategy that survives the hit box's natural-pixel size at overview zoom. Both are inside the already-approved canvas direction (D051, D055, D056) and change no shipped scope, so they were safe to decide unilaterally.
+
+**Consequences**
+
+- Future marks (rectangles, circles, arrows) follow the same rule: manipulated in their draw mode only; Navigate always pans.
+- E2e specs that place or tap on the seeded plane call findClearAim (middle band for gestures, bottom band for pins) instead of aiming at pane centers.
+- The workspace hint documents the split: Navigate never creates or moves a mark; Place pin mode owns placement and dragging.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — Mode-gated pin dragging and tap-selects placement skip.
+- `e2e/canvas-session.ts` — findClearAim banded lattice and panUntilNaturalVisible shared helpers.
+
+---
+
+<sub>Generated from 60 record(s) as of 2026-09-10 · source `9fb56372400b`</sub>

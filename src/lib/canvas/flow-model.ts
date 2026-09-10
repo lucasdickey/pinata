@@ -17,6 +17,9 @@ import type { NaturalPoint } from "./camera";
 /** Custom node type for the one immutable screenshot frame. */
 export const CAPTURE_FRAME_TYPE = "captureFrame";
 
+/** Custom node type for one persisted, numbered pin. */
+export const PIN_TYPE = "pin";
+
 /** Custom node type for the one transient, unsaved draft pin. */
 export const DRAFT_PIN_TYPE = "draftPin";
 
@@ -81,16 +84,92 @@ export function captureFrameNode(domain: CaptureFrameDomain): CaptureFrameNode {
 
 /**
  * The controlled node array for one active capture: parent frame first, then
- * the transient draft pin child when one exists. Persisted pins land with
- * the pins feature and follow the same parent-first ordering.
+ * the persisted pins in stable server-number order, then the transient draft
+ * pin when one exists. Adapter artifacts (frame, draft) use namespaced ids;
+ * a persisted pin's node id IS its server annotation id — the domain record
+ * is canonical and raw React Flow state is never persisted.
  */
 export function nodesForCapture(
   domain: CaptureFrameDomain,
+  pins: CanvasPin[] = [],
   draftTip?: NaturalPoint | null,
   zoom = 1,
 ): CanvasNode[] {
   const frame = captureFrameNode(domain);
-  return draftTip ? [frame, draftPinNode(domain, draftTip, zoom)] : [frame];
+  const ordered = [...pins].sort((a, b) => a.number - b.number);
+  const nodes: CanvasNode[] = [
+    frame,
+    ...ordered.map((pin) => pinNode(domain, pin, zoom)),
+  ];
+  return draftTip ? [...nodes, draftPinNode(domain, draftTip, zoom)] : nodes;
+}
+
+/** The domain facts one persisted pin renders from. */
+export interface CanvasPin {
+  /** Server annotation id; the React Flow node id is exactly this. */
+  id: string;
+  /** Server-assigned monotonic per-capture number. */
+  number: number;
+  /** Canonical tip in screenshot-natural pixels. */
+  tip: NaturalPoint;
+  /** Whether the workspace panel currently shows this pin. */
+  selected: boolean;
+}
+
+export interface PinData extends Record<string, unknown> {
+  annotationId: string;
+  number: number;
+  /** Canonical tip in screenshot-natural pixels; the only domain geometry. */
+  tipX: number;
+  tipY: number;
+  /** Hit-box edge and tip offsets from the pure adapter (PinBox). */
+  size: number;
+  tipOffsetX: number;
+  tipOffsetY: number;
+  /** Whether the panel selection is on this pin (badge styling only). */
+  selected: boolean;
+  /** Accessible name for the pin node. */
+  label: string;
+}
+
+export type PinNode = Node<PinData, typeof PIN_TYPE>;
+
+/**
+ * One persisted numbered pin as a child of the screenshot frame. Identical
+ * anchoring to the draft: the node box is the zoom-aware hit area and the
+ * canonical tip is `position + (tipOffsetX, tipOffsetY)`. Dragging re-derives
+ * the clamped tip through the same pure adapter, and the commit at drag end
+ * is the only write — intermediate frames move local state only.
+ */
+export function pinNode(domain: CaptureFrameDomain, pin: CanvasPin, zoom: number): PinNode {
+  const box: PinBox = pinHitBox(pin.tip, { width: domain.width, height: domain.height }, zoom);
+  const label = `Pin ${pin.number} at natural pixel (${Math.round(pin.tip.x)}, ${Math.round(
+    pin.tip.y,
+  )})`;
+  return {
+    id: pin.id,
+    type: PIN_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: box.x, y: box.y },
+    width: box.size,
+    height: box.size,
+    data: {
+      annotationId: pin.id,
+      number: pin.number,
+      tipX: pin.tip.x,
+      tipY: pin.tip.y,
+      size: box.size,
+      tipOffsetX: box.tipOffsetX,
+      tipOffsetY: box.tipOffsetY,
+      selected: pin.selected,
+      label,
+    },
+    ariaLabel: label,
+    draggable: true,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+  };
 }
 
 export interface DraftPinData extends Record<string, unknown> {
@@ -107,7 +186,7 @@ export interface DraftPinData extends Record<string, unknown> {
 
 export type DraftPinNode = Node<DraftPinData, typeof DRAFT_PIN_TYPE>;
 
-export type CanvasNode = CaptureFrameNode | DraftPinNode;
+export type CanvasNode = CaptureFrameNode | PinNode | DraftPinNode;
 
 /**
  * The draft pin node id is a deterministic namespaced derivative of the

@@ -15,6 +15,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
+  ANNOTATION_REQUEST_MAX_BYTES,
   ASSET_CACHE_CONTROL,
   ASSET_RANGE_UNIT,
   ASSET_VARY,
@@ -203,6 +204,7 @@ const FEEDBACK_ROWS: DocRow[] = [
   { name: "FEEDBACK_BODY_MAX_CHARS", value: fmtNum(FEEDBACK_BODY_MAX_CHARS) },
   { name: "MAX_ANNOTATIONS_PER_CAPTURE", value: fmtNum(MAX_ANNOTATIONS_PER_CAPTURE) },
   { name: "NEARBY_CANDIDATES_MAX", value: fmtNum(NEARBY_CANDIDATES_MAX) },
+  { name: "ANNOTATION_REQUEST_MAX_BYTES", value: fmtBytes(ANNOTATION_REQUEST_MAX_BYTES) },
 ];
 
 const INTERACTION_ROWS: DocRow[] = [
@@ -371,6 +373,9 @@ describe("boundary catalog coverage and consistency", () => {
     expect(MAX_ANNOTATIONS_PER_CAPTURE).toBeGreaterThanOrEqual(NEARBY_CANDIDATES_MAX);
     expect(NEARBY_CANDIDATES_MAX).toBeGreaterThan(0);
     expect(MIN_ARROW_LENGTH_PX).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    // The annotation request cap must comfortably hold a maximal comment
+    // plus its tip, key, and JSON envelope.
+    expect(ANNOTATION_REQUEST_MAX_BYTES).toBeGreaterThan(FEEDBACK_BODY_MAX_CHARS * 4);
   });
 
   test("the performance protocol matches the contract protocol", () => {
