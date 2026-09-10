@@ -7,6 +7,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
 import { requireLocalEnvValue } from "./local-env";
 
+/** Sign in from the public landing and land on the workspace at /pins (D069). */
 export async function signIn(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
@@ -150,9 +151,38 @@ export function planeButton(page: Page, target: ReadyTarget): Locator {
   return tree.getByRole("button", { name: deviceButtonName(target), exact: true });
 }
 
+/**
+ * Expand whatever the rail has collapsed around this plane (D070) so its
+ * device button is reachable. Only the project holding the current selection
+ * starts open, so any spec that reaches for a plane in another project has to
+ * open that project first — exactly as a reader would.
+ */
+export async function revealPlane(page: Page, target: ReadyTarget): Promise<void> {
+  const button = planeButton(page, target);
+  if (await button.isVisible()) return;
+  const rail = page.locator("details.tree-root").first();
+  if ((await rail.count()) > 0 && !(await rail.evaluate((el: HTMLDetailsElement) => el.open))) {
+    await rail.locator("> summary").click();
+  }
+  const owner = target.projectTitle
+    ? page
+        .locator("details.tree-project")
+        .filter({ has: page.getByRole("heading", { name: target.projectTitle, exact: true }) })
+    : page.locator("details.tree-project").filter({ has: button });
+  const summary = owner.locator("> summary").first();
+  if ((await summary.count()) > 0) await summary.click();
+  await expect(button).toBeVisible();
+}
+
+/** Reveal, select, and wait for a plane's screenshot to decode. */
+export async function clickPlane(page: Page, target: ReadyTarget): Promise<void> {
+  await revealPlane(page, target);
+  await planeButton(page, target).click();
+}
+
 /** Select a plane and wait for its screenshot to decode at natural size. */
 export async function openPlane(page: Page, target: ReadyTarget): Promise<void> {
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>(".capture-frame-image");

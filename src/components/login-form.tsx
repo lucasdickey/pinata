@@ -8,6 +8,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { hasCaptureDraft } from "../lib/capture-draft";
 
 export function LoginForm() {
   const router = useRouter();
@@ -27,6 +28,11 @@ export function LoginForm() {
         body: JSON.stringify({ password }),
       });
       if (response.ok) {
+        // Since the route split (D069) the editor surface has its own
+        // address, so sign-in navigates rather than re-rendering in place.
+        // A parked anonymous entry (D067) is waiting for the project form,
+        // so that handoff goes straight to it; everyone else goes to work.
+        router.replace(hasCaptureDraft() ? "/pins/new" : "/pins");
         router.refresh();
         return;
       }

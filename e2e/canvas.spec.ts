@@ -23,7 +23,7 @@ import {
   findReadyTarget,
   openPlane,
   paneRect,
-  planeButton,
+  clickPlane,
   readCamera,
   signIn,
   toNatural,
@@ -216,7 +216,7 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
   await waitForZoom(page, 1);
   expect((await readCamera(page)).zoom).toBe(1);
   await page.reload();
-  await planeButton(page, target!).click();
+  await clickPlane(page, target!);
   await expect(page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
   await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
     "aria-pressed",

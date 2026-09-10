@@ -3,8 +3,8 @@
 // An anonymous visitor fills the landing's capture entry; submitting parks
 // the draft in sessionStorage and routes to the editor sign-in prompt — no
 // request is made, because an anonymous visitor is not authorized to create
-// anything. After sign-in the editor lands back on / and the always-active
-// project form consumes the draft exactly once.
+// anything. After sign-in the editor is routed to the project form at
+// /pins/new (D069), which consumes the draft exactly once.
 //
 // sessionStorage is the right store: the draft is same-tab (the sign-in
 // happens in the tab that submitted), survives the server re-render that
@@ -25,6 +25,20 @@ export function saveCaptureDraft(draft: CaptureDraft): void {
   } catch {
     // Storage full or unavailable (private modes): the handoff degrades to a
     // blank form, never to a crash.
+  }
+}
+
+/**
+ * Whether a draft is parked, without consuming it. Sign-in needs to know
+ * where to send the editor — the form at /pins/new when an anonymous entry
+ * is waiting, the workspace otherwise — and answering that question must
+ * not destroy the draft the destination is about to read.
+ */
+export function hasCaptureDraft(): boolean {
+  try {
+    return sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY) !== null;
+  } catch {
+    return false;
   }
 }
 

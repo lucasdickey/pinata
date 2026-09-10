@@ -112,12 +112,16 @@ function planeTarget(
 
 /** Select a plane and wait for its screenshot to decode. */
 async function openPlane(page: Page, target: ReadyTarget): Promise<void> {
-  await page
-    .getByRole("button", {
-      name: `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`,
-      exact: true,
-    })
-    .click();
+  const button = page.getByRole("button", {
+    name: `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`,
+    exact: true,
+  });
+  // The rail collapses every project but the one holding the selection
+  // (D070), so a plane in another project has to be revealed first.
+  if (!(await button.isVisible())) {
+    await page.locator("details.tree-project").filter({ has: button }).locator("> summary").first().click();
+  }
+  await button.click();
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>(".capture-frame-image");

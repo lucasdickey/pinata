@@ -35,6 +35,7 @@ import {
   type DraftCandidates,
 } from "./capture-panel";
 import { FounderShareControl } from "./founder-share";
+import { PinTable } from "./pin-table";
 import type { ReplySendState, ThreadStatus } from "./thread-view";
 
 export interface AttemptView {
@@ -115,6 +116,13 @@ export function ProjectWorkspace({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  // Rail disclosure state (D070), session-only and deliberately unpersisted:
+  // it is a view preference, not project data, and storing it would mean
+  // reasoning about a stale rail after the project list changes underneath.
+  // `openProjects` holds only projects the reader has explicitly toggled;
+  // anything absent falls back to "open when it holds the selection".
+  const [railOpen, setRailOpen] = useState(true);
+  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
   // Per-capture session camera memory: each plane restores its own camera
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
@@ -701,54 +709,106 @@ export function ProjectWorkspace({
   return (
     <div className="workspace">
       <nav className="workspace-tree" aria-label="Projects, pages, and devices">
-        <ul>
-          {projects.map((project) => (
-            <li key={project.projectId}>
-              <h3>{project.title}</h3>
-              <p className="project-counts">
-                {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
-                {project.counts.failed} failed · {project.counts.inProgress} in progress
-              </p>
-              <FounderShareControl publicId={project.publicId} projectTitle={project.title} />
-              <ol>
-                {project.pages.map((page) => (
-                  <li key={page.id}>
-                    <span className="page-url">{page.normalizedUrl}</span>
-                    <ul className="page-devices">
-                      {page.devices.map((device) => {
-                        const isActive =
-                          active?.page.id === page.id && active.device.variant === device.variant;
-                        return (
-                          <li key={device.variant}>
-                            <button
-                              type="button"
-                              // The visible label is just "Desktop"; the page
-                              // it belongs to has to be in the accessible
-                              // name or every project repeats two identical
-                              // buttons.
-                              aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
-                              aria-current={isActive ? "true" : undefined}
-                              onClick={() =>
-                                setSelection({
-                                  pageId: page.id,
-                                  variant: device.variant,
-                                  captureId: null,
-                                })
-                              }
-                            >
-                              {variantLabel(device.variant)}
-                              <span className="device-status"> — {deviceStatus(device)}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                ))}
-              </ol>
-            </li>
-          ))}
-        </ul>
+        {/* Two levels of disclosure (D070). The rail used to print every
+            project's whole page/device tree at once, so a handful of
+            projects pushed the canvas off screen. Native <details> is used
+            rather than a hand-rolled toggle: it is keyboard-operable and
+            correctly announced with no script and no dependency, and it
+            keeps working if hydration has not happened yet. */}
+        <details
+          className="tree-root"
+          open={railOpen}
+          onToggle={(event) => setRailOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span className="tree-summary-label">Projects</span>
+            <span className="tree-count">{projects.length}</span>
+          </summary>
+          <ul>
+            {projects.map((project) => {
+              // The project holding the current selection stays open; the
+              // rest start collapsed. Collapsing the active project would
+              // hide the control that produced what the canvas is showing.
+              const holdsActive = active?.project.projectId === project.projectId;
+              const expanded = openProjects[project.projectId] ?? holdsActive;
+              return (
+                <li key={project.projectId}>
+                  <details
+                    className="tree-project"
+                    open={expanded}
+                    onToggle={(event) => {
+                      // Read the element before the updater runs: React has
+                      // detached the synthetic event by then and
+                      // currentTarget is null inside the callback.
+                      const isOpen = event.currentTarget.open;
+                      setOpenProjects((current) => ({
+                        ...current,
+                        [project.projectId]: isOpen,
+                      }));
+                    }}
+                  >
+                    <summary>
+                      <span className="tree-summary-label">{project.title}</span>
+                      <span className="tree-count">{project.counts.pages}</span>
+                    </summary>
+                    {/* The heading stays in the tree so assistive technology
+                        and the e2e specs can still address a project by
+                        name, but it now lives inside the disclosure. */}
+                    <h3 className="visually-hidden">{project.title}</h3>
+                    <p className="project-counts">
+                      {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
+                      {project.counts.failed} failed · {project.counts.inProgress} in progress
+                    </p>
+                    <FounderShareControl
+                      publicId={project.publicId}
+                      projectTitle={project.title}
+                    />
+                    <ol>
+                      {project.pages.map((page) => (
+                        <li key={page.id}>
+                          <span className="page-url">{page.normalizedUrl}</span>
+                          <ul className="page-devices">
+                            {page.devices.map((device) => {
+                              const isActive =
+                                active?.page.id === page.id &&
+                                active.device.variant === device.variant;
+                              return (
+                                <li key={device.variant}>
+                                  <button
+                                    type="button"
+                                    // The visible label is just "Desktop"; the page
+                                    // it belongs to has to be in the accessible
+                                    // name or every project repeats two identical
+                                    // buttons.
+                                    aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
+                                    aria-current={isActive ? "true" : undefined}
+                                    onClick={() =>
+                                      setSelection({
+                                        pageId: page.id,
+                                        variant: device.variant,
+                                        captureId: null,
+                                      })
+                                    }
+                                  >
+                                    {variantLabel(device.variant)}
+                                    <span className="device-status">
+                                      {" "}
+                                      — {deviceStatus(device)}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       </nav>
 
       {active ? (
@@ -931,6 +991,24 @@ export function ProjectWorkspace({
                 ? "Retrying…"
                 : `Retry ${variantLabel(active.device.variant)} capture`}
             </button>
+          ) : null}
+
+          {/* Every pin at once, below the canvas (D071) — the side panel can
+              only ever show the selected one. */}
+          {selectedReady ? (
+            <PinTable
+              pins={activePins}
+              status={
+                pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
+              }
+              context={{
+                pageUrl: active.page.normalizedUrl,
+                variant: variantLabel(active.device.variant),
+                attempt: selectedAttempt?.attempt ?? null,
+              }}
+              selectedPinId={selectedPinId}
+              onSelectPin={setSelectedPinId}
+            />
           ) : null}
         </section>
       ) : null}

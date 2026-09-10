@@ -1,12 +1,17 @@
 "use client";
 
-// The authenticated editor landing (VAL-LANDING-001/003, D066/D067): the
-// same branded hero an anonymous visitor sees, but with the project form
-// always active — any parked anonymous capture draft is consumed into it
-// exactly once — and the durable project list directly below. The static
-// example render follows, then the requirements link and the
-// keyboard-operable logout control.
+// The editor working surface at /pins (D069). It carries the durable project
+// list and nothing that competes with it: the branded hero, the always-open
+// project form, and the static example render moved to the public landing
+// and to /pins/new, because on this route they cost a screenful of the space
+// the canvas actually needs. What stays is a compact header (home, new
+// project, sign out), the workspace, and the hub links.
+//
+// This component still owns the capture-progress polling loop and the
+// capture-dispatch driver, so any pending attempt — including one committed
+// by /pins/new a moment ago — is driven to completion on this load.
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -17,11 +22,8 @@ import {
   postCaptureDispatch,
 } from "../lib/capture-dispatch";
 import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
-import { takeCaptureDraft, type CaptureDraft } from "../lib/capture-draft";
 import { readCsrfProof } from "../lib/csrf";
-import { ExampleCapture } from "./example-capture";
-import { LandingHero, LandingLinks } from "./landing";
-import { ProjectCreateForm } from "./project-create-form";
+import { LandingLinks } from "./landing";
 import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
@@ -33,17 +35,6 @@ export function EditorHome() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
-  // The parked anonymous draft (VAL-LANDING-003) is read after mount — never
-  // during SSR, where sessionStorage does not exist — and the form renders
-  // once the check has run so it initializes straight from the draft. The
-  // `current ?? take` shape survives a StrictMode double-effect: the first
-  // read wins and the consumed key stays empty.
-  const [draftChecked, setDraftChecked] = useState(false);
-  const [draft, setDraft] = useState<CaptureDraft | null>(null);
-  useEffect(() => {
-    setDraft((current) => current ?? takeCaptureDraft());
-    setDraftChecked(true);
-  }, []);
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
@@ -161,14 +152,12 @@ export function EditorHome() {
         headers: { [EDITOR_CSRF_HEADER]: readCsrfProof() },
       });
     } finally {
+      // /pins is editor-only, so signing out has to leave the route, not
+      // just re-render it (D069). Navigate explicitly rather than relying on
+      // a refresh to pick up the server-side redirect.
+      router.replace("/");
       router.refresh();
     }
-  }
-
-  function onCreated() {
-    // The transaction already committed; read the hierarchy back from the
-    // server rather than trusting the response as local state.
-    void load();
   }
 
   async function retryList() {
@@ -182,26 +171,33 @@ export function EditorHome() {
   }
 
   return (
-    <main className="home-main">
-      <LandingHero>
-        {draftChecked ? (
-          <ProjectCreateForm
-            initial={draft ?? undefined}
-            onCreated={onCreated}
-            // The landing form is always active; Cancel simply clears the
-            // fields (handled inside the form itself).
-            onCancel={() => setDraft(null)}
-          />
-        ) : null}
-      </LandingHero>
-      <p>Signed in as Lucas (editor).</p>
+    <main className="pins-main">
+      {/* One compact bar instead of the hero: identity, the route to the
+          project form, and sign out. Everything else on this screen belongs
+          to the workspace. */}
+      <header className="pins-header">
+        <Link href="/" className="wordmark">
+          pinata
+        </Link>
+        <p className="pins-identity">Signed in as Lucas (editor).</p>
+        <nav className="pins-actions" aria-label="Editor actions">
+          <Link href="/pins/new" className="pins-new-link">
+            New project
+          </Link>
+          <button type="button" onClick={logout} disabled={pending}>
+            {pending ? "Signing out…" : "Sign out"}
+          </button>
+        </nav>
+      </header>
 
       {/* The list is one explicit state machine (VAL-AUTH-008/009): loading,
           empty, populated, and failure are mutually exclusive and announced,
           and a failure keeps logout and the open form intact while offering
           exactly one single-flight retry. */}
-      <section aria-labelledby="projects-heading" aria-busy={list.status === "loading"}>
-        <h2 id="projects-heading">Projects</h2>
+      {/* The region keeps its accessible name without spending a heading on
+          it: once projects load, the rail's own disclosure is the heading
+          for the list (see ProjectWorkspace). */}
+      <section aria-label="Projects" aria-busy={list.status === "loading"}>
         {list.status === "loading" ? <p role="status">Loading projects…</p> : null}
         {list.status === "failed" ? (
           <div className="list-failure">
@@ -213,7 +209,8 @@ export function EditorHome() {
         ) : null}
         {list.status === "ready" && list.projects.length === 0 ? (
           <p className="list-empty">
-            No projects yet. Create your first project to capture a page.
+            No projects yet. <Link href="/pins/new">Create your first project</Link> to
+            capture a page.
           </p>
         ) : null}
         {list.status === "ready" && list.projects.length > 0 ? (
@@ -221,11 +218,7 @@ export function EditorHome() {
         ) : null}
       </section>
 
-      <ExampleCapture />
       <LandingLinks />
-      <button type="button" onClick={logout} disabled={pending}>
-        {pending ? "Signing out…" : "Sign out"}
-      </button>
     </main>
   );
 }

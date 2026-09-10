@@ -65,10 +65,11 @@ test("wrong password is denied; the configured password establishes a session; l
   expect(await page.context().cookies()).toEqual([]);
   await expect(page.getByLabel("Password")).toHaveValue("");
 
-  // Valid password: editor shell appears, session cookies carry the policy
-  // attributes.
+  // Valid password: sign-in leaves the public landing for the editor route
+  // (D069) and the session cookies carry the policy attributes.
   await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 
   const cookies = await page.context().cookies();
@@ -81,10 +82,18 @@ test("wrong password is denied; the configured password establishes a session; l
   expect(csrf).toBeDefined();
   expect(csrf?.httpOnly).toBe(false);
 
-  // Logout returns to the password prompt and clears the cookies.
+  // Logout leaves the editor route for the password prompt and clears the
+  // cookies.
   await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
   await expect(page.getByLabel("Password")).toBeVisible();
   expect(await page.context().cookies()).toEqual([]);
+
+  // The editor route is not reachable without a session: it redirects back
+  // to the public landing rather than rendering an empty shell.
+  await page.goto("/pins");
+  await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
+  await expect(page.getByLabel("Password")).toBeVisible();
 
   // The pre-logout session cookie cannot be replayed.
   const replay = await page.request.get("/api/editor/session", {

@@ -138,6 +138,18 @@ async function main() {
   const unknown = await call("/reqs/definitely-not-a-page");
   report(unknown.status === 404, "unknown /reqs/* returns 404", `status ${unknown.status}`);
 
+  // 2b. The editor routes are session-gated by redirect, not by rendering an
+  //     empty shell (D069): without a session both bounce to the landing.
+  for (const route of ["/pins", "/pins/new"]) {
+    const gated = await call(route);
+    const location = gated.headers.get("location") ?? "";
+    report(
+      (gated.status === 307 || gated.status === 302) && new URL(location, baseUrl).pathname === "/",
+      `${route} redirects an unauthenticated visitor to /`,
+      `status ${gated.status}, location ${location || "absent"}`,
+    );
+  }
+
   // 3. Editor login: a wrong password is denied (bounded), the configured
   //    password succeeds and sets session + CSRF cookies.
   const wrong = await call("/api/auth/login", {
