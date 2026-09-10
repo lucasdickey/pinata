@@ -683,6 +683,108 @@ pre code {
   color: var(--accent);
 }
 
+/* ---- founder sharing and threads (REQUIREMENTS 6 and 7) ---- */
+
+/* The editor's per-project share control: closed by default, existing
+   tokens only. */
+.founder-share {
+  margin: 0.25rem 0 0.75rem;
+}
+
+.founder-share-panel {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.founder-share-status {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.founder-share-fresh input {
+  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* The append-only thread under a pin, in the editor panel and the founder
+   view alike. */
+.thread {
+  margin-top: 0.5rem;
+}
+
+.thread-entries {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.thread-entry {
+  border-left: 3px solid var(--line);
+  padding-left: 0.6rem;
+}
+
+.thread-entry[data-author="founder"] {
+  border-left-color: var(--accent);
+}
+
+.thread-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.thread-role {
+  font-weight: 400;
+}
+
+.thread-body {
+  margin: 0.15rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The founder's read/reply-only shell: the same workspace layout as the
+   editor's, at full width, with a visible role badge. */
+.founder-shell {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+.founder-header h1 {
+  margin: 0.25rem 0;
+}
+
+.founder-badge {
+  display: inline-block;
+  margin: 0;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.founder-root {
+  margin: 0 0 0.5rem;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+
 /* ---- requirements hub ---- */
 
 .reqs-shell {

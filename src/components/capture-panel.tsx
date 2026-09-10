@@ -24,6 +24,7 @@ import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { PinAnnotationView, PinElementSnapshot } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
 import type { AttemptView } from "./project-workspace";
+import { ThreadView, type ThreadViewProps } from "./thread-view";
 
 export const VARIANT_LABELS: Record<string, string> = { desktop: "Desktop", mobile: "Mobile" };
 
@@ -86,6 +87,7 @@ export function CapturePanel({
   onCancelDelete,
   onConfirmDelete,
   deleteState,
+  thread,
 }: {
   attempt: AttemptView | null;
   pageUrl: string;
@@ -129,6 +131,12 @@ export function CapturePanel({
   onCancelDelete: () => void;
   onConfirmDelete: () => void;
   deleteState: "idle" | "deleting" | "failed" | "conflict";
+  /**
+   * The selected pin's append-only thread plus the editor's follow-up
+   * composer (REQUIREMENTS 6). Optional so the panel's existing surface is
+   * unchanged when no thread state is supplied.
+   */
+  thread?: ThreadViewProps;
 }) {
   const selectedPin = pins.find((pin) => pin.id === selectedPinId) ?? null;
   const saveDisabled =
@@ -320,6 +328,12 @@ export function CapturePanel({
             Drag the pin on the screenshot (in Place pin mode) to move it. Deleting a pin retires
             its number forever.
           </p>
+          {thread ? (
+            <>
+              <h4>Thread</h4>
+              <ThreadView {...thread} />
+            </>
+          ) : null}
         </div>
       ) : (
         <p className="panel-empty">Nothing selected.</p>

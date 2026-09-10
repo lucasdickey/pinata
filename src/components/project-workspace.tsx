@@ -25,6 +25,7 @@ import type {
   PinMutationResponse,
 } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
+import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import {
@@ -33,6 +34,8 @@ import {
   variantLabel,
   type DraftCandidates,
 } from "./capture-panel";
+import { FounderShareControl } from "./founder-share";
+import type { ReplySendState, ThreadStatus } from "./thread-view";
 
 export interface AttemptView {
   id: string;
@@ -166,6 +169,17 @@ export function ProjectWorkspace({
   } | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  // The selected pin's append-only thread (REQUIREMENTS 6): loaded per
+  // selection and scoped to the pin it was fetched for, with one follow-up
+  // composer whose idempotency key lives exactly as long as the draft text.
+  const [threadState, setThreadState] = useState<{
+    annotationId: string;
+    status: ThreadStatus;
+    entries: ThreadEntryView[];
+  } | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [replyKey, setReplyKey] = useState<string | null>(null);
+  const [replyState, setReplyState] = useState<ReplySendState>("idle");
   // One idempotency key per retry intent: it is refreshed only after the
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
@@ -322,6 +336,93 @@ export function ProjectWorkspace({
     setConfirmingDelete(false);
     setDeleteState("idle");
   }, [selectedPinId, selectedCaptureId]);
+
+  // The thread follows the selected pin: a fresh read per selection, scoped
+  // to that pin so a late answer for a previous selection can never render
+  // under the current one, and the follow-up draft resets with it.
+  const threadRequestRef = useRef<string | null>(null);
+  const loadThread = useCallback(async (captureId: string, annotationId: string) => {
+    threadRequestRef.current = annotationId;
+    setThreadState({ annotationId, status: "loading", entries: [] });
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}/thread`,
+        { cache: "no-store" },
+      );
+      if (threadRequestRef.current !== annotationId) return;
+      if (!response.ok) {
+        setThreadState({ annotationId, status: "failed", entries: [] });
+        return;
+      }
+      const payload = (await response.json()) as ThreadListResponse;
+      if (threadRequestRef.current !== annotationId) return;
+      setThreadState({
+        annotationId,
+        status: "ready",
+        entries: Array.isArray(payload.entries) ? payload.entries : [],
+      });
+    } catch {
+      if (threadRequestRef.current !== annotationId) return;
+      setThreadState({ annotationId, status: "failed", entries: [] });
+    }
+  }, []);
+
+  useEffect(() => {
+    setReplyBody("");
+    setReplyKey(null);
+    setReplyState("idle");
+    if (selectedPinId && selectedCaptureId) {
+      void loadThread(selectedCaptureId, selectedPinId);
+    } else {
+      threadRequestRef.current = null;
+      setThreadState(null);
+    }
+  }, [selectedPinId, selectedCaptureId, loadThread]);
+
+  const sendFollowUp = useCallback(async () => {
+    const captureId = selectedReady?.id;
+    if (!captureId || !selectedPinId || replyState === "sending") return;
+    if (replyBody.trim().length === 0) return;
+    // One key per drafted follow-up: a retry of the same text replays the
+    // same intent instead of appending twice.
+    const key = replyKey ?? crypto.randomUUID();
+    setReplyKey(key);
+    setReplyState("sending");
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(selectedPinId)}/thread`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [EDITOR_CSRF_HEADER]: readCsrfProof(),
+          },
+          body: JSON.stringify({ body: replyBody, idempotencyKey: key }),
+        },
+      );
+      if (!response.ok) {
+        setReplyState(response.status === 429 ? "throttled" : "failed");
+        return;
+      }
+      const payload = (await response.json()) as ThreadAppendResponse;
+      setThreadState((current) =>
+        current && current.annotationId === selectedPinId
+          ? {
+              ...current,
+              status: "ready",
+              entries: current.entries.some((entry) => entry.id === payload.entry.id)
+                ? current.entries
+                : [...current.entries, payload.entry],
+            }
+          : current,
+      );
+      setReplyBody("");
+      setReplyKey(null);
+      setReplyState("idle");
+    } catch {
+      setReplyState("failed");
+    }
+  }, [selectedReady, selectedPinId, replyState, replyBody, replyKey]);
 
   // Nearby context for the draft, fetched once per settled position. The
   // response is scoped to the capture it was fetched for; a stale response
@@ -608,6 +709,7 @@ export function ProjectWorkspace({
                 {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
                 {project.counts.failed} failed · {project.counts.inProgress} in progress
               </p>
+              <FounderShareControl publicId={project.publicId} projectTitle={project.title} />
               <ol>
                 {project.pages.map((page) => (
                   <li key={page.id}>
@@ -783,6 +885,22 @@ export function ProjectWorkspace({
               }}
               onConfirmDelete={() => void confirmDelete()}
               deleteState={deleteState}
+              thread={
+                selectedPinId && threadState && threadState.annotationId === selectedPinId
+                  ? {
+                      originalBody:
+                        activePins.find((pin) => pin.id === selectedPinId)?.body ?? "",
+                      status: threadState.status,
+                      entries: threadState.entries,
+                      replyBody,
+                      onReplyBodyChange: setReplyBody,
+                      onSendReply: () => void sendFollowUp(),
+                      sendState: replyState,
+                      composerLabel: "Follow up as Lucas",
+                      sendLabel: "Send follow-up",
+                    }
+                  : undefined
+              }
             />
           </div>
 
