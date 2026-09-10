@@ -216,6 +216,18 @@ pre code {
   padding-left: 0;
 }
 
+/* Self-documenting capabilities line above the stage (VAL-CAPTURE-015
+   feedback, 2026-09-09): quiet supporting text, existing tokens only. */
+.workspace-hint {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  max-width: var(--max);
+}
+
+.capture-view-toggle {
+  margin: 0 0 0.5rem;
+}
+
 .capture-stage {
   border: 2px dashed var(--line);
   border-radius: 0.5rem;
@@ -226,10 +238,8 @@ pre code {
   justify-content: center;
   text-align: center;
 }
-/* The ready state fills the stage with a scroll region. The image keeps its
-   intrinsic natural dimensions (no max-width/object-fit): tall captures
-   scroll inside the region instead of being shrunk. The canvas work will
-   replace this stage's internals; no zoom/pan here. */
+/* The ready state fills the stage with a scroll region. The canvas work
+   will replace this stage's internals; no zoom/pan here. */
 .capture-stage:has(.capture-stage-scroll) {
   padding: 0;
   text-align: left;
@@ -247,6 +257,14 @@ pre code {
 }
 .capture-stage-image {
   display: block;
+}
+/* Fit view (the default): the entire capture is contained in the visible
+   stage area, so nothing scrolls. Natural size removes these constraints
+   and the region scrolls the image at its intrinsic 1:1 dimensions. */
+.capture-stage-fit .capture-stage-image {
+  max-width: 100%;
+  max-height: 80vh;
+  margin: 0 auto;
 }
 
 .capture-error {

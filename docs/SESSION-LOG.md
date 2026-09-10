@@ -1845,3 +1845,63 @@ Roughly 25 minutes of mission-worker time (gate runs excluded).
 - None. The checkpoint server was stopped for the gate, then restarted with
   PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
   carries the new PID and commit.
+
+## 2026-09-09 — capture stage fit view and self-documenting hint (live checkpoint feedback)
+
+### What was attempted
+
+Two pieces of verbatim user feedback from the live milestone-1 checkpoint
+session, same day: "it should be presented such that the entire page is in
+view" and "what hte heck is the interactin mechanism to drop a note? I can't
+figure it out? add instrucitons on teh page itself to make it
+self-documented". Both land on the interim workspace stage
+(`src/components/project-workspace.tsx`), which the React Flow canvas
+feature will replace — so the change is deliberately minimal.
+
+1. Fit view: a ready capture now defaults to entire-capture-in-view —
+   `contain` behavior via `max-width: 100%` / `max-height: 80vh` on the
+   image, so the whole (potentially ~13k px tall) capture is visible with
+   zero scrolling. A labeled toggle ("View at natural size (scrollable)" /
+   "Show the entire capture in view", `aria-pressed`) restores the previous
+   scrollable 1:1 view for detail. The stage view is a component keyed by
+   capture id, so every page/device/version selection change resets to
+   entire-in-view. The toggle sits above the `.capture-stage` container so
+   the stage itself still contains no button, link, or iframe (the existing
+   static-stage invariant holds unchanged).
+2. Hint line: a quiet `.workspace-hint` paragraph above the stage states the
+   surface's current capabilities — captures are static, read-only
+   screenshots and pins/comments arrive with the canvas update — so the
+   interaction model is self-documented. No pin affordance is rendered, so
+   nothing dead invites a click.
+
+Strict TDD: four failing tests first in `test/project-workspace.test.tsx`
+(fit default + labeled toggle, natural-size toggle behavior, reset on
+selection and version change, hint text plus absence of any pin/comment/note
+button), then implementation to green (24/24 in the file).
+
+### What broke or dead-ended
+
+- Nothing. The toggle placement outside the stage container was chosen
+  specifically to preserve the existing "stage contains no navigable or
+  actionable element" test.
+
+### Elapsed
+
+Roughly 20 minutes of mission-worker time (gate run excluded).
+
+### Decisions and assertions
+
+- No new decision record: both changes execute the user's verbatim
+  checkpoint feedback inside the already-approved interim stage; nothing
+  constrained future work (the canvas feature still replaces the stage
+  internals).
+- Evidence: agent-browser verification against the seeded Chickpea project
+  (anonymous, auth-bypass server) that a tall capture is fully visible
+  without scrolling by default and the toggle restores scrolling; recorded
+  in `library/checkpoint-m1-state.md`.
+
+### Open questions at end of session
+
+- None. The checkpoint server was stopped for the gate, then restarted with
+  PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
+  carries the new PID and commit.

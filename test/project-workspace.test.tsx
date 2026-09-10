@@ -311,6 +311,71 @@ describe("capture image stage (VAL-CAPTURE-015)", () => {
   });
 });
 
+describe("fit view and self-documenting hint", () => {
+  test("a ready capture defaults to the entire capture in view, no scrolling", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const stage = within(detail()).getByTestId("capture-stage");
+    // Fit (contain) mode is the default: the whole capture is visible.
+    expect(stage.className).toContain("capture-stage-fit");
+    // The clearly labeled control that switches to the scrollable 1:1 view.
+    const toggle = within(detail()).getByRole("button", { name: /natural size/i });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("the natural-size control restores the scrollable 1:1 view", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
+    const stage = within(detail()).getByTestId("capture-stage");
+    expect(stage.className).not.toContain("capture-stage-fit");
+    expect(
+      within(detail()).getByRole("button", { name: /entire capture/i }),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("changing the selected capture resets the stage to entire-in-view", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
+    expect(within(detail()).getByTestId("capture-stage").className).not.toContain(
+      "capture-stage-fit",
+    );
+
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    expect(within(detail()).getByTestId("capture-stage").className).toContain(
+      "capture-stage-fit",
+    );
+
+    // Switching versions of the same device resets too.
+    const mixed = project();
+    mixed.pages[0]!.devices[0] = device("desktop", [
+      attempt({ id: "d1", attempt: 1, state: "ready" }),
+      attempt({ id: "d2", attempt: 2, state: "ready" }),
+    ]);
+    cleanup();
+    render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
+    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
+    const versions = within(detail()).getByRole("list", { name: "Capture versions" });
+    await user.click(within(versions).getByRole("button", { name: /Version 1 — Ready/ }));
+    expect(within(detail()).getByTestId("capture-stage").className).toContain(
+      "capture-stage-fit",
+    );
+  });
+
+  test("a hint line states the current capabilities and no pin affordance exists", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    // Self-documenting: the surface explains what it can and cannot do yet.
+    expect(within(detail()).getByText(/static, read-only screenshots/i)).toBeInTheDocument();
+    expect(within(detail()).getByText(/pins and comments/i)).toBeInTheDocument();
+    // No dead affordance: nothing that looks like a pin/comment/note control.
+    expect(
+      within(detail()).queryByRole("button", { name: /pin|comment|note/i }),
+    ).toBeNull();
+  });
+});
+
 describe("static screenshot stage", () => {
   test("contains no link, iframe, or navigable element", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);

@@ -88,6 +88,61 @@ function deviceStatus(device: DeviceView): string {
   return device.latest ? STATE_LABELS[device.latest.state] : "Not captured";
 }
 
+/**
+ * The ready-capture stage with its view-mode control. Fit view is the
+ * default: the entire capture is visible at once (contain, no scrolling).
+ * "Natural size" restores the scrollable 1:1 view for reading fine detail.
+ * The component is keyed by capture id, so every selection change resets
+ * the stage to entire-in-view.
+ */
+function CaptureStageView({
+  attempt,
+  pageUrl,
+  variant,
+}: {
+  attempt: AttemptView;
+  pageUrl: string;
+  variant: string;
+}) {
+  const [naturalSize, setNaturalSize] = useState(false);
+  const name = `Screenshot of ${pageUrl} (${variantLabel(variant)}, version ${attempt.attempt})`;
+  return (
+    <>
+      <p className="capture-view-toggle">
+        <button
+          type="button"
+          aria-pressed={naturalSize}
+          onClick={() => setNaturalSize((current) => !current)}
+        >
+          {naturalSize
+            ? "Show the entire capture in view"
+            : "View at natural size (scrollable)"}
+        </button>
+      </p>
+      {/* A static image of the captured page: no link, no embedded
+          document, and no handler that could navigate to the source. The
+          bytes come only from the authorized same-origin asset route
+          (/api/captures/[captureId]/asset), which re-verifies the editor
+          session on every request — never a public or cross-origin URL. */}
+      <div
+        className={naturalSize ? "capture-stage" : "capture-stage capture-stage-fit"}
+        data-testid="capture-stage"
+      >
+        <div
+          className="capture-stage-scroll"
+          role="region"
+          aria-label={name}
+          // Focusable so keyboard users can scroll the capture in natural
+          // size; in fit view the whole image is visible without scrolling.
+          tabIndex={0}
+        >
+          <img className="capture-stage-image" src={`/api/captures/${encodeURIComponent(attempt.id)}/asset`} alt={name} />
+        </div>
+      </div>
+    </>
+  );
+}
+
 function findDevice(project: WorkspaceProject | undefined, selection: Selection | null) {
   if (!project || !selection) return null;
   const page = project.pages.find((candidate) => candidate.id === selection.pageId);
@@ -226,6 +281,15 @@ export function ProjectWorkspace({
             {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
           </h3>
 
+          {/* Self-documenting capabilities line: what this surface does
+              today, and what is deliberately not here yet. No dead pin
+              affordance is rendered. */}
+          <p className="workspace-hint">
+            Captures are static, read-only screenshots — pins and comments
+            arrive with the canvas update. Use natural size to scroll into
+            fine detail.
+          </p>
+
           {active.device.attempts.length > 1 ? (
             <ul className="capture-versions" aria-label="Capture versions">
               {active.device.attempts.map((attempt) => (
@@ -249,38 +313,23 @@ export function ProjectWorkspace({
             </ul>
           ) : null}
 
-          {/* A static image of the captured page: no link, no embedded
-              document, and no handler that could navigate to the source. The
-              bytes come only from the authorized same-origin asset route
-              (/api/captures/[captureId]/asset), which re-verifies the editor
-              session on every request — never a public or cross-origin URL. */}
-          <div className="capture-stage" data-testid="capture-stage">
-            {selectedAttempt?.state === "ready" ? (
-              <div
-                className="capture-stage-scroll"
-                role="region"
-                aria-label={`Screenshot of ${active.page.normalizedUrl} (${variantLabel(
-                  active.device.variant,
-                )}, version ${selectedAttempt.attempt})`}
-                // Focusable so keyboard users can scroll the full-height
-                // capture; the image renders at intrinsic natural dimensions.
-                tabIndex={0}
-              >
-                <img
-                  className="capture-stage-image"
-                  src={`/api/captures/${encodeURIComponent(selectedAttempt.id)}/asset`}
-                  alt={`Screenshot of ${active.page.normalizedUrl} (${variantLabel(
-                    active.device.variant,
-                  )}, version ${selectedAttempt.attempt})`}
-                />
-              </div>
-            ) : (
+          {selectedAttempt?.state === "ready" ? (
+            // Keyed by capture id so every selection change resets the
+            // stage to the entire-capture-in-view default.
+            <CaptureStageView
+              key={selectedAttempt.id}
+              attempt={selectedAttempt}
+              pageUrl={active.page.normalizedUrl}
+              variant={active.device.variant}
+            />
+          ) : (
+            <div className="capture-stage" data-testid="capture-stage">
               <p>
                 No capture to show yet:{" "}
                 {selectedAttempt ? STATE_LABELS[selectedAttempt.state] : "not captured"}.
               </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
             <p role="alert" className="capture-error">
