@@ -2388,3 +2388,123 @@ camera regression and the e2e measurement-ordering lessons above.
 
 - None new. D054 stays pending. Pin deletion and edit are future features;
   the tombstone scheme and non-reuse rule are already in place.
+
+## 2026-09-10 — pin comments and mutation lifecycle: context decision, revisioned edit/delete, conflicts
+
+Mission-worker session (feature `pin-comments-movement-and-conflicts`, milestone
+`pins-and-feedback`): the second pins slice, completing the comment and
+mutation lifecycle on top of D059's placement/numbering base.
+
+### What happened
+
+- Drafts now require an explicit context decision before Save: the panel
+  shows the capture's ranked nearby manifest candidates plus "No element",
+  and only the capture-local element id (or null) crosses the wire. The
+  server derives the bounded snapshot from the persisted manifest; an
+  unknown id rejects the create and persists nothing. A new authorized
+  GET-only route serves the ranked candidates for a natural point.
+- Move, edit, and delete all carry `expectedRevision` and commit through
+  one conditional write: stale or losing writes get 409 and change nothing;
+  the UI answers conflicts by reloading the authoritative list and saying
+  "changed in another session" instead of overwriting. Delete is a
+  tombstone; the number stays retired forever. The context snapshot is
+  immutable across move and edit.
+- Failure paths keep recoverable state: a failed save keeps the draft, the
+  comment, and the decision; a failed edit keeps the edited text.
+- The new e2e lifecycle spec stages real two-session races (same browser,
+  direct route writes with explicit revisions) and a lost-authority drag
+  after cookie revocation, asserting the server record stays untouched.
+
+### Dead ends and lessons
+
+- The lifecycle e2e caught a real defect the earlier tolerance hid: with
+  React Flow's default `nodeDragThreshold` of 1, the drag origin is captured
+  at the first pointermove past the threshold, so every drop landed one
+  pointer step short (measured: exactly 3px in a 50px drag, reproducible).
+  Fixed with `nodeDragThreshold={0}`; jsdom cannot run d3-drag, so the e2e
+  drag assertions are the standing regression guard (D062).
+- Tombstone-aware numbering invalidated the natural e2e idiom
+  "next number = live max + 1": after a cleanup delete the live max is one
+  behind the next assignment. Specs now identify their own pin by id-diff
+  against the before-list.
+- Chromium logs every intentional non-2xx fetch (the staged 409s) as a
+  resource console error; the conflict specs filter those and still assert
+  zero application errors.
+- Next.js's route announcer has `role="alert"`, so unscoped alert queries
+  in specs are strict-mode violations; conflict assertions scope to the
+  panel's error class.
+
+### Manual browser evidence (agent-browser, 127.0.0.1:3100, seeded plane)
+
+- Decision fieldset rendered 8 ranked candidates plus "No element"; Save
+  stayed disabled until both a non-blank comment and an explicit choice.
+- Saved pin 57 with a candidate choice: POST carried only the id; the
+  served snapshot (e38, rect 542x55.78 at 736,1947.09) came from the
+  manifest. Draft resolved on 201.
+- 1x drag by (120,80): server tip moved by exactly (120.0, 80.0), one
+  PATCH, revision 2, snapshot untouched. 8x inverse-transform of the badge
+  matched the persisted tip at 0.00 natural px; the 8x drag kept the pin
+  exactly under the pointer while edge autopan moved the camera 17px.
+- Edit comment committed one PATCH (revision 4) with tip and snapshot
+  byte-identical; two-step delete (with a Keep-pin backout that wrote
+  nothing) tombstoned the pin; reload showed 42 live = 42 listed = 42
+  badges, number retired.
+- Staged conflict: a direct PATCH won the race, the UI's stale edit got the
+  conflict alert and the panel showed the winner's body, never the loser.
+- Escape discarded a verified-open draft with zero writes. axe-core on the
+  panel with the fieldset open: 0 violations, 18 passes. Whole session's
+  mutation traffic: exactly 1 POST, 3 PATCH, 1 DELETE.
+- Evidence: `/tmp/pinata-evidence/pin-conflict-ui.png` (conflict alert with
+  the authoritative body).
+
+### Elapsed
+
+Roughly three hours of mission-worker time, dominated by the e2e drag
+fidelity investigation and the two-session conflict staging.
+
+### Decisions and assertions
+
+- D061 (agent-autonomous): pin mutation lifecycle contract — explicit
+  context decision with server-derived snapshots, expectedRevision
+  optimistic concurrency on move/edit/delete, tombstone deletes,
+  authoritative reloads after conflict. Extends D059's move-only scope note.
+- D062 (agent-autonomous): `nodeDragThreshold={0}` after e2e measured the
+  default threshold swallowing the first pointermove step of every drag.
+- Evidence for VAL-PIN-002/003/008/009: `test/server/annotations-pins.test.ts`
+  (28), `annotations-routes.test.ts` (20), `annotations-context.test.ts`
+  (11), `annotations-context-route.test.ts` (6),
+  `test/project-workspace.test.tsx` (40), and `e2e/pin-lifecycle.spec.ts`
+  (decision-required save with wire-shape assertion, revisioned
+  move/edit/delete with retired number, staged stale/concurrent conflicts,
+  lost-authority rejection, reload persistence).
+
+### Late addition — plane-switch pins race
+
+The first full `npm run validate` after the entries above failed twice more,
+and both exposed real defects rather than flakes:
+
+1. `e2e/pins.spec.ts` numbering assumed `live max + 1`; tombstoned deletes
+   retire numbers, so the three pins.spec tests now identify new pins by id
+   diff (`awaitNewPin`) and the cancelled-draft test asserts the strict
+   `first + 1` successor. The touch-drag test in canvas-interactions also
+   anchored on the first delivered move — a D062 threshold-model leftover —
+   and now anchors on the touchstart point.
+2. `e2e/pin-lifecycle.spec.ts` intermittently opened the pricing plane to a
+   permanently blank pins section. Root cause: a plane switch starts the new
+   plane's pins fetch while the previous plane's fetch is still in flight,
+   and the old code applied whichever response landed last. If the previous
+   plane's answer arrived after the new plane's, the stored capture id no
+   longer matched the selection and the panel could never render pins again.
+   Playwright's webServer serves the existing `.next` build, which masked the
+   fix for one re-run (the specs ran against the pre-fix build). The
+   workspace now tags each load with the capture it belongs to and discards
+   stale responses (`pinsRequestRef`); a component test holds both planes'
+   responses open and resolves them out of order to prove the current plane
+   wins. After the rebuild: seven consecutive green runs of the three pin
+   specs, then a green full gate (1045 unit, 41 e2e).
+
+### Open questions at end of session
+
+- None new. D054 stays pending. Candidate ranking depth, hover preview, and
+  hidden-element filtering ship with the nearby-dom-context-selection
+  feature (VAL-PIN-004/006/010).

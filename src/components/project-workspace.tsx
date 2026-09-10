@@ -14,12 +14,23 @@
 // could navigate to the captured site.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CAPTURE_OUTCOMES, FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
+import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
-import type { PinAnnotationView, PinListResponse, PinMutationResponse } from "../lib/annotations";
+import type {
+  PinAnnotationView,
+  PinContextResponse,
+  PinListResponse,
+  PinMutationResponse,
+} from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
+import {
+  CapturePanel,
+  STATE_LABELS,
+  variantLabel,
+  type DraftCandidates,
+} from "./capture-panel";
 
 export interface AttemptView {
   id: string;
@@ -66,23 +77,9 @@ interface Selection {
   captureId: string | null;
 }
 
-const VARIANT_LABELS: Record<string, string> = { desktop: "Desktop", mobile: "Mobile" };
-
-const STATE_LABELS: Record<AttemptView["state"], string> = {
-  pending: "Queued",
-  capturing: "Capturing",
-  stale: "Stopped responding",
-  ready: "Ready",
-  failed: "Failed",
-};
-
 const outcomeMessages = new Map(
   CAPTURE_OUTCOMES.map((outcome) => [outcome.code, outcome.publicMessage] as const),
 );
-
-function variantLabel(variant: string): string {
-  return VARIANT_LABELS[variant] ?? variant;
-}
 
 /** What the device row shows: the usable capture wins over a later failure. */
 function deviceStatus(device: DeviceView): string {
@@ -92,180 +89,6 @@ function deviceStatus(device: DeviceView): string {
     ].toLowerCase()}`;
   }
   return device.latest ? STATE_LABELS[device.latest.state] : "Not captured";
-}
-
-/**
- * The screen-fixed selection/comment/metadata panel (VAL-CANVAS-002,
- * VAL-PIN-001, VAL-PIN-003). It lives outside the transformed canvas, so
- * panning and zooming never move it. Exactly one canvas object can be
- * selected at a time: an open draft shows the comment editor (Save persists
- * the pin with its server-assigned number, Cancel discards it), a saved pin
- * shows its number and comment, and the pins list keeps every mark
- * reachable by keyboard. The capture identity facts follow the active
- * plane.
- */
-function CapturePanel({
-  attempt,
-  pageUrl,
-  variant,
-  ready,
-  draftTip,
-  draftBody,
-  onDraftBodyChange,
-  onSaveDraft,
-  onCancelDraft,
-  saveState,
-  pinsStatus,
-  pins,
-  selectedPinId,
-  onSelectPin,
-  moveError,
-}: {
-  attempt: AttemptView | null;
-  pageUrl: string;
-  variant: string;
-  /** Whether the active capture is annotatable (ready). */
-  ready: boolean;
-  /** The active plane's transient draft pin tip, in natural pixels. */
-  draftTip: NaturalPoint | null;
-  draftBody: string;
-  onDraftBodyChange: (value: string) => void;
-  onSaveDraft: () => void;
-  onCancelDraft: () => void;
-  saveState: "idle" | "saving" | "failed";
-  pinsStatus: "loading" | "ready" | "failed" | null;
-  pins: PinAnnotationView[];
-  selectedPinId: string | null;
-  onSelectPin: (annotationId: string | null) => void;
-  moveError: string | null;
-}) {
-  const selectedPin = pins.find((pin) => pin.id === selectedPinId) ?? null;
-  return (
-    <aside
-      className="workspace-panel"
-      aria-label="Selection and capture details"
-      data-testid="capture-panel"
-    >
-      <h4>Selection</h4>
-      {draftTip ? (
-        <div className="panel-draft" data-testid="panel-draft">
-          <p className="panel-empty">
-            Draft pin at natural pixel ({Math.round(draftTip.x)}, {Math.round(draftTip.y)}) — not
-            saved yet.
-          </p>
-          <label className="panel-field">
-            Comment
-            <textarea
-              value={draftBody}
-              onChange={(event) => onDraftBodyChange(event.target.value)}
-              maxLength={FEEDBACK_BODY_MAX_CHARS}
-              rows={3}
-              placeholder="What should change here?"
-            />
-          </label>
-          <p className="panel-actions">
-            <button
-              type="button"
-              onClick={onSaveDraft}
-              disabled={saveState === "saving" || draftBody.trim().length === 0}
-            >
-              {saveState === "saving" ? "Saving…" : "Save pin"}
-            </button>
-            <button type="button" onClick={onCancelDraft} disabled={saveState === "saving"}>
-              Cancel
-            </button>
-          </p>
-          {saveState === "failed" ? (
-            <p role="alert" className="capture-error">
-              That pin could not be saved. Your draft and comment are still here — try again.
-            </p>
-          ) : null}
-        </div>
-      ) : selectedPin ? (
-        <div className="panel-pin" data-testid="panel-pin">
-          <p>
-            <strong>Pin {selectedPin.number}</strong> at natural pixel (
-            {Math.round(selectedPin.tip.x)}, {Math.round(selectedPin.tip.y)})
-          </p>
-          <p className="panel-pin-body">{selectedPin.body}</p>
-          <p className="panel-note">
-            Drag the pin on the screenshot to move it. Editing a saved comment arrives in the
-            next update.
-          </p>
-        </div>
-      ) : (
-        <p className="panel-empty">Nothing selected.</p>
-      )}
-      {moveError ? (
-        <p role="alert" className="capture-error">
-          {moveError}
-        </p>
-      ) : null}
-
-      {ready ? (
-        <>
-          <h4>Pins on this capture</h4>
-          {pinsStatus === "loading" ? <p className="panel-note">Loading pins…</p> : null}
-          {pinsStatus === "failed" ? (
-            <p className="panel-note">
-              Pins could not be loaded. Switch to another capture and back to retry.
-            </p>
-          ) : null}
-          {pinsStatus === "ready" && pins.length === 0 ? (
-            <p className="panel-note">
-              No pins yet. Choose Place pin above the screenshot, then click or tap the page to
-              drop the first one.
-            </p>
-          ) : null}
-          {pins.length > 0 ? (
-            <ol className="pin-list" aria-label="Saved pins">
-              {pins.map((pin) => (
-                <li key={pin.id}>
-                  <button
-                    type="button"
-                    aria-current={pin.id === selectedPinId ? "true" : undefined}
-                    onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
-                  >
-                    Pin {pin.number} — at ({Math.round(pin.tip.x)}, {Math.round(pin.tip.y)})
-                  </button>
-                </li>
-              ))}
-            </ol>
-          ) : null}
-        </>
-      ) : null}
-
-      <h4>Capture</h4>
-      <dl className="panel-facts">
-        <dt>Page</dt>
-        <dd className="panel-url">{pageUrl}</dd>
-        <dt>Device</dt>
-        <dd>{variantLabel(variant)}</dd>
-        <dt>Version</dt>
-        <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
-        <dt>State</dt>
-        <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
-        {attempt?.state === "ready" &&
-        attempt.documentWidth !== null &&
-        attempt.documentHeight !== null ? (
-          <>
-            <dt>Natural size</dt>
-            <dd>
-              {attempt.documentWidth} × {attempt.documentHeight} px
-            </dd>
-          </>
-        ) : null}
-        {attempt?.imageHash ? (
-          <>
-            <dt>Image hash</dt>
-            <dd>
-              <code>{attempt.imageHash.slice(0, 12)}…</code>
-            </dd>
-          </>
-        ) : null}
-      </dl>
-    </aside>
-  );
 }
 
 function findDevice(project: WorkspaceProject | undefined, selection: Selection | null) {
@@ -301,6 +124,25 @@ export function ProjectWorkspace({
   const [draftKey, setDraftKey] = useState<string | null>(null);
   const [draftBody, setDraftBody] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "failed">("idle");
+  // The draft's explicit context decision: undefined = undecided (Save is
+  // disabled), null = "No element", otherwise a candidate's capture-local
+  // element id. Candidates come from the capture's own persisted manifest
+  // via the authorized context route, resolved once per settled draft
+  // position (placement tap or draft-drag end) — never per drag frame.
+  const [draftChoice, setDraftChoice] = useState<string | null | undefined>(undefined);
+  const [draftCandidates, setDraftCandidates] = useState<
+    (DraftCandidates & { captureId: string }) | null
+  >(null);
+  // Saved-pin edit/delete lifecycle. Edit keeps its text across failures; a
+  // conflict means another session wrote first and the authoritative list
+  // is reloaded instead of overwriting.
+  const [editing, setEditing] = useState(false);
+  const [editBody, setEditBody] = useState("");
+  const [editState, setEditState] = useState<"idle" | "saving" | "failed" | "conflict">("idle");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteState, setDeleteState] = useState<"idle" | "deleting" | "failed" | "conflict">(
+    "idle",
+  );
   // Incremented to make the canvas drop its unsaved draft (after a save or
   // a Cancel); the canvas reports the cleared draft back through
   // onDraftChange.
@@ -393,24 +235,33 @@ export function ProjectWorkspace({
       ? selectedAttempt
       : null;
 
+  // The id of the load the panel is allowed to show. A plane switch starts
+  // a new fetch while the old plane's may still be in flight; without this
+  // guard a late answer from the old plane would overwrite the new plane's
+  // state and leave the panel mismatched (blank) for the current capture.
+  const pinsRequestRef = useRef<string | null>(null);
   const loadPins = useCallback(async (captureId: string) => {
+    pinsRequestRef.current = captureId;
     setPinsState({ captureId, status: "loading", pins: [] });
     try {
       const response = await fetch(
         `/api/captures/${encodeURIComponent(captureId)}/annotations`,
         { cache: "no-store" },
       );
+      if (pinsRequestRef.current !== captureId) return;
       if (!response.ok) {
         setPinsState({ captureId, status: "failed", pins: [] });
         return;
       }
       const payload = (await response.json()) as PinListResponse;
+      if (pinsRequestRef.current !== captureId) return;
       setPinsState({
         captureId,
         status: "ready",
         pins: Array.isArray(payload.annotations) ? payload.annotations : [],
       });
     } catch {
+      if (pinsRequestRef.current !== captureId) return;
       setPinsState({ captureId, status: "failed", pins: [] });
     }
   }, []);
@@ -423,22 +274,67 @@ export function ProjectWorkspace({
     if (selectedReady) {
       void loadPins(selectedReady.id);
     } else {
+      pinsRequestRef.current = null;
       setPinsState(null);
     }
   }, [selectedCaptureId, selectedReady, loadPins]);
 
-  // The draft's idempotency key lives exactly as long as the draft: one key
-  // per placement intent, so a retried save replays and a double submit can
-  // never create two pins. Resolving the draft releases the key.
+  // The draft's intent — idempotency key, context decision, candidates —
+  // lives exactly as long as the draft. A null→tip transition is a brand
+  // new draft: fresh key, undecided context. A drag only moves the tip, so
+  // the key and decision survive it; a retried save replays the same intent
+  // and a double submit can never create two pins. Resolving the draft
+  // (saved, cancelled, escaped, or a plane switch) releases everything.
+  const hadDraft = useRef(false);
   useEffect(() => {
-    if (draftTip) {
-      setDraftKey((current) => current ?? crypto.randomUUID());
-    } else {
+    const isNew = draftTip !== null && !hadDraft.current;
+    hadDraft.current = draftTip !== null;
+    if (isNew) {
+      setDraftKey(crypto.randomUUID());
+      setDraftChoice(undefined);
+      setDraftCandidates(null);
+    } else if (!draftTip) {
       setDraftKey(null);
       setDraftBody("");
       setSaveState("idle");
+      setDraftChoice(undefined);
+      setDraftCandidates(null);
     }
   }, [draftTip]);
+
+  // A selection change closes any edit/delete in flight: the panel's
+  // editable state always belongs to one specific pin record.
+  useEffect(() => {
+    setEditing(false);
+    setEditState("idle");
+    setConfirmingDelete(false);
+    setDeleteState("idle");
+  }, [selectedPinId, selectedCaptureId]);
+
+  // Nearby context for the draft, fetched once per settled position. The
+  // response is scoped to the capture it was fetched for; a stale response
+  // (plane switch mid-flight) can never land on another capture's draft.
+  const fetchContext = useCallback(async (captureId: string, tip: NaturalPoint) => {
+    setDraftCandidates({ captureId, status: "loading", items: [] });
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/context?x=${tip.x}&y=${tip.y}`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) {
+        setDraftCandidates({ captureId, status: "failed", items: [] });
+        return;
+      }
+      const payload = (await response.json()) as PinContextResponse;
+      setDraftCandidates({
+        captureId,
+        status: "ready",
+        items: Array.isArray(payload.candidates) ? payload.candidates : [],
+      });
+    } catch {
+      setDraftCandidates({ captureId, status: "failed", items: [] });
+    }
+  }, []);
 
   // The pins the canvas may render: only the ones fetched for the capture
   // that is actually selected, never a stale or sibling plane's.
@@ -459,8 +355,27 @@ export function ProjectWorkspace({
     [selectedReadyId],
   );
 
+  // The draft's context query fires when the draft settles (placement tap
+  // or draft-drag end), keyed to the capture the draft belongs to.
+  const handleDraftSettled = useCallback(
+    (tip: NaturalPoint) => {
+      if (selectedReadyId) void fetchContext(selectedReadyId, tip);
+    },
+    [selectedReadyId, fetchContext],
+  );
+
   const saveDraft = useCallback(async () => {
-    if (!draftTip || !selectedReady || !draftKey || saveState === "saving") return;
+    // The explicit context decision is part of the save contract: an
+    // undecided draft cannot submit at all.
+    if (
+      !draftTip ||
+      !selectedReady ||
+      !draftKey ||
+      draftChoice === undefined ||
+      saveState === "saving"
+    ) {
+      return;
+    }
     setSaveState("saving");
     setMoveError(null);
     try {
@@ -472,12 +387,18 @@ export function ProjectWorkspace({
             "content-type": "application/json",
             [EDITOR_CSRF_HEADER]: readCsrfProof(),
           },
-          body: JSON.stringify({ tip: draftTip, body: draftBody, idempotencyKey: draftKey }),
+          body: JSON.stringify({
+            tip: draftTip,
+            body: draftBody,
+            elementId: draftChoice,
+            idempotencyKey: draftKey,
+          }),
         },
       );
       if (!response.ok) {
-        // Recoverable: the draft, its comment, and its key survive so a
-        // retry replays the same intent instead of duplicating it.
+        // Recoverable: the draft, its comment, its decision, and its key
+        // survive so a retry replays the same intent instead of
+        // duplicating it. Nothing persisted.
         setSaveState("failed");
         return;
       }
@@ -488,7 +409,7 @@ export function ProjectWorkspace({
     } catch {
       setSaveState("failed");
     }
-  }, [draftTip, selectedReady, draftKey, draftBody, saveState, loadPins]);
+  }, [draftTip, selectedReady, draftKey, draftBody, draftChoice, saveState, loadPins]);
 
   const cancelDraft = useCallback(() => {
     // Same mechanism as a successful save: the canvas drops the draft and
@@ -500,6 +421,10 @@ export function ProjectWorkspace({
     async (annotationId: string, tip: NaturalPoint) => {
       const captureId = selectedReady?.id;
       if (!captureId) return;
+      // The revision precondition comes from the record the drag started
+      // from; without it there is no safe write to make.
+      const pin = pinsState?.pins.find((candidate) => candidate.id === annotationId);
+      if (!pin) return;
       // Optimistic local update: the pin stays where it was dropped while
       // the one revisioned write commits. A failure re-reads the
       // authoritative list, so a rejected move snaps back — never a false
@@ -522,11 +447,21 @@ export function ProjectWorkspace({
               "content-type": "application/json",
               [EDITOR_CSRF_HEADER]: readCsrfProof(),
             },
-            body: JSON.stringify({ tip }),
+            body: JSON.stringify({ tip, expectedRevision: pin.revision }),
           },
         );
         if (!response.ok) {
-          setMoveError("That pin move could not be saved. The saved position was restored.");
+          // A 409 means another session wrote first: the authoritative
+          // reload shows the winning revision instead of overwriting it.
+          // The move's message supersedes any stale edit/delete conflict
+          // notice — one conflict message at a time.
+          setMoveError(
+            response.status === 409
+              ? "This pin changed in another session. The latest version is now shown."
+              : "That pin move could not be saved. The saved position was restored.",
+          );
+          setEditState("idle");
+          setDeleteState("idle");
           await loadPins(captureId);
           return;
         }
@@ -543,11 +478,98 @@ export function ProjectWorkspace({
         );
       } catch {
         setMoveError("That pin move could not be saved. The saved position was restored.");
+        setEditState("idle");
+        setDeleteState("idle");
         await loadPins(captureId);
       }
     },
-    [selectedReady, loadPins],
+    [selectedReady, pinsState, loadPins],
   );
+
+  const saveEdit = useCallback(async () => {
+    const captureId = selectedReady?.id;
+    const pin = pinsState?.pins.find((candidate) => candidate.id === selectedPinId);
+    if (!captureId || !pin || editState === "saving") return;
+    setEditState("saving");
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(pin.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            [EDITOR_CSRF_HEADER]: readCsrfProof(),
+          },
+          body: JSON.stringify({ body: editBody, expectedRevision: pin.revision }),
+        },
+      );
+      if (!response.ok) {
+        if (response.status === 409) {
+          // Stale authority: drop the edit and show what actually won.
+          setEditState("conflict");
+          setEditing(false);
+          await loadPins(captureId);
+          return;
+        }
+        // Recoverable: the edited text stays in the editor.
+        setEditState("failed");
+        return;
+      }
+      const payload = (await response.json()) as PinMutationResponse;
+      setPinsState((current) =>
+        current && current.captureId === captureId
+          ? {
+              ...current,
+              pins: current.pins.map((candidate) =>
+                candidate.id === pin.id ? payload.annotation : candidate,
+              ),
+            }
+          : current,
+      );
+      setEditing(false);
+      setEditState("idle");
+    } catch {
+      setEditState("failed");
+    }
+  }, [selectedReady, pinsState, selectedPinId, editBody, editState, loadPins]);
+
+  const confirmDelete = useCallback(async () => {
+    const captureId = selectedReady?.id;
+    const pin = pinsState?.pins.find((candidate) => candidate.id === selectedPinId);
+    if (!captureId || !pin || deleteState === "deleting") return;
+    setDeleteState("deleting");
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(pin.id)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/json",
+            [EDITOR_CSRF_HEADER]: readCsrfProof(),
+          },
+          body: JSON.stringify({ expectedRevision: pin.revision }),
+        },
+      );
+      if (!response.ok) {
+        if (response.status === 409) {
+          setDeleteState("conflict");
+          setConfirmingDelete(false);
+          await loadPins(captureId);
+          return;
+        }
+        setDeleteState("failed");
+        return;
+      }
+      // Tombstoned authoritatively: re-read the list so the panel, the
+      // list, and the canvas all agree, and clear the selection.
+      setConfirmingDelete(false);
+      setDeleteState("idle");
+      setSelectedPinId(null);
+      await loadPins(captureId);
+    } catch {
+      setDeleteState("failed");
+    }
+  }, [selectedReady, pinsState, selectedPinId, deleteState, loadPins]);
 
   return (
     <div className="workspace">
@@ -617,9 +639,10 @@ export function ProjectWorkspace({
             the whole page, fit its width, or view it at natural size.
             Navigate never creates or moves a mark. Place pin mode: click or
             tap the screenshot to drop a pin, write a comment in the panel,
-            and press Save pin — Escape or Cancel discards the draft — and
-            drag a pin to move it. Click a saved pin, or its entry in the
-            Pins list, to read its comment.
+            choose a nearby element or No element, and press Save pin —
+            Escape or Cancel discards the draft — and drag a pin to move it.
+            Click a saved pin, or its entry in the Pins list, to read its
+            comment, edit it, or delete the pin.
           </p>
 
           {active.device.attempts.length > 1 ? (
@@ -666,6 +689,7 @@ export function ProjectWorkspace({
                 savedCamera={cameras.current.get(selectedReady.id) ?? null}
                 onCameraChange={handleCameraChange}
                 onDraftChange={setDraftTip}
+                onDraftSettled={handleDraftSettled}
                 draftResetSignal={draftResetSignal}
               />
             ) : (
@@ -686,6 +710,13 @@ export function ProjectWorkspace({
               draftTip={draftTip}
               draftBody={draftBody}
               onDraftBodyChange={setDraftBody}
+              draftChoice={draftChoice}
+              onDraftChoiceChange={setDraftChoice}
+              draftCandidates={
+                draftCandidates && draftCandidates.captureId === selectedCaptureId
+                  ? draftCandidates
+                  : null
+              }
               onSaveDraft={() => void saveDraft()}
               onCancelDraft={cancelDraft}
               saveState={saveState}
@@ -696,6 +727,32 @@ export function ProjectWorkspace({
               selectedPinId={selectedPinId}
               onSelectPin={setSelectedPinId}
               moveError={moveError}
+              editing={editing}
+              editBody={editBody}
+              onEditBodyChange={setEditBody}
+              onStartEdit={() => {
+                const pin = activePins.find((candidate) => candidate.id === selectedPinId);
+                setEditBody(pin?.body ?? "");
+                setEditState("idle");
+                setEditing(true);
+              }}
+              onCancelEdit={() => {
+                setEditing(false);
+                setEditState("idle");
+              }}
+              onSaveEdit={() => void saveEdit()}
+              editState={editState}
+              confirmingDelete={confirmingDelete}
+              onRequestDelete={() => {
+                setDeleteState("idle");
+                setConfirmingDelete(true);
+              }}
+              onCancelDelete={() => {
+                setConfirmingDelete(false);
+                setDeleteState("idle");
+              }}
+              onConfirmDelete={() => void confirmDelete()}
+              deleteState={deleteState}
             />
           </div>
 

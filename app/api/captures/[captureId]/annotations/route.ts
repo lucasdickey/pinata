@@ -99,6 +99,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       captureId,
       tip: parsed.data.tip,
       body: parsed.data.body,
+      elementId: parsed.data.elementId,
       idempotencyKey: parsed.data.idempotencyKey,
     });
   } catch {

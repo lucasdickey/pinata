@@ -29,12 +29,19 @@ export interface ReadyTarget {
  * attempt. The seeded Chickpea pages are preferred so specs stay stable
  * while sibling specs create captures concurrently in the shared local
  * store; without a seeded match the first default ready capture wins.
+ *
+ * `preferUrl` pins the choice to one exact page: specs that WRITE pins run
+ * in parallel workers against the shared store, and per-page planes have
+ * independent numbering, so each writing spec claims its own seeded page
+ * (pins.spec owns the home page, pin-lifecycle.spec owns /pricing) instead
+ * of racing one sequence.
  */
 export async function findReadyTarget(
   page: Page,
   variant?: "desktop" | "mobile",
+  preferUrl?: string,
 ): Promise<ReadyTarget | null> {
-  return page.evaluate(async (wanted) => {
+  return page.evaluate(async ({ wanted, url }) => {
     const response = await fetch("/api/projects", { cache: "no-store" });
     if (!response.ok) return null;
     const payload = (await response.json()) as {
@@ -86,7 +93,9 @@ export async function findReadyTarget(
         }
       }
     }
-    const chosen = candidates.find((c) => c.seeded) ?? candidates[0] ?? null;
+    const chosen = url
+      ? (candidates.find((c) => c.pageUrl === url) ?? null)
+      : (candidates.find((c) => c.seeded) ?? candidates[0] ?? null);
     if (!chosen) return null;
     return {
       pageUrl: chosen.pageUrl,
@@ -95,7 +104,7 @@ export async function findReadyTarget(
       width: chosen.width,
       height: chosen.height,
     };
-  }, variant);
+  }, { wanted: variant, url: preferUrl });
 }
 
 /** The navigation button name for a plane in the workspace tree. */

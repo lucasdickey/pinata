@@ -14,11 +14,33 @@ import {
 } from "../../src/lib/boundaries";
 import {
   createPinAtomically,
+  deletePin,
   listPins,
-  movePin,
+  updatePin,
 } from "../../src/lib/server/annotations/pins";
 import { schema } from "../../src/lib/server/db/client";
 import { createTestDb, type TestDb } from "./test-db";
+
+/** A minimal in-schema manifest element for context-decision tests. */
+function manifestElement(id: string, text: string) {
+  return {
+    id,
+    kind: "table-cell",
+    tag: "td",
+    role: "cell",
+    text,
+    accessibleName: "",
+    hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+    path: ["body:0", "main:0", "table:0", "tr:2", "td:1"],
+    rect: { x: 800, y: 4200, width: 120, height: 48 },
+  };
+}
+
+const SEED_MANIFEST = {
+  schemaVersion: 1,
+  truncated: false,
+  elements: [manifestElement("cell-1", "Starter plan"), manifestElement("cell-2", "Scale plan")],
+};
 
 const T0 = 1_800_000_000_000;
 
@@ -26,7 +48,13 @@ let testDb: TestDb;
 let readyCaptureId: string;
 let otherCaptureId: string;
 
-async function seedCapture(id: string, status: string, pageId: string, attempt = 1) {
+async function seedCapture(
+  id: string,
+  status: string,
+  pageId: string,
+  attempt = 1,
+  withManifest = false,
+) {
   await testDb.db.insert(schema.captures).values({
     id,
     pageId,
@@ -41,6 +69,8 @@ async function seedCapture(id: string, status: string, pageId: string, attempt =
     documentWidth: status === "ready" ? 1440 : null,
     documentHeight: status === "ready" ? 8966 : null,
     imageHash: status === "ready" ? `hash-${id}` : null,
+    domManifestJson: status === "ready" && withManifest ? JSON.stringify(SEED_MANIFEST) : null,
+    domManifestVersion: status === "ready" && withManifest ? 1 : null,
     createdAt: T0,
     updatedAt: T0,
   });
@@ -58,6 +88,8 @@ const createInput = (overrides: Record<string, unknown> = {}) => ({
   captureId: "cap-ready",
   tip: { x: 812.25, y: 4231.5 },
   body: "The pricing table header wraps awkwardly here.",
+  // The explicit context decision: null is "No element".
+  elementId: null as string | null,
   idempotencyKey: "pin-create-key-0001",
   ...overrides,
 });
@@ -95,6 +127,8 @@ beforeEach(async () => {
   await seedCapture("cap-other", "ready", "page-2");
   await seedCapture("cap-pending", "pending", "page-1", 2);
   await seedCapture("cap-failed", "failed", "page-1", 3);
+  // A ready capture carrying a persisted manifest, for context decisions.
+  await seedCapture("cap-manifest", "ready", "page-2", 2, true);
   readyCaptureId = "cap-ready";
   otherCaptureId = "cap-other";
 });
@@ -342,18 +376,90 @@ describe("listPins", () => {
   });
 });
 
-describe("movePin", () => {
-  async function seedPin() {
-    const created = await createPinAtomically(testDb.db, createInput());
+describe("createPinAtomically context decision (VAL-PIN-003, VAL-PIN-008)", () => {
+  test("a named manifest element persists its exact server-derived snapshot", async () => {
+    const created = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: "cell-2" }),
+    );
+    expect(created).toMatchObject({ ok: true, created: true });
+    if (!created.ok) return;
+    expect(created.annotation.elementSnapshot).toEqual(SEED_MANIFEST.elements[1]);
+
+    const [row] = await rowsFor("cap-manifest");
+    // The persisted snapshot is byte-exactly the manifest element, derived
+    // from the capture's own manifest — nothing the client could author.
+    expect(JSON.parse(row!.elementSnapshotJson!)).toEqual(SEED_MANIFEST.elements[1]);
+  });
+
+  test("the explicit null (No element) persists a null snapshot", async () => {
+    const created = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: null }),
+    );
+    expect(created).toMatchObject({ ok: true, created: true });
+    if (!created.ok) return;
+    expect(created.annotation.elementSnapshot).toBeNull();
+    const [row] = await rowsFor("cap-manifest");
+    expect(row!.elementSnapshotJson).toBeNull();
+  });
+
+  test("an unknown element id — or any id on a manifest-less capture — persists nothing", async () => {
+    for (const [index, captureId] of ["cap-manifest", "cap-ready"].entries()) {
+      const result = await createPinAtomically(
+        testDb.db,
+        createInput({
+          captureId,
+          elementId: "not-an-element",
+          idempotencyKey: `pin-create-ctx-${index}`,
+        }),
+      );
+      expect(result).toMatchObject({ ok: false, error: "invalid" });
+    }
+    expect(await rowsFor("cap-manifest")).toHaveLength(0);
+    expect(await rowsFor(readyCaptureId)).toHaveLength(0);
+  });
+
+  test("the context decision binds the idempotency key: same key, different decision conflicts", async () => {
+    const first = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: "cell-1" }),
+    );
+    expect(first).toMatchObject({ ok: true, created: true });
+
+    const conflict = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: "cell-2" }),
+    );
+    expect(conflict).toMatchObject({ ok: false, error: "conflict" });
+
+    const replayed = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: "cell-1" }),
+    );
+    expect(replayed).toMatchObject({ ok: true, created: false });
+    expect(await rowsFor("cap-manifest")).toHaveLength(1);
+  });
+});
+
+describe("updatePin (VAL-PIN-002, VAL-PIN-008, VAL-PIN-009)", () => {
+  async function seedPin(withSnapshot = false) {
+    const created = await createPinAtomically(
+      testDb.db,
+      createInput(
+        withSnapshot ? { captureId: "cap-manifest", elementId: "cell-1" } : {},
+      ),
+    );
     if (!created.ok) throw new Error("seed create failed");
     return created.annotation;
   }
 
-  test("commits one revisioned tip update and preserves identity, number, and body", async () => {
-    const pin = await seedPin();
-    const moved = await movePin(testDb.db, {
-      captureId: readyCaptureId,
+  test("commits one revisioned tip update and preserves identity, number, body, and snapshot", async () => {
+    const pin = await seedPin(true);
+    const moved = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
       annotationId: pin.id,
+      expectedRevision: pin.revision,
       tip: { x: 1440, y: 8966 },
     });
     expect(moved).toMatchObject({ ok: true });
@@ -361,19 +467,66 @@ describe("movePin", () => {
     expect(moved.annotation.id).toBe(pin.id);
     expect(moved.annotation.number).toBe(pin.number);
     expect(moved.annotation.body).toBe(pin.body);
+    expect(moved.annotation.elementSnapshot).toEqual(pin.elementSnapshot);
     expect(moved.annotation.tip).toEqual({ x: 1440, y: 8966 });
     expect(moved.annotation.revision).toBe(pin.revision + 1);
 
-    const [row] = await rowsFor(readyCaptureId);
+    const [row] = await rowsFor("cap-manifest");
     expect(row!.revision).toBe(2);
     expect(row!.geometryJson).toBe(JSON.stringify({ x: 1440, y: 8966 }));
+    // The snapshot survives a move byte-for-byte (VAL-PIN-008).
+    expect(JSON.parse(row!.elementSnapshotJson!)).toEqual(pin.elementSnapshot);
+  });
+
+  test("a body edit is one revisioned write that preserves geometry and snapshot", async () => {
+    const pin = await seedPin(true);
+    const edited = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+      body: "The whole pricing column needs a clearer hierarchy.",
+    });
+    expect(edited).toMatchObject({ ok: true });
+    if (!edited.ok) return;
+    expect(edited.annotation.body).toBe(
+      "The whole pricing column needs a clearer hierarchy.",
+    );
+    expect(edited.annotation.tip).toEqual(pin.tip);
+    expect(edited.annotation.number).toBe(pin.number);
+    expect(edited.annotation.elementSnapshot).toEqual(pin.elementSnapshot);
+    expect(edited.annotation.revision).toBe(pin.revision + 1);
+  });
+
+  test("a stale revision loses with a conflict and changes no row (concurrent-writer fencing)", async () => {
+    const pin = await seedPin();
+    // Session B wins the race from the same starting revision.
+    const winner = await updatePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+      tip: { x: 100, y: 100 },
+    });
+    expect(winner).toMatchObject({ ok: true });
+    // Session A's write, still based on the starting revision, must lose.
+    const loser = await updatePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+      tip: { x: 200, y: 200 },
+    });
+    expect(loser).toMatchObject({ ok: false, error: "conflict" });
+
+    const [row] = await rowsFor(readyCaptureId);
+    expect(row!.geometryJson).toBe(JSON.stringify({ x: 100, y: 100 }));
+    expect(row!.revision).toBe(2);
   });
 
   test("never rebinds: a pin addressed through another capture is not found", async () => {
     const pin = await seedPin();
-    const moved = await movePin(testDb.db, {
+    const moved = await updatePin(testDb.db, {
       captureId: otherCaptureId,
       annotationId: pin.id,
+      expectedRevision: pin.revision,
       tip: { x: 1, y: 1 },
     });
     expect(moved).toMatchObject({ ok: false, error: "not-found" });
@@ -382,12 +535,13 @@ describe("movePin", () => {
     expect(row!.revision).toBe(1);
   });
 
-  test("missing and tombstoned pins are not movable", async () => {
+  test("missing and tombstoned pins are not updatable", async () => {
     const pin = await seedPin();
     expect(
-      await movePin(testDb.db, {
+      await updatePin(testDb.db, {
         captureId: readyCaptureId,
         annotationId: "ann-missing",
+        expectedRevision: 1,
         tip: { x: 1, y: 1 },
       }),
     ).toMatchObject({ ok: false, error: "not-found" });
@@ -396,29 +550,120 @@ describe("movePin", () => {
       .set({ deletedAt: T0 + 10 })
       .where(eq(schema.annotations.id, pin.id));
     expect(
-      await movePin(testDb.db, {
+      await updatePin(testDb.db, {
         captureId: readyCaptureId,
         annotationId: pin.id,
+        expectedRevision: 1,
         tip: { x: 1, y: 1 },
       }),
     ).toMatchObject({ ok: false, error: "not-found" });
   });
 
-  test("out-of-bounds and non-finite tips are rejected without a write", async () => {
+  test("out-of-bounds tips and invalid bodies are rejected without a write", async () => {
     const pin = await seedPin();
     for (const tip of [
       { x: -1, y: 0 },
       { x: 0, y: 8967 },
       { x: Number.NaN, y: 0 },
     ]) {
-      const moved = await movePin(testDb.db, {
+      const moved = await updatePin(testDb.db, {
         captureId: readyCaptureId,
         annotationId: pin.id,
+        expectedRevision: pin.revision,
         tip,
       });
       expect(moved, JSON.stringify(tip)).toMatchObject({ ok: false, error: "invalid" });
     }
+    for (const body of ["   ", "x".repeat(FEEDBACK_BODY_MAX_CHARS + 1)]) {
+      const edited = await updatePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: pin.id,
+        expectedRevision: pin.revision,
+        body,
+      });
+      expect(edited).toMatchObject({ ok: false, error: "invalid" });
+    }
     const [row] = await rowsFor(readyCaptureId);
     expect(row!.revision).toBe(1);
+  });
+});
+
+describe("deletePin (VAL-PIN-009)", () => {
+  async function seedPin() {
+    const created = await createPinAtomically(testDb.db, createInput());
+    if (!created.ok) throw new Error("seed create failed");
+    return created.annotation;
+  }
+
+  test("tombstones the pin: it leaves the list but its number is never reused", async () => {
+    const pin = await seedPin();
+    const deleted = await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+    });
+    expect(deleted).toMatchObject({ ok: true });
+
+    expect(await listPins(testDb.db, readyCaptureId)).toMatchObject({
+      ok: true,
+      annotations: [],
+    });
+    // The row persists as a tombstone, keeping the number retired.
+    const [row] = await rowsFor(readyCaptureId);
+    expect(row!.deletedAt).not.toBeNull();
+    const next = await createPinAtomically(
+      testDb.db,
+      createInput({ idempotencyKey: "pin-create-after-delete" }),
+    );
+    expect(next).toMatchObject({ ok: true });
+    if (next.ok) expect(next.annotation.number).toBe(2);
+  });
+
+  test("a stale delete conflicts, and a deleted pin is gone to further writes", async () => {
+    const pin = await seedPin();
+    const stale = await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision + 9,
+    });
+    expect(stale).toMatchObject({ ok: false, error: "conflict" });
+
+    await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+    });
+    // Once tombstoned, deletes, moves, and edits all read as not-found.
+    for (const attempt of [
+      () =>
+        deletePin(testDb.db, {
+          captureId: readyCaptureId,
+          annotationId: pin.id,
+          expectedRevision: pin.revision,
+        }),
+      () =>
+        updatePin(testDb.db, {
+          captureId: readyCaptureId,
+          annotationId: pin.id,
+          expectedRevision: pin.revision,
+          tip: { x: 1, y: 1 },
+        }),
+    ]) {
+      expect(await attempt()).toMatchObject({ ok: false, error: "not-found" });
+    }
+  });
+
+  test("a pin addressed through another capture is not deletable", async () => {
+    const pin = await seedPin();
+    const deleted = await deletePin(testDb.db, {
+      captureId: otherCaptureId,
+      annotationId: pin.id,
+      expectedRevision: pin.revision,
+    });
+    expect(deleted).toMatchObject({ ok: false, error: "not-found" });
+    expect(await listPins(testDb.db, readyCaptureId)).toMatchObject({
+      ok: true,
+      annotations: [{ id: pin.id }],
+    });
   });
 });

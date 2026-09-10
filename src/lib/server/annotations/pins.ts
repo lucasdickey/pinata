@@ -1,5 +1,5 @@
-// Server-only pin annotation store (VAL-PIN-001, VAL-CANVAS-001,
-// VAL-CANVAS-003, VAL-CANVAS-004).
+// Server-only pin annotation store (VAL-PIN-001, VAL-PIN-002, VAL-PIN-003,
+// VAL-PIN-008, VAL-PIN-009, VAL-CANVAS-001, VAL-CANVAS-003, VAL-CANVAS-004).
 //
 // The pin is the canonical domain record: its tip is stored as exact
 // screenshot-natural CSS pixels in geometry_json, bound to one immutable
@@ -11,6 +11,20 @@
 // concurrent saves collision-safe; a collision retries the whole transaction
 // a bounded number of times rather than ever reusing a number.
 //
+// Every create carries an explicit context decision: the capture-local id of
+// one manifest element, or null for "No element". The server derives the
+// bounded inert snapshot from the capture's own persisted manifest — a
+// client can name an element, never author one — and an id the manifest
+// does not contain is an invalid save that persists nothing. The snapshot
+// (or null) is then immutable for the life of the pin: moves, edits,
+// recaptures, and reloads never re-query or rebind it.
+//
+// Updates (move, edit) and delete carry an expectedRevision precondition and
+// commit as one conditional atomic write: a stale, concurrent, or repeated
+// write loses with a conflict and changes no row, so one authoritative
+// revision always remains. Delete is a tombstone: the row stays so its
+// number is never reused, and its thread entries (future) are untouched.
+//
 // Idempotency is durable and intent-bound, same shape as project creation:
 // the same key with the same normalized payload replays the original pin,
 // and the same key with a different payload conflicts.
@@ -19,6 +33,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, eq, isNull, max } from "drizzle-orm";
 import { FEEDBACK_BODY_MAX_CHARS, MAX_ANNOTATIONS_PER_CAPTURE } from "../../boundaries";
 import { schema, type Database } from "../db/client";
+import {
+  deriveSnapshot,
+  parseManifestElements,
+  type ContextElement,
+} from "./context";
 
 /** Idempotency scope for editor pin creation. */
 export const ANNOTATION_CREATE_SCOPE = "annotation-create";
@@ -43,8 +62,8 @@ export interface AnnotationRecord {
   number: number;
   tip: PinTip;
   body: string;
-  /** Inert capture-time DOM context; null until the metadata flow lands. */
-  elementSnapshot: unknown | null;
+  /** Inert capture-time DOM context snapshot, or the explicit null. */
+  elementSnapshot: ContextElement | null;
   revision: number;
   createdAt: number;
 }
@@ -57,6 +76,8 @@ export interface CreatePinInput {
   captureId: string;
   tip: PinTip;
   body: string;
+  /** Explicit context decision: a manifest element id, or null = No element. */
+  elementId: string | null;
   idempotencyKey: string;
 }
 
@@ -64,15 +85,27 @@ export type CreatePinResult =
   | { ok: true; created: boolean; annotation: AnnotationRecord }
   | { ok: false; error: "not-found" | "invalid" | "conflict" | "quota" };
 
-export interface MovePinInput {
+export interface UpdatePinInput {
   captureId: string;
   annotationId: string;
-  tip: PinTip;
+  /** The revision the caller based its write on; a mismatch is a conflict. */
+  expectedRevision: number;
+  /** A moved tip, a new original body, or both in one revisioned write. */
+  tip?: PinTip;
+  body?: string;
 }
 
-export type MovePinResult =
+export type UpdatePinResult =
   | { ok: true; annotation: AnnotationRecord }
-  | { ok: false; error: "not-found" | "invalid" };
+  | { ok: false; error: "not-found" | "invalid" | "conflict" };
+
+export interface DeletePinInput {
+  captureId: string;
+  annotationId: string;
+  expectedRevision: number;
+}
+
+export type DeletePinResult = { ok: true } | { ok: false; error: "not-found" | "conflict" };
 
 export interface PinStoreDeps {
   now: () => number;
@@ -106,7 +139,9 @@ function toRecord(row: AnnotationRow): AnnotationRecord {
     number: row.number,
     tip,
     body: row.originalBody,
-    elementSnapshot: row.elementSnapshotJson ? JSON.parse(row.elementSnapshotJson) : null,
+    elementSnapshot: row.elementSnapshotJson
+      ? (JSON.parse(row.elementSnapshotJson) as ContextElement)
+      : null,
     revision: row.revision,
     createdAt: row.createdAt,
   };
@@ -121,6 +156,14 @@ async function loadCapture(db: Database, captureId: string): Promise<CaptureRow 
   return rows[0];
 }
 
+/**
+ * The capture's own persisted manifest elements, re-validated on read (see
+ * parseManifestElements). Null when the capture has no usable manifest.
+ */
+export function manifestElements(capture: CaptureRow): ContextElement[] | null {
+  return parseManifestElements(capture.domManifestJson);
+}
+
 /** True when the tip is finite and inside the inclusive capture bounds. */
 function tipWithinCapture(tip: PinTip, capture: CaptureRow): boolean {
   return (
@@ -131,6 +174,11 @@ function tipWithinCapture(tip: PinTip, capture: CaptureRow): boolean {
     tip.x <= (capture.documentWidth ?? -1) &&
     tip.y <= (capture.documentHeight ?? -1)
   );
+}
+
+/** True when the original body is bounded directional plain text. */
+function bodyValid(body: string): boolean {
+  return body.trim().length > 0 && body.length <= FEEDBACK_BODY_MAX_CHARS;
 }
 
 /** List the live pins of one ready capture, ordered by their stable numbers. */
@@ -159,6 +207,7 @@ function createDigest(input: CreatePinInput): string {
         captureId: input.captureId,
         tip: { x: input.tip.x, y: input.tip.y },
         body: input.body,
+        elementId: input.elementId,
       }),
     )
     .digest("hex");
@@ -215,8 +264,8 @@ function isNumberCollision(error: unknown): boolean {
 /**
  * Persist one pin atomically: idempotency record, monotonic number, and the
  * annotation row in one transaction — or nothing at all. A blank or
- * over-limit body, out-of-bounds tip, non-ready capture, or exhausted quota
- * writes nothing and consumes no number.
+ * over-limit body, out-of-bounds tip, non-ready capture, unknown context
+ * element id, or exhausted quota writes nothing and consumes no number.
  */
 export async function createPinAtomically(
   db: Database,
@@ -230,10 +279,18 @@ export async function createPinAtomically(
   const capture = await loadCapture(db, input.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
   if (!tipWithinCapture(input.tip, capture)) return { ok: false, error: "invalid" };
-  const body = input.body;
-  if (body.trim().length === 0 || body.length > FEEDBACK_BODY_MAX_CHARS) {
+  if (!bodyValid(input.body)) return { ok: false, error: "invalid" };
+
+  // The explicit context decision resolves against the capture's own
+  // immutable manifest. "No element" (null) is always a valid decision; a
+  // named element must exist in the manifest, and the persisted snapshot is
+  // exactly that element — derived here, never supplied by the client.
+  const elements = manifestElements(capture);
+  const snapshot = deriveSnapshot(elements ?? [], input.elementId);
+  if (input.elementId !== null && snapshot === null) {
     return { ok: false, error: "invalid" };
   }
+  const snapshotJson = snapshot ? JSON.stringify(snapshot) : null;
 
   const [{ liveCount }] = await db
     .select({ liveCount: count() })
@@ -257,8 +314,8 @@ export async function createPinAtomically(
       // Filled in inside the transaction before the insert lands.
       number: 0,
       tip: { x: input.tip.x, y: input.tip.y },
-      body,
-      elementSnapshot: null,
+      body: input.body,
+      elementSnapshot: snapshot,
       revision: 1,
       createdAt: now,
     };
@@ -288,7 +345,7 @@ export async function createPinAtomically(
           geometryJson: JSON.stringify(annotation.tip),
           geometryVersion: PIN_GEOMETRY_VERSION,
           originalBody: annotation.body,
-          elementSnapshotJson: null,
+          elementSnapshotJson: snapshotJson,
           revision: 1,
           createdAt: now,
           updatedAt: now,
@@ -324,16 +381,13 @@ export async function createPinAtomically(
 }
 
 /**
- * Commit one revisioned tip update for an existing pin. The write is bound
- * to the pin's own capture — a pin addressed through another capture's route
- * is simply not found, never rebound — and out-of-bounds or non-finite tips
- * are rejected without touching the row.
+ * Load the addressed live pin, honoring the capture binding: a pin addressed
+ * through another capture's route is not found, never rebound.
  */
-export async function movePin(
+async function loadLivePin(
   db: Database,
-  input: MovePinInput,
-  deps: PinStoreDeps = defaultPinStoreDeps,
-): Promise<MovePinResult> {
+  input: { captureId: string; annotationId: string },
+): Promise<AnnotationRow | null> {
   const rows = await db
     .select()
     .from(schema.annotations)
@@ -346,27 +400,112 @@ export async function movePin(
     )
     .limit(1);
   const pin = rows[0];
-  if (!pin || pin.captureId !== input.captureId) return { ok: false, error: "not-found" };
+  if (!pin || pin.captureId !== input.captureId) return null;
+  return pin;
+}
+
+/**
+ * Commit one revisioned update — a moved tip, a new original body, or both —
+ * as a single conditional atomic write gated on the caller's expected
+ * revision. The write binds to the pin's own capture; out-of-bounds tips and
+ * blank/over-limit bodies write nothing. Geometry updates preserve number,
+ * body, snapshot, and capture binding; body updates preserve geometry and
+ * snapshot. A stale or concurrent write loses with a conflict and changes
+ * no row, leaving one authoritative revision.
+ */
+export async function updatePin(
+  db: Database,
+  input: UpdatePinInput,
+  deps: PinStoreDeps = defaultPinStoreDeps,
+): Promise<UpdatePinResult> {
+  const pin = await loadLivePin(db, input);
+  if (!pin) return { ok: false, error: "not-found" };
   const capture = await loadCapture(db, pin.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
-  if (!tipWithinCapture(input.tip, capture)) return { ok: false, error: "invalid" };
+  if (input.tip !== undefined && !tipWithinCapture(input.tip, capture)) {
+    return { ok: false, error: "invalid" };
+  }
+  if (input.body !== undefined && !bodyValid(input.body)) {
+    return { ok: false, error: "invalid" };
+  }
 
   const now = deps.now();
-  await db
+  const updated = await db
     .update(schema.annotations)
     .set({
-      geometryJson: JSON.stringify({ x: input.tip.x, y: input.tip.y }),
-      revision: pin.revision + 1,
+      ...(input.tip !== undefined
+        ? { geometryJson: JSON.stringify({ x: input.tip.x, y: input.tip.y }) }
+        : {}),
+      ...(input.body !== undefined ? { originalBody: input.body } : {}),
+      revision: input.expectedRevision + 1,
       updatedAt: now,
     })
-    .where(eq(schema.annotations.id, pin.id));
+    .where(
+      and(
+        eq(schema.annotations.id, pin.id),
+        eq(schema.annotations.captureId, input.captureId),
+        eq(schema.annotations.kind, "pin"),
+        isNull(schema.annotations.deletedAt),
+        // The precondition: exactly the revision the caller based its write
+        // on. Two sessions holding the same starting revision cannot both
+        // win — the loser's conditional write matches nothing.
+        eq(schema.annotations.revision, input.expectedRevision),
+      ),
+    )
+    .returning({ id: schema.annotations.id });
 
+  if (updated.length !== 1) {
+    // The row was live a moment ago, so a failed conditional write is a
+    // stale-revision conflict (or a concurrent tombstone, which reads as
+    // not-found to the loser).
+    const current = await loadLivePin(db, input);
+    return current ? { ok: false, error: "conflict" } : { ok: false, error: "not-found" };
+  }
+
+  const record = toRecord(pin);
   return {
     ok: true,
     annotation: {
-      ...toRecord(pin),
-      tip: { x: input.tip.x, y: input.tip.y },
-      revision: pin.revision + 1,
+      ...record,
+      tip: input.tip !== undefined ? { x: input.tip.x, y: input.tip.y } : record.tip,
+      body: input.body !== undefined ? input.body : record.body,
+      revision: input.expectedRevision + 1,
     },
   };
+}
+
+/**
+ * Tombstone one pin with the same revision precondition. The row is never
+ * deleted: its number stays retired forever, its snapshot and body remain
+ * addressable history, and listing simply excludes it. A stale or repeated
+ * delete conflicts (or reads not-found once tombstoned) and changes nothing.
+ */
+export async function deletePin(
+  db: Database,
+  input: DeletePinInput,
+  deps: PinStoreDeps = defaultPinStoreDeps,
+): Promise<DeletePinResult> {
+  const pin = await loadLivePin(db, input);
+  if (!pin) return { ok: false, error: "not-found" };
+
+  const now = deps.now();
+  const updated = await db
+    .update(schema.annotations)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(schema.annotations.id, pin.id),
+        eq(schema.annotations.captureId, input.captureId),
+        eq(schema.annotations.kind, "pin"),
+        isNull(schema.annotations.deletedAt),
+        eq(schema.annotations.revision, input.expectedRevision),
+      ),
+    )
+    .returning({ id: schema.annotations.id });
+
+  if (updated.length !== 1) {
+    const current = await loadLivePin(db, input);
+    return current ? { ok: false, error: "conflict" } : { ok: false, error: "not-found" };
+  }
+  return { ok: true };
 }

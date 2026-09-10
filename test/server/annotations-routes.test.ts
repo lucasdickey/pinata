@@ -71,15 +71,38 @@ const createRequest = (captureId: string, options: RequestOptions = {}) =>
   build(`${ORIGIN}/api/captures/${captureId}/annotations`, "POST", options);
 const moveRequest = (captureId: string, annotationId: string, options: RequestOptions = {}) =>
   build(`${ORIGIN}/api/captures/${captureId}/annotations/${annotationId}`, "PATCH", options);
+const deleteRequest = (captureId: string, annotationId: string, options: RequestOptions = {}) =>
+  build(`${ORIGIN}/api/captures/${captureId}/annotations/${annotationId}`, "DELETE", options);
 
 const listContext = (captureId: string) => ({ params: Promise.resolve({ captureId }) });
 const pinContext = (captureId: string, annotationId: string) => ({
   params: Promise.resolve({ captureId, annotationId }),
 });
 
+/** A minimal in-schema persisted manifest for context-decision tests. */
+const ROUTE_MANIFEST = {
+  schemaVersion: 1,
+  truncated: false,
+  elements: [
+    {
+      id: "cell-1",
+      kind: "table-cell",
+      tag: "td",
+      role: "cell",
+      text: "Starter plan",
+      accessibleName: "",
+      hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+      path: ["body:0", "main:0", "table:0", "tr:2", "td:1"],
+      rect: { x: 800, y: 4200, width: 120, height: 48 },
+    },
+  ],
+};
+
 const createBody = (overrides: Record<string, unknown> = {}) => ({
   tip: { x: 812.25, y: 4231.5 },
   body: "This heading reads like a placeholder.",
+  // The explicit context decision: null is "No element".
+  elementId: null as string | null,
   idempotencyKey: "pin-route-key-00001",
   ...overrides,
 });
@@ -124,6 +147,26 @@ beforeEach(async () => {
     documentWidth: 1440,
     documentHeight: 8966,
     imageHash: "hash-cap-ready",
+    createdAt: T0,
+    updatedAt: T0,
+  });
+  // A ready capture carrying a persisted manifest, for context decisions.
+  await testDb.db.insert(schema.captures).values({
+    id: "cap-manifest",
+    pageId: "page-1",
+    variant: "mobile",
+    attempt: 1,
+    status: "ready",
+    idempotencyKey: "initial:cap-manifest",
+    requestedUrl: "https://chickpea.co/",
+    viewportWidth: 390,
+    viewportHeight: 844,
+    deviceScaleFactor: 1,
+    documentWidth: 390,
+    documentHeight: 13091,
+    imageHash: "hash-cap-manifest",
+    domManifestJson: JSON.stringify(ROUTE_MANIFEST),
+    domManifestVersion: 1,
     createdAt: T0,
     updatedAt: T0,
   });
@@ -196,6 +239,17 @@ describe("POST /api/captures/[captureId]/annotations", () => {
       createBody({ body: 42 }),
       createBody({ idempotencyKey: "short" }),
       { tip: { x: 1, y: 2 } },
+      // The explicit context decision is required: a missing key, a
+      // non-string, and an empty string are all invalid.
+      createBody({ elementId: undefined }),
+      (() => {
+        const { elementId: _omitted, ...rest } = createBody();
+        return rest;
+      })(),
+      createBody({ elementId: 42 }),
+      createBody({ elementId: "" }),
+      // A client-authored snapshot is impossible: strict keys reject it.
+      createBody({ elementSnapshot: { id: "cell-1" } }),
     ];
     for (const body of bad) {
       // JSON.stringify cannot carry NaN; serialize it the way a hostile
@@ -266,6 +320,52 @@ describe("POST /api/captures/[captureId]/annotations", () => {
     expect(second.status).toBe(201);
     expect((await second.json()).annotation.number).toBe(2);
   });
+
+  test("a named manifest element saves with the server-derived snapshot (VAL-PIN-003)", async () => {
+    const created = await annotationsPOST(
+      createRequest("cap-manifest", {
+        body: createBody({
+          tip: { x: 100, y: 4210 },
+          elementId: "cell-1",
+          idempotencyKey: "pin-route-ctx-00001",
+        }),
+      }),
+      listContext("cap-manifest"),
+    );
+    expect(created.status).toBe(201);
+    const payload = await created.json();
+    expect(payload.annotation.elementSnapshot).toEqual(ROUTE_MANIFEST.elements[0]);
+
+    // The No-element decision on the same capture saves an explicit null.
+    const none = await annotationsPOST(
+      createRequest("cap-manifest", {
+        body: createBody({
+          tip: { x: 10, y: 10 },
+          elementId: null,
+          idempotencyKey: "pin-route-ctx-00002",
+        }),
+      }),
+      listContext("cap-manifest"),
+    );
+    expect(none.status).toBe(201);
+    expect((await none.json()).annotation.elementSnapshot).toBeNull();
+  });
+
+  test("an element id the capture's manifest does not contain is a 400 with no row", async () => {
+    const response = await annotationsPOST(
+      createRequest("cap-manifest", {
+        body: createBody({
+          tip: { x: 100, y: 4210 },
+          elementId: "not-an-element",
+          idempotencyKey: "pin-route-ctx-00003",
+        }),
+      }),
+      listContext("cap-manifest"),
+    );
+    expect(response.status).toBe(400);
+    const listed = await annotationsGET(listRequest("cap-manifest"), listContext("cap-manifest"));
+    expect((await listed.json()).annotations).toHaveLength(0);
+  });
 });
 
 describe("GET /api/captures/[captureId]/annotations", () => {
@@ -296,18 +396,21 @@ describe("GET /api/captures/[captureId]/annotations", () => {
 });
 
 describe("PATCH /api/captures/[captureId]/annotations/[annotationId]", () => {
-  async function seedPin(): Promise<string> {
+  async function seedPin(): Promise<{ id: string; revision: number }> {
     const response = await annotationsPOST(
       createRequest("cap-ready", { body: createBody() }),
       listContext("cap-ready"),
     );
-    return (await response.json()).annotation.id as string;
+    const { annotation } = await response.json();
+    return { id: annotation.id as string, revision: annotation.revision as number };
   }
 
   test("commits one revisioned move and leaves number and body untouched", async () => {
-    const id = await seedPin();
+    const { id, revision } = await seedPin();
     const moved = await annotationPATCH(
-      moveRequest("cap-ready", id, { body: { tip: { x: 1440, y: 8966 } } }),
+      moveRequest("cap-ready", id, {
+        body: { tip: { x: 1440, y: 8966 }, expectedRevision: revision },
+      }),
       pinContext("cap-ready", id),
     );
     expect(moved.status).toBe(200);
@@ -321,15 +424,76 @@ describe("PATCH /api/captures/[captureId]/annotations/[annotationId]", () => {
     });
   });
 
+  test("edits the original body in one revisioned write (VAL-PIN-003)", async () => {
+    const { id, revision } = await seedPin();
+    const edited = await annotationPATCH(
+      moveRequest("cap-ready", id, {
+        body: { body: "A sharper note about the heading.", expectedRevision: revision },
+      }),
+      pinContext("cap-ready", id),
+    );
+    expect(edited.status).toBe(200);
+    const payload = await edited.json();
+    expect(payload.annotation).toMatchObject({
+      id,
+      body: "A sharper note about the heading.",
+      tip: { x: 812.25, y: 4231.5 },
+      revision: 2,
+    });
+  });
+
+  test("a missing or stale revision precondition is a 409 or 400 with no write (VAL-PIN-009)", async () => {
+    const { id, revision } = await seedPin();
+    // Missing precondition fails the schema.
+    const missing = await annotationPATCH(
+      moveRequest("cap-ready", id, { body: { tip: { x: 1, y: 1 } } }),
+      pinContext("cap-ready", id),
+    );
+    expect(missing.status).toBe(400);
+    // A body with neither tip nor body is not a mutation.
+    const empty = await annotationPATCH(
+      moveRequest("cap-ready", id, { body: { expectedRevision: revision } }),
+      pinContext("cap-ready", id),
+    );
+    expect(empty.status).toBe(400);
+
+    // The winning write from the shared starting revision lands first…
+    const winner = await annotationPATCH(
+      moveRequest("cap-ready", id, {
+        body: { tip: { x: 100, y: 100 }, expectedRevision: revision },
+      }),
+      pinContext("cap-ready", id),
+    );
+    expect(winner.status).toBe(200);
+    // …and the loser's stale write conflicts without changing the row.
+    const loser = await annotationPATCH(
+      moveRequest("cap-ready", id, {
+        body: { tip: { x: 200, y: 200 }, expectedRevision: revision },
+      }),
+      pinContext("cap-ready", id),
+    );
+    expect(loser.status).toBe(409);
+    expect(JSON.stringify(await loser.json())).not.toMatch(/cell-1|hash-cap/i);
+
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    const [pin] = (await listed.json()).annotations;
+    expect(pin.tip).toEqual({ x: 100, y: 100 });
+    expect(pin.revision).toBe(2);
+  });
+
   test("rejects out-of-bounds tips and foreign-capture addressing without a write", async () => {
-    const id = await seedPin();
+    const { id, revision } = await seedPin();
     const outOfBounds = await annotationPATCH(
-      moveRequest("cap-ready", id, { body: { tip: { x: 1441, y: 0 } } }),
+      moveRequest("cap-ready", id, {
+        body: { tip: { x: 1441, y: 0 }, expectedRevision: revision },
+      }),
       pinContext("cap-ready", id),
     );
     expect(outOfBounds.status).toBe(400);
     const wrongCapture = await annotationPATCH(
-      moveRequest("cap-missing", id, { body: { tip: { x: 1, y: 1 } } }),
+      moveRequest("cap-missing", id, {
+        body: { tip: { x: 1, y: 1 }, expectedRevision: revision },
+      }),
       pinContext("cap-missing", id),
     );
     expect(wrongCapture.status).toBe(404);
@@ -340,10 +504,13 @@ describe("PATCH /api/captures/[captureId]/annotations/[annotationId]", () => {
   });
 
   test("anonymous and bad-CSRF moves are denied", async () => {
-    const id = await seedPin();
+    const { id, revision } = await seedPin();
     for (const options of [{ cookie: null }, { csrf: "wrong" }, { origin: null }]) {
       const response = await annotationPATCH(
-        moveRequest("cap-ready", id, { ...options, body: { tip: { x: 1, y: 1 } } }),
+        moveRequest("cap-ready", id, {
+          ...options,
+          body: { tip: { x: 1, y: 1 }, expectedRevision: revision },
+        }),
         pinContext("cap-ready", id),
       );
       expect(response.status).toBeGreaterThanOrEqual(400);
@@ -351,10 +518,84 @@ describe("PATCH /api/captures/[captureId]/annotations/[annotationId]", () => {
   });
 });
 
+describe("DELETE /api/captures/[captureId]/annotations/[annotationId]", () => {
+  async function seedPin(): Promise<{ id: string; revision: number }> {
+    const response = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody() }),
+      listContext("cap-ready"),
+    );
+    const { annotation } = await response.json();
+    return { id: annotation.id as string, revision: annotation.revision as number };
+  }
+
+  test("tombstones the pin: it leaves the list and its number stays retired", async () => {
+    const { id, revision } = await seedPin();
+    const deleted = await annotationDELETE(
+      deleteRequest("cap-ready", id, { body: { expectedRevision: revision } }),
+      pinContext("cap-ready", id),
+    );
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toEqual({ deleted: true });
+
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    expect((await listed.json()).annotations).toHaveLength(0);
+
+    // The number is never reused, even after deletion.
+    const next = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody({ idempotencyKey: "pin-route-key-00009" }) }),
+      listContext("cap-ready"),
+    );
+    expect((await next.json()).annotation.number).toBe(2);
+  });
+
+  test("a stale or repeated delete conflicts or reads not-found; nothing else changes", async () => {
+    const { id, revision } = await seedPin();
+    const stale = await annotationDELETE(
+      deleteRequest("cap-ready", id, { body: { expectedRevision: revision + 9 } }),
+      pinContext("cap-ready", id),
+    );
+    expect(stale.status).toBe(409);
+
+    const missingRevision = await annotationDELETE(
+      deleteRequest("cap-ready", id, { body: {} }),
+      pinContext("cap-ready", id),
+    );
+    expect(missingRevision.status).toBe(400);
+
+    await annotationDELETE(
+      deleteRequest("cap-ready", id, { body: { expectedRevision: revision } }),
+      pinContext("cap-ready", id),
+    );
+    const again = await annotationDELETE(
+      deleteRequest("cap-ready", id, { body: { expectedRevision: revision } }),
+      pinContext("cap-ready", id),
+    );
+    expect(again.status).toBe(404);
+  });
+
+  test("anonymous, bad-CSRF, and foreign-capture deletes are denied", async () => {
+    const { id, revision } = await seedPin();
+    for (const options of [{ cookie: null }, { csrf: "wrong" }, { origin: null }]) {
+      const response = await annotationDELETE(
+        deleteRequest("cap-ready", id, { ...options, body: { expectedRevision: revision } }),
+        pinContext("cap-ready", id),
+      );
+      expect(response.status).toBeGreaterThanOrEqual(400);
+    }
+    const wrongCapture = await annotationDELETE(
+      deleteRequest("cap-missing", id, { body: { expectedRevision: revision } }),
+      pinContext("cap-missing", id),
+    );
+    expect(wrongCapture.status).toBe(404);
+    // Nothing was deleted through any of those.
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    expect((await listed.json()).annotations).toHaveLength(1);
+  });
+});
+
 describe("method policy", () => {
   test("unsupported methods are 405 on both routes", async () => {
     expect(annotationsPUT().status).toBe(405);
     expect(annotationGET().status).toBe(405);
-    expect(annotationDELETE().status).toBe(405);
   });
 });

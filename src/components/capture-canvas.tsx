@@ -206,6 +206,7 @@ function CaptureCanvasInner({
   savedCamera,
   onCameraChange,
   onDraftChange,
+  onDraftSettled,
   draftResetSignal,
 }: {
   domain: CaptureFrameDomain;
@@ -219,6 +220,12 @@ function CaptureCanvasInner({
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (tip: NaturalPoint | null) => void;
+  /**
+   * Fires only when a draft's position is final for now — the placement tap
+   * and the end of a draft drag — so the panel can resolve nearby context
+   * once per gesture instead of per drag frame. Never a write.
+   */
+  onDraftSettled?: (tip: NaturalPoint) => void;
   /** Increments when a draft was saved; the canvas drops the unsaved draft. */
   draftResetSignal?: number;
 }) {
@@ -490,6 +497,7 @@ function CaptureCanvasInner({
           // Exactly one draft per plane: a second deliberate tap moves the
           // same draft to the new target rather than stacking marks.
           setDraft(natural);
+          onDraftSettled?.(natural);
           const zoom = instance.getViewport().zoom;
           liveZoomRef.current = zoom;
           setLiveZoom(zoom);
@@ -534,6 +542,10 @@ function CaptureCanvasInner({
                 if (current && current.id === node.id) onMovePin?.(node.id, current.tip);
                 return null;
               });
+            } else if (node.type === DRAFT_PIN_TYPE && draftRef.current) {
+              // A draft drag commits nothing; it only re-anchors the nearby
+              // context query on the final position.
+              onDraftSettled?.(draftRef.current);
             }
             dragGrab.current = null;
           }}
@@ -544,6 +556,13 @@ function CaptureCanvasInner({
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          // Drags must anchor at pointer-down, not at the first move past a
+          // threshold: the default threshold of 1 captures the drag origin
+          // at the first qualifying pointermove, so every drop would land a
+          // few screen pixels short of where Lucas released it (VAL-PIN-002
+          // drop fidelity). Zero-movement presses still click (selection);
+          // click-vs-drag disambiguation stays with d3's clickDistance.
+          nodeDragThreshold={0}
           zoomOnDoubleClick={false}
           panOnDrag={interaction === "navigate"}
           onMove={(_event, viewport: Viewport) => {
@@ -581,6 +600,7 @@ export function CaptureCanvas({
   savedCamera,
   onCameraChange,
   onDraftChange,
+  onDraftSettled,
   draftResetSignal,
 }: {
   captureId: string;
@@ -597,6 +617,7 @@ export function CaptureCanvas({
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (tip: NaturalPoint | null) => void;
+  onDraftSettled?: (tip: NaturalPoint) => void;
   draftResetSignal?: number;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
@@ -622,6 +643,7 @@ export function CaptureCanvas({
         savedCamera={savedCamera}
         onCameraChange={onCameraChange}
         onDraftChange={onDraftChange}
+        onDraftSettled={onDraftSettled}
         draftResetSignal={draftResetSignal}
       />
     </ReactFlowProvider>

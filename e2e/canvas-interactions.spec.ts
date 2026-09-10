@@ -524,8 +524,8 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   // The compositor frame-aligns and coalesces synthetic touchmove events, so
   // the test cannot rely on every dispatched move being delivered. Instead
   // it records the moves the page actually received and asserts the tip
-  // tracked them 1:1 from the first delivered move (which d3-drag consumes
-  // as the gesture anchor past the drag threshold).
+  // tracked them 1:1 from the gesture anchor: the touchstart point itself,
+  // since drags anchor at pointer-down (D062, nodeDragThreshold=0).
   await page.evaluate(() => {
     (window as unknown as { __touchTrail?: [number, number][] }).__touchTrail = [];
     window.addEventListener(
@@ -558,8 +558,8 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   expect(trail.length).toBeGreaterThanOrEqual(2);
   const tipMid = await badgeTipNatural(page);
   const deliveredDelta = {
-    x: (trail[trail.length - 1]![0] - trail[0]![0]) / zoom,
-    y: (trail[trail.length - 1]![1] - trail[0]![1]) / zoom,
+    x: (trail[trail.length - 1]![0] - grab.x) / zoom,
+    y: (trail[trail.length - 1]![1] - grab.y) / zoom,
   };
   expect(Math.abs(tipMid.x - (tipBefore.x + deliveredDelta.x))).toBeLessThanOrEqual(1);
   expect(Math.abs(tipMid.y - (tipBefore.y + deliveredDelta.y))).toBeLessThanOrEqual(1);

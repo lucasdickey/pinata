@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 14 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 35 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060 |
+| Agent decided alone | 37 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **60** | |
+| **Total** | **62** | |
 
 ## Index
 
@@ -86,6 +86,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D058](#d058--the-canvas-documents-its-own-interactions-on-the-page-pan-zoom-pin-drop-comment-save-cancel-and-opening-a-saved-pin-are-all-taught-by-persistent-on-page-instructions) | build | The canvas documents its own interactions on the page: pan, zoom, pin drop, comment, save, cancel, and opening a saved pin are all taught by persistent on-page instructions | Human directed | accepted |
 | [D059](#d059--pin-persistence-server-assigned-monotonic-numbering-inside-the-idempotency-transaction-one-create-per-saved-draft-one-revisioned-write-per-drag-and-authoritative-reloads-after-failure) | build | Pin persistence: server-assigned monotonic numbering inside the idempotency transaction, one create per saved draft, one revisioned write per drag, and authoritative reloads after failure | Agent decided alone | accepted |
 | [D060](#d060--navigate-mode-never-moves-a-mark-and-a-tap-on-a-saved-pin-selects-it-pin-dragging-lives-in-place-pin-mode-and-e2e-specs-share-the-seeded-plane-by-horizontal-bands) | build | Navigate mode never moves a mark and a tap on a saved pin selects it; pin dragging lives in Place pin mode, and e2e specs share the seeded plane by horizontal bands | Agent decided alone | accepted |
+| [D061](#d061--pin-mutation-lifecycle-explicit-context-decision-with-server-derived-snapshots-expectedrevision-optimistic-concurrency-on-moveeditdelete-tombstone-deletes-and-authoritative-reloads-after-conflict) | build | Pin mutation lifecycle: explicit context decision with server-derived snapshots, expectedRevision optimistic concurrency on move/edit/delete, tombstone deletes, and authoritative reloads after conflict | Agent decided alone | accepted |
+| [D062](#d062--anchor-node-drags-at-pointer-down-react-flow-nodedragthreshold-set-to-0-after-e2e-caught-every-drop-landing-a-few-pixels-short) | build | Anchor node drags at pointer-down: React Flow nodeDragThreshold set to 0 after e2e caught every drop landing a few pixels short | Agent decided alone | accepted |
 
 ---
 
@@ -2306,4 +2308,78 @@ Measured end-to-end failures forced each half: the mode gating and tap-selects r
 
 ---
 
-<sub>Generated from 60 record(s) as of 2026-09-10 · source `9fb56372400b`</sub>
+## D061 — Pin mutation lifecycle: explicit context decision with server-derived snapshots, expectedRevision optimistic concurrency on move/edit/delete, tombstone deletes, and authoritative reloads after conflict
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Comments and mutations on pins raised four coupled contract questions: how a draft's metadata decision stays explicit and honest (never a client-authored element object), how concurrent edits/moves/deletes of the same pin resolve without lost updates or ghost records, what a delete means for numbering, and what the UI shows when the write it attempted was already superseded. D059 had scoped the first build to create+move only; the comment lifecycle needed edit and delete to ship with the same safety properties.
+
+**Decision**
+
+A draft cannot save until Lucas explicitly chooses a nearby candidate or "No element"; only the candidate's capture-local id (or null) crosses the wire, and the server derives the bounded snapshot from the capture's own persisted manifest (an unknown id rejects the create and persists nothing). Candidates come from a new authorized read route that ranks the persisted manifest deterministically (containment, distance, area, depth, semantic kind, id tie-break) and caps the result at the shared limit. Every mutation carries expectedRevision and commits through one conditional UPDATE guarded by the current revision (drizzle .returning() pattern from the capture transitions): a stale or losing write gets 409 and changes nothing, a write against a foreign or tombstoned pin gets the generic 404, and the UI answers any conflict by reloading the authoritative list instead of overwriting it. Delete is a tombstone: the row stays, the number stays retired (D059 numbering already counts tombstones), and later writes against it are rejected. The context snapshot is immutable for the pin's life: moves and edits never re-query or rebind it. This extends D059's move-only scope note; its numbering and idempotency mechanics are unchanged.
+
+**Alternatives considered**
+
+- *Let the client post the whole element snapshot it rendered* — A client-authored metadata object is forgeable and unverifiable; deriving the snapshot from the persisted manifest keeps the capture the single source of truth and makes the wire contract one small id.
+- *Last-write-wins without revision preconditions* — A stale drag or edit would silently overwrite a newer comment; the seeded two-session conflict is a real usage pattern (two tabs), and silent loss is the worst possible answer.
+- *Hard-delete pin rows* — Hard delete would free the number for reuse, and a reused number makes old screenshots and threads lie about which mark they referred to.
+- *Keep the editor open with the losing text after a conflict* — The losing text is derived from a version that no longer exists; showing the authoritative record and saying why is the honest state, and nothing is silently kept that could be saved over the winner later.
+
+**Rationale**
+
+The validation contract (VAL-PIN-002/003/008/009) names exactly these behaviors — explicit decision, revisioned mutations, immutable capture-bound snapshots, one authoritative revision under concurrency — and the implementation reuses the already-approved conditional-write and boundary patterns, so no product-direction approval was needed. The e2e suite stages real two-session races (same browser, direct route writes) and asserts the UI settles on the winner.
+
+**Consequences**
+
+- Future marks (rectangles, circles, arrows) inherit the same contract: explicit context decision, expectedRevision on every mutation, tombstone deletes, authoritative reload on conflict.
+- The create route rejects unknown element ids and bodies missing the elementId field entirely — undecided drafts cannot persist.
+- The annotations item route now serves PATCH and DELETE and rejects GET/POST/PUT with 405; the context route is GET-only and ready-capture-only.
+- A move conflict supersedes any visible edit/delete conflict notice: one conflict message at a time.
+- Ranking depth, hover preview, and hidden-element filtering beyond the deterministic base ranker remain with the nearby-dom-context-selection feature.
+
+**Artifacts**
+
+- `src/lib/server/annotations/pins.ts` — Create with elementId decision and server-derived snapshot; updatePin/deletePin with revision-precondition conditional writes.
+- `src/lib/server/annotations/context.ts` — Deterministic nearby-candidate ranker and snapshot derivation over the persisted manifest.
+- `app/api/captures/[captureId]/context/route.ts` — Authorized ready-capture-only context read route.
+- `src/components/capture-panel.tsx` — Draft decision fieldset, snapshot display, edit and two-step delete flows with conflict states.
+- `e2e/pin-lifecycle.spec.ts` — Browser contract for decision-required saves, revisioned mutations, staged two-session conflicts, and lost authority.
+
+---
+
+## D062 — Anchor node drags at pointer-down: React Flow nodeDragThreshold set to 0 after e2e caught every drop landing a few pixels short
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The pin-lifecycle e2e measured a dragged pin landing exactly one pointermove step short of the drop point (3 screen px in a 50px drag) on every run. Reading the installed @xyflow/system source showed why: with the default nodeDragThreshold of 1, startDrag captures the drag origin at the first pointermove past the threshold, so the initial travel is never applied to the node — a systematic drop error, not jitter.
+
+**Decision**
+
+The canvas sets nodeDragThreshold={0} so drags anchor at pointer-down and the full pointer delta is applied. Click-versus-drag disambiguation stays with d3-drag's clickDistance, which already governs selection clicks, so tap-to-select is unchanged.
+
+**Alternatives considered**
+
+- *Keep the default threshold and widen the e2e tolerance* — That codifies a real user-facing error: every pin drop would land a few pixels away from where Lucas released it, violating the one-natural-pixel contract this canvas is graded on.
+- *Compensate by adding the threshold window back in our adapter* — The swallowed amount depends on pointer speed and event coalescing, so it cannot be reconstructed; anchoring at pointer-down removes the error class entirely.
+
+**Rationale**
+
+The failure was measured end-to-end and the library source confirmed the mechanism; the fix is one prop inside the already-approved React Flow canvas, so it was safe to decide unilaterally. jsdom cannot run d3-drag, so the e2e drag assertions are the regression guard.
+
+**Consequences**
+
+- Any future draggable node (shape handles, arrow endpoints) inherits pointer-down anchoring from the same React Flow props.
+- The e2e drag specs keep their strict tolerances (1 natural px plus one screen pixel) as the standing regression guard.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — nodeDragThreshold={0} with the rationale comment.
+- `e2e/pin-lifecycle.spec.ts` — The failing measurement that caught the swallowed initial travel.
+
+---
+
+<sub>Generated from 62 record(s) as of 2026-09-10 · source `0720a41db1b5`</sub>

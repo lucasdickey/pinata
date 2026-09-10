@@ -298,6 +298,31 @@ pre code {
   color: var(--ink-soft);
   font-size: 0.8rem;
 }
+/* The draft's explicit context decision: ranked candidates + No element. */
+.panel-candidates {
+  border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+  border-radius: 6px;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.6rem;
+}
+.panel-candidates legend {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+}
+.panel-candidate {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.15rem 0;
+  font-size: 0.9rem;
+}
+.panel-snapshot {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  white-space: normal;
+  word-break: break-word;
+}
 .panel-actions {
   display: flex;
   gap: 0.5rem;

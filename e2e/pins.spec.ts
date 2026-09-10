@@ -64,6 +64,27 @@ async function listPins(page: Page, captureId: string): Promise<PinRecord[]> {
   }, captureId);
 }
 
+/**
+ * Wait for the pin a test just created and return it. Ids — not numbers —
+ * identify it: numbering is monotonic across tombstones (deleted numbers
+ * stay retired), so "live max + 1" is unreliable once deletes exist.
+ */
+async function awaitNewPin(
+  page: Page,
+  captureId: string,
+  before: PinRecord[],
+): Promise<PinRecord> {
+  const beforeIds = new Set(before.map((pin) => pin.id));
+  let found: PinRecord | undefined;
+  await expect
+    .poll(async () => {
+      found = (await listPins(page, captureId)).find((pin) => !beforeIds.has(pin.id));
+      return found !== undefined;
+    })
+    .toBe(true);
+  return found!;
+}
+
 /** Wait until the workspace has finished loading this plane's pins. */
 async function waitPinsLoaded(page: Page): Promise<void> {
   // The panel renders nothing pins-related until the fetch resolves, then
@@ -157,6 +178,9 @@ async function placeAndSave(
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
   await page.getByLabel("Comment").fill(body);
+  // The explicit context decision is required before Save (VAL-PIN-003):
+  // these specs annotate background, so No element is the honest choice.
+  await page.getByRole("radio", { name: "No element" }).click();
   await page.getByRole("button", { name: "Save pin" }).click();
   await expect(page.locator(PIN_NODE)).toHaveCount(expectedPinCount);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
@@ -216,8 +240,6 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   if (existing) {
     fixtureNumber = existing.number;
   } else {
-    const maxBefore = before.reduce((max, pin) => Math.max(max, pin.number), 0);
-    fixtureNumber = maxBefore + 1;
     await page.getByRole("button", { name: "Natural size" }).click();
     await waitForZoom(page, 1);
     await panUntilNaturalVisible(page, corner);
@@ -230,11 +252,10 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
     );
     // Exactly one create, and the strict 1x tip contract.
     expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);
-    const created = await listPins(page, target.captureId);
-    const fixture = created.find((pin) => pin.number === fixtureNumber);
-    expect(fixture, "fixture pin persisted").toBeTruthy();
-    expect(Math.abs(fixture!.tip.x - corner.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(fixture!.tip.y - corner.y)).toBeLessThanOrEqual(1);
+    const fixture = await awaitNewPin(page, target.captureId, before);
+    fixtureNumber = fixture.number;
+    expect(Math.abs(fixture.tip.x - corner.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(fixture.tip.y - corner.y)).toBeLessThanOrEqual(1);
     await expectRenderedTip(page, fixtureNumber, corner, true);
     // The panel lists the pin and opens its comment.
     await page.getByRole("button", { name: new RegExp(`Pin ${fixtureNumber} —`) }).click();
@@ -306,18 +327,18 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   const camera = await readCamera(page);
   expect(camera.zoom).toBeGreaterThan(CANVAS_MAX_ZOOM / 2);
 
-  // First pin at 8x: number = previous max + 1, tip within one natural px.
+  // First pin at 8x: a fresh number clearing every live number (numbering
+  // is monotonic across tombstones; the exact all-rows max+1 assignment is
+  // asserted in the route tests), tip within one natural px.
   const pane1 = await visiblePane(page);
   const camera1 = await readCamera(page);
   const aim1 = toNatural({ x: pane1.width / 2, y: pane1.height / 2 }, camera1);
   await placeAndSave(page, aim1, doc, "e2e: numbering A (8x placement)", before.length + 1);
-  const first = (await listPins(page, target.captureId)).find(
-    (pin) => pin.number === maxBefore + 1,
-  );
-  expect(first, "first pin got the next number").toBeTruthy();
-  expect(Math.abs(first!.tip.x - aim1.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(first!.tip.y - aim1.y)).toBeLessThanOrEqual(1);
-  await expectRenderedTip(page, maxBefore + 1, aim1, true);
+  const first = await awaitNewPin(page, target.captureId, before);
+  expect(first.number, "first pin clears every live number").toBeGreaterThan(maxBefore);
+  expect(Math.abs(first.tip.x - aim1.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.tip.y - aim1.y)).toBeLessThanOrEqual(1);
+  await expectRenderedTip(page, first.number, aim1, true);
 
   // A cancelled draft consumes no number and writes nothing. The tap must
   // land on the document but not on the pin just saved (pane center), so
@@ -342,11 +363,13 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   const camera2 = await readCamera(page);
   const aim2 = toNatural({ x: (pane2.width * 2) / 3, y: (pane2.height * 2) / 3 }, camera2);
   await placeAndSave(page, aim2, doc, "e2e: numbering B (after a cancelled draft)", before.length + 2);
+  const second = await awaitNewPin(page, target.captureId, [...before, first]);
+  expect(second.number, "cancelled draft consumed no number").toBe(first.number + 1);
   const after = await listPins(page, target.captureId);
   expect(after.map((pin) => pin.number)).toEqual(
-    [...before.map((pin) => pin.number), maxBefore + 1, maxBefore + 2].sort((a, b) => a - b),
+    [...before.map((pin) => pin.number), first.number, second.number].sort((a, b) => a - b),
   );
-  await expectRenderedTip(page, maxBefore + 2, aim2, true);
+  await expectRenderedTip(page, second.number, aim2, true);
 
   // Camera-only work — pan, wheel zoom, mode buttons, zoom buttons — never
   // writes (VAL-CANVAS-006). Enter Navigate first: pin mode is still active
@@ -384,8 +407,6 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
   const target = await openDesktopPlane(page);
   const doc = { width: target.width, height: target.height };
   const before = await listPins(page, target.captureId);
-  const maxBefore = before.reduce((max, pin) => Math.max(max, pin.number), 0);
-  const number = maxBefore + 1;
   const writes = trackAnnotationWrites(page);
 
   await page.getByRole("button", { name: "Natural size" }).click();
@@ -398,7 +419,8 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
   const camera = await readCamera(page);
   const aim = toNatural({ x: pane.width / 2, y: pane.height / 2 }, camera);
   await placeAndSave(page, aim, doc, "e2e: drag commit (grab offset and clamps)", before.length + 1);
-  const saved = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  const saved = await awaitNewPin(page, target.captureId, before);
+  const number = saved.number;
   expect(Math.abs(saved.tip.x - aim.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(saved.tip.y - aim.y)).toBeLessThanOrEqual(1);
 
