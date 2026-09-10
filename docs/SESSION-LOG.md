@@ -2508,3 +2508,45 @@ and both exposed real defects rather than flakes:
 - None new. D054 stays pending. Candidate ranking depth, hover preview, and
   hidden-element filtering ship with the nearby-dom-context-selection
   feature (VAL-PIN-004/006/010).
+
+## Session — tall-motion fixture focus flake fix (2026-09-10)
+
+### What was attempted
+
+1. Fixed the known user-testing round 1 flake in
+   `test/fixtures/capture/tall-motion-v1.html`: the fixture focused
+   `#caret-box` before wiring its interaction counters, and Chromium can
+   defer `focusin` delivery for a not-yet-focused page, so the fixture's own
+   scripted focus intermittently landed after the listeners and failed the
+   "zero interaction counters" assertion.
+2. The counters are now wired before the focus call, and the `focusin`
+   listener excludes the fixture's own `#caret-box` focus by target, so the
+   exclusion is deterministic no matter when the event is delivered.
+   Ordering alone could not fix it: a deferred `focusin` can arrive at any
+   later moment, and synchronous delivery would otherwise count the
+   fixture's own focus every time. Capture performs no focus calls at all,
+   so the exclusion cannot mask a real interaction.
+3. Edited v1 in place rather than publishing a v2 (D063): the change is
+   render-invisible — identical layout, text, and pixels — so the
+   pixel-diff reference the versioning rule protects cannot move.
+4. Republished through `npm run fixtures:publish`: new tall-motion-v1
+   sha256 `409a62b8…`, readback verified byte-exact by the publish script,
+   `host.json` updated. The first publish attempt hit a transient Vercel
+   API 403 on the protection PATCH; the identical payload answered 200 on
+   probe and the re-run passed end to end.
+5. Re-ran the real-provider motion suite three consecutive times
+   (`browserless-capture.integration.test.ts -t VAL-CAPTURE-004`): all 6
+   motion tests green each run (runs `capv-mtv9z1jy-204d8479`,
+   `capv-mtva1crm-09af09e8`, `capv-mtva1ye1-3ea9269e`; masked-diff ratio 0,
+   anchor shift 0 px, counters zeroed in every persisted manifest).
+
+### What broke
+
+- Nothing in the fixture change itself; the only hiccup was the transient
+  Vercel 403 noted above.
+
+### Decisions
+
+- D063 (agent-autonomous): in-place render-invisible fix to the published
+  tall-motion-v1 fixture, wiring counters before the scripted caret focus
+  and excluding that focus by target.

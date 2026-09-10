@@ -26,7 +26,9 @@
       Inert and self-contained: no network requests, no third-party code, no
       secrets, and no element that requires interaction to become visible.
       Version this file by copying it to a new -vN name; never edit a
-      published version in place.
+      published version in place. The one exception is a render-invisible
+      fix — identical layout, text, and pixels — such as the 2026-09-10
+      focus-ordering flake fix (D063), which changed only script timing.
     -->
     <style>
       :root {
@@ -267,12 +269,18 @@
         byId("navigation-count").textContent =
           "navigation-count: " + performance.getEntriesByType("navigation").length;
 
-        // Focus the caret region before the counters are wired: the fixture's
-        // own scripted focus must not be reported as an interaction.
-        byId("caret-box").focus({ preventScroll: true });
-
         // --- interaction counters (must stay zero through a capture) --------
+        // The counters are wired BEFORE the scripted caret focus below. The
+        // earlier order (focus first, wire second) was flaky: Chromium defers
+        // focusin delivery for a page that is not focused yet, so the event
+        // could land after wiring and count the fixture's own focus as an
+        // interaction. Ordering alone cannot remove that race — a deferred
+        // focusin can arrive at any later moment — so the listener excludes
+        // the fixture's own caret-box focus explicitly, whenever it arrives.
+        // Capture itself never focuses anything, so the exclusion cannot mask
+        // a real interaction.
         var counts = { click: 0, keydown: 0, pointerdown: 0, touchstart: 0, submit: 0, focusin: 0 };
+        var caretBox = byId("caret-box");
         var renderCounters = function () {
           var text =
             "interactions: click:" +
@@ -293,7 +301,10 @@
         Object.keys(counts).forEach(function (name) {
           document.addEventListener(
             name,
-            function () {
+            function (event) {
+              if (name === "focusin" && event.target === caretBox) {
+                return;
+              }
               counts[name] += 1;
               renderCounters();
             },
@@ -302,6 +313,12 @@
         });
         renderCounters();
         window.setInterval(renderCounters, 100);
+
+        // Focus the caret region so the caret motion case holds a real
+        // blinking caret until capture stabilization hides it. The counters
+        // above stay at zero: the focusin listener excludes this exact
+        // scripted focus even when Chromium delivers the event deferred.
+        caretBox.focus({ preventScroll: true });
 
         // --- scroll and lazy reveal -----------------------------------------
         var scrollEvents = 0;

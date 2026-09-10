@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 14 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 37 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062 |
+| Agent decided alone | 38 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **62** | |
+| **Total** | **63** | |
 
 ## Index
 
@@ -88,6 +88,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D060](#d060--navigate-mode-never-moves-a-mark-and-a-tap-on-a-saved-pin-selects-it-pin-dragging-lives-in-place-pin-mode-and-e2e-specs-share-the-seeded-plane-by-horizontal-bands) | build | Navigate mode never moves a mark and a tap on a saved pin selects it; pin dragging lives in Place pin mode, and e2e specs share the seeded plane by horizontal bands | Agent decided alone | accepted |
 | [D061](#d061--pin-mutation-lifecycle-explicit-context-decision-with-server-derived-snapshots-expectedrevision-optimistic-concurrency-on-moveeditdelete-tombstone-deletes-and-authoritative-reloads-after-conflict) | build | Pin mutation lifecycle: explicit context decision with server-derived snapshots, expectedRevision optimistic concurrency on move/edit/delete, tombstone deletes, and authoritative reloads after conflict | Agent decided alone | accepted |
 | [D062](#d062--anchor-node-drags-at-pointer-down-react-flow-nodedragthreshold-set-to-0-after-e2e-caught-every-drop-landing-a-few-pixels-short) | build | Anchor node drags at pointer-down: React Flow nodeDragThreshold set to 0 after e2e caught every drop landing a few pixels short | Agent decided alone | accepted |
+| [D063](#d063--fix-the-tall-motion-v1-focus-flake-in-place-wire-interaction-counters-before-the-scripted-caret-focus-and-exclude-that-focus-by-target) | validate | Fix the tall-motion-v1 focus flake in place: wire interaction counters before the scripted caret focus and exclude that focus by target | Agent decided alone | accepted |
 
 ---
 
@@ -2382,4 +2383,38 @@ The failure was measured end-to-end and the library source confirmed the mechani
 
 ---
 
-<sub>Generated from 62 record(s) as of 2026-09-10 · source `0720a41db1b5`</sub>
+## D063 — Fix the tall-motion-v1 focus flake in place: wire interaction counters before the scripted caret focus and exclude that focus by target
+
+*2026-09-10 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The real-provider motion suite intermittently failed its zero-interaction-counters assertion: tall-motion-v1 focused #caret-box before wiring its interaction counters, and Chromium defers focusin delivery for a page that is not focused yet, so the fixture's own scripted focus could land after the listeners were attached and be counted as an interaction (the known flake from user-testing round 1).
+
+**Decision**
+
+Edit tall-motion-v1 in place rather than publishing a v2: the interaction counters are wired before the #caret-box focus call, and the focusin listener ignores events targeted at the fixture's own #caret-box, so the fixture's scripted focus is excluded deterministically no matter when Chromium delivers the event. Republished through npm run fixtures:publish, which re-verified a byte-exact readback and updated host.json.
+
+**Alternatives considered**
+
+- *Only reorder — wire the counters first, focus second, no exclusion* — Ordering alone cannot remove the race: a deferred focusin can arrive at any later moment, and when delivery is synchronous the fixture's own focus would be counted deterministically. The assertion would fail always instead of intermittently.
+- *Publish the fix as a new tall-motion-v2 version* — The change is render-invisible — identical layout, text, and pixels — so a new version would churn the publish script, host.json, and suite expectations for no capture-behavior difference. The versioning rule exists to protect the pixel-diff reference, which this change cannot move.
+- *Drop the scripted focus (and the caret motion case)* — The caret case needs a real focused editable region to prove capture hides carets; removing it weakens the motion matrix the contract names.
+
+**Rationale**
+
+The mission feature fixture-tall-motion-focus-ordering, created from the user-testing round 1 handoff, directed the in-place ordering fix; the exclusion-by-target is the smallest mechanism that makes the counter deterministic under deferred event delivery. Safe to decide unilaterally: it is a fixture-only change with no product surface, and the real-provider suite proves it three consecutive runs.
+
+**Consequences**
+
+- A render-invisible fix (identical layout, text, and pixels) may be made in place on a published capture fixture; render-visible changes still require a new -vN version.
+- The focusin counter still proves capture never interacts: the capture pipeline performs no focus calls at all, so excluding the fixture's own caret-box focus cannot mask a real interaction.
+
+**Artifacts**
+
+- `test/fixtures/capture/tall-motion-v1.html` — Counter wiring now precedes the scripted caret focus; the focusin listener excludes the fixture's own caret-box focus.
+- `test/fixtures/capture/host.json` — Republished durable fixture record with the new tall-motion-v1 sha256.
+
+---
+
+<sub>Generated from 63 record(s) as of 2026-09-10 · source `fceca8685f9c`</sub>

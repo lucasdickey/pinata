@@ -2710,6 +2710,50 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D063",
+      "date": "2026-09-10",
+      "phase": "validate",
+      "title": "Fix the tall-motion-v1 focus flake in place: wire interaction counters before the scripted caret focus and exclude that focus by target",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The real-provider motion suite intermittently failed its zero-interaction-counters assertion: tall-motion-v1 focused #caret-box before wiring its interaction counters, and Chromium defers focusin delivery for a page that is not focused yet, so the fixture's own scripted focus could land after the listeners were attached and be counted as an interaction (the known flake from user-testing round 1).",
+      "decision": "Edit tall-motion-v1 in place rather than publishing a v2: the interaction counters are wired before the #caret-box focus call, and the focusin listener ignores events targeted at the fixture's own #caret-box, so the fixture's scripted focus is excluded deterministically no matter when Chromium delivers the event. Republished through npm run fixtures:publish, which re-verified a byte-exact readback and updated host.json.",
+      "alternatives": [
+        {
+          "option": "Only reorder — wire the counters first, focus second, no exclusion",
+          "why_not": "Ordering alone cannot remove the race: a deferred focusin can arrive at any later moment, and when delivery is synchronous the fixture's own focus would be counted deterministically. The assertion would fail always instead of intermittently."
+        },
+        {
+          "option": "Publish the fix as a new tall-motion-v2 version",
+          "why_not": "The change is render-invisible — identical layout, text, and pixels — so a new version would churn the publish script, host.json, and suite expectations for no capture-behavior difference. The versioning rule exists to protect the pixel-diff reference, which this change cannot move."
+        },
+        {
+          "option": "Drop the scripted focus (and the caret motion case)",
+          "why_not": "The caret case needs a real focused editable region to prove capture hides carets; removing it weakens the motion matrix the contract names."
+        }
+      ],
+      "rationale": "The mission feature fixture-tall-motion-focus-ordering, created from the user-testing round 1 handoff, directed the in-place ordering fix; the exclusion-by-target is the smallest mechanism that makes the counter deterministic under deferred event delivery. Safe to decide unilaterally: it is a fixture-only change with no product surface, and the real-provider suite proves it three consecutive runs.",
+      "consequences": [
+        "A render-invisible fix (identical layout, text, and pixels) may be made in place on a published capture fixture; render-visible changes still require a new -vN version.",
+        "The focusin counter still proves capture never interacts: the capture pipeline performs no focus calls at all, so excluding the fixture's own caret-box focus cannot mask a real interaction."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "test/fixtures/capture/tall-motion-v1.html",
+          "caption": "Counter wiring now precedes the scripted caret focus; the focusin listener excludes the fixture's own caret-box focus."
+        },
+        {
+          "type": "file",
+          "path": "test/fixtures/capture/host.json",
+          "caption": "Republished durable fixture record with the new tall-motion-v1 sha256."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
