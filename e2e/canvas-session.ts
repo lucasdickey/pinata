@@ -3,7 +3,7 @@
 // live camera reads from the supported viewport element, and the pure
 // flow/screen transforms the measurements invert. Everything is read-only.
 
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
 import { requireLocalEnvValue } from "./local-env";
 
@@ -20,6 +20,8 @@ export interface ReadyTarget {
   captureId: string;
   width: number;
   height: number;
+  /** Owning project title, used to scope tree clicks when two projects share page URLs. */
+  projectTitle?: string;
 }
 
 /**
@@ -40,12 +42,15 @@ export async function findReadyTarget(
   page: Page,
   variant?: "desktop" | "mobile",
   preferUrl?: string,
+  preferTitle?: string,
 ): Promise<ReadyTarget | null> {
-  return page.evaluate(async ({ wanted, url }) => {
+  return page.evaluate(async ({ wanted, url, title }) => {
     const response = await fetch("/api/projects", { cache: "no-store" });
     if (!response.ok) return null;
     const payload = (await response.json()) as {
       projects: {
+        title: string;
+        createdAt: number;
         pages: {
           normalizedUrl: string;
           devices: {
@@ -68,8 +73,11 @@ export async function findReadyTarget(
       width: number;
       height: number;
       seeded: boolean;
+      projectTitle: string;
+      projectCreatedAt: number;
     }[] = [];
     for (const project of payload.projects) {
+      if (title && project.title !== title) continue;
       for (const p of project.pages) {
         for (const device of p.devices) {
           if (wanted && device.variant !== wanted) continue;
@@ -88,14 +96,28 @@ export async function findReadyTarget(
               width: ready.documentWidth,
               height: ready.documentHeight,
               seeded: /^https:\/\/chickpea\.co\//.test(p.normalizedUrl),
+              projectTitle: project.title,
+              projectCreatedAt: project.createdAt,
             });
           }
         }
       }
     }
+    // The project list arrives newest-first, and the production Chickpea
+    // demo project (first-production-deployment) deliberately stays in the
+    // shared store — so "the seeded pages" must mean the OLDEST matching
+    // project, the local seed, not whichever Chickpea project is newest.
+    // Non-seeded URL matches keep newest-first so a spec's own run-scoped
+    // project wins over any leaked twin.
+    const oldestSeeded = (list: typeof candidates) =>
+      list.reduce<(typeof candidates)[number] | null>(
+        (best, c) => (best === null || c.projectCreatedAt < best.projectCreatedAt ? c : best),
+        null,
+      );
+    const urlMatches = url ? candidates.filter((c) => c.pageUrl === url) : [];
     const chosen = url
-      ? (candidates.find((c) => c.pageUrl === url) ?? null)
-      : (candidates.find((c) => c.seeded) ?? candidates[0] ?? null);
+      ? (oldestSeeded(urlMatches.filter((c) => c.seeded)) ?? urlMatches[0] ?? null)
+      : (oldestSeeded(candidates.filter((c) => c.seeded)) ?? candidates[0] ?? null);
     if (!chosen) return null;
     return {
       pageUrl: chosen.pageUrl,
@@ -103,8 +125,9 @@ export async function findReadyTarget(
       captureId: chosen.captureId,
       width: chosen.width,
       height: chosen.height,
+      projectTitle: chosen.projectTitle,
     };
-  }, { wanted: variant, url: preferUrl });
+  }, { wanted: variant, url: preferUrl, title: preferTitle });
 }
 
 /** The navigation button name for a plane in the workspace tree. */
@@ -112,9 +135,24 @@ export function deviceButtonName(target: ReadyTarget): string {
   return `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`;
 }
 
+/**
+ * The device button for a plane. Two projects can hold the same page URL
+ * (the local Chickpea seed and the production demo project), so when the
+ * owning project title is known the button is only unique inside that
+ * project's tree entry.
+ */
+export function planeButton(page: Page, target: ReadyTarget): Locator {
+  const tree = target.projectTitle
+    ? page
+        .getByRole("listitem")
+        .filter({ has: page.getByRole("heading", { name: target.projectTitle, exact: true }) })
+    : page;
+  return tree.getByRole("button", { name: deviceButtonName(target), exact: true });
+}
+
 /** Select a plane and wait for its screenshot to decode at natural size. */
 export async function openPlane(page: Page, target: ReadyTarget): Promise<void> {
-  await page.getByRole("button", { name: deviceButtonName(target), exact: true }).click();
+  await planeButton(page, target).click();
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>(".capture-frame-image");

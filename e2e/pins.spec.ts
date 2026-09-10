@@ -19,11 +19,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM } from "../src/lib/canvas/camera";
 import {
-  deviceButtonName,
   findClearAim,
   findReadyTarget,
   openPlane,
   panUntilNaturalVisible,
+  planeButton,
   readCamera,
   signIn,
   toNatural,
@@ -179,10 +179,13 @@ async function placeAndSave(
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
   // Wait for the context panel's quiescent marker before touching any
   // control inside it: the async candidates render once detached the
-  // "No element" radio mid-click under full-gate CPU contention.
+  // "No element" radio mid-click under full-gate CPU contention. The
+  // generous timeout covers a slow candidates round trip under full-gate
+  // load, not a behavior change.
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
+    { timeout: 15_000 },
   );
   await page.getByLabel("Comment").fill(body);
   // The explicit context decision is required before Save (VAL-PIN-003):
@@ -272,7 +275,7 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   // Reload: the server record is byte-identical and the badge renders it.
   const beforeReload = await listPins(page, target.captureId);
   await page.reload();
-  await page.getByRole("button", { name: deviceButtonName(target), exact: true }).click();
+  await planeButton(page, target).click();
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();
@@ -501,7 +504,7 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
 
   // Reload stability: the clamped tip is exactly what the server kept.
   await page.reload();
-  await page.getByRole("button", { name: deviceButtonName(target), exact: true }).click();
+  await planeButton(page, target).click();
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();

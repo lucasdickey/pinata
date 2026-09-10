@@ -18,12 +18,12 @@
 import { expect, test } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
 import {
-  deviceButtonName,
   expectedContainZoom,
   expectEntireCaptureVisible,
   findReadyTarget,
   openPlane,
   paneRect,
+  planeButton,
   readCamera,
   signIn,
   toNatural,
@@ -208,7 +208,6 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
   test.skip(!target, "no ready capture in the local store");
   const doc = { width: target!.width, height: target!.height };
 
-  const deviceName = deviceButtonName(target!);
   await openPlane(page, target!);
 
   // Take the camera somewhere else, then reload: the camera is local state,
@@ -217,7 +216,7 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
   await waitForZoom(page, 1);
   expect((await readCamera(page)).zoom).toBe(1);
   await page.reload();
-  await page.getByRole("button", { name: deviceName, exact: true }).click();
+  await planeButton(page, target!).click();
   await expect(page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
   await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
     "aria-pressed",

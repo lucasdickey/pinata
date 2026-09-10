@@ -2714,3 +2714,97 @@ fresh UUID keys.
 ### Assertions
 
 VAL-LANDING-001, VAL-LANDING-002, VAL-LANDING-003.
+
+## 2026-09-10 — first production deployment: protection-on smoke, real Chickpea capture, runbook
+
+### What happened
+
+Deployed the exact gate-validated commit `523dcd9` to Vercel production
+(https://pinata-lucasdickeys-projects.vercel.app). Three prior production
+deployments were in Error status: the project's framework preset was still
+`Other` from the pre-Next.js readiness setup, so every GitHub-triggered build
+failed in seconds. Set the preset to `nextjs` via the Vercel API and deployed
+with `vercel deploy --prod`; the CLI attaches local git metadata, so the
+deployment record's `githubCommitSha` and the `/reqs` pages' displayed
+revision both read `523dcd9b2bd94f8b77de5da3adb0d55358f14d3e`.
+
+Deployment protection stays ON (`all_except_custom_domains`; anonymous GET
+redirects to Vercel SSO). To run the required production smoke against the
+protected deployment, enabled Vercel's Protection Bypass for Automation (one
+high-entropy project secret, header-only use, never printed or committed).
+Recorded as D068 (agent-autonomous): it is the documented mechanism that
+satisfies "protection ON" and "smoke the real deployment" at once; the
+rejected alternatives (protection-off window, local-build substitution,
+SSO-as-the-user) are in the record.
+
+Production evidence, all against the real deployment:
+
+- `scripts/production-smoke.mjs` (committed, idempotent): 24/24 checks pass —
+  SSO wall confirmed, all five `/reqs` routes render from their repository
+  sources with the exact deployed SHA, wrong-password 401, real login,
+  project `rOqjVjw0G0Cf` ("Chickpea (production)") created with the root +
+  /pricing + /about + /privacy array, all 8 captures driven to ready through
+  the deployment's own dispatch route in 4-9s each against real
+  Browserless/Turso/Blob, asset GET returns byte-exact SHA-256-matched image
+  with `private, no-store`, post-logout anonymous asset GET is a bounded
+  401 JSON denial (36 bytes, no image bytes), pins with comments persist
+  across a fresh session, and a scoped recapture starts with zero
+  annotations.
+- `scripts/chickpea-baseline.mjs` (committed): the same-run direct-browser
+  baseline VAL-CAPTURE-011 requires — requested/final URLs, top headings,
+  below-fold and footer landmarks, document heights, mobile menu state
+  (7 closed-menu link labels), and animated regions (22 on mobile home, 0
+  elsewhere; the controlled tall-motion fixture retains mandatory animation
+  proof, Chickpea's regions are CSS animations covered by the freeze policy).
+- Manifest-vs-baseline verification: 17/17 — every capture's document
+  dimensions exactly match the baseline (e.g. mobile home 390x13091), h1 and
+  below-fold landmarks preserved per element, footer landmarks present,
+  mobile planes are the 390 CSS-px touch plane, and zero manifest elements
+  descend from the closed `mnav` menu (label-substring checks are confounded
+  because the menu labels also appear as visible footer/section text).
+- `e2e/production-smoke.spec.ts` (committed, env-gated): 3/3 — UI sign-in,
+  dense-cell pin placed at 8x with an explicit element choice surviving a
+  production reload, Mobile-home "No element" pin isolated from the Desktop
+  plane, unauthorized context denied (401, bounded) with the SSO wall
+  confirmed up.
+
+### Dead ends / fixes along the way
+
+- My first smoke assertion demanded a zero-byte body on the 401 asset
+  denial; the bounded JSON error body is the contract, so the check became
+  status + content-type + size bound.
+- First UI run hit a strict-mode collision: the local seed and the
+  production demo project both render "Desktop capture of
+  https://chickpea.co/pricing" buttons. `e2e/canvas-session.ts` now scopes
+  plane clicks by the project heading and pins seeded-target selection to
+  the OLDEST matching project, so the local suite can never write into the
+  production demo data (the hierarchy is newest-first).
+- A placement click went stale because entering pin mode scrolls the page;
+  screen points are now computed after the toolbar click.
+- The mobile placement at contain zoom landed on an existing pin badge (a
+  screen-sized badge spans hundreds of natural px at 0.04x); the spec places
+  at natural size with a clear-band aim.
+- The no-bypass SSO assertion first failed because `browser.newContext()`
+  inherits the file's `test.use` extraHTTPHeaders — the "walled" context was
+  quietly carrying the bypass. It now passes `extraHTTPHeaders: {}`
+  explicitly.
+
+### Known weakness documented, not fixed
+
+Logout revocation is an in-memory per-instance denylist; a revoked session
+can verify on a different serverless instance until absolute expiry. Observed
+behavior this run: the old cookie was denied (401) post-logout. README's new
+Deployment section documents the weakness, the runbook, the production URL,
+and the automation-bypass posture.
+
+### Decisions
+
+- D068 (agent-autonomous): Next.js preset fix, CLI deploy with git metadata,
+  Protection Bypass for Automation for the smoke, protection unchanged.
+
+### Assertions
+
+VAL-CROSS-001 (production Chickpea editor loop), VAL-CAPTURE-011 (real
+Chickpea lazy/animated/mobile capture set against a same-run baseline),
+VAL-REQS-003 (deployed source revision + provenance cues match deployment
+metadata).

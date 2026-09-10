@@ -170,3 +170,72 @@ npm run dev    # Next.js on http://127.0.0.1:3100
 
 Port 3100 is reserved for this project; the dev and production servers bind
 only to localhost.
+
+## Deployment
+
+Production lives at **https://pinata-lucasdickeys-projects.vercel.app**
+(also aliased as `pinata-tau.vercel.app`), on the Vercel project `pinata`,
+Node 24, Next.js preset. The first production deployment is recorded as
+[`D068`](docs/DECISIONS.md#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke).
+
+Six environment variable **names** must exist in the Vercel Production
+environment (values are managed in Vercel and never committed):
+`BROWSERLESS_TOKEN`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`,
+`BLOB_READ_WRITE_TOKEN`, `EDITOR_PASSWORD`, and `SESSION_SECRET`.
+`PINATA_AUTH_DISABLED` must never be set in any Vercel environment; that
+bypass is local-only (`D052`).
+
+### Runbook
+
+1. Land the change on `main` with `npm run validate` green under Node 24.
+2. Pushing to `main` deploys production automatically through the GitHub
+   integration. To deploy the exact checked-out commit by hand instead:
+   `vercel deploy --prod --yes` (the CLI attaches the local git metadata, so
+   the deployment record and the `/reqs` pages show the same commit SHA).
+3. Verify: `vercel ls pinata --prod` shows the new deployment Ready and
+   aliased; `vercel inspect <deployment-url>` names the commit; the deployed
+   `/reqs` pages display that same SHA.
+4. Roll back by redeploying the previous Ready deployment from the Vercel
+   dashboard (`…` → Redeploy) or by deploying the earlier commit.
+
+### Production smoke
+
+Deployment protection (Vercel SSO) stays **on**. Automation reaches the
+deployment through the project's Protection Bypass for Automation secret,
+sent as the `x-vercel-protection-bypass` header; browsers without it get the
+SSO redirect. With the secret in an environment variable or a local
+0600-permission file (never in the repository):
+
+```bash
+# API-level smoke: protection posture, /reqs hub + commit SHA, login, the
+# real Chickpea project (root + /pricing + /about + /privacy, 8 captures)
+# driven to ready through the deployment's own dispatch route, private-asset
+# authorization, pin persistence, and a scoped recapture that starts empty.
+node --env-file=.env.local scripts/production-smoke.mjs \
+  https://pinata-lucasdickeys-projects.vercel.app --bypass-file <file>
+
+# Browser-level smoke (Playwright): UI sign-in, dense-cell pin at 8x with an
+# explicit element choice, reload persistence, mobile/desktop isolation, and
+# the unauthorized-denial matrix.
+VERCEL_AUTOMATION_BYPASS_SECRET=... npx playwright test e2e/production-smoke.spec.ts
+```
+
+`scripts/chickpea-baseline.mjs` records the same-run direct-browser Chickpea
+baseline (requested/final URLs, landmarks, document heights, mobile menu
+state, animated regions) that a capture run is compared against.
+
+### Known weaknesses
+
+- **Session revocation is in-memory per serverless instance.** Logout
+  invalidates the session id in the instance that served the request; a
+  revoked session can remain usable until its absolute expiry if a later
+  request lands on a different instance. The session lifetime is short, but
+  durable revocation (a Turso-backed denylist, the same pattern as the login
+  throttle) is the follow-up — tracked in `docs/NEXT.md`.
+- **The automation-bypass secret skips deployment protection entirely.** It
+  exists to keep CI-style smoke possible while SSO stays on; rotate it from
+  the project settings if it may have leaked, and redeploy.
+- **Turso and Blob are shared between local development and production**
+  (one Vercel-integrated database and store), so local test fixtures and the
+  production demo project coexist in the same tables; run-scoped cleanup and
+  the oldest-seed pinning in `e2e/canvas-session.ts` keep them apart.

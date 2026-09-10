@@ -12,12 +12,12 @@
 import { expect, test, type CDPSession, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM } from "../src/lib/canvas/camera";
 import {
-  deviceButtonName,
   expectedContainZoom,
   findClearAim,
   findReadyTarget,
   openPlane,
   panUntilNaturalVisible,
+  planeButton,
   readCamera,
   signIn,
   toNatural,
@@ -326,7 +326,7 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
 
   // Reload stability: the transient draft is gone and no write ever left.
   await page.reload();
-  await page.getByRole("button", { name: deviceButtonName(target), exact: true }).click();
+  await planeButton(page, target).click();
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expectNoWrites(page, tracked);
