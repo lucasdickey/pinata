@@ -3260,6 +3260,61 @@
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D074",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Turn off Vercel deployment protection on production so a founder link can be opened without a Vercel account",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "D068 deployed production with Vercel SSO protection ON, which was right while the only visitor was the owner demoing over screen share. It is incompatible with the product's core premise: a founder receives an unguessable link and opens it with no account and no signup (REQUIREMENTS, 'Who it serves'). With protection on, every anonymous visitor is redirected to Vercel SSO before the application is reached, so a founder link cannot be opened by the founder at all.",
+      "decision": "Per the user's direction, Vercel Authentication is set to Disabled for the pinata project, applied by the owner in the project's Deployment Protection settings. The deployment is now publicly reachable and the application's own authorization is the only wall. This reverses ONLY the protection-posture clause of D068; the Next.js framework preset, the deployed commit identity, and the Protection-Bypass-for-Automation mechanism are unchanged, and the bypass secret simply becomes inert.",
+      "alternatives": [
+        {
+          "option": "Keep protection on and add each founder to the Vercel team",
+          "why_not": "It contradicts the product definition: founders get a link, not an account (D018). It also costs a Vercel seat per friend and hands them access to the project's settings and logs."
+        },
+        {
+          "option": "Scope protection to all domains except a custom domain, then put founders on the custom domain",
+          "why_not": "No custom domain is configured for this project, so there is nothing to except. Worth revisiting if one is added."
+        },
+        {
+          "option": "Hand founders the Protection-Bypass-for-Automation secret",
+          "why_not": "That secret is a single shared master key that disables protection for anyone holding it, across the whole deployment, with no per-project scope and no revocation short of rotating it for every consumer. The application's own capability links are narrower and revocable."
+        }
+      ],
+      "rationale": "The human directed it explicitly. The application was designed from the start to be its own authorization boundary — server-only secrets, an editor session verified close to every data access, digest-only capability storage, and bounded generic denials — so removing the outer wall exposes no data path that was not already meant to face the public internet. The posture was verified from outside immediately after the change rather than assumed.",
+      "consequences": [
+        "Verified anonymously against the deployed commit 3abab99 on 2026-09-10: / returns 200 and renders the sign-in prompt with no Vercel SSO redirect, the five /reqs routes and /icon.svg return 200, and /api/projects, /api/editor/session, and the capture asset, manifest, context, and annotations routes each return the identical bounded 36-byte JSON denial with no session cookie issued.",
+        "The editor password plus the durable login throttle (D026) is now the entire defence of the editor surface; the in-memory logout revocation weakness (D068) is unchanged but now sits behind one wall instead of two.",
+        "PINATA_AUTH_DISABLED (D052) becomes materially more dangerous: isAuthDisabled() has no environment check, so setting it in Vercel would authorize every anonymous visitor as the editor. It was verified absent from production by behaviour (the sign-in prompt renders). Hardening it so it cannot activate on a deployment is now a listed follow-up in docs/NEXT.md.",
+        "The production smoke's protection assertions were inverted rather than deleted: scripts/production-smoke.mjs and e2e/production-smoke.spec.ts now assert that an anonymous visitor reaches the application, that the sign-in prompt still renders, and that an editor route still refuses — so a silent re-enabling of protection fails the smoke instead of passing it.",
+        "Both smoke surfaces no longer require the bypass secret: the script warns and proceeds without it, and the Playwright spec gates on EDITOR_PASSWORD alone.",
+        "Founder links are still 404 in production: /f/<publicId> ships on the feat/founder-links branch (PR #2), which merged into main later the same day; production has served the route since."
+      ],
+      "transcript": {
+        "request": "turn off SSO protection so founders can actually open links"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "scripts/production-smoke.mjs",
+          "caption": "Check 1 inverted: anonymous reachability, the sign-in prompt, and a bounded anonymous denial are asserted together."
+        },
+        {
+          "type": "file",
+          "path": "e2e/production-smoke.spec.ts",
+          "caption": "The former SSO-wall test now asserts the application is the wall."
+        },
+        {
+          "type": "file",
+          "path": "README.md",
+          "caption": "Deployment section and known weaknesses updated to the public posture."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

@@ -47,16 +47,23 @@ In the order I would actually do them:
    permanently non-retryable, so a Browserless flake leaves a failed capture
    with no recovery in the UI. Distinguishing execution-time from
    admission-time redirects is a small catalog and retry-route change.
-4. **Durable session revocation.** Logout is an in-memory denylist per
+4. **Make the local auth bypass impossible to enable on a deployment.**
+   `isAuthDisabled()` in `src/lib/server/auth/bypass.ts` returns true for
+   `PINATA_AUTH_DISABLED=1` in any environment; only a comment stops it from
+   being set in Vercel, where it would authorize every anonymous visitor as
+   the editor. Deployment protection used to contain that mistake and no
+   longer does (`D074`). Gate the function on not running on Vercel, and
+   test it.
+5. **Durable session revocation.** Logout is an in-memory denylist per
    serverless instance; a Turso-backed denylist, the same pattern as the
    login throttle, closes it.
-5. **Rectangles, circles, and arrows**, inheriting the pin contract from
+6. **Rectangles, circles, and arrows**, inheriting the pin contract from
    `D061`: explicit context decision, revisioned mutations, tombstone
    deletes.
-6. **Pin quota relief in the test suite**: a scratch capture per run or
+7. **Pin quota relief in the test suite**: a scratch capture per run or
    teardown deletion, so repeated gate runs stop consuming the 200-pin
    per-capture quota on the seeded capture.
-7. **The visual design pass and keyboard placement of pins**, then the
+8. **The visual design pass and keyboard placement of pins**, then the
    hardening list from `D051`.
 
 ## Known weaknesses
@@ -66,9 +73,11 @@ Honest list. Things a reviewer would find if they looked for five minutes.
 - **The product is editor-only today.** Founder links, the read/reply view,
   and threads are described in the requirements and architecture as the
   vision; the current build stops at pins and comments (`D051`).
-- **Production sits behind Vercel SSO**, so only the owner can open it. That
-  is right for a demo over screen share and wrong for use in the wild; it
-  stays until the founder loop and the hardening list land.
+- **Production is publicly reachable** as of 2026-09-10 (`D074`), so the
+  editor password and its durable throttle are the whole defence, and the
+  unguarded `PINATA_AUTH_DISABLED` flag above is now a sharper edge than it
+  was. Founder links themselves still 404 in production until the
+  founder-links branch merges.
 - **Local development, the e2e suite, and production share one Turso
   database and one Blob store.** See item 2 above.
 - **Session revocation is in-memory per serverless instance.** See item 4

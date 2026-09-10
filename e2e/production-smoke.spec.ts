@@ -1,17 +1,18 @@
 // Production smoke for the first real deployment (first-production-deployment;
 // VAL-CROSS-001's editor loop on the deployed surface). Unlike every other
 // spec this one targets the Vercel production deployment, not the local
-// server: deployment protection stays ON, so requests carry the project's
-// Protection-Bypass-for-Automation secret in a header (Vercel's documented
-// automation mechanism — the SSO wall itself is asserted shut in the last
-// test). The editor password is read through the shared env gate inside the
-// test process and never printed.
+// server: deployment protection is OFF since D074, so the deployment is
+// publicly reachable and the application's own authorization is the only
+// wall — the last test asserts exactly that. The protection-bypass header is
+// still sent when the secret is configured, so this spec keeps working if
+// protection is ever re-enabled. The editor password is read through the
+// shared env gate inside the test process and never printed.
 //
-// The spec is skipped unless VERCEL_AUTOMATION_BYPASS_SECRET and the editor
-// credentials are configured in the process environment, so `npm run
-// validate` (local and CI) is unaffected. Run it after a deploy with:
+// The spec is skipped unless the editor credentials are configured in the
+// process environment, so `npm run validate` (local and CI) is unaffected.
+// Run it after a deploy with:
 //
-//   VERCEL_AUTOMATION_BYPASS_SECRET=... npx playwright test e2e/production-smoke.spec.ts
+//   npx playwright test e2e/production-smoke.spec.ts
 //
 // It writes two real pins (one /pricing Desktop with an explicit element
 // choice, one Mobile home with "No element") into the production Chickpea
@@ -34,7 +35,9 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 
-const gate = localEnvGate(["EDITOR_PASSWORD", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
+// Only the editor password is required: deployment protection is off (D074),
+// so no bypass secret is needed to reach the deployment.
+const gate = localEnvGate(["EDITOR_PASSWORD"]);
 
 const PRODUCTION_URL =
   process.env.PINATA_PRODUCTION_URL ?? "https://pinata-lucasdickeys-projects.vercel.app";
@@ -254,7 +257,7 @@ test("a Mobile home pin with an explicit No-element choice stays on its own plan
   expect(consoleErrors, `console errors: ${consoleErrors.join(" | ")}`).toEqual([]);
 });
 
-test("an unauthorized browser gets no capture bytes, and the SSO wall stays up (VAL-CROSS-001)", async ({
+test("an unauthorized browser gets no capture bytes, and the application is the wall (VAL-CROSS-001)", async ({
   browser,
   page,
 }) => {
@@ -271,8 +274,8 @@ test("an unauthorized browser gets no capture bytes, and the SSO wall stays up (
   );
   if (!target) throw new Error("production /pricing Desktop capture is not ready");
 
-  // A fresh browser context carrying the automation bypass but NO session:
-  // the application, not the SSO wall, must answer with the bounded denial.
+  // A fresh browser context with NO session: the application must answer
+  // with its own bounded denial.
   const anonymous = await browser.newContext({
     baseURL: PRODUCTION_URL,
     extraHTTPHeaders: {
@@ -290,16 +293,22 @@ test("an unauthorized browser gets no capture bytes, and the SSO wall stays up (
     await anonymous.close();
   }
 
-  // No bypass at all: Vercel's SSO wall answers before the application —
-  // the redirect chain must leave the deployment for vercel.com. The empty
-  // extraHTTPHeaders matter: browser.newContext() would otherwise inherit
-  // this file's test.use bypass header.
-  const walled = await browser.newContext({ baseURL: PRODUCTION_URL, extraHTTPHeaders: {} });
+  // No bypass header at all (the empty extraHTTPHeaders matter:
+  // browser.newContext() would otherwise inherit this file's test.use
+  // header). Deployment protection is off (D074), so the deployment itself
+  // must answer: the landing page is served, it still renders the sign-in
+  // prompt (proving the D052 auth bypass is not set in production), and an
+  // editor-only route still refuses. This fails if protection is ever
+  // silently re-enabled, which would redirect instead of serving.
+  const direct = await browser.newContext({ baseURL: PRODUCTION_URL, extraHTTPHeaders: {} });
   try {
-    const response = await walled.request.get("/", { maxRedirects: 0 });
-    expect(response.status()).toBe(302);
-    expect(response.headers()["location"] ?? "").toContain("vercel.com/sso");
+    const response = await direct.request.get("/", { maxRedirects: 0 });
+    expect(response.status()).toBe(200);
+    expect(response.headers()["location"] ?? "").not.toContain("vercel.com/sso");
+    expect(await response.text()).toContain('type="password"');
+    const refused = await direct.request.get("/api/projects");
+    expect(refused.status()).toBe(401);
   } finally {
-    await walled.close();
+    await direct.close();
   }
 });

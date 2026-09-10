@@ -2,7 +2,8 @@
 // Production smoke for the deployed Pinata (first-production-deployment).
 //
 // Drives the REAL deployment end to end with the deployment's own routes:
-// deployment-protection posture, the /reqs hub (five routes from repository
+// deployment-protection posture (now asserted OFF, D074), the /reqs hub
+// (five routes from repository
 // sources, displayed commit SHA), editor login, the real Chickpea project
 // (https://chickpea.co/ root plus the explicit /pricing, /about, /privacy
 // array; Desktop + Mobile = 8 captures) driven to ready through the
@@ -12,10 +13,11 @@
 // session, and a scoped recapture that starts empty.
 //
 // Secret hygiene: EDITOR_PASSWORD comes from the process environment (invoke
-// with `node --env-file=.env.local`), the Vercel deployment-protection bypass
-// secret comes from --bypass-file or VERCEL_AUTOMATION_BYPASS_SECRET. No
-// value is ever printed; responses are scanned for accidental echoes before
-// any snippet is logged.
+// with `node --env-file=.env.local`). The Vercel deployment-protection bypass
+// secret is OPTIONAL since D074 turned protection off: pass it via
+// --bypass-file or VERCEL_AUTOMATION_BYPASS_SECRET only if protection is
+// re-enabled. No value is ever printed; responses are scanned for accidental
+// echoes before any snippet is logged.
 //
 // The script is idempotent: the project is matched by title + root URL and
 // reused, ready captures are not redispatched, and every mutation carries a
@@ -25,7 +27,7 @@
 // Usage:
 //   node --env-file=.env.local scripts/production-smoke.mjs \
 //     https://pinata-lucasdickeys-projects.vercel.app \
-//     --bypass-file /tmp/pinata-automation-bypass [--expect-sha <40hex>]
+//     [--bypass-file /tmp/pinata-automation-bypass] [--expect-sha <40hex>]
 
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -49,16 +51,18 @@ const REQ_ROUTES = [
 const args = process.argv.slice(2);
 const baseUrl = args.find((a) => !a.startsWith("--"));
 if (!baseUrl || !/^https:\/\/[a-z0-9.-]+\.vercel\.app$/.test(baseUrl)) {
-  console.error("usage: production-smoke.mjs <https://....vercel.app> --bypass-file <path> [--expect-sha <sha>]");
+  console.error("usage: production-smoke.mjs <https://....vercel.app> [--bypass-file <path>] [--expect-sha <sha>]");
   process.exit(2);
 }
 const bypassFile = args[args.indexOf("--bypass-file") + 1] ?? null;
 const bypass =
   process.env.VERCEL_AUTOMATION_BYPASS_SECRET ??
   (bypassFile ? readFileSync(bypassFile, "utf8").trim() : undefined);
+// Optional since D074: with deployment protection off the header is inert.
+// It is still sent when supplied, so the smoke keeps working if protection
+// is ever re-enabled.
 if (!bypass) {
-  console.error("missing bypass secret (pass --bypass-file or VERCEL_AUTOMATION_BYPASS_SECRET)");
-  process.exit(2);
+  console.log("note: no protection-bypass secret supplied; requests go direct (protection is off, D074)");
 }
 const password = process.env.EDITOR_PASSWORD;
 if (!password) {
@@ -81,7 +85,7 @@ function report(ok, label, detail = "") {
 /** fetch with the protection bypass header; never logs secret-bearing data. */
 function call(path, { method = "GET", cookies = {}, csrf, body, bypass: useBypass = true } = {}) {
   const headers = { origin };
-  if (useBypass) headers["x-vercel-protection-bypass"] = bypass;
+  if (useBypass && bypass) headers["x-vercel-protection-bypass"] = bypass;
   const cookieHeader = Object.entries(cookies)
     .map(([k, v]) => `${k}=${v}`)
     .join("; ");
@@ -114,12 +118,33 @@ function parseSetCookies(response) {
 async function main() {
   console.log(`run ${runId} against ${baseUrl}`);
 
-  // 1. Deployment protection stays ON for visitors without the bypass.
-  const unprotected = await call("/", { bypass: false });
-  const sso =
-    unprotected.status === 302 &&
-    (unprotected.headers.get("location") ?? "").startsWith("https://vercel.com/sso");
-  report(sso, "deployment protection ON (anonymous request redirected to Vercel SSO)", `status ${unprotected.status}`);
+  // 1. Deployment protection is OFF (D074), so an anonymous visitor reaches
+  //    the APPLICATION and the application's own authorization is the wall.
+  //    Three things are asserted together, because "reachable" is only safe
+  //    while the other two hold: the landing page is served rather than an
+  //    SSO redirect, it renders the sign-in prompt (which proves the D052
+  //    auth bypass is NOT set in this environment — with it set the editor
+  //    workspace would render instead), and an editor-only route still
+  //    answers an anonymous caller with the bounded generic denial.
+  const anonymousHome = await call("/", { bypass: false });
+  const anonymousHtml = anonymousHome.status === 200 ? await anonymousHome.text() : "";
+  const redirectedToSso = (anonymousHome.headers.get("location") ?? "").includes("vercel.com/sso");
+  report(
+    anonymousHome.status === 200 && !redirectedToSso,
+    "deployment protection OFF (anonymous request reaches the application)",
+    `status ${anonymousHome.status}`,
+  );
+  report(
+    anonymousHtml.includes('type="password"'),
+    "editor auth is live for anonymous visitors (sign-in prompt rendered, no auth bypass)",
+  );
+  const anonymousProjects = await call("/api/projects", { bypass: false });
+  const anonymousBody = await anonymousProjects.text();
+  report(
+    anonymousProjects.status === 401 && anonymousBody.length < 1024,
+    "the application is the wall (anonymous /api/projects -> bounded 401)",
+    `status ${anonymousProjects.status}, ${anonymousBody.length}b`,
+  );
 
   // 2. The /reqs hub serves all five routes from repository sources and
   //    identifies the exact deployed commit (VAL-REQS-003).

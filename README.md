@@ -220,11 +220,14 @@ bypass is local-only (`D052`).
 
 ### Production smoke
 
-Deployment protection (Vercel SSO) stays **on**. Automation reaches the
-deployment through the project's Protection Bypass for Automation secret,
-sent as the `x-vercel-protection-bypass` header; browsers without it get the
-SSO redirect. With the secret in an environment variable or a local
-0600-permission file (never in the repository):
+Deployment protection (Vercel SSO) is **off** as of 2026-09-10
+([`D074`](docs/DECISIONS.md#d074--turn-off-vercel-deployment-protection-on-production-so-a-founder-link-can-be-opened-without-a-vercel-account)),
+so the deployment is publicly reachable and the application's own
+authorization is the wall: the landing page, the favicon, and the `/reqs`
+hub are public by design, and every editor route answers an anonymous caller
+with the same bounded `401` denial. The smoke asserts that posture directly
+and no longer needs a bypass secret; pass one only if protection is
+re-enabled:
 
 ```bash
 # API-level smoke: protection posture, /reqs hub + commit SHA, login, the
@@ -232,12 +235,12 @@ SSO redirect. With the secret in an environment variable or a local
 # driven to ready through the deployment's own dispatch route, private-asset
 # authorization, pin persistence, and a scoped recapture that starts empty.
 node --env-file=.env.local scripts/production-smoke.mjs \
-  https://pinata-lucasdickeys-projects.vercel.app --bypass-file <file>
+  https://pinata-lucasdickeys-projects.vercel.app
 
 # Browser-level smoke (Playwright): UI sign-in, dense-cell pin at 8x with an
 # explicit element choice, reload persistence, mobile/desktop isolation, and
 # the unauthorized-denial matrix.
-VERCEL_AUTOMATION_BYPASS_SECRET=... npx playwright test e2e/production-smoke.spec.ts
+npx playwright test e2e/production-smoke.spec.ts
 ```
 
 `scripts/chickpea-baseline.mjs` records the same-run direct-browser Chickpea
@@ -252,9 +255,19 @@ state, animated regions) that a capture run is compared against.
   request lands on a different instance. The session lifetime is short, but
   durable revocation (a Turso-backed denylist, the same pattern as the login
   throttle) is the follow-up — tracked in `docs/NEXT.md`.
-- **The automation-bypass secret skips deployment protection entirely.** It
-  exists to keep CI-style smoke possible while SSO stays on; rotate it from
-  the project settings if it may have leaked, and redeploy.
+- **The editor password is now the only wall in front of the editor.**
+  Deployment protection came off so founder links can be opened by people
+  without a Vercel account (`D074`), which means the password plus the
+  durable login throttle (`D026`) is the whole defence. The bypass secret
+  from `D068` is now inert; rotate it from the project settings if it may
+  have leaked.
+- **`PINATA_AUTH_DISABLED` has no environment check in code.** The local-only
+  editor bypass (`D052`) is honoured by convention alone: setting that
+  variable in Vercel would authorize every anonymous visitor as the editor,
+  and deployment protection is no longer there to contain the mistake.
+  Verified absent from production on 2026-09-10 by the sign-in prompt
+  rendering anonymously; making the bypass refuse to activate on Vercel is
+  the follow-up in `docs/NEXT.md`.
 - **Turso and Blob are shared between local development and production**
   (one Vercel-integrated database and store), so local test fixtures and the
   production demo project coexist in the same tables; run-scoped cleanup and

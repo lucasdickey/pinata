@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 20 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D073 |
+| Human directed | 21 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D073, D074 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 42 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **73** | |
+| **Total** | **74** | |
 
 ## Index
 
@@ -99,6 +99,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D071](#d071--list-every-pin-in-a-table-below-the-canvas-with-a-markdown-export-for-pasting-into-an-agentic-ide) | build | List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE | Human directed | accepted |
 | [D072](#d072--close-out-the-descoped-milestone-reconcile-every-narrative-document-to-what-actually-shipped-and-fix-repository-hygiene-with-no-application-code-changes) | wrap | Close out the descoped milestone: reconcile every narrative document to what actually shipped, and fix repository hygiene, with no application code changes | Human directed | accepted |
 | [D073](#d073--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build) | build | Build founder links and the read/reply view on a separate branch, in parallel, without touching the demo build | Human directed | accepted |
+| [D074](#d074--turn-off-vercel-deployment-protection-on-production-so-a-founder-link-can-be-opened-without-a-vercel-account) | build | Turn off Vercel deployment protection on production so a founder link can be opened without a Vercel account | Human directed | accepted |
 
 ---
 
@@ -2841,4 +2842,49 @@ Human instruction:
 
 ---
 
-<sub>Generated from 73 record(s) as of 2026-09-10 · source `47a5abd0d64b`</sub>
+## D074 — Turn off Vercel deployment protection on production so a founder link can be opened without a Vercel account
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D068 deployed production with Vercel SSO protection ON, which was right while the only visitor was the owner demoing over screen share. It is incompatible with the product's core premise: a founder receives an unguessable link and opens it with no account and no signup (REQUIREMENTS, 'Who it serves'). With protection on, every anonymous visitor is redirected to Vercel SSO before the application is reached, so a founder link cannot be opened by the founder at all.
+
+**Decision**
+
+Per the user's direction, Vercel Authentication is set to Disabled for the pinata project, applied by the owner in the project's Deployment Protection settings. The deployment is now publicly reachable and the application's own authorization is the only wall. This reverses ONLY the protection-posture clause of D068; the Next.js framework preset, the deployed commit identity, and the Protection-Bypass-for-Automation mechanism are unchanged, and the bypass secret simply becomes inert.
+
+**Alternatives considered**
+
+- *Keep protection on and add each founder to the Vercel team* — It contradicts the product definition: founders get a link, not an account (D018). It also costs a Vercel seat per friend and hands them access to the project's settings and logs.
+- *Scope protection to all domains except a custom domain, then put founders on the custom domain* — No custom domain is configured for this project, so there is nothing to except. Worth revisiting if one is added.
+- *Hand founders the Protection-Bypass-for-Automation secret* — That secret is a single shared master key that disables protection for anyone holding it, across the whole deployment, with no per-project scope and no revocation short of rotating it for every consumer. The application's own capability links are narrower and revocable.
+
+**Rationale**
+
+The human directed it explicitly. The application was designed from the start to be its own authorization boundary — server-only secrets, an editor session verified close to every data access, digest-only capability storage, and bounded generic denials — so removing the outer wall exposes no data path that was not already meant to face the public internet. The posture was verified from outside immediately after the change rather than assumed.
+
+**Consequences**
+
+- Verified anonymously against the deployed commit 3abab99 on 2026-09-10: / returns 200 and renders the sign-in prompt with no Vercel SSO redirect, the five /reqs routes and /icon.svg return 200, and /api/projects, /api/editor/session, and the capture asset, manifest, context, and annotations routes each return the identical bounded 36-byte JSON denial with no session cookie issued.
+- The editor password plus the durable login throttle (D026) is now the entire defence of the editor surface; the in-memory logout revocation weakness (D068) is unchanged but now sits behind one wall instead of two.
+- PINATA_AUTH_DISABLED (D052) becomes materially more dangerous: isAuthDisabled() has no environment check, so setting it in Vercel would authorize every anonymous visitor as the editor. It was verified absent from production by behaviour (the sign-in prompt renders). Hardening it so it cannot activate on a deployment is now a listed follow-up in docs/NEXT.md.
+- The production smoke's protection assertions were inverted rather than deleted: scripts/production-smoke.mjs and e2e/production-smoke.spec.ts now assert that an anonymous visitor reaches the application, that the sign-in prompt still renders, and that an editor route still refuses — so a silent re-enabling of protection fails the smoke instead of passing it.
+- Both smoke surfaces no longer require the bypass secret: the script warns and proceeds without it, and the Playwright spec gates on EDITOR_PASSWORD alone.
+- Founder links are still 404 in production: /f/<publicId> ships on the feat/founder-links branch (PR #2), which merged into main later the same day; production has served the route since.
+
+**Provenance evidence**
+
+Human instruction:
+
+> turn off SSO protection so founders can actually open links
+
+**Artifacts**
+
+- `scripts/production-smoke.mjs` — Check 1 inverted: anonymous reachability, the sign-in prompt, and a bounded anonymous denial are asserted together.
+- `e2e/production-smoke.spec.ts` — The former SSO-wall test now asserts the application is the wall.
+- `README.md` — Deployment section and known weaknesses updated to the public posture.
+
+---
+
+<sub>Generated from 74 record(s) as of 2026-09-10 · source `6f8192307dab`</sub>
