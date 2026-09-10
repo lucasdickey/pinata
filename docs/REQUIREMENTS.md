@@ -38,12 +38,12 @@ edits; Pinata makes "try tightening this" unambiguous.
 
 ## Build status
 
-Requirements 1, 2, 3, 5, 8, and 9 below, and the pin part of 4, are in the
-current build and proven on the production deployment. The rest of 4
-(rectangles, circles, and arrows), 6 (threads), and 7 (founder links) describe
-the product vision; they were deferred by D051 after the milestone-1
-checkpoint, and the founder loop (6 and 7) is being built on a separate branch
-(D070). Until it lands, Pinata is usable by the editor alone.
+Every requirement below is in the current build except the rectangle, circle,
+and arrow marks in requirement 4, which stay deferred (D051). Requirements 6
+and 7, the founder loop, shipped on 2026-09-10 (D073) and are live on the
+production deployment, which is publicly reachable as of the same day (D074).
+The one gap is proof rather than code: the founder end-to-end spec needs local
+secrets and has not executed yet.
 
 ## Functional requirements
 
@@ -69,12 +69,11 @@ checkpoint, and the founder loop (6 and 7) is being built on a separate branch
    descriptive context, never an executable selector or an editing mechanism.
 6. **Append-only two-way threads.** The founder replies as `founder`, the
    editor follows up, and the chronology is immutable for everyone. Database
-   triggers reject updates and deletes against thread entries. Deferred
-   (D051); in progress on a separate branch (D070).
+   triggers reject updates and deletes against thread entries. Shipped
+   2026-09-10 (D073).
 7. **Persistent, revocable sharing.** Founder links are high-entropy bearer
    capabilities that persist until the editor rotates or revokes them. The
-   database stores digests, never tokens. Deferred (D051); in progress on a
-   separate branch (D070).
+   database stores digests, never tokens. Shipped 2026-09-10 (D073).
 8. **A public requirements hub.** Requirements, architecture, milestones,
    decisions, and evals are readable in the deployed app at `/reqs` and its
    sub-routes, rendered from the repository sources listed above.
@@ -89,9 +88,9 @@ checkpoint, and the founder loop (6 and 7) is being built on a separate branch
 
 In scope for the MVP: static full-page captures of public pages; explicit URL
 arrays; directional, human-authored feedback; a single editor plus link-based
-founders; the Chickpea review as the first real project. The current build
-(D051) is the editor half of that: capture, canvas, pins, and comments, with
-the founder half deferred to the branch named above.
+founders; the Chickpea review as the first real project. All of that is in
+the build as of 2026-09-10; the rich marks cut by D051 are the remaining
+absence.
 
 ## Non-goals
 

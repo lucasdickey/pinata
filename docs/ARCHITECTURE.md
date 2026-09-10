@@ -5,11 +5,11 @@ This is the product architecture source, rendered live at
 [Requirements](/reqs) covers scope, [Decisions](/reqs/decisions) records why
 each choice was made.
 
-Build status (2026-09-10): the editor role, capture pipeline, published
-boundaries, canvas, pin sections, and deployment describe the current build.
-The founder role, threads, and the rectangle, circle, and arrow nodes describe
-the vision; they were deferred by D051, and the founder loop is being built on
-a separate branch (D070). The schema already carries their tables and columns.
+Build status (2026-09-10): every section describes the current build except
+the rectangle, circle, and arrow nodes under "Canvas and coordinates", which
+stay deferred (D051) with the schema already carrying their `kind` column. The
+founder role and threads shipped on 2026-09-10 (D073), and the deployment is
+publicly reachable rather than behind Vercel SSO (D074).
 
 ## System shape
 
@@ -51,12 +51,12 @@ Playwright e2e — in that order, locally and in GitHub Actions.
   issues a session signed with `SESSION_SECRET`: `HttpOnly`, `Secure` when
   deployed, `SameSite=Strict`, path `/`, short-lived but renewable. Every
   editor mutation rechecks the session close to the data access.
-- **Founder** (vision, deferred by D051; in progress on a branch, D070). A high-entropy project capability (at least 256 random bits)
+- **Founder.** A high-entropy project capability (at least 256 random bits)
   arrives in the URL fragment, is exchanged once through a same-origin POST,
   and lives on as a secure capability-session cookie. Turso stores only its
   SHA-256 digest. The link persists until Lucas rotates or revokes it; the
   founder display label is always the literal `founder`.
-- **Threads** (vision, deferred by D051; in progress on a branch, D070). The editor owns the one editable original comment per
+- **Threads.** The editor owns the one editable original comment per
   annotation. Everything after that is an append-only `thread_entries` row
   authored by `editor` or `founder`. Database triggers reject `UPDATE` and
   `DELETE`; tombstoning an annotation never mutates its entries.

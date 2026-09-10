@@ -2942,3 +2942,29 @@ them means dependency changes, and this pass was documentation only.
   acceptance gate for milestone 2 as descoped.
 
 Drafted by Lucas.
+
+### Follow-up the same day: rebase onto a moved main
+
+The two commits above were written while `main` sat at `3abab99`. By the time
+they were rebased, `main` had taken the founder-links merge (pull request #2)
+and a `/pins` split, and the concurrent stream had already published its own
+`D069`, `D070`, and `D071`. Two consequences, both handled here rather than
+left for a reader to discover:
+
+1. **Id collision.** The closeout and founder-branch records renumbered to
+   `D072` and `D073`, and the deployment-protection record to `D074`. Every
+   reference in `README.md`, `docs/NEXT.md`, and the two smoke files moved
+   with them, and the generated artifacts were rebuilt from the merged
+   source.
+2. **Stale claims.** The closeout had described the founder loop as deferred
+   and in progress on a branch. It had merged. `docs/MILESTONES.md`,
+   `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/EVALS.md`,
+   `README.md`, and `docs/NEXT.md` were corrected to say it shipped, with the
+   honest caveat that `e2e/founder.spec.ts` is gated on local secrets and has
+   never executed — so the founder loop is shipped but not yet demonstrated
+   end to end.
+
+The deployment-protection change itself was verified live before and after:
+with protection off, the production landing page returns 200 and still
+renders the sign-in prompt, and every editor route answers an anonymous
+caller with the same bounded denial.

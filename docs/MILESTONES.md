@@ -40,7 +40,7 @@ organization were validated with conditional acceptance; four escapes were
 fixed in session and one question stays open (D054, the non-retryable
 provider-side unsafe redirect).
 
-## Milestone 2: Pins and founder feedback — pins shipped, founder loop deferred
+## Milestone 2: Pins and founder feedback — shipped, pending its live checkpoint
 
 The feedback loop itself.
 
@@ -48,9 +48,10 @@ Descope (2026-09-09, user-directed — D051): after the milestone-1 checkpoint
 the roadmap was cut to what the product exists for. The bullets marked
 *shipped* below are in the production deployment and covered by the
 production smoke (D068). The bullets marked *deferred* are the founder loop;
-they are not cut, and are being built on a separate branch that does not
-touch the demo build (D070). What remains for this milestone is the short
-live pins checkpoint on production with the owner.
+they merged on 2026-09-10 as pull request #2 (D073), so every bullet below
+is now shipped. What remains for this milestone is proof rather than code:
+the founder end-to-end spec has never executed (it needs local secrets), and
+the short live pins checkpoint on production with the owner is still to run.
 
 - *Shipped.* One page/device capture at a time on a React Flow canvas, with the
   project/page tree outside the canvas.
@@ -60,10 +61,10 @@ live pins checkpoint on production with the owner.
 - *Shipped.* Nearby captured DOM elements offered as explicit metadata attachments when
   placing a pin.
 - *Shipped.* Independent desktop and mobile annotations.
-- *Deferred (D051), in progress on a branch (D070).* Persistent, rotatable, revocable founder capability links.
-- *Deferred (D051), in progress on a branch (D070).* A read/reply-only founder view: founders cannot create, move, edit, or
+- *Shipped 2026-09-10 (D073, merged as pull request #2).* Persistent, rotatable, revocable founder capability links.
+- *Shipped 2026-09-10 (D073, merged as pull request #2).* A read/reply-only founder view: founders cannot create, move, edit, or
   delete annotations.
-- *Deferred (D051), in progress on a branch (D070).* Chronological, append-only two-way threads: founders reply as `founder`,
+- *Shipped 2026-09-10 (D073, merged as pull request #2).* Chronological, append-only two-way threads: founders reply as `founder`,
   Lucas follows up, and founder replies are immutable for everyone.
 - *Shipped (D068).* The first Vercel production deployment of the validated build.
 - *Shipped (D068); placement, metadata, persistence, and role boundaries proven by the smoke; sharing and replies wait on the founder loop.* The real Chickpea project in production: root plus the explicit

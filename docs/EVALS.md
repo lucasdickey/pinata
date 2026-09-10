@@ -113,8 +113,10 @@ scenarios (VAL-AUTH-008, VAL-AUTH-009):
 
 ## Role and thread scenarios
 
-Deferred by D051: these scenarios sit outside the current build's executable
-contract and remain the target for the founder-links stream (D070).
+The founder loop shipped on 2026-09-10 (D073), so these scenarios are back
+inside the executable contract. They are covered by `e2e/founder.spec.ts`,
+which is gated on local secrets and has not executed yet, so treat them as
+specified-but-unproven until a local `npm run e2e` run says otherwise.
 
 1. A founder link opens a read/reply-only view; editing controls are absent
    visually and to assistive technology.

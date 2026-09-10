@@ -12,11 +12,10 @@ each can be picked up without redesign.
 - **First Vercel deployment and the variant/retry integration matrix, out of
   milestone 1** (`D050`). The deployment landed later in milestone 2 (`D068`);
   the matrix's assertions were re-homed into the surviving capture features.
-- **Founder capability links and the founder read/reply view** (`D051`). The
-  `projects` table already carries the share-token digest, version, and
-  revocation columns. Being built on a separate branch (`D070`).
-- **Append-only two-way threads** (`D051`). The `thread_entries` table and its
-  database triggers already exist. Same branch as above.
+- **Founder capability links and the founder read/reply view** (`D051`), and
+  **append-only two-way threads** (`D051`). Both were un-cut and shipped on
+  2026-09-10 (`D073`); they are listed here because they were cut once, and
+  because their end-to-end spec has not executed yet.
 - **Rich marks: rectangles, circles, and arrows** (`D051`). The `annotations`
   table already has a `kind` column and the coordinate engine is
   mark-agnostic.
@@ -34,10 +33,10 @@ each can be picked up without redesign.
 
 In the order I would actually do them:
 
-1. **Founder links and replies.** Without them the product is usable by the
-   editor alone, and the whole point is the friend's reply. Everything below
-   the routes already exists. In progress on the `feat/founder-links` branch
-   (`D070`).
+1. **Prove the founder loop end to end.** It shipped (`D073`) but
+   `e2e/founder.spec.ts` is gated on local secrets and has never run, so link
+   open, reply, follow-up, rotation, and revocation are specified rather than
+   demonstrated. One local `npm run e2e` closes this.
 2. **Separate the local and test store from production.** Local gate runs
    write into the same Turso database and Blob store as the production demo,
    kept apart only by run-scoped cleanup and an "oldest project" rule in the
@@ -70,9 +69,9 @@ In the order I would actually do them:
 
 Honest list. Things a reviewer would find if they looked for five minutes.
 
-- **The product is editor-only today.** Founder links, the read/reply view,
-  and threads are described in the requirements and architecture as the
-  vision; the current build stops at pins and comments (`D051`).
+- **The founder loop is shipped but unproven end to end.** Its Playwright
+  spec skips without local secrets, so nothing has exercised link open,
+  reply, rotation, or revocation against a real browser yet.
 - **Production is publicly reachable** as of 2026-09-10 (`D074`), so the
   editor password and its durable throttle are the whole defence, and the
   unguarded `PINATA_AUTH_DISABLED` flag above is now a sharper edge than it

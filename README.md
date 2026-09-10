@@ -44,14 +44,11 @@ edits; Pinata just makes "try tightening this" unambiguous.
    boxes, circles, and arrows — whose coordinates are stored in screenshot
    pixels, so they stay glued to their target at any zoom. When placing a pin,
    nearby captured elements are offered as metadata attachments.
-4. **Share and reply** (next up, not in the current build). A persistent,
-   revocable link opens the project in a read/reply-only founder view.
-   Threads are append-only and chronological: the founder replies, the editor
-   follows up, and nobody — including the founder — can edit or delete a
-   founder reply. Deferred by
-   [`D051`](docs/DECISIONS.md#d051--materially-descope-the-post-milestone-1-roadmap-keep-pins-pin-comments-landing-page-first-deployment-short-pins-session-and-closeout-punt-everything-else)
-   and being built on a separate branch
-   ([`D070`](docs/DECISIONS.md#d070--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build)).
+4. **Share and reply.** A persistent, revocable link opens the project in a
+   read/reply-only founder view. Threads are append-only and chronological:
+   the founder replies, the editor follows up, and nobody — including the
+   founder — can edit or delete a founder reply. Shipped 2026-09-10
+   ([`D073`](docs/DECISIONS.md#d073--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build)).
 
 Guardrails: public pages only, static captures only, no runtime AI, and
 directional feedback only. Full rationale lives in the decision log.
@@ -77,20 +74,23 @@ mobile Browserless captures with a sanitized DOM manifest; a React Flow canvas
 with numbered pins, comments, nearby-element metadata, and pin edit and
 delete; the branded landing page; and the requirements hub at `/reqs`.
 
-**What it does not do yet:** founder links and the founder read/reply view,
-append-only two-way threads, rectangles, circles and arrows, the visual design
-pass, and the hardening list. Those are deferred, not cut. So today Pinata is
-usable by the editor alone; sharing with a friend is the first entry in
-[`docs/NEXT.md`](docs/NEXT.md) and is being built on a separate branch
-([`D070`](docs/DECISIONS.md#d070--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build)).
+Sharing works too: founder capability links and the read/reply-only founder
+view shipped on 2026-09-10
+([`D073`](docs/DECISIONS.md#d073--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build)), and the deployment is publicly
+reachable rather than behind Vercel SSO, so a friend can open a link without a
+Vercel account ([`D074`](docs/DECISIONS.md#d074--turn-off-vercel-deployment-protection-on-production-so-a-founder-link-can-be-opened-without-a-vercel-account)).
+
+**What it does not do yet:** rectangles, circles and arrows, the visual design
+pass, and the hardening list. Those are deferred, not cut. The founder
+end-to-end spec also needs local secrets and has not executed yet, so the
+founder loop is shipped but not yet proven end to end.
 
 Milestones ([`docs/MILESTONES.md`](docs/MILESTONES.md)):
 
 1. **Capture and organize** — validated at the live checkpoint on
    2026-09-10.
-2. **Pins and founder feedback** — pins shipped and smoke-tested in
-   production; the short live pins checkpoint with the owner is pending; the
-   founder loop is deferred.
+2. **Pins and founder feedback** — shipped, including the founder loop; the
+   short live pins checkpoint with the owner is pending.
 3. **Rich marks, polish, and handoff** — deferred, except the documentation
    closeout, which is done.
 
