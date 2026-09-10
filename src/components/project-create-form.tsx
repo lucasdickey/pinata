@@ -66,16 +66,25 @@ const message = (code: string, table: Record<string, string>) =>
 /** A row whose value carries credentials must not stay in the DOM. */
 const CLEAR_ON_ERROR = new Set(["credentials"]);
 
+/** Pre-filled values, e.g. the parked anonymous capture draft (D067). */
+export interface ProjectFormInitial {
+  rootUrl?: string;
+  urls?: string[];
+}
+
 export function ProjectCreateForm(props: {
   onCreated: (project: CreatedProjectView) => void;
   onCancel: () => void;
+  initial?: ProjectFormInitial;
 }) {
   const nextRowId = useRef(0);
   const makeRow = (): UrlRow => ({ id: `url-row-${(nextRowId.current += 1)}`, value: "" });
 
   const [title, setTitle] = useState("");
-  const [rootUrl, setRootUrl] = useState("");
-  const [rows, setRows] = useState<UrlRow[]>([]);
+  const [rootUrl, setRootUrl] = useState(props.initial?.rootUrl ?? "");
+  const [rows, setRows] = useState<UrlRow[]>(() =>
+    (props.initial?.urls ?? []).map((value) => ({ ...makeRow(), value })),
+  );
   const [rootError, setRootError] = useState<string | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -361,7 +370,7 @@ export function ProjectCreateForm(props: {
               props.onCancel();
             }}
           >
-            Cancel
+            Clear form
           </button>
         </p>
       </form>

@@ -2856,6 +2856,104 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D066",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The root route was a bare product blurb plus a password prompt. An anonymous visitor could not tell what Pinata does, and the URL capture entry — the product's front door — only existed behind sign-in. The user asked for a real landing page, deliberately saved for the end of the build and kept (small, already specified) through the D051 descope.",
+      "decision": "Rebuild / as the branded landing page for every visitor. The pinata mark — an accent tile carrying the product's own pin teardrop with a starburst, drawn once in src/lib/brand-mark.ts — renders inline above the capture entry and doubles as the favicon (app/icon.svg), with zero external image assets. The entry form takes a required root URL plus optional additional-URL rows with one visible primary action. Below the hero, a fully self-contained static example render (fixture data in src/lib/example-capture.ts) shows a screenshot region with two numbered pins, a two-entry comment thread, and a DOM metadata panel; it makes no /api/* request and no database access, and it depicts saved thread content only — no founder reply UI (D051). Anonymous visitors additionally get the editor sign-in prompt; a signed-in editor lands on the same branded page with the project form active, the project list below it, and the example after that.",
+      "alternatives": [
+        {
+          "option": "A separate marketing page at / with the editor home at a different route",
+          "why_not": "The user asked for the URL capture entry on the root page itself; splitting routes adds navigation the demo does not need."
+        },
+        {
+          "option": "Render the example from a real recent capture in the database",
+          "why_not": "The anonymous surface must not read project data, and the contract requires the example to trigger no /api/* request and no database access; bundled fixture data is the honest static answer."
+        },
+        {
+          "option": "A raster or externally hosted logo image",
+          "why_not": "Zero external assets is a stated requirement; one shared inline-SVG source for logo and favicon also keeps the two marks from drifting apart (locked by test/brand-mark.test.tsx)."
+        }
+      ],
+      "rationale": "This is exactly what the user directed on 2026-09-08 and confirmed keeping on 2026-09-09; the implementation mechanics inside that direction are D067.",
+      "consequences": [
+        "The logo and the favicon share one mark source (src/lib/brand-mark.ts); app/icon.svg cannot consume CSS custom properties, so the two brand colors live in that module and must equal --accent/--surface, enforced by test/brand-mark.test.tsx.",
+        "Narrows D045: the New project toggle inside the Projects region is replaced by the always-active project form in the landing hero; D045's four-state list machine is unchanged.",
+        "The example render depicts pins with their comments as saved content; the founder reply UI remains deferred with threads (D051) and must not appear as a live control.",
+        "The favicon is served same-origin at /icon.svg; no external image request may appear on / (asserted in e2e/landing.spec.ts)."
+      ],
+      "transcript": {
+        "request": "make sure to create a root page where the URL capture is entered, with a pinata logo above the form field. we need a decent landing page. maybe even render an example of a marked up page with comments and DOM metadata clear"
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D066-landing.png",
+          "caption": "The anonymous landing at 1440px: mark above the capture entry, value proposition, static example with two numbered pins, comment thread, and DOM metadata panel, then the sign-in prompt."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/brand-mark.ts",
+          "caption": "The single brand-mark source shared by the logo and the favicon."
+        },
+        {
+          "type": "file",
+          "path": "src/components/example-capture.tsx",
+          "caption": "The fully static example render; the suite asserts it carries no client runtime or fetch."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D067",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "VAL-LANDING-003 requires the anonymous capture entry to survive the sign-in round trip: submit as anonymous, sign in, land back on / with the URL input retained, then create the project with exactly one POST /api/projects. The handoff mechanism had to move user-typed URLs from the anonymous page to the post-login editor form without an unauthorized write.",
+      "decision": "The anonymous entry validates a non-blank root client-side, parks { rootUrl, urls } in sessionStorage under pinata:capture-draft, and routes to the existing on-page sign-in section by moving focus to the password field (scroll honoring prefers-reduced-motion) — no request is made. After sign-in, the server re-renders / for the verified session; the editor home reads and removes the draft in a mount effect (StrictMode-safe: the first read wins), and the always-active project form initializes straight from it. Creating the project is the form's existing single POST with its own idempotency key.",
+      "alternatives": [
+        {
+          "option": "A dedicated /login route carrying the draft in query parameters",
+          "why_not": "User-typed URLs would land in the address bar, history, and logs, and a new route duplicates the existing on-page prompt; the contract's flow is same-page before and after sign-in."
+        },
+        {
+          "option": "localStorage instead of sessionStorage",
+          "why_not": "The handoff is same-tab by construction (sign-in happens in the tab that submitted); localStorage would resurrect stale drafts in later sessions and other tabs."
+        },
+        {
+          "option": "POST the draft to the server before authentication and reconcile after login",
+          "why_not": "Anonymous project writes are unauthorized by design; the authorization boundary must not gain a pre-auth staging write for a cosmetic convenience."
+        }
+      ],
+      "rationale": "Mechanical plumbing inside the user-directed landing direction (D066): it changes no product direction, touches no authorization rule, and the failure mode (storage unavailable or a malformed entry) degrades to a blank form. The consumed-once read prevents a reload from resurrecting a stale draft; malformed entries are validated and discarded, never thrown.",
+      "consequences": [
+        "The draft is same-tab only by design; signing in via a different tab starts with a blank form.",
+        "The editor form renders after the mount-time draft check, so initial values are never overwritten by a late read.",
+        "The Playwright global teardown additionally matches idempotency keys by stored result payload, because form-driven creations key on a fresh UUID while their result carries the run-scoped URLs."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/capture-draft.ts",
+          "caption": "The validated save/take-once draft handoff."
+        },
+        {
+          "type": "file",
+          "path": "e2e/landing.spec.ts",
+          "caption": "The end-to-end proof: no anonymous write, retained draft after sign-in, exactly one POST /api/projects answered 201."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

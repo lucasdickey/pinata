@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 14 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058 |
+| Human directed | 15 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 40 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065 |
+| Agent decided alone | 41 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **65** | |
+| **Total** | **67** | |
 
 ## Index
 
@@ -91,6 +91,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D063](#d063--fix-the-tall-motion-v1-focus-flake-in-place-wire-interaction-counters-before-the-scripted-caret-focus-and-exclude-that-focus-by-target) | validate | Fix the tall-motion-v1 focus flake in place: wire interaction counters before the scripted caret focus and exclude that focus by target | Agent decided alone | accepted |
 | [D064](#d064--candidate-context-preview-as-a-transient-inert-react-flow-node-a-quiescent-marker-for-the-context-panel-and-an-authorized-verbatim-manifest-read-route) | build | Candidate context preview as a transient inert React Flow node, a quiescent marker for the context panel, and an authorized verbatim manifest read route | Agent decided alone | accepted |
 | [D065](#d065--run-scoped-e2e-cleanup-runs-in-the-playwright-global-teardown-never-in-afterall) | build | Run-scoped e2e cleanup runs in the Playwright global teardown, never in afterAll | Agent decided alone | accepted |
+| [D066](#d066--the-root-route-is-a-branded-landing-page-the-pinata-mark-directly-above-the-url-capture-entry-a-brief-value-proposition-a-fully-static-example-of-a-marked-up-capture-and-a-clear-sign-in-path) | build | The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path | Human directed | accepted |
+| [D067](#d067--anonymous-capture-entries-park-in-same-tab-sessionstorage-and-route-to-the-on-page-sign-in-prompt-the-editor-form-consumes-the-draft-exactly-once) | build | Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once | Agent decided alone | accepted |
 
 ---
 
@@ -2493,4 +2495,82 @@ Agent-autonomous inside the mission's sanctioned pattern (the mission explicitly
 
 ---
 
-<sub>Generated from 65 record(s) as of 2026-09-10 · source `4f3b3943227a`</sub>
+## D066 — The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The root route was a bare product blurb plus a password prompt. An anonymous visitor could not tell what Pinata does, and the URL capture entry — the product's front door — only existed behind sign-in. The user asked for a real landing page, deliberately saved for the end of the build and kept (small, already specified) through the D051 descope.
+
+**Decision**
+
+Rebuild / as the branded landing page for every visitor. The pinata mark — an accent tile carrying the product's own pin teardrop with a starburst, drawn once in src/lib/brand-mark.ts — renders inline above the capture entry and doubles as the favicon (app/icon.svg), with zero external image assets. The entry form takes a required root URL plus optional additional-URL rows with one visible primary action. Below the hero, a fully self-contained static example render (fixture data in src/lib/example-capture.ts) shows a screenshot region with two numbered pins, a two-entry comment thread, and a DOM metadata panel; it makes no /api/* request and no database access, and it depicts saved thread content only — no founder reply UI (D051). Anonymous visitors additionally get the editor sign-in prompt; a signed-in editor lands on the same branded page with the project form active, the project list below it, and the example after that.
+
+**Alternatives considered**
+
+- *A separate marketing page at / with the editor home at a different route* — The user asked for the URL capture entry on the root page itself; splitting routes adds navigation the demo does not need.
+- *Render the example from a real recent capture in the database* — The anonymous surface must not read project data, and the contract requires the example to trigger no /api/* request and no database access; bundled fixture data is the honest static answer.
+- *A raster or externally hosted logo image* — Zero external assets is a stated requirement; one shared inline-SVG source for logo and favicon also keeps the two marks from drifting apart (locked by test/brand-mark.test.tsx).
+
+**Rationale**
+
+This is exactly what the user directed on 2026-09-08 and confirmed keeping on 2026-09-09; the implementation mechanics inside that direction are D067.
+
+**Consequences**
+
+- The logo and the favicon share one mark source (src/lib/brand-mark.ts); app/icon.svg cannot consume CSS custom properties, so the two brand colors live in that module and must equal --accent/--surface, enforced by test/brand-mark.test.tsx.
+- Narrows D045: the New project toggle inside the Projects region is replaced by the always-active project form in the landing hero; D045's four-state list machine is unchanged.
+- The example render depicts pins with their comments as saved content; the founder reply UI remains deferred with threads (D051) and must not appear as a live control.
+- The favicon is served same-origin at /icon.svg; no external image request may appear on / (asserted in e2e/landing.spec.ts).
+
+**Provenance evidence**
+
+Human instruction:
+
+> make sure to create a root page where the URL capture is entered, with a pinata logo above the form field. we need a decent landing page. maybe even render an example of a marked up page with comments and DOM metadata clear
+
+**Artifacts**
+
+- ![The anonymous landing at 1440px: mark above the capture entry, value proposition, static example with two numbered pins, comment thread, and DOM metadata panel, then the sign-in prompt.](dashboard/screenshots/D066-landing.png) — The anonymous landing at 1440px: mark above the capture entry, value proposition, static example with two numbered pins, comment thread, and DOM metadata panel, then the sign-in prompt.
+- `src/lib/brand-mark.ts` — The single brand-mark source shared by the logo and the favicon.
+- `src/components/example-capture.tsx` — The fully static example render; the suite asserts it carries no client runtime or fetch.
+
+---
+
+## D067 — Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+VAL-LANDING-003 requires the anonymous capture entry to survive the sign-in round trip: submit as anonymous, sign in, land back on / with the URL input retained, then create the project with exactly one POST /api/projects. The handoff mechanism had to move user-typed URLs from the anonymous page to the post-login editor form without an unauthorized write.
+
+**Decision**
+
+The anonymous entry validates a non-blank root client-side, parks { rootUrl, urls } in sessionStorage under pinata:capture-draft, and routes to the existing on-page sign-in section by moving focus to the password field (scroll honoring prefers-reduced-motion) — no request is made. After sign-in, the server re-renders / for the verified session; the editor home reads and removes the draft in a mount effect (StrictMode-safe: the first read wins), and the always-active project form initializes straight from it. Creating the project is the form's existing single POST with its own idempotency key.
+
+**Alternatives considered**
+
+- *A dedicated /login route carrying the draft in query parameters* — User-typed URLs would land in the address bar, history, and logs, and a new route duplicates the existing on-page prompt; the contract's flow is same-page before and after sign-in.
+- *localStorage instead of sessionStorage* — The handoff is same-tab by construction (sign-in happens in the tab that submitted); localStorage would resurrect stale drafts in later sessions and other tabs.
+- *POST the draft to the server before authentication and reconcile after login* — Anonymous project writes are unauthorized by design; the authorization boundary must not gain a pre-auth staging write for a cosmetic convenience.
+
+**Rationale**
+
+Mechanical plumbing inside the user-directed landing direction (D066): it changes no product direction, touches no authorization rule, and the failure mode (storage unavailable or a malformed entry) degrades to a blank form. The consumed-once read prevents a reload from resurrecting a stale draft; malformed entries are validated and discarded, never thrown.
+
+**Consequences**
+
+- The draft is same-tab only by design; signing in via a different tab starts with a blank form.
+- The editor form renders after the mount-time draft check, so initial values are never overwritten by a late read.
+- The Playwright global teardown additionally matches idempotency keys by stored result payload, because form-driven creations key on a fresh UUID while their result carries the run-scoped URLs.
+
+**Artifacts**
+
+- `src/lib/capture-draft.ts` — The validated save/take-once draft handoff.
+- `e2e/landing.spec.ts` — The end-to-end proof: no anonymous write, retained draft after sign-in, exactly one POST /api/projects answered 201.
+
+---
+
+<sub>Generated from 67 record(s) as of 2026-09-10 · source `df1539391450`</sub>

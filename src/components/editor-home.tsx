@@ -1,10 +1,12 @@
 "use client";
 
-// The authenticated editor shell: the project list read from the durable
-// store, the project entry form, and the keyboard-operable logout control.
-// The canvas workspace lands with later milestone features.
+// The authenticated editor landing (VAL-LANDING-001/003, D066/D067): the
+// same branded hero an anonymous visitor sees, but with the project form
+// always active — any parked anonymous capture draft is consumed into it
+// exactly once — and the durable project list directly below. The static
+// example render follows, then the requirements link and the
+// keyboard-operable logout control.
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -15,7 +17,10 @@ import {
   postCaptureDispatch,
 } from "../lib/capture-dispatch";
 import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
+import { takeCaptureDraft, type CaptureDraft } from "../lib/capture-draft";
 import { readCsrfProof } from "../lib/csrf";
+import { ExampleCapture } from "./example-capture";
+import { LandingHero, LandingLinks } from "./landing";
 import { ProjectCreateForm } from "./project-create-form";
 import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
@@ -27,8 +32,18 @@ type ListState =
 export function EditorHome() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
+  // The parked anonymous draft (VAL-LANDING-003) is read after mount — never
+  // during SSR, where sessionStorage does not exist — and the form renders
+  // once the check has run so it initializes straight from the draft. The
+  // `current ?? take` shape survives a StrictMode double-effect: the first
+  // read wins and the consumed key stays empty.
+  const [draftChecked, setDraftChecked] = useState(false);
+  const [draft, setDraft] = useState<CaptureDraft | null>(null);
+  useEffect(() => {
+    setDraft((current) => current ?? takeCaptureDraft());
+    setDraftChecked(true);
+  }, []);
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
@@ -151,7 +166,6 @@ export function EditorHome() {
   }
 
   function onCreated() {
-    setCreating(false);
     // The transaction already committed; read the hierarchy back from the
     // server rather than trusting the response as local state.
     void load();
@@ -169,14 +183,23 @@ export function EditorHome() {
 
   return (
     <main className="home-main">
-      <h1>pinata</h1>
+      <LandingHero>
+        {draftChecked ? (
+          <ProjectCreateForm
+            initial={draft ?? undefined}
+            onCreated={onCreated}
+            // The landing form is always active; Cancel simply clears the
+            // fields (handled inside the form itself).
+            onCancel={() => setDraft(null)}
+          />
+        ) : null}
+      </LandingHero>
       <p>Signed in as Lucas (editor).</p>
 
       {/* The list is one explicit state machine (VAL-AUTH-008/009): loading,
           empty, populated, and failure are mutually exclusive and announced,
-          and a failure keeps logout and any open form intact while offering
-          exactly one single-flight retry. The create control lives inside
-          this region so the empty list itself offers the one primary action. */}
+          and a failure keeps logout and the open form intact while offering
+          exactly one single-flight retry. */}
       <section aria-labelledby="projects-heading" aria-busy={list.status === "loading"}>
         <h2 id="projects-heading">Projects</h2>
         {list.status === "loading" ? <p role="status">Loading projects…</p> : null}
@@ -196,19 +219,10 @@ export function EditorHome() {
         {list.status === "ready" && list.projects.length > 0 ? (
           <ProjectWorkspace projects={list.projects} onChanged={() => void load()} />
         ) : null}
-
-        {creating ? (
-          <ProjectCreateForm onCreated={onCreated} onCancel={() => setCreating(false)} />
-        ) : (
-          <button type="button" onClick={() => setCreating(true)}>
-            New project
-          </button>
-        )}
       </section>
 
-      <p className="home-nav">
-        <Link href="/reqs">Requirements, architecture, milestones, decisions, and evals</Link>
-      </p>
+      <ExampleCapture />
+      <LandingLinks />
       <button type="button" onClick={logout} disabled={pending}>
         {pending ? "Signing out…" : "Sign out"}
       </button>

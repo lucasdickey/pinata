@@ -10,6 +10,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CAPTURE_POLL_INITIAL_INTERVAL_MS } from "../src/lib/boundaries";
+import { CAPTURE_DRAFT_STORAGE_KEY } from "../src/lib/capture-draft";
 import { EditorHome } from "../src/components/editor-home";
 import type {
   AttemptView,
@@ -72,6 +73,7 @@ async function tick(ms: number): Promise<void> {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  sessionStorage.clear();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -181,12 +183,12 @@ describe("editor project-entry states", () => {
 
   test("a failed background read never unmounts or clears the open create form", async () => {
     // A project with in-progress captures arms the polling timer; the next
-    // scheduled read fails while the editor is mid-entry in the form.
+    // scheduled read fails while the editor is mid-entry in the always-active
+    // landing form (D066: no New project toggle — the form is the hero).
     fetchMock.mockResolvedValueOnce(Response.json({ projects: [projectWith("pending")] }));
     render(<EditorHome />);
     await flush();
 
-    fireEvent.click(screen.getByRole("button", { name: "New project" }));
     const root = screen.getByLabelText("Root URL");
     fireEvent.change(root, { target: { value: "https://chickpea.co/" } });
     fireEvent.change(screen.getByLabelText("Project name (optional)"), {
@@ -204,5 +206,28 @@ describe("editor project-entry states", () => {
       "draft in progress",
     );
     expect(screen.getByRole("button", { name: "Create project" })).toBeEnabled();
+  });
+
+  test("a parked anonymous draft opens the form with the URLs retained, consumed once", async () => {
+    // VAL-LANDING-003: the anonymous capture entry parks its draft in
+    // sessionStorage before routing to sign-in; the editor landing consumes
+    // it into the always-active form and removes it, so a later reload never
+    // resurrects a stale draft.
+    sessionStorage.setItem(
+      CAPTURE_DRAFT_STORAGE_KEY,
+      JSON.stringify({
+        rootUrl: "https://chickpea.co/",
+        urls: ["https://chickpea.co/pricing"],
+      }),
+    );
+    fetchMock.mockResolvedValueOnce(Response.json({ projects: [] }));
+    render(<EditorHome />);
+    await flush();
+
+    expect(screen.getByLabelText("Root URL")).toHaveValue("https://chickpea.co/");
+    expect(screen.getByRole("textbox", { name: "URL 2" })).toHaveValue(
+      "https://chickpea.co/pricing",
+    );
+    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 });

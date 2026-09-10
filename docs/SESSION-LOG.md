@@ -2655,3 +2655,62 @@ and the two-worker gate:
 - D065 (agent-autonomous): run-scoped e2e cleanup moves to a registry plus
   the Playwright global teardown; run-scoped projects use the fixtures host
   so they can never hijack `findReadyTarget`'s seeded-first pick.
+
+## 2026-09-10 — branded landing page: shared pinata mark, parked-entry handoff, static example
+
+### What happened
+
+Rebuilt `/` as the branded landing page (user-directed 2026-09-08, kept
+through the D051 descope on 2026-09-09). The pinata mark — an accent tile
+carrying the product's own pin teardrop with a starburst — is drawn once in
+`src/lib/brand-mark.ts` and rendered inline above the capture entry by
+`<PinataLogo>`; `app/icon.svg` is the same mark as the favicon, and
+`test/brand-mark.test.tsx` locks the two files to the one source plus the
+`--accent`/`--surface` tokens. The anonymous entry form parks its URLs in
+same-tab sessionStorage and routes focus to the on-page sign-in prompt — no
+request leaves the page before authorization. After sign-in, the editor
+lands on the same branded page with the project form always active (the
+D045 "New project" toggle is gone; the list machine is unchanged), the draft
+consumed into it exactly once, and the project list below. Below everything
+sits the fully static example of a marked-up capture — fixture data in
+`src/lib/example-capture.ts`, inline-SVG pricing-page mock, two numbered
+pins reusing the product's pin-badge mark, a two-entry Lucas/founder comment
+thread, and a DOM metadata panel — with no client runtime, no fetch, and no
+reply control (threads deferred, D051).
+
+Strict TDD: brand-mark, capture-draft, landing, and editor-home draft tests
+were written and watched fail (missing modules), then implemented green.
+Two test-authoring dead ends, both mine: the no-external-assets scan tripped
+on the SVG `xmlns` namespace URI (an identifier, not a fetch — excluded),
+and the no-`/api/` fixture scan tripped on the fixture's own header comment
+(reworded the scan to `fetch(` usage only). No product code changed for
+either.
+
+Browser verification (agent-browser, anonymous only per the credential
+rule): 1440/1024/768/390/320 all report `scrollWidth == clientWidth`; Tab
+order is Root URL → Add URL → Start capturing → Password → Sign in → reqs
+link; axe 4.12.1 reports zero violations at 1440 and 390 (one `incomplete`
+on the pin-badge numbers — axe cannot compute text-over-SVG contrast; the
+underlying surface-on-accent pairing is locked at 5.25:1 by
+`test/visual-tokens.test.ts`, and the numbers are aria-hidden with the panel
+text carrying the same information). Console is clean. The Playwright
+landing spec proves the full VAL-LANDING-003 loop against the real database:
+zero project writes before sign-in, draft retained after, exactly one
+`POST /api/projects` answered 201, project visible in the list; its
+run-scoped rows are registered for the global teardown (D065), which gained
+result-payload matching for idempotency keys because form creations use
+fresh UUID keys.
+
+### Decisions
+
+- D066 (user-directed): the root route becomes the branded landing page —
+  pinata mark above the capture entry, value proposition, static example
+  render, sign-in path.
+- D067 (agent-autonomous): the anonymous draft parks in same-tab
+  sessionStorage and is consumed once by the always-active editor form; the
+  alternatives (a /login route with query-param drafts, localStorage, a
+  pre-auth staging write) are recorded with their rejections.
+
+### Assertions
+
+VAL-LANDING-001, VAL-LANDING-002, VAL-LANDING-003.

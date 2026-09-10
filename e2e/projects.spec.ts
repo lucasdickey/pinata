@@ -121,16 +121,16 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await signIn(page);
   const before = runScoped(await projectsOf(page.request));
 
-  // Cancel writes nothing.
-  await page.getByRole("button", { name: "New project" }).click();
+  // The landing's project form is always active for a signed-in editor
+  // (D066) — no toggle. Clear form resets the fields and writes nothing.
   await page.getByLabel("Root URL").fill(ROOT);
   await addRow(page, PRICING);
-  await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("button", { name: "New project" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear form" }).click();
+  await expect(page.getByLabel("Root URL")).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: /^URL \d+$/ })).toHaveCount(0);
   expect(runScoped(await projectsOf(page.request))).toEqual(before);
 
   // Rows are added, reordered, and removed with named controls.
-  await page.getByRole("button", { name: "New project" }).click();
   await page.getByLabel("Project name (optional)").fill(`${RUN_ID} review`);
   await page.getByLabel("Root URL").fill(ROOT);
   await addRow(page, "http://chickpea.co/insecure");

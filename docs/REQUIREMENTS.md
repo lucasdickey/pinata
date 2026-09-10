@@ -66,6 +66,12 @@ edits; Pinata makes "try tightening this" unambiguous.
 8. **A public requirements hub.** Requirements, architecture, milestones,
    decisions, and evals are readable in the deployed app at `/reqs` and its
    sub-routes, rendered from the repository sources listed above.
+9. **A branded landing page.** The root route shows the pinata mark directly
+   above the URL capture entry, a brief value proposition, and a fully static
+   example of a marked-up capture (numbered pins, a comment thread, and a DOM
+   metadata panel from bundled fixture data). Anonymous submissions park in
+   the tab and route to sign-in; a signed-in editor gets the same page with
+   the project form active and the project list below.
 
 ## Scope
 

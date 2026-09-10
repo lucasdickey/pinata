@@ -251,13 +251,13 @@ describe("submission", () => {
     expect(second.idempotencyKey).not.toBe(first.idempotencyKey);
   });
 
-  test("Cancel sends no request and clears what was typed", async () => {
+  test("Clear form sends no request and clears what was typed", async () => {
     const user = userEvent.setup();
     renderForm();
     await user.type(screen.getByLabelText("Root URL"), "https://chickpea.co");
     await addRows(user, ["https://chickpea.co/pricing"]);
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Clear form" }));
     expect(fetchMock).not.toHaveBeenCalled();
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onCreated).not.toHaveBeenCalled();

@@ -153,6 +153,20 @@ function pinNode(page: Page, number: number) {
 }
 
 /**
+ * The saved pin's on-screen box, scrolled into view first. The branded
+ * landing (D066) makes the editor home taller than the test viewport, and
+ * Playwright's label interactions scroll the draft panel into view — which
+ * can push the canvas above the fold, where raw mouse coordinates miss.
+ */
+async function pinNodeBox(page: Page, number: number) {
+  const node = pinNode(page, number);
+  await node.scrollIntoViewIfNeeded();
+  const box = await node.boundingBox();
+  if (!box) throw new Error("saved pin node not rendered");
+  return box;
+}
+
+/**
  * Place one draft at a natural point. The pane is re-anchored after
  * entering pin mode so the click lands exactly on the intended pixel.
  */
@@ -312,8 +326,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   const snapshotAtCreate = saved.elementSnapshot;
 
   // Drag: exactly one revisioned PATCH, grab offset preserved.
-  const nodeBox = await pinNode(page, number).boundingBox();
-  if (!nodeBox) throw new Error("saved pin node not rendered");
+  const nodeBox = await pinNodeBox(page, number);
   const grab = { x: nodeBox.x + nodeBox.width * 0.25, y: nodeBox.y + nodeBox.height * 0.3 };
   const step = { x: 50, y: 36 };
   await page.mouse.move(grab.x, grab.y);
@@ -455,8 +468,7 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
   expect(otherMove.status).toBe(200);
   const winnerTip = otherMove.annotation!.tip;
 
-  const nodeBox = await pinNode(page, number).boundingBox();
-  if (!nodeBox) throw new Error("saved pin node not rendered");
+  const nodeBox = await pinNodeBox(page, number);
   await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(nodeBox.x + 90, nodeBox.y + 70, { steps: 12 });
@@ -510,8 +522,7 @@ test("a session that lost authority cannot move the pin and the record is untouc
   const cookies = await page.context().cookies();
   await page.context().clearCookies();
 
-  const nodeBox = await pinNode(page, number).boundingBox();
-  if (!nodeBox) throw new Error("saved pin node not rendered");
+  const nodeBox = await pinNodeBox(page, number);
   await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(nodeBox.x + 80, nodeBox.y + 60, { steps: 12 });

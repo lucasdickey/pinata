@@ -161,7 +161,7 @@ describe("requirements source documents", () => {
     }
   });
 
-  test("REQUIREMENTS.md functional requirements render as one ordered list of eight", () => {
+  test("REQUIREMENTS.md functional requirements render as one ordered list of nine", () => {
     const doc = read("docs/REQUIREMENTS.md");
     const start = doc.indexOf("## Functional requirements");
     expect(start).toBeGreaterThan(-1);
@@ -169,7 +169,8 @@ describe("requirements source documents", () => {
     const end = rest.indexOf("\n## ", 1);
     const { html } = renderMarkdown(end === -1 ? rest : rest.slice(0, end));
     expect((html.match(/<ol>/g) ?? []).length).toBe(1);
-    expect((html.match(/<li>/g) ?? []).length).toBe(8);
+    // Eight original requirements plus the branded landing page (D066).
+    expect((html.match(/<li>/g) ?? []).length).toBe(9);
     expect(html).not.toContain("<p>");
     // Continuation text must live inside the first item, not a stray <p>.
     expect(html).toContain("navigation links — never crawls, ever.</li>");

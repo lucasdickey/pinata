@@ -54,7 +54,7 @@ export function LoginForm() {
   }
 
   return (
-    <section aria-labelledby="editor-login-heading" className="login-section">
+    <section id="editor-login" aria-labelledby="editor-login-heading" className="login-section">
       <h2 id="editor-login-heading">Editor sign in</h2>
       <form onSubmit={onSubmit}>
         <label htmlFor="editor-password">Password</label>

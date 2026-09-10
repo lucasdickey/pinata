@@ -81,6 +81,11 @@ async function deleteRun(entry: RunCleanupEntry): Promise<string[]> {
     await db
       .delete(schema.idempotencyKeys)
       .where(like(schema.idempotencyKeys.key, `%${runId}%`));
+    // Form-driven creations key on a fresh UUID, so the run id is matched
+    // inside the stored result payload (which carries the run-scoped URLs).
+    await db
+      .delete(schema.idempotencyKeys)
+      .where(like(schema.idempotencyKeys.resultJson, `%${runId}%`));
     await db.delete(schema.pages).where(like(schema.pages.normalizedUrl, `%${runId}%`));
     await db.delete(schema.projects).where(like(schema.projects.rootUrl, `%${runId}%`));
 
