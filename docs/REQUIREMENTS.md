@@ -36,6 +36,15 @@ edits; Pinata makes "try tightening this" unambiguous.
   the annotations in place, and replies. No account, no signup. The first real
   recipient is the founder of Chickpea.
 
+## Build status
+
+Requirements 1, 2, 3, 5, 8, and 9 below, and the pin part of 4, are in the
+current build and proven on the production deployment. The rest of 4
+(rectangles, circles, and arrows), 6 (threads), and 7 (founder links) describe
+the product vision; they were deferred by D051 after the milestone-1
+checkpoint, and the founder loop (6 and 7) is being built on a separate branch
+(D070). Until it lands, Pinata is usable by the editor alone.
+
 ## Functional requirements
 
 1. **Projects from explicit URLs.** A project starts from one public HTTPS
@@ -53,16 +62,19 @@ edits; Pinata makes "try tightening this" unambiguous.
 4. **Precise annotations.** Pins, rectangles, circles, and arrows sit on a
    pan/zoom canvas at screenshot-natural pixel coordinates, so panning,
    zooming, and resizing never move a target. Desktop and mobile captures are
-   independent coordinate planes.
+   independent coordinate planes. Current build: pins only; rectangles,
+   circles, and arrows are deferred (D051).
 5. **Captured context.** When placing a mark, the editor sees nearby captured
    DOM elements and explicitly picks one — or "no element". The snapshot is
    descriptive context, never an executable selector or an editing mechanism.
 6. **Append-only two-way threads.** The founder replies as `founder`, the
    editor follows up, and the chronology is immutable for everyone. Database
-   triggers reject updates and deletes against thread entries.
+   triggers reject updates and deletes against thread entries. Deferred
+   (D051); in progress on a separate branch (D070).
 7. **Persistent, revocable sharing.** Founder links are high-entropy bearer
    capabilities that persist until the editor rotates or revokes them. The
-   database stores digests, never tokens.
+   database stores digests, never tokens. Deferred (D051); in progress on a
+   separate branch (D070).
 8. **A public requirements hub.** Requirements, architecture, milestones,
    decisions, and evals are readable in the deployed app at `/reqs` and its
    sub-routes, rendered from the repository sources listed above.
@@ -77,7 +89,9 @@ edits; Pinata makes "try tightening this" unambiguous.
 
 In scope for the MVP: static full-page captures of public pages; explicit URL
 arrays; directional, human-authored feedback; a single editor plus link-based
-founders; the Chickpea review as the first real project.
+founders; the Chickpea review as the first real project. The current build
+(D051) is the editor half of that: capture, canvas, pins, and comments, with
+the founder half deferred to the branch named above.
 
 ## Non-goals
 

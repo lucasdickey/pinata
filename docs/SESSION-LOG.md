@@ -2808,3 +2808,65 @@ VAL-CROSS-001 (production Chickpea editor loop), VAL-CAPTURE-011 (real
 Chickpea lazy/animated/mobile capture set against a same-run baseline),
 VAL-REQS-003 (deployed source revision + provenance cues match deployment
 metadata).
+
+## 2026-09-10 — docs closeout and repository hygiene (D069, D070)
+
+### What happened
+
+A read-only review of the repository against the descoped milestone (D051)
+found the code in good shape and the narrative documents behind it. Findings,
+in the order they mattered:
+
+- Every commit is on `main`; the only pull request ever opened is #1 from
+  2026-09-04. CI is green on the head commit. Only nine CI runs exist for 46
+  commits because roughly thirty commits from 2026-09-08/09 were pushed in
+  one batch late on 2026-09-09; each was gated locally per D010, but the
+  remote graph does not show the cadence D011 asked for.
+- `docs/MILESTONES.md` still called milestone 1 "in progress" and milestone 2
+  "pending" after the production deployment and the pin lifecycle had
+  shipped; the README status still described the original three-milestone
+  plan; `docs/NEXT.md` said "Nothing cut yet" despite D050 and D051; and the
+  requirements, architecture, and eval documents presented founder links,
+  threads, and rich marks as current requirements with none of the "vision,
+  not current work" notes that D051's consequences promised.
+- `npm ci` fails outright under Node 22 with npm 10 (a lockfile sync error
+  before anything installs) and works under Node 24 with npm 11. The
+  `engines` field already required Node 24; nothing at the root said so to a
+  version manager.
+- A 1.5 MB brand-exploration PNG sat unreferenced at the repository root.
+
+The fast half of the gate was run under Node 24 before any edit: lint, typecheck, 1079 unit tests (44 skipped for missing secrets), and the docs staleness check all passed.
+
+### What changed (documentation and hygiene only; no application code)
+
+- `docs/MILESTONES.md`: milestone 1 marked validated at the 2026-09-10
+  checkpoint; milestone 2 bullets marked shipped or deferred with the
+  remaining live pins checkpoint called out; milestone 3 marked deferred.
+- `README.md`: the status section now states what the current build does
+  and does not do, that the product is editor-only today, and where the
+  founder loop is being built; step 4 of "How it works" is marked as next
+  up rather than present.
+- `docs/NEXT.md`: the cut list, the ordered would-build-next list, and the
+  known weaknesses are filled in from D050, D051, D054, D059, D068, and this
+  review.
+- `docs/REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/EVALS.md`: build
+  status notes and inline deferral markers on the founder, thread, and
+  rich-mark items, without changing the nine-item functional list the
+  requirements test pins.
+- Hygiene: the root PNG moved to `docs/brand/logo-exploration-2026-09-06.png`
+  and a root `.nvmrc` pins Node 24.
+- Decisions: D069 (this closeout, user-directed) and D070 (founder links and
+  the read/reply view on a separate branch, in parallel, user-directed).
+
+### What broke or dead-ended
+
+Nothing in this pass. The `npm audit` findings were left alone because fixing
+them means dependency changes, and this pass was documentation only.
+
+### Open questions at end of session
+
+- D054 stays pending.
+- The short live pins checkpoint on production has not run yet; it is the
+  acceptance gate for milestone 2 as descoped.
+
+Drafted by Lucas.

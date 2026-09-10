@@ -3006,6 +3006,97 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D069",
+      "date": "2026-09-10",
+      "phase": "wrap",
+      "title": "Close out the descoped milestone: reconcile every narrative document to what actually shipped, and fix repository hygiene, with no application code changes",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "After D051, the pin lifecycle (D059, D061), the landing page (D066), and the production deployment (D068) shipped, but the narrative documents were not updated behind them: docs/MILESTONES.md still called milestone 1 in progress and milestone 2 pending, the README status described the original three-milestone plan, docs/NEXT.md said nothing had been cut, and the requirements, architecture, and eval documents presented founder links, threads, and rich marks as current requirements without the vision-versus-current note D051's consequences promised. The assignment grades the ability to explain the process, so stale narrative is a defect in a shipped deliverable. Two hygiene items sat alongside: an unreferenced 1.5 MB PNG at the repository root, and no root marker telling a version manager that Node 24 is required even though npm ci fails under Node 22.",
+      "decision": "Reconcile the documents to the shipped state without touching application code: milestone statuses and per-bullet shipped/deferred markers in docs/MILESTONES.md; a README status section that says plainly what the build does, what it does not do yet, and that the product is editor-only today; docs/NEXT.md filled in with the cut list, an ordered would-build-next list, and the known weaknesses; build-status notes plus inline deferral markers in docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, and docs/EVALS.md; a session-log section recording the review findings. Move the root PNG to docs/brand/ and add a root .nvmrc pinning Node 24. Regenerate the decision artifacts.",
+      "alternatives": [
+        {
+          "option": "Leave the documents as they were until after the live pins checkpoint",
+          "why_not": "The checkpoint may produce more fixes, but the documents were already wrong about what exists today, and a reviewer reading the repository now would be misled."
+        },
+        {
+          "option": "Rewrite the requirements and architecture documents to remove the deferred scope",
+          "why_not": "D051's consequence is that those sections describe the vision, not current work. Removing them would erase the design that the schema and boundary catalog already implement; marking them is honest and cheaper."
+        },
+        {
+          "option": "Fix the npm audit findings and the dependency line in the same pass",
+          "why_not": "That is a code and lockfile change. The direction for this pass was documentation and hygiene only."
+        }
+      ],
+      "rationale": "The human directed the closeout and the hygiene items explicitly and bounded them to no code changes. Every edit is a statement of fact about what shipped, sourced from the decision log, the session log, the production smoke, and a fresh run of the fast half of the gate.",
+      "consequences": [
+        "The narrative documents and the code now agree: the current build is the editor half of the product, and the founder half is deferred, not cut.",
+        "docs/REQUIREMENTS.md keeps exactly nine functional requirements, as test/requirements-sources.test.ts pins; the deferral markers are inline.",
+        "docs/NEXT.md now carries the ordered follow-up list, so the third interview question has a maintained answer.",
+        "The root of the repository holds no stray assets; .nvmrc makes the Node 24 requirement visible to version managers before npm ci fails.",
+        "The short live pins checkpoint and D054 remain the open items for the descoped milestone."
+      ],
+      "transcript": {
+        "request": "do the docs closeout and the hygiene items, no code changes."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "docs/MILESTONES.md",
+          "caption": "Milestone statuses and per-bullet shipped/deferred markers."
+        },
+        {
+          "type": "file",
+          "path": "docs/NEXT.md",
+          "caption": "Cut list, ordered next steps, and known weaknesses."
+        },
+        {
+          "type": "file",
+          "path": "README.md",
+          "caption": "Status section reconciled to the shipped build."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D070",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Build founder links and the read/reply view on a separate branch, in parallel, without touching the demo build",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "D051 deferred the founder loop (capability links, the read/reply-only founder view, and append-only threads) to protect the demo budget, which leaves the product usable by the editor alone. The schema, database triggers, feedback and reply-quota boundaries, and the asset authorization seam already exist, so the remaining work is additive routes and one new page. The question was whether and how to start it without risking the working production build before the live pins checkpoint.",
+      "decision": "Start the founder-links stream now, in parallel with the closeout and the live checkpoint, on a dedicated feature branch (feat/founder-links) cut from main. The branch must not change dependencies, must keep existing editor behavior unchanged by default, and must not edit the decision log or the narrative documents; its decision records are drafted in docs/decisions/drafts/ and folded into the log with sequential ids when the branch is reviewed. A pull request is opened later by the owner; the branch is pushed, not merged.",
+      "alternatives": [
+        {
+          "option": "Commit the founder loop straight to main per D010",
+          "why_not": "The human does not want to block or break what is already working before the checkpoint. A branch isolates the risk; D010 continues to govern everything else on main."
+        },
+        {
+          "option": "Wait until after the live pins checkpoint",
+          "why_not": "The work is independent of the canvas and pin code the checkpoint exercises, so serializing it only spends calendar time."
+        },
+        {
+          "option": "Keep it deferred",
+          "why_not": "The human wants the product usable with friends after the assignment, and this is the one feature that makes it so."
+        }
+      ],
+      "rationale": "The human directed the stream, its priority relative to the demo, and the branch-and-later-PR shape. This is a bounded exception to D010, not a reversal: main keeps commit-straight-to-main with the gate before every commit, and the branch carries the same gate.",
+      "consequences": [
+        "D010 still governs main; feat/founder-links is the one branch in flight, and it is the owner's to review and merge.",
+        "The branch's decision records live in docs/decisions/drafts/ until merge, so the sequential id rule on main is never violated by concurrent work.",
+        "Founder pages must satisfy the security boundaries already published in docs/ARCHITECTURE.md: no referrer, no indexing, digests only in the database, generic denials.",
+        "Requirements 6 and 7 and the role and thread eval scenarios stop being vision when this branch merges; the deferral markers added in D069 are removed at that point."
+      ],
+      "transcript": {
+        "request": "let's do this work (below) in parallel, as it's not crucual to the demo, but will make it more usable for future use in the wild with friends. open a separate branch for this and we'll own a PR later as well. I don't want to block/break what's already working."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
