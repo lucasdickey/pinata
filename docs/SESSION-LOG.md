@@ -1974,3 +1974,122 @@ Roughly 20 minutes of mission-worker time (gate run excluded).
 - None. The checkpoint server was stopped for the gate, then restarted with
   PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
   carries the new PID and commit.
+
+## 2026-09-10 — milestone 1 checkpoint Phase B: session outcome recorded (pins-and-feedback)
+
+### What was attempted
+
+The user's live milestone-1 checkpoint session is complete; this section is
+the durable Phase B record. Identities: run id
+`checkpoint-m1-2026-09-09T211026Z`, surface the local production build on
+`127.0.0.1:3100` (milestone 1 has no Vercel deployment, D050), final
+checkpoint commit `71c8ee2e33e4ee5e08de3d765e3f006d259e0018`, server running
+with the D052 auth bypass (PINATA_AUTH_DISABLED=1 inline, never in
+.env.local). The user drove their own Chrome against the seeded Chickpea
+project (publicId `5h3lHTzGhMeg`).
+
+Outcome: **conditional acceptance** — capture and organization validated;
+the product is not yet usable without pins. Verbatim closing statement:
+
+> okay, i thought we had something usable. this doesn't let us create the
+> most fundamental thing - creating a pin with an annotion. definitely move
+> onto that next.
+
+Verbatim feedback, chronological (each was fixed or recorded mid-session;
+the three fix sections above carry the implementation detail):
+
+1. "okay. so, a thing is captured, but I click on the buttons and nothing
+   happens. please review / explain." — the stage was a text placeholder;
+   fixed mid-session (editor-capture-image-stage, `b21385a`,
+   VAL-CAPTURE-015).
+2. "the content is being successfully fetched/screenshotted! but it should
+   be presented such that the entire page is in view. see screenshot." —
+   fixed mid-session (capture-stage-fit-view-and-hints, `0a27d77`;
+   VAL-CANVAS-002 now carries this as a user-directed requirement).
+3. "what hte heck is the interactin mechanism to drop a note? I can't
+   figure it out? add instrucitons on teh page itself to make it
+   self-documented" — pins do not exist yet; discoverability requirement
+   recorded as VAL-CANVAS-009 for the canvas/pins milestone.
+4. "this still goes off the page when expanded. i can't scroll right either
+   - the page scroll seems fixed horizontally - so i can't view the entire
+   page that's been captured." and "what does \"pins and comments arrive
+   with the canvas update. Use natural size to scroll into fine detail.\"
+   mean? i literally can't figure out how to create a pin and comment on
+   it. tell me what to do." — fixed mid-session
+   (capture-stage-natural-scroll-and-plain-copy, `71c8ee2`): two-axis
+   natural-size scrolling plus plain-language hint copy.
+
+Elapsed: the user did not state active time. The session spanned roughly
+2026-09-09T21:30Z to 2026-09-10T02:40Z with intermittent engagement across
+the three mid-session fix cycles; the span is recorded and active time is
+noted as unstated.
+
+Hesitations and dead ends (all quoted above): hunted for the screenshot
+display (none existed), hunted for a pin-drop mechanism (none existed),
+could not pan a wide capture horizontally (real CSS bug: three layers of
+automatic minimum size), and was confused by the "canvas update" jargon in
+the hint.
+
+Positive evidence: the user triggered "Retry Desktop capture" themselves,
+unaided, and the retry produced a ready Version 2 end to end through the
+real Browserless provider — the dispatch driver (D049) and scoped retry
+worked for a first-time user.
+
+Correction acknowledgment: the orchestrator's checkpoint feature text
+wrongly named `chickpea.vercel.app` as the capture target; that host is an
+unrelated third-party exporter template whose `/pricing`, `/about`, and
+`/privacy` all 404. The real target — the one every mission document and
+prior validator used, the one seeded, and the one the user confirmed in
+session on 2026-09-09 — is `https://chickpea.co`. Recorded as D053.
+
+The unsafe-redirect wart: the user never reacted to the failed Mobile-root
+attempt 1 visible in the tree (a transient provider-side inconsistency whose
+outcome is deliberately non-retryable in the catalog). Raised by the
+orchestrator, unanswered by the user — recorded as user-deferred D054
+(status pending).
+
+D051 (material post-milestone-1 descope) and D052 (local auth bypass) were
+already recorded at `bf08fda`; this session references them and duplicates
+nothing.
+
+### What broke or dead-ended
+
+- Nothing in this documentation pass itself. The session's product findings
+  are the four escapes above.
+
+### Elapsed
+
+Roughly 30 minutes of mission-worker time for Phase B recording,
+regeneration, gate, and teardown (gate run excluded). The user's session
+span is recorded above.
+
+### Decisions and assertions
+
+- D053 (correction acknowledgment: the checkpoint capture target is
+  chickpea.co, not chickpea.vercel.app; user-confirmed 2026-09-09).
+- D054 (user-deferred, pending: should an execution-time, provider-side
+  unsafe-redirect stay non-retryable?).
+- Evals: docs/EVALS.md gained the "Milestone 1 live checkpoint" section with
+  five Given/When/Expected/Observed cases (M1-LIVE-1 through M1-LIVE-5)
+  referencing VAL-CAPTURE-015, the updated VAL-CANVAS-002, VAL-CANVAS-009,
+  the natural-scroll fix, and the owner-driven retry.
+- Referenced, not duplicated: D050, D051, D052.
+
+### Teardown (orchestrator-amended)
+
+- The checkpoint server on `127.0.0.1:3100` was stopped (manifest web-prod
+  stop; the gate's Playwright run starts its own server). It is NOT
+  restarted: the checkpoint is over.
+- The headed agent-browser sessions from the pause (`49649250926a`, and
+  before it `062db38cfcfe`) had already died during the pauses;
+  `agent-browser session list` at teardown showed no active sessions to
+  close.
+- **The seeded Chickpea project (`5h3lHTzGhMeg`) is deliberately KEPT**, per
+  the orchestrator's 2026-09-10 teardown amendment: the upcoming
+  canvas/pins features (canvas-shell precondition) need a ready local seed.
+  Turso rows and Blob objects remain in place.
+
+### Open questions at end of session
+
+- D054 (provider-side unsafe-redirect retryability) stays pending until the
+  user answers it.

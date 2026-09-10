@@ -2275,8 +2275,76 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D053",
+      "date": "2026-09-10",
+      "phase": "validate",
+      "title": "Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The orchestrator's reopened milestone-1 checkpoint feature text named https://chickpea.vercel.app as the pre-seed capture target. That host is an unrelated third-party chickpea-exporter template whose /pricing, /about, and /privacy all return 404, so three of its four pages cannot produce meaningful captures at all. The mission's actual Chickpea product — the target used by every mission document and every prior capture validator — is https://chickpea.co (\"Chickpea: AI teammates in Slack\"), with all four pages live.",
+      "decision": "Seed and demonstrate https://chickpea.co (root plus /pricing, /about, /privacy) as the milestone-1 checkpoint project, and record this correction so the feature-text discrepancy stays auditable rather than silently resolved. The user confirmed the chickpea.co target during the 2026-09-09 checkpoint session.",
+      "alternatives": [
+        {
+          "option": "Seed chickpea.vercel.app exactly as the feature text named it",
+          "why_not": "That host is an unrelated site and three of its four named pages 404; seeding it would have produced a demo of the wrong product and mostly-failed captures, contradicting every mission document and prior validator that used chickpea.co."
+        },
+        {
+          "option": "Block the checkpoint until the user confirmed the target",
+          "why_not": "The mission's canonical target was unambiguous from the accumulated evidence, and the worker flagged the discrepancy prominently in its Phase A handoff for confirmation; proceeding kept the user's session on schedule and the confirmation arrived in session on 2026-09-09."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally: the choice was a factual correction to match the target the mission had always used, not a product-direction choice, and it was flagged to the user and orchestrator in the Phase A handoff rather than silently swapped. The origin stays agent-autonomous because the in-session user confirmation (2026-09-09) was relayed without a preserved verbatim quote, and this log does not upgrade provenance without the evidence the taxonomy requires.",
+      "consequences": [
+        "The seeded Chickpea project (publicId 5h3lHTzGhMeg) and all milestone-1 checkpoint evidence refer to https://chickpea.co; any document still naming chickpea.vercel.app is wrong.",
+        "The same correction carries into milestone 2's production Chickpea project (D050): the production capture target is https://chickpea.co.",
+        "Future orchestrator-authored feature texts that name external targets should be checked against the library's verified-target notes before seeding."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://chickpea.co",
+          "caption": "The real Chickpea product, capture target of the seeded checkpoint project"
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D054",
+      "date": "2026-09-10",
+      "phase": "validate",
+      "title": "Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "During the user-directed pre-seed, the Chickpea Mobile-root capture attempt 1 failed with unsafe-redirect — an execution-time final-URL inconsistency inside the provider session, not reproducible via curl or Playwright mobile emulation, i.e. a transient provider-side flake rather than a genuinely unsafe target. The outcome catalog deliberately marks unsafe-redirect retryable:false (the catalog row exists so the admission layer cannot be used as an oracle), so the product offered no recovery path for what was effectively provider flake; the worker had to insert a pending attempt row directly in Turso and dispatch it through the real route to get the ready attempt 2. The failed attempt remains visible in the demo project tree.",
+      "decision": "Deferred. The question was raised to the user as a checkpoint talking point and the user never reacted to the failed Mobile-root attempt during the session, so it stays open: should an execution-time unsafe-redirect (raised after admission, inside the provider session) be distinguished from an admission-time unsafe target and made retryable, or should the catalog stay as is?",
+      "alternatives": [
+        {
+          "option": "Make execution-time unsafe-redirect retryable now",
+          "why_not": "That weakens a security-shaped catalog row without the user's call; the retryable:false mark is deliberate, and changing it is a product/policy choice, not a worker's."
+        },
+        {
+          "option": "Silently leave the failed attempt in the demo tree with no record",
+          "why_not": "The failed row is visible in the seeded project the next milestone builds on; an unrecorded wart reads as a defect rather than a known, consciously postponed question."
+        }
+      ],
+      "rationale": "Raised by the checkpoint worker in its Phase A handoff and carried by the orchestrator as a session talking point; the user did not answer it during the 2026-09-09/10 session. Per the provenance taxonomy a consciously postponed item is user-deferred with status pending until answered, then superseded by the record that answers it.",
+      "consequences": [
+        "The seeded Chickpea project (kept per the 2026-09-10 orchestrator teardown amendment) continues to show one failed Mobile-root attempt 1 alongside ready attempt 2; canvas/pins features building on this seed should treat it as a known wart, not a regression.",
+        "The unsafe-redirect catalog row is unchanged: retryable:false, and the retry route keeps answering 409 for it.",
+        "When the user answers, a new decision flips this record to superseded with superseded_by naming the answer."
+      ],
+      "transcript": {
+        "proposal": "A transient unsafe-redirect (execution-time final-URL inconsistency inside the Browserless mobile session, not reproducible via curl or Playwright mobile emulation) permanently failed mobile root attempt 1. The outcome catalog marks unsafe-redirect retryable:false, so the product offered no recovery path for what was effectively provider flake. (Raised by the checkpoint worker, carried to the user by the orchestrator as a session talking point, unanswered.)"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-09",
-  "source_hash": "042889c91096"
+  "as_of": "2026-09-10",
+  "source_hash": "3de60eec7ab6"
 };

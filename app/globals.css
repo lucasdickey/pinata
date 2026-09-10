@@ -466,7 +466,10 @@ pre code {
 }
 
 .decision-meta .status-pending {
-  color: #6e7781;
+  /* WCAG AA floor on --surface/#fffdf8 cards: #6e7781 measured ~4.48:1 and
+     failed the axe sweep the first time a pending decision rendered (D054);
+     #57606a measures ~6.3:1. Do not lighten below 4.5:1. */
+  color: #57606a;
   font-weight: 700;
 }
 

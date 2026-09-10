@@ -101,6 +101,97 @@ scenarios (VAL-AUTH-008, VAL-AUTH-009):
 4. A stale reply composed before logout, rotation, or revocation is rejected
    and adds nothing.
 
+## Milestone 1 live checkpoint (2026-09-09/10)
+
+The first live checkpoint: the owner drove their own browser against the
+local production build on `127.0.0.1:3100` (commit `71c8ee2`, run id
+`checkpoint-m1-2026-09-09T211026Z`, server running with the D052 local
+auth-bypass flag) with the seeded Chickpea project — root plus `/pricing`,
+`/about`, `/privacy`, Desktop and Mobile, nine ready captures and one failed
+Mobile-root attempt. The session spanned roughly 2026-09-09T21:30Z to
+2026-09-10T02:40Z with intermittent engagement across three mid-session fix
+cycles; the owner did not state active time. Per the
+escapes-become-assertions rule, each finding below was written down before
+its fix was implemented. Overall outcome: **conditional acceptance** —
+capture and organization validated; the product is not yet usable because
+pins and pin comments do not exist (the very next milestone, D051). Verbatim
+closing statement:
+
+> okay, i thought we had something usable. this doesn't let us create the
+> most fundamental thing - creating a pin with an annotion. definitely move
+> onto that next.
+
+### M1-LIVE-1 — the stage must show the actual screenshot
+
+- **Given** a project with ready captures in the editor workspace
+- **When** the owner selects a capture and interacts with the stage
+- **Expected** the selected capture's real screenshot renders in the stage
+- **Observed** the stage was a text placeholder and clicking its controls
+  did nothing. Verbatim: "okay. so, a thing is captured, but I click on the
+  buttons and nothing happens. please review / explain."
+- **Outcome** rejected as shipped; fixed mid-session
+  (editor-capture-image-stage, commit `b21385a`), now formalized as
+  VAL-CAPTURE-015.
+
+### M1-LIVE-2 — the entire capture is in view on first open
+
+- **Given** a ready tall capture (the Chickpea pages run ~9k–13k px)
+- **When** the owner opens it in the stage
+- **Expected** the whole capture is visible at once, without scrolling
+- **Observed** the capture rendered at natural size and ran far off screen.
+  Verbatim: "the content is being successfully fetched/screenshotted! but it
+  should be presented such that the entire page is in view. see screenshot."
+- **Outcome** fixed mid-session (capture-stage-fit-view-and-hints, commit
+  `0a27d77`): fit-to-view is the default with a labeled natural-size toggle;
+  the contract's VAL-CANVAS-002 now carries this as a user-directed
+  requirement.
+
+### M1-LIVE-3 — the pin-drop mechanism must be discoverable from the page
+
+- **Given** a ready capture on screen
+- **When** the owner looks for how to drop a note on it
+- **Expected** the page itself explains the interaction, and the mechanism
+  exists
+- **Observed** no pin mechanism exists yet and nothing on the page said so.
+  Verbatim: "what hte heck is the interactin mechanism to drop a note? I
+  can't figure it out? add instrucitons on teh page itself to make it
+  self-documented"
+- **Outcome** open requirement, captured as VAL-CANVAS-009
+  (self-documenting canvas interactions) for the canvas/pins milestone; the
+  interim stage gained a plain-language hint in the meantime.
+
+### M1-LIVE-4 — wide captures must pan horizontally at natural size
+
+- **Given** a wide Desktop capture viewed at natural size
+- **When** the owner tries to scroll right to see the rest of the page
+- **Expected** the stage pans on both axes; the document never overflows
+  horizontally
+- **Observed** the image overflowed the page and nothing scrolled
+  horizontally. Verbatim: "this still goes off the page when expanded. i
+  can't scroll right either - the page scroll seems fixed horizontally - so
+  i can't view the entire page that's been captured." In the same exchange
+  the "canvas update" hint jargon was impenetrable: "what does \"pins and
+  comments arrive with the canvas update. Use natural size to scroll into
+  fine detail.\" mean? i literally can't figure out how to create a pin and
+  comment on it. tell me what to do."
+- **Outcome** fixed mid-session
+  (capture-stage-natural-scroll-and-plain-copy, commit `71c8ee2`): the
+  scroll region is bounded on both axes (`minmax(0, 1fr)` tracks,
+  `min-width: 0` on the detail and scroll containers) and the hint now says
+  plainly that pinning and commenting are not available in this build yet.
+
+### M1-LIVE-5 — owner-driven retry recovers a capture end to end
+
+- **Given** a failed capture attempt sitting next to ready siblings
+- **When** the owner presses the variant's Retry control themselves
+- **Expected** one fresh attempt is dispatched through the real provider and
+  appears as a new ready version
+- **Observed** exactly that: the owner triggered "Retry Desktop capture"
+  unaided and the retry produced a ready Version 2 end to end through the
+  real Browserless provider, with no worker intervention.
+- **Outcome** accepted behavior — positive evidence for the retry and
+  dispatch-driver design (VAL-CAPTURE-008, D049).
+
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`

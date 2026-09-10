@@ -28,3 +28,9 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   re-verification. The real-provider suite still opts in via the
   `CAPTURE_*_FIXTURE_URL` environment and skips without it, so the gate never
   spends Browserless quota unless asked.
+- An execution-time, provider-side `unsafe-redirect` (a transient
+  final-URL inconsistency inside the provider session, not a genuinely
+  unsafe target) is permanently non-retryable in the outcome catalog, so a
+  provider flake leaves a failed attempt the product cannot recover. Whether
+  to distinguish it from an admission-time unsafe target and offer retry is
+  deferred (`D054`, pending user answer).

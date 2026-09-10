@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 12 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 30 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049 |
-| Raised and deferred | 1 | D003 |
-| **Total** | **52** | |
+| Agent decided alone | 31 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053 |
+| Raised and deferred | 2 | D003, D054 |
+| **Total** | **54** | |
 
 ## Index
 
@@ -78,6 +78,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D050](#d050--trim-milestone-1-defer-first-vercel-deployment-and-the-variantretry-integration-matrix-to-milestone-2) | build | Trim milestone 1: defer first Vercel deployment and the variant/retry integration matrix to milestone 2 | Human directed | accepted |
 | [D051](#d051--materially-descope-the-post-milestone-1-roadmap-keep-pins-pin-comments-landing-page-first-deployment-short-pins-session-and-closeout-punt-everything-else) | validate | Materially descope the post-milestone-1 roadmap: keep pins, pin comments, landing page, first deployment, short pins session, and closeout; punt everything else | Human directed | accepted |
 | [D052](#d052--add-a-temporary-local-only-editor-auth-bypass-flag-pinataauthdisabled-default-off-never-in-envlocal-or-any-deployment) | build | Add a temporary local-only editor auth bypass flag (PINATA_AUTH_DISABLED), default off, never in .env.local or any deployment | Human directed | accepted |
+| [D053](#d053--correct-the-checkpoint-capture-target-the-seeded-and-demonstrated-chickpea-is-httpschickpeaco-not-chickpeavercelapp) | validate | Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app | Agent decided alone | accepted |
+| [D054](#d054--decide-later-whether-an-execution-time-provider-side-unsafe-redirect-should-stay-non-retryable) | validate | Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable | Raised and deferred | pending |
 
 ---
 
@@ -2010,4 +2012,72 @@ Human instruction:
 
 ---
 
-<sub>Generated from 52 record(s) as of 2026-09-09 · source `042889c91096`</sub>
+## D053 — Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app
+
+*2026-09-10 · phase: validate · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The orchestrator's reopened milestone-1 checkpoint feature text named https://chickpea.vercel.app as the pre-seed capture target. That host is an unrelated third-party chickpea-exporter template whose /pricing, /about, and /privacy all return 404, so three of its four pages cannot produce meaningful captures at all. The mission's actual Chickpea product — the target used by every mission document and every prior capture validator — is https://chickpea.co ("Chickpea: AI teammates in Slack"), with all four pages live.
+
+**Decision**
+
+Seed and demonstrate https://chickpea.co (root plus /pricing, /about, /privacy) as the milestone-1 checkpoint project, and record this correction so the feature-text discrepancy stays auditable rather than silently resolved. The user confirmed the chickpea.co target during the 2026-09-09 checkpoint session.
+
+**Alternatives considered**
+
+- *Seed chickpea.vercel.app exactly as the feature text named it* — That host is an unrelated site and three of its four named pages 404; seeding it would have produced a demo of the wrong product and mostly-failed captures, contradicting every mission document and prior validator that used chickpea.co.
+- *Block the checkpoint until the user confirmed the target* — The mission's canonical target was unambiguous from the accumulated evidence, and the worker flagged the discrepancy prominently in its Phase A handoff for confirmation; proceeding kept the user's session on schedule and the confirmation arrived in session on 2026-09-09.
+
+**Rationale**
+
+Safe to decide unilaterally: the choice was a factual correction to match the target the mission had always used, not a product-direction choice, and it was flagged to the user and orchestrator in the Phase A handoff rather than silently swapped. The origin stays agent-autonomous because the in-session user confirmation (2026-09-09) was relayed without a preserved verbatim quote, and this log does not upgrade provenance without the evidence the taxonomy requires.
+
+**Consequences**
+
+- The seeded Chickpea project (publicId 5h3lHTzGhMeg) and all milestone-1 checkpoint evidence refer to https://chickpea.co; any document still naming chickpea.vercel.app is wrong.
+- The same correction carries into milestone 2's production Chickpea project (D050): the production capture target is https://chickpea.co.
+- Future orchestrator-authored feature texts that name external targets should be checked against the library's verified-target notes before seeding.
+
+**Artifacts**
+
+- [The real Chickpea product, capture target of the seeded checkpoint project](https://chickpea.co)
+
+---
+
+## D054 — Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable
+
+*2026-09-10 · phase: validate · origin: **Raised and deferred** · status: **pending***
+
+**Problem**
+
+During the user-directed pre-seed, the Chickpea Mobile-root capture attempt 1 failed with unsafe-redirect — an execution-time final-URL inconsistency inside the provider session, not reproducible via curl or Playwright mobile emulation, i.e. a transient provider-side flake rather than a genuinely unsafe target. The outcome catalog deliberately marks unsafe-redirect retryable:false (the catalog row exists so the admission layer cannot be used as an oracle), so the product offered no recovery path for what was effectively provider flake; the worker had to insert a pending attempt row directly in Turso and dispatch it through the real route to get the ready attempt 2. The failed attempt remains visible in the demo project tree.
+
+**Decision**
+
+Deferred. The question was raised to the user as a checkpoint talking point and the user never reacted to the failed Mobile-root attempt during the session, so it stays open: should an execution-time unsafe-redirect (raised after admission, inside the provider session) be distinguished from an admission-time unsafe target and made retryable, or should the catalog stay as is?
+
+**Alternatives considered**
+
+- *Make execution-time unsafe-redirect retryable now* — That weakens a security-shaped catalog row without the user's call; the retryable:false mark is deliberate, and changing it is a product/policy choice, not a worker's.
+- *Silently leave the failed attempt in the demo tree with no record* — The failed row is visible in the seeded project the next milestone builds on; an unrecorded wart reads as a defect rather than a known, consciously postponed question.
+
+**Rationale**
+
+Raised by the checkpoint worker in its Phase A handoff and carried by the orchestrator as a session talking point; the user did not answer it during the 2026-09-09/10 session. Per the provenance taxonomy a consciously postponed item is user-deferred with status pending until answered, then superseded by the record that answers it.
+
+**Consequences**
+
+- The seeded Chickpea project (kept per the 2026-09-10 orchestrator teardown amendment) continues to show one failed Mobile-root attempt 1 alongside ready attempt 2; canvas/pins features building on this seed should treat it as a known wart, not a regression.
+- The unsafe-redirect catalog row is unchanged: retryable:false, and the retry route keeps answering 409 for it.
+- When the user answers, a new decision flips this record to superseded with superseded_by naming the answer.
+
+**Provenance evidence**
+
+Agent asked:
+
+> A transient unsafe-redirect (execution-time final-URL inconsistency inside the Browserless mobile session, not reproducible via curl or Playwright mobile emulation) permanently failed mobile root attempt 1. The outcome catalog marks unsafe-redirect retryable:false, so the product offered no recovery path for what was effectively provider flake. (Raised by the checkpoint worker, carried to the user by the orchestrator as a session talking point, unanswered.)
+
+---
+
+<sub>Generated from 54 record(s) as of 2026-09-10 · source `3de60eec7ab6`</sub>
