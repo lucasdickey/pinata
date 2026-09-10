@@ -52,6 +52,22 @@ edits; Pinata just makes "try tightening this" unambiguous.
 Guardrails: public pages only, static captures only, no runtime AI, and
 directional feedback only. Full rationale lives in the decision log.
 
+### The walkthrough
+
+A ten-chapter interactive walkthrough of the above, built with
+[Remotion](https://www.remotion.dev/) (`D072`), plays inside the app at
+`/walkthrough`: pick a chapter, or press play and let it run (about 1:45). It
+paints with the application's own tokens and borrows only imagery that already
+lived in the repository: the brand exploration board and the dashboard
+screenshots attached to `D004` and `D066`. The composition lives in
+`remotion/`; the slide table in `remotion/walkthrough/slides.ts` is the single
+source for the video, the chapter list, and the on-page transcript.
+
+```bash
+npm run walkthrough          # Remotion Studio, to scrub and edit the slides
+npm run walkthrough:render   # writes out/pinata-walkthrough.mp4 (git-ignored)
+```
+
 ## Stack
 
 Next.js + React + TypeScript on Vercel · Browserless for capture · Turso
@@ -91,6 +107,7 @@ reconstructed afterwards.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System shape, stack, capture pipeline, security boundaries. |
 | [`docs/MILESTONES.md`](docs/MILESTONES.md) | The three vertical slices and their status. |
 | [`docs/EVALS.md`](docs/EVALS.md) | The human-readable eval catalog. |
+| `remotion/walkthrough/slides.ts` | The ten-slide walkthrough played at `/walkthrough`; chapters, durations, and transcript in one table. |
 
 The same sources are rendered live in the running app: the requirements hub at
 `/reqs` (plus `/reqs/architecture`, `/reqs/milestones`, `/reqs/decisions`, and

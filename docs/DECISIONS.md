@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 18 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071 |
+| Human directed | 19 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 42 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068 |
+| Agent decided alone | 43 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **71** | |
+| **Total** | **73** | |
 
 ## Index
 
@@ -97,6 +97,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D069](#d069--split-the-public-landing-from-the-editor-workspace--stays-marketing-pins-is-the-app-pinsnew-holds-the-project-form) | build | Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form | Human directed | accepted |
 | [D070](#d070--collapse-the-project-rail-into-nested-native-disclosures-open-only-around-the-current-selection) | build | Collapse the project rail into nested native disclosures, open only around the current selection | Human directed | accepted |
 | [D071](#d071--list-every-pin-in-a-table-below-the-canvas-with-a-markdown-export-for-pasting-into-an-agentic-ide) | build | List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE | Human directed | accepted |
+| [D072](#d072--build-a-ten-slide-interactive-walkthrough-of-pinata-with-remotion-borrowing-the-repositorys-existing-imagery) | wrap | Build a ten-slide interactive walkthrough of Pinata with Remotion, borrowing the repository's existing imagery | Human directed | accepted |
+| [D073](#d073--host-the-walkthrough-inside-the-app-at-walkthrough-through-remotionplayer-keep-the-remotion-cli-dev-only-and-widen-the-dependency-allowlist-to-match) | wrap | Host the walkthrough inside the app at /walkthrough through @remotion/player, keep the Remotion CLI dev-only, and widen the dependency allowlist to match | Agent decided alone | accepted |
 
 ---
 
@@ -2758,4 +2760,83 @@ Human approved:
 
 ---
 
-<sub>Generated from 71 record(s) as of 2026-09-10 · source `76ca77c88ea3`</sub>
+## D072 — Build a ten-slide interactive walkthrough of Pinata with Remotion, borrowing the repository's existing imagery
+
+*2026-09-10 · phase: wrap · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The assignment is graded on explaining the product and the process, and the only explainer surfaces were prose: README, the /reqs hub, and the decision log. Nothing walked a first-time viewer through what Pinata is and how the four steps fit together in a form that could be played, paused, and pointed at during the interview.
+
+**Decision**
+
+A Remotion composition of exactly ten slides (title, the problem, who it is for, the four steps, guardrails, the stack and gate, the decision trail), 1920 x 1080 at 30 fps, about 104 seconds end to end. Every slide paints with the application's own color tokens and the shared brand mark, and the imagery is borrowed rather than invented: the brand exploration board that was already committed at the repository root (cropped into tiles), and the two dashboard screenshots already attached to D004 and D066. One slide table (remotion/walkthrough/slides.ts) carries the chapter names, durations, and a prose transcript, and is the single source for the video, the chapter navigation, and the on-page notes.
+
+**Alternatives considered**
+
+- *A static HTML or Markdown slide deck* — The user asked for Remotion specifically, and a static deck cannot show the pin dropping, the canvas zooming with the pins staying put, or the thread growing, which are the parts of the product that prose explains worst.
+- *A screen recording of the live app* — A recording goes stale the moment the UI changes and cannot be regenerated from source; a composition re-renders from the same code the tests cover.
+- *More than ten slides, one per feature* — The user sized it at about ten, and ten is what a viewer will sit through before the live demo; the /reqs hub already holds the long form.
+
+**Rationale**
+
+Directed by the user. Remotion keeps the walkthrough in code, typed by the same tsconfig as the app and covered by the same gate, and its Player lets the same composition run in the deployed product, so the walkthrough is demoable over a link rather than only from a checkout. Borrowing the committed board and screenshots keeps the visual language honest: it is the product's own material, not stock.
+
+**Consequences**
+
+- The dependency allowlist widens for the first time since D021: remotion and @remotion/player in the app bundle, @remotion/cli dev-only (D073 records where the walkthrough lives and why).
+- public/walkthrough/ now holds derived copies of imagery that already existed elsewhere in the repository; test/walkthrough-slides.test.ts fails if any referenced image is missing.
+- Slide copy is a second statement of the product story next to README and REQUIREMENTS.md; when scope changes, the slide table is one more place to update.
+- npm run walkthrough opens Remotion Studio and npm run walkthrough:render writes out/pinata-walkthrough.mp4; the MP4 is generated, git-ignored, and never committed.
+
+**Provenance evidence**
+
+Human instruction:
+
+> use the remotion library and create an interactive walkthrough on what pinata is and how it works. think maybe 10 total slides and borrow from any imagery that exists in the repository
+
+**Artifacts**
+
+- `remotion/walkthrough/slides.ts` — The ten-slide table: chapters, durations, transcript.
+- `remotion/walkthrough/Walkthrough.tsx` — The composition, one component per slide id.
+- `public/walkthrough/brand-board.webp` — The borrowed brand exploration board the title slide draws its tiles from.
+
+---
+
+## D073 — Host the walkthrough inside the app at /walkthrough through @remotion/player, keep the Remotion CLI dev-only, and widen the dependency allowlist to match
+
+*2026-09-10 · phase: wrap · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+D072 asked for Remotion and for the walkthrough to be interactive, but not where it should live. Remotion can run three ways: in Studio from a checkout, as a rendered MP4, or in the browser through @remotion/player. Each has a different footprint on the one-lockfile, allowlisted-dependency repository, and only one of them is reachable from the deployed product.
+
+**Decision**
+
+The composition lives in remotion/ inside the one package, typed by the app's tsconfig. The Next.js app mounts it at the public route /walkthrough through @remotion/player, wrapped in a chapter list that seeks the player to a slide, Previous/Next controls, arrow-key navigation, and the transcript for the chapter on screen. remotion and @remotion/player join the application dependencies; @remotion/cli is a devDependency for Studio and the MP4 render. All three are pinned exactly and added to scripts/lib/approved-deps.mjs, the allowlist the gate enforces. The landing page links to the walkthrough; REQUIREMENTS_NAV is untouched because the walkthrough is not a Markdown-backed requirements source and must not enter the dogfood URL array.
+
+**Alternatives considered**
+
+- *A standalone Remotion project in a subdirectory with its own package.json* — A second lockfile and a second toolchain to keep green, nothing the deployed app could show, and the gate would not cover it.
+- *Remotion Studio only, no in-app page* — Studio needs a checkout and a dev server; the assignment is demonstrated over a link and screen share, and the working rule is that anything not demoable in a browser in under a minute is deprioritized.
+- *Render the MP4 and commit it, embed a <video>* — A binary in git that drifts from the composition on every edit, and no chapter navigation; the Player gives the same frames with seeking for free.
+
+**Rationale**
+
+Decided without asking because the user had already fixed the direction (Remotion, interactive, about ten slides) and these are the mechanics inside it. The AGENTS.md rule is no unrequested dependencies; Remotion was requested, and the allowlist edit is the recorded mechanism for admitting it, not a new direction. Choosing the Player over Studio-only follows the standing demo-first rule. Keeping the CLI dev-only keeps the production bundle to what the page needs.
+
+**Consequences**
+
+- The application bundle carries the Remotion runtime on /walkthrough only; no other route imports it.
+- /walkthrough is public and anonymous like /reqs; it calls no /api route and loads nothing from outside the app, which e2e/walkthrough.spec.ts asserts along with an axe sweep at desktop and 390 px.
+- test/walkthrough-player.test.tsx stubs the Player and proves the page's own contract: one chapter per slide, seeking to a slide's first frame, the marker following frame updates.
+- Anyone wanting the MP4 runs npm run walkthrough:render locally; out/ is git-ignored.
+
+**Artifacts**
+
+- `src/components/walkthrough-player.tsx` — The in-app player with chapter navigation.
+- `scripts/lib/approved-deps.mjs` — The allowlist, now naming the three Remotion packages.
+
+---
+
+<sub>Generated from 73 record(s) as of 2026-09-10 · source `507820aae504`</sub>

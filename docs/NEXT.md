@@ -9,11 +9,24 @@ _Nothing cut yet. Entries here should link to the decision record that cut them.
 
 ## Would build next
 
-_To be filled in as the shape of the MVP becomes clear._
+- **Voice-over and captions for the walkthrough** (`D072`). The slide table
+  already carries a prose transcript per chapter; Remotion can time captions
+  from it and mix a recorded narration track, which would make the rendered
+  MP4 self-explanatory without the page around it.
 
 ## Known weaknesses
 
 _Honest list. Things a reviewer would find if they looked for five minutes._
+
+- The `/walkthrough` route ships the Remotion runtime to the browser and
+  animates with JavaScript, so it does not honor `prefers-reduced-motion` the
+  way the rest of the app's CSS does (`D073`). The transcript beside the
+  player is the reduced-motion path; a paused-by-default mode keyed to the
+  media query is the obvious follow-up.
+- The walkthrough's imagery is a derived copy of the brand board and two
+  dashboard screenshots under `public/walkthrough/`. If the dashboard
+  screenshots are retaken, the copies do not update on their own; the test
+  only proves the files exist and match their declared sizes.
 
 - `npm audit` reports 4 moderate-severity findings in the drizzle-kit/esbuild
   toolchain (dev-only transitive dependencies). The automated fix is a breaking

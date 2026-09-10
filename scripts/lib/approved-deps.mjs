@@ -4,22 +4,28 @@
 //
 // The docs tooling (scripts/, docs/dashboard/) must remain zero-dependency:
 // it may import only node: builtins and each other. The application stack is
-// the mission-approved set below.
+// the mission-approved set below, plus the Remotion packages the user asked
+// for to build the interactive walkthrough (D072): `remotion` and
+// `@remotion/player` ship in the app bundle for /walkthrough; `@remotion/cli`
+// is dev-only, for Studio and the MP4 render.
 
 export const APPROVED_DEPENDENCIES = Object.freeze({
   dependencies: Object.freeze([
     "@libsql/client",
+    "@remotion/player",
     "@vercel/blob",
     "@xyflow/react",
     "drizzle-orm",
     "next",
     "react",
     "react-dom",
+    "remotion",
     "zod",
   ]),
   devDependencies: Object.freeze([
     "@axe-core/playwright",
     "@playwright/test",
+    "@remotion/cli",
     "@testing-library/jest-dom",
     "@testing-library/react",
     "@testing-library/user-event",

@@ -2877,3 +2877,54 @@ are covered by specs that did not execute here.
 - D069 (user-directed): split `/`, `/pins`, `/pins/new`; five per-topic hub links.
 - D070 (user-directed): nested collapsible project rail.
 - D071 (user-directed): all-pins table with Markdown export.
+
+## Session: the interactive walkthrough (2026-09-10)
+
+Elapsed: roughly 1h15 of agent time against no fixed timebox; the original
+4-hour build budget was spent in earlier sessions and this is wrap-phase
+work, done on the branch `remotion-education/pinata-interactive-walkthrough`
+so it can be reviewed as one piece; `D010` (commit straight to `main`) still
+stands for product work.
+
+### The request
+
+"use the remotion library and create an interactive walkthrough on what
+pinata is and how it works. think maybe 10 total slides and borrow from any
+imagery that exists in the repository"
+
+### What was built
+
+- **Ten slides in Remotion** (`D072`): title, the problem, who it is for, the
+  four steps, guardrails, the stack and the gate, the decision trail. One
+  slide table drives the composition, the chapter list, and the transcript.
+- **Played in the app at `/walkthrough`** through `@remotion/player`
+  (`D073`), with chapter buttons that seek and play, Previous/Next, arrow
+  keys, and the chapter's transcript beside the player. The landing page
+  links to it.
+- **Borrowed imagery.** The repository had exactly four images: the favicon
+  SVG, a 1×1 test PNG, the brand exploration board committed at the root, and
+  two dashboard screenshots. The board was cropped into tiles with `sharp`
+  (already present through Next), the screenshots are scrolled inside device
+  frames, and the favicon's shared mark source draws every pin.
+
+### What broke
+
+- **No Node 24 on the machine.** The container ships Node 22; the repository
+  requires 24. Installed 24 through the pre-existing `nvm` in `/opt`.
+- **A React state update outside `act`.** The page test fed the stubbed
+  Player's `frameupdate` listener directly, so the current-chapter state never
+  flushed. Wrapping the emit in `act()` fixed it; the component was right.
+- **Two slides overflowed the frame** on the first render pass. The problem
+  slide's note card was absolutely positioned inside an unpositioned reveal
+  wrapper and landed over the footer; the capture slide's phone frame showed
+  the whole desktop page shrunk instead of a phone-width column. Caught by
+  rendering one still per slide with Remotion's CLI against the pre-installed
+  headless Chromium and looking at them; fixed by positioning the wrapper and
+  adding a horizontal crop to the scrolling-screenshot primitive.
+
+### Decisions
+
+- D072 (user-directed): the Remotion walkthrough, ten slides, borrowed imagery.
+- D073 (agent-autonomous): in-app Player at `/walkthrough`, CLI dev-only,
+  allowlist widened to admit the three Remotion packages.
+
