@@ -2808,3 +2808,47 @@ VAL-CROSS-001 (production Chickpea editor loop), VAL-CAPTURE-011 (real
 Chickpea lazy/animated/mobile capture set against a same-run baseline),
 VAL-REQS-003 (deployed source revision + provenance cues match deployment
 metadata).
+
+## 2026-09-10 — brand mark: the llama pin from the sheet, re-rendered as SVG
+
+### What happened
+
+The user handed over the white app-icon variant of the llama-pin mark from
+the committed brand sheet and asked for it to replace the landing image and
+the favicon, adding "either use this PNG and change the requirements OR
+re-render as an svg" once the D066 zero-raster rule surfaced. Took the SVG
+route (D069): cropped the 200-pixel app-icon tile out of
+`Codex Image Sep 6, 2026, 04_05_16 PM.png` (the pasted high-resolution icon
+never reached the repository), split it into two color masks — the whole
+pin-plus-sparks silhouette and the black head with the eye patch cut out and
+the pupil filled — upscaled, smoothed, and traced each with potrace into a
+64-unit path. Both paths now live in `src/lib/brand-mark.ts`; `<PinataLogo>`
+and `app/icon.svg` render exactly those paths with the even-odd fill rule.
+
+### Dead ends / fixes along the way
+
+- The first trace swallowed the dark sheet background at the tile corners;
+  clipping the masks to the rounded tile fixed it.
+- The first trace was far too detailed (about 44 KB of path data); a higher
+  optimisation tolerance and a stronger blur before thresholding brought the
+  two paths to about 6 KB combined with no visible loss at 72 px or 32 px.
+- The eye patch rendered filled under the default nonzero rule because
+  potrace emits holes for even-odd; both paths carry `fill-rule="evenodd"`
+  and the test now asserts it, plus the subpath counts (five body contours,
+  three head contours) so a re-trace cannot silently lose the eye or a spark.
+- The mark's black and orange are not text colors, so they became two new
+  tokens (`--brand-ink`, `--brand-spark`) outside the `--accent` contrast
+  lock; `--accent` itself is unchanged and aligning it to the brand orange is
+  left open.
+- The repository's Playwright pin wants Chromium build 1243 while the
+  container ships 1194; a container-local alias let the e2e gate run here.
+  Nothing in the repository changed for that.
+
+### Decisions
+
+- D069 (user-directed): adopt the llama-pin app icon as the mark, traced into
+  the one shared SVG source; requirement and tests kept.
+
+### Assertions
+
+VAL-LANDING-001 (same inline mark as favicon, no external image request).

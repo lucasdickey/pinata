@@ -12,6 +12,12 @@
      below 4.5:1 on either pairing. Locked by test/visual-tokens.test.ts. */
   --accent: #c43448;
   --accent-soft: #f6dfd3;
+  /* Brand-mark colors (D069): the llama pin's ink black and spark orange,
+     consumed only by src/lib/brand-mark.ts (the logo and the favicon). They
+     are never text colors, so --accent stays the AA-checked link/heading red
+     and these two carry no contrast contract. */
+  --brand-ink: #0d0d0d;
+  --brand-spark: #fe512d;
   --line: #ead9c2;
   --code-bg: #f5ead9;
   --max: 46rem;

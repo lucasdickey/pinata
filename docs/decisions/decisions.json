@@ -3006,6 +3006,64 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D069",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The landing logo and favicon were a placeholder drawn in code under D066 (an accent tile with a pin teardrop and starburst). The brand exploration sheet committed on 2026-09-08 carries the real mark — a llama-head map pin with orange sparks — and the user asked for its white app-icon variant to replace both the landing image and the favicon. The mark exists only as a raster, while D066 and test/brand-mark.test.tsx require one inline-SVG source for logo and favicon with zero raster or external image assets. The user left the resolution open: keep the PNG and change the requirement, or re-render the mark as SVG.",
+      "decision": "Re-render as SVG and keep the requirement. The app-icon tile was cropped from the committed brand sheet, separated into two color layers (the full pin-plus-sparks silhouette, and the black head with the eye patch cut out and the pupil filled), and traced to two SVG paths that now live in src/lib/brand-mark.ts. The head keeps its own ink black and the pin tip and sparks keep the sheet's spark orange, exposed as two new tokens (--brand-ink, --brand-spark) alongside the existing --surface tile fill. Both paths use the even-odd fill rule so the eye stays open. <PinataLogo> and app/icon.svg render exactly those paths; the test locks the two renderings to the source, the subpath structure (five body contours, three head contours), the fill rule, and the token equality.",
+      "alternatives": [
+        {
+          "option": "Ship the PNG as the logo and favicon and relax the zero-raster requirement",
+          "why_not": "The user offered this path, but the only copy on disk is the 200-pixel tile inside the brand sheet (the pasted high-resolution icon never reached the repository), a raster favicon needs several sizes, and the D066 guarantee that logo and favicon share one source and fetch nothing external would be lost."
+        },
+        {
+          "option": "Hand-draw a simplified llama pin in SVG primitives",
+          "why_not": "A hand approximation would drift from the sheet the user chose; tracing the actual tile reproduces its curves faithfully at about 6 KB for the favicon."
+        },
+        {
+          "option": "Recolor the mark to the existing --accent red and reuse the two-color token rule",
+          "why_not": "It would change the logo the user handed over; the mark's orange and black are brand colors, not text colors, so they get their own tokens with no contrast contract."
+        }
+      ],
+      "rationale": "The user named exactly two acceptable outcomes and the SVG route satisfies the request while keeping every landing guarantee (VAL-LANDING-001: same inline mark as favicon, no external image request) and its tests intact. Choosing between the two offered routes was inside the latitude the user granted.",
+      "consequences": [
+        "src/lib/brand-mark.ts now carries traced path data (about 4 KB and 2 KB) instead of hand-written primitives; re-tracing from a new sheet is the way to change the mark, not editing coordinates.",
+        "app/globals.css gains --brand-ink and --brand-spark; they are consumed only by the mark and are not subject to the WCAG text-contrast lock on --accent.",
+        "--accent (#c43448) is unchanged, so links and buttons stay the D047 red while the mark is spark orange; aligning the site accent to the brand orange is a separate visual decision left open.",
+        "The brand sheet PNG stays committed as the source of the trace; the D066 landing screenshot remains as history and D069-landing.png shows the new hero."
+      ],
+      "transcript": {
+        "request": "use this base logo png and update the landing page image as well as the favicon [...] either use this PNG and change the requirements OR re-render as an svg"
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D069-landing.png",
+          "caption": "The landing hero with the llama-pin mark above the URL capture entry."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/brand-mark.ts",
+          "caption": "The traced two-path mark source shared by the logo and the favicon."
+        },
+        {
+          "type": "file",
+          "path": "app/icon.svg",
+          "caption": "The favicon, the same two paths from the same source."
+        },
+        {
+          "type": "file",
+          "path": "Codex Image Sep 6, 2026, 04_05_16 PM.png",
+          "caption": "The brand sheet the app-icon tile was traced from."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

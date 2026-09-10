@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 15 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066 |
+| Human directed | 16 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 42 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **68** | |
+| **Total** | **69** | |
 
 ## Index
 
@@ -94,6 +94,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D066](#d066--the-root-route-is-a-branded-landing-page-the-pinata-mark-directly-above-the-url-capture-entry-a-brief-value-proposition-a-fully-static-example-of-a-marked-up-capture-and-a-clear-sign-in-path) | build | The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path | Human directed | accepted |
 | [D067](#d067--anonymous-capture-entries-park-in-same-tab-sessionstorage-and-route-to-the-on-page-sign-in-prompt-the-editor-form-consumes-the-draft-exactly-once) | build | Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once | Agent decided alone | accepted |
 | [D068](#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke) | build | Deploy to Vercel production behind SSO protection, fixing the framework preset and adding a Protection-Bypass-for-Automation secret for the smoke | Agent decided alone | accepted |
+| [D069](#d069--adopt-the-llama-pin-app-icon-from-the-brand-sheet-as-the-pinata-mark-re-rendered-as-vector-paths-in-the-one-shared-svg-source) | build | Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source | Human directed | accepted |
 
 ---
 
@@ -2612,4 +2613,48 @@ Protection Bypass for Automation is Vercel"s documented mechanism for exactly th
 
 ---
 
-<sub>Generated from 68 record(s) as of 2026-09-10 · source `adf6e28ef4f2`</sub>
+## D069 — Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The landing logo and favicon were a placeholder drawn in code under D066 (an accent tile with a pin teardrop and starburst). The brand exploration sheet committed on 2026-09-08 carries the real mark — a llama-head map pin with orange sparks — and the user asked for its white app-icon variant to replace both the landing image and the favicon. The mark exists only as a raster, while D066 and test/brand-mark.test.tsx require one inline-SVG source for logo and favicon with zero raster or external image assets. The user left the resolution open: keep the PNG and change the requirement, or re-render the mark as SVG.
+
+**Decision**
+
+Re-render as SVG and keep the requirement. The app-icon tile was cropped from the committed brand sheet, separated into two color layers (the full pin-plus-sparks silhouette, and the black head with the eye patch cut out and the pupil filled), and traced to two SVG paths that now live in src/lib/brand-mark.ts. The head keeps its own ink black and the pin tip and sparks keep the sheet's spark orange, exposed as two new tokens (--brand-ink, --brand-spark) alongside the existing --surface tile fill. Both paths use the even-odd fill rule so the eye stays open. <PinataLogo> and app/icon.svg render exactly those paths; the test locks the two renderings to the source, the subpath structure (five body contours, three head contours), the fill rule, and the token equality.
+
+**Alternatives considered**
+
+- *Ship the PNG as the logo and favicon and relax the zero-raster requirement* — The user offered this path, but the only copy on disk is the 200-pixel tile inside the brand sheet (the pasted high-resolution icon never reached the repository), a raster favicon needs several sizes, and the D066 guarantee that logo and favicon share one source and fetch nothing external would be lost.
+- *Hand-draw a simplified llama pin in SVG primitives* — A hand approximation would drift from the sheet the user chose; tracing the actual tile reproduces its curves faithfully at about 6 KB for the favicon.
+- *Recolor the mark to the existing --accent red and reuse the two-color token rule* — It would change the logo the user handed over; the mark's orange and black are brand colors, not text colors, so they get their own tokens with no contrast contract.
+
+**Rationale**
+
+The user named exactly two acceptable outcomes and the SVG route satisfies the request while keeping every landing guarantee (VAL-LANDING-001: same inline mark as favicon, no external image request) and its tests intact. Choosing between the two offered routes was inside the latitude the user granted.
+
+**Consequences**
+
+- src/lib/brand-mark.ts now carries traced path data (about 4 KB and 2 KB) instead of hand-written primitives; re-tracing from a new sheet is the way to change the mark, not editing coordinates.
+- app/globals.css gains --brand-ink and --brand-spark; they are consumed only by the mark and are not subject to the WCAG text-contrast lock on --accent.
+- --accent (#c43448) is unchanged, so links and buttons stay the D047 red while the mark is spark orange; aligning the site accent to the brand orange is a separate visual decision left open.
+- The brand sheet PNG stays committed as the source of the trace; the D066 landing screenshot remains as history and D069-landing.png shows the new hero.
+
+**Provenance evidence**
+
+Human instruction:
+
+> use this base logo png and update the landing page image as well as the favicon [...] either use this PNG and change the requirements OR re-render as an svg
+
+**Artifacts**
+
+- ![The landing hero with the llama-pin mark above the URL capture entry.](dashboard/screenshots/D069-landing.png) — The landing hero with the llama-pin mark above the URL capture entry.
+- `src/lib/brand-mark.ts` — The traced two-path mark source shared by the logo and the favicon.
+- `app/icon.svg` — The favicon, the same two paths from the same source.
+- `Codex Image Sep 6, 2026, 04_05_16 PM.png` — The brand sheet the app-icon tile was traced from.
+
+---
+
+<sub>Generated from 69 record(s) as of 2026-09-10 · source `a5d08e1058d8`</sub>
