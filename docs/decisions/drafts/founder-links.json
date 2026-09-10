@@ -1,0 +1,187 @@
+{
+  "note": "Draft decision records for the feat/founder-links branch. Ids are placeholders (DRAFT-n) to be renumbered into docs/decisions/decisions.json at PR time so the real sequence stays gapless. Origin is agent-autonomous throughout: every choice below was made inside the latitude of the founder-links feature brief without a human answering a question.",
+  "decisions": [
+    {
+      "id": "DRAFT-1",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Founder capability sessions are stateless: a signed cookie bound to project id and capability version, re-checked against the project row on every request",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "A founder link must persist until rotated or revoked, and rotation or revocation must end every existing founder session at once. The editor session revokes through an in-memory denylist (a documented per-instance weakness); copying that for founders would let a rotated capability keep working on another serverless instance until absolute expiry.",
+      "decision": "Mirror the editor session code for signing, lifetime, renewal, cookie attributes, and the double-submit CSRF proof, but bind the founder payload to {project id, capability version} and have the guard re-read the project row on every request: the project must be live, the digest present, share_revoked_at null, and share_token_version equal to the session's version. No founder session state is persisted, so no migration is needed and no denylist exists to go stale.",
+      "alternatives": [
+        {
+          "option": "A founder_sessions table with explicit revocation rows",
+          "why_not": "A new table and migration for state the project row already expresses; every request would still have to read the project row to learn about rotation."
+        },
+        {
+          "option": "Reuse the editor session token format with a role claim",
+          "why_not": "One token format for two authorities invites confusion; a distinct prefix (f1 versus v1) covered by the signature makes cross-verification impossible by construction, and the tests prove it."
+        }
+      ],
+      "rationale": "The brief explicitly says the version binding is what invalidates sessions, and the durable row is the only authority that changes on rotation; reading it per request is one indexed primary-key lookup. Safe to decide alone because it adds no schema, no dependency, and no new boundary constant.",
+      "consequences": [
+        "Founder sessions reuse EDITOR_SESSION_ABSOLUTE_LIFETIME_MS and EDITOR_SESSION_RENEWAL_THRESHOLD_MS; a founder-specific lifetime would need a new boundary constant and a POLICY_VERSION bump.",
+        "Every founder-authorized route performs one extra project-row read; asset delivery for founders costs one lookup more than for the editor.",
+        "There is no founder logout route; closing the browser or waiting for expiry ends the session, and the editor's rotate/revoke ends it immediately."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "src/lib/server/founder/session.ts", "caption": "Signed founder session bound to project and version." },
+        { "type": "file", "path": "src/lib/server/founder/guard.ts", "caption": "Live binding check on every request." },
+        { "type": "file", "path": "test/server/founder-routes.test.ts", "caption": "Rotation and revocation end existing sessions." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "DRAFT-2",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "No new boundary constants for founder links: reuse the editor session policy, AUTH_REQUEST_MAX_BYTES, ANNOTATION_REQUEST_MAX_BYTES, FEEDBACK_BODY_MAX_CHARS, and the published reply quota",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The boundary catalog is versioned and drift-checked against docs/EVALS.md and docs/ARCHITECTURE.md; adding any constant requires a POLICY_VERSION bump published in both documents, and this branch is forbidden from editing ARCHITECTURE.md while another stream closes the docs out.",
+      "decision": "Every limit the founder and thread surfaces need already exists in the catalog: the exchange body is capped by AUTH_REQUEST_MAX_BYTES (a 43-character token fits comfortably), reply bodies by ANNOTATION_REQUEST_MAX_BYTES and FEEDBACK_BODY_MAX_CHARS, founder session lifetime by the editor session constants, and the founder reply quota by REPLY_MAX_PER_WINDOW / REPLY_WINDOW_MS. The token length itself (32 bytes, 43 base64url characters) lives in the capability module as an implementation constant, not a published boundary, because it is a cryptographic minimum rather than a tunable policy.",
+      "alternatives": [
+        {
+          "option": "Add FOUNDER_SESSION_* and FOUNDER_TOKEN_BITS to the catalog with a POLICY_VERSION bump",
+          "why_not": "Forces edits to ARCHITECTURE.md and EVALS.md that this branch may not make, for values that would simply duplicate the editor's."
+        }
+      ],
+      "rationale": "The brief allows EVALS.md edits only when a drift test forces them; reusing constants means no drift test fires and the catalog stays at 2026-09-09.2. If the owner later wants a shorter founder lifetime, that is a one-constant catalog change with its own decision record.",
+      "consequences": [
+        "A founder session lives 12 hours and renews inside the last 2 hours, exactly like the editor's.",
+        "The boundary catalog and both policy documents are untouched on this branch."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "src/lib/server/founder/capability.ts", "caption": "Token size as an implementation constant." },
+        { "type": "file", "path": "src/lib/server/threads/throttle.ts", "caption": "Reply quota from the existing catalog values." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "DRAFT-3",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Founder reads share the editor's capture routes through one editor-or-founder authorizer, with a founder-scoped hierarchy route and a same-origin exchange route under /api/founder",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The founder view needs the project hierarchy, per-capture pin lists, private screenshot bytes, and per-pin threads. Duplicating those reads under a founder namespace would fork the list and delivery logic; admitting founders on the editor routes risks changing the editor-only denial shapes the existing tests pin.",
+      "decision": "One shared authorizer (src/lib/server/founder/reader.ts) tries the editor guard first and consults a founder cookie only when one is present; every founder failure answers with the editor's own denial, so anonymous, foreign-project, rotated, and revoked callers are byte-identical to what the routes always returned. The asset route, the pin-list GET, and the new thread route use it. The hierarchy read and the token exchange are founder-only and live under /api/founder/[publicId]; manifest and context reads stay editor-only because the read-only view never places a pin.",
+      "alternatives": [
+        {
+          "option": "A parallel /api/founder/... namespace for every read",
+          "why_not": "Duplicates delivery and listing logic and doubles the byte-exact asset proof surface."
+        },
+        {
+          "option": "Admit founders on manifest and context routes too",
+          "why_not": "The founder cannot place marks, so those reads have no consumer; the smallest admitted surface is the safest."
+        }
+      ],
+      "rationale": "The brief asks for the asset route to admit founders while denying everyone else exactly as today; a single authorizer that returns the editor's denial on any founder failure is the direct way to keep those denials identical, and the founder-specific asset tests prove one denial body for every failure case.",
+      "consequences": [
+        "GET /api/captures/[captureId]/annotations now serves founders of that capture's project; POST/PATCH/DELETE remain editor-only.",
+        "The existing editor-only asset and annotation route tests pass unchanged."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "src/lib/server/founder/reader.ts", "caption": "Editor-or-founder authorizer." },
+        { "type": "file", "path": "test/server/capture-asset-founder.test.ts", "caption": "Founder bytes and the one denial shape." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "DRAFT-4",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Thread replay is intent-bound without a digest column: the same key returns the committed entry only when body and role match, otherwise it conflicts",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Thread appends must be idempotent per the existing (annotation_id, idempotency_key) unique index, and pin creation binds a key to a payload digest through the idempotency_keys table. thread_entries has no digest column and adding one means a migration for a table whose rows can never be updated.",
+      "decision": "Look up the existing entry by (annotation, key); replay it with 200 when its body and actor role equal the request's, answer 409 when they differ, and converge on the winner if the unique index fires under concurrency. The founder quota admission runs only after the replay check and validation, so a retried or invalid reply never consumes quota.",
+      "alternatives": [
+        {
+          "option": "Record thread appends in idempotency_keys with a payload digest",
+          "why_not": "Two sources of truth for one row; the entry itself already carries every field the digest would cover."
+        },
+        {
+          "option": "Add a payload_digest column to thread_entries",
+          "why_not": "A migration for information derivable from the row."
+        }
+      ],
+      "rationale": "The entry row is immutable, so comparing its stored body and role is exactly as strong as comparing a digest of them. Safe to decide alone: no schema change, and the behavior matches the pin store's replay-or-conflict contract.",
+      "consequences": [
+        "A client that reuses a key with different text gets a 409 and must choose a new key.",
+        "No thread-related rows are ever written to idempotency_keys."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "src/lib/server/threads/entries.ts", "caption": "Replay-or-conflict append." },
+        { "type": "file", "path": "test/server/thread-entries.test.ts", "caption": "Replay, conflict, quota admission ordering, and the trigger proof." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "DRAFT-5",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "The editor's share control is closed by default and reads nothing until opened; the workspace's default traffic is unchanged",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The workspace tests stub fetch and count requests; an always-on per-project status read would add a request per project on every mount and change the default behavior the brief says must stay unchanged.",
+      "decision": "Render one Share with founder toggle per project in the tree; opening it reads the status once and offers Create/Rotate and Revoke; the issued link is composed client-side as origin + path + '#' + token, shown once in a read-only field with a Copy control, and forgotten when the control closes. The hierarchy payload is not extended with share status.",
+      "alternatives": [
+        {
+          "option": "Include share status in the project hierarchy response",
+          "why_not": "Changes the hierarchy shape every existing fixture constructs and adds capability metadata to a payload the founder route also serves."
+        }
+      ],
+      "rationale": "Additive and minimal, as the brief asks; the only new default-path DOM is one button per project, and the existing workspace suite passes without modification.",
+      "consequences": [
+        "Share status is read lazily; an editor must open the control to see whether a link exists.",
+        "The raw token exists only in the editor's page state until the control closes."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "src/components/founder-share.tsx", "caption": "The share control." },
+        { "type": "file", "path": "test/founder-share.test.tsx", "caption": "Closed by default, link shown once, rotate and revoke." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "DRAFT-6",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Founder pages get their security headers from next.config.ts for /f/* and /api/founder/*: no referrer, no indexing, no framing, no caching; a full nonce-based CSP is deferred",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Architecture requires founder capability pages to send no referrer and permit no indexing, and names a strict CSP with frame-ancestors 'none'. The application currently sets no response headers anywhere, and a strict script-src CSP would need per-request nonces threaded through the Next.js layout.",
+      "decision": "Add a headers() block to next.config.ts that sets Referrer-Policy: no-referrer, X-Robots-Tag: noindex, nofollow, noarchive, X-Frame-Options: DENY, Content-Security-Policy: frame-ancestors 'none', and Cache-Control: private, no-store, max-age=0 on /f/:path* and /api/founder/:path*; the founder page also declares robots noindex and referrer no-referrer in its metadata. The token never appears in a path or query, so no header can leak it.",
+      "alternatives": [
+        {
+          "option": "A full strict CSP with nonces for the founder page",
+          "why_not": "Requires middleware-generated nonces and layout plumbing across the whole app; out of this feature's scope and not needed for the no-referrer / no-index requirement."
+        }
+      ],
+      "rationale": "This satisfies the stated founder-page requirements with framework configuration only; the strict CSP remains a documented gap for a follow-up decision.",
+      "consequences": [
+        "The e2e founder spec asserts Referrer-Policy, X-Robots-Tag, and X-Frame-Options on the founder page response.",
+        "Other routes keep their current (header-less) posture; a site-wide CSP is a separate decision."
+      ],
+      "transcript": {},
+      "artifacts": [
+        { "type": "file", "path": "next.config.ts", "caption": "Founder surface headers." },
+        { "type": "file", "path": "app/f/[publicId]/page.tsx", "caption": "Metadata: noindex, no-referrer." }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    }
+  ]
+}
