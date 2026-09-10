@@ -192,8 +192,10 @@ describe("partial status", () => {
       "Version 2 — Queued",
       "Version 1 — Ready (default)",
     ]);
-    expect(within(detail()).getByTestId("capture-stage")).toHaveTextContent(
-      "Static capture v1 is ready",
+    // The older ready version is what renders while the retry is queued.
+    expect(within(detail()).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/captures/m1/asset",
     );
   });
 
@@ -209,11 +211,103 @@ describe("partial status", () => {
     const buttons = within(versions).getAllByRole("button");
     expect(buttons[0]).toHaveTextContent("Version 2 — Ready (default)");
     expect(buttons[0]!.getAttribute("aria-current")).toBe("true");
-    // The older version stays addressable.
+    // The older version stays addressable, and selecting it renders its image.
     await user.click(buttons[1]!);
-    expect(within(detail()).getByTestId("capture-stage")).toHaveTextContent(
-      "Static capture v1 is ready",
+    expect(within(detail()).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/captures/d1/asset",
     );
+  });
+});
+
+describe("capture image stage (VAL-CAPTURE-015)", () => {
+  test("a ready capture renders through the authorized same-origin asset route", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const stage = within(detail()).getByTestId("capture-stage");
+    const image = within(stage).getByRole("img");
+    // The authorized editor-session route only: same-origin, never a public
+    // or cross-origin (provider) URL.
+    expect(image).toHaveAttribute("src", "/api/captures/root-d1/asset");
+    expect(image.getAttribute("src")).not.toMatch(/^[a-z]+:/i);
+  });
+
+  test("the image's accessible name carries page URL, device, and attempt", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    expect(within(detail()).getByRole("img")).toHaveAccessibleName(
+      "Screenshot of https://chickpea.co/ (Desktop, version 1)",
+    );
+
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    expect(within(detail()).getByRole("img")).toHaveAccessibleName(
+      "Screenshot of https://chickpea.co/ (Mobile, version 1)",
+    );
+  });
+
+  test("the image sits in a named, focusable, scrollable region", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const stage = within(detail()).getByTestId("capture-stage");
+    const region = within(stage).getByRole("region", {
+      name: "Screenshot of https://chickpea.co/ (Desktop, version 1)",
+    });
+    // Keyboard users must be able to scroll the tall capture.
+    expect(region).toHaveAttribute("tabindex", "0");
+    // The region scrolls rather than scaling: the image keeps its intrinsic
+    // size (no max-width / object-fit constraint that would shrink it).
+    const image = within(region).getByRole("img");
+    expect(image.className).toBe("capture-stage-image");
+  });
+
+  test.each([
+    ["pending", "Queued"],
+    ["capturing", "Capturing"],
+    ["stale", "Stopped responding"],
+    ["failed", "Failed"],
+  ] as const)(
+    "a device with only a %s attempt renders no image and keeps its named state",
+    (state, label) => {
+      const notReady = project();
+      notReady.pages[0]!.devices[0] = device("desktop", [
+        attempt({
+          id: "d1",
+          state,
+          errorCode: state === "failed" ? "total-timeout" : null,
+        }),
+      ]);
+      render(<ProjectWorkspace projects={[notReady]} onChanged={onChanged} />);
+      const stage = within(detail()).getByTestId("capture-stage");
+      expect(within(stage).queryByRole("img")).toBeNull();
+      expect(stage).toHaveTextContent("No capture to show yet:");
+      // The state is named on the device row itself.
+      expect(
+        within(tree()).getByRole("button", {
+          name: "Desktop capture of https://chickpea.co/",
+        }),
+      ).toHaveTextContent(label);
+    },
+  );
+
+  test("explicitly selecting a non-ready version swaps the image for its named state", async () => {
+    const user = userEvent.setup();
+    const mixed = project();
+    mixed.pages[0]!.devices[0] = device("desktop", [
+      attempt({ id: "d1", attempt: 1, state: "ready" }),
+      attempt({ id: "d2", attempt: 2, state: "failed", errorCode: "total-timeout" }),
+    ]);
+    render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
+    // The ready default renders its image.
+    expect(within(detail()).getByRole("img")).toHaveAttribute(
+      "src",
+      "/api/captures/d1/asset",
+    );
+
+    const versions = within(detail()).getByRole("list", { name: "Capture versions" });
+    await user.click(within(versions).getByRole("button", { name: /Version 2 — Failed/ }));
+    const stage = within(detail()).getByTestId("capture-stage");
+    expect(within(stage).queryByRole("img")).toBeNull();
+    expect(stage).toHaveTextContent("No capture to show yet: Failed.");
   });
 });
 

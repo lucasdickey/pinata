@@ -1795,3 +1795,53 @@ Roughly 30 minutes of mission-worker time (gate runs excluded).
 - None. The checkpoint server is left running with the bypass flag for the
   user's session; removing or revisiting the bypass is deferred until auth
   becomes a priority again (see D052 consequences).
+
+---
+
+## 2026-09-09 — capture stage renders the real screenshot (VAL-CAPTURE-015)
+
+### What was attempted
+
+Live checkpoint feedback (verbatim: "a thing is captured, but I click on the
+buttons and nothing happens"): the capture stage in
+`src/components/project-workspace.tsx` was a text placeholder and no
+component rendered the screenshot, even though the authorized asset route
+shipped. Replaced the ready-state placeholder with an `<img>` whose `src` is
+the authorized same-origin route `/api/captures/[captureId]/asset` for the
+selected attempt — never a public or cross-origin URL — displayed at
+intrinsic natural dimensions inside a named, focusable, scrollable region
+(`.capture-stage-scroll`, `role="region"`, `tabIndex=0`, `max-height: 80vh`,
+`overflow: auto`). The image's accessible name carries page URL, device, and
+attempt ("Screenshot of <url> (<Device>, version <n>)"). Non-ready variants
+keep their named non-image states unchanged, and the stage still contains no
+link, iframe, or navigation handler. Deliberately no zoom/pan: the React
+Flow canvas feature will replace this stage's internals.
+
+Strict TDD: nine failing assertions first in `test/project-workspace.test.tsx`
+(asset-route src, accessible name, scroll region, per-state non-image
+fallbacks, version switching), then the implementation to green (20/20).
+
+### What broke or dead-ended
+
+- First draft of the non-ready test assumed the stage names the latest
+  attempt's state ("Queued", etc.); the existing behavior only shows
+  "not captured" until a non-ready version is explicitly selected. Kept the
+  existing behavior and rewrote the test to assert it honestly, plus one
+  explicit-version-selection case.
+
+### Elapsed
+
+Roughly 25 minutes of mission-worker time (gate runs excluded).
+
+### Decisions and assertions
+
+- VAL-CAPTURE-015 (view the selected capture image in the workspace).
+- No new decision record: the change is a mechanical implementation of the
+  user-reported gap inside the already-approved asset-delivery architecture
+  (D044); nothing constrained future work beyond it.
+
+### Open questions at end of session
+
+- None. The checkpoint server was stopped for the gate, then restarted with
+  PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
+  carries the new PID and commit.

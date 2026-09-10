@@ -250,13 +250,30 @@ export function ProjectWorkspace({
           ) : null}
 
           {/* A static image of the captured page: no link, no embedded
-              document, and no handler that could navigate to the source. */}
+              document, and no handler that could navigate to the source. The
+              bytes come only from the authorized same-origin asset route
+              (/api/captures/[captureId]/asset), which re-verifies the editor
+              session on every request — never a public or cross-origin URL. */}
           <div className="capture-stage" data-testid="capture-stage">
             {selectedAttempt?.state === "ready" ? (
-              <p>
-                Static capture v{selectedAttempt.attempt} is ready. Clicking it opens nothing —
-                this is an image, not the live site.
-              </p>
+              <div
+                className="capture-stage-scroll"
+                role="region"
+                aria-label={`Screenshot of ${active.page.normalizedUrl} (${variantLabel(
+                  active.device.variant,
+                )}, version ${selectedAttempt.attempt})`}
+                // Focusable so keyboard users can scroll the full-height
+                // capture; the image renders at intrinsic natural dimensions.
+                tabIndex={0}
+              >
+                <img
+                  className="capture-stage-image"
+                  src={`/api/captures/${encodeURIComponent(selectedAttempt.id)}/asset`}
+                  alt={`Screenshot of ${active.page.normalizedUrl} (${variantLabel(
+                    active.device.variant,
+                  )}, version ${selectedAttempt.attempt})`}
+                />
+              </div>
             ) : (
               <p>
                 No capture to show yet:{" "}
