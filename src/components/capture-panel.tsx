@@ -65,6 +65,7 @@ export function CapturePanel({
   draftChoice,
   onDraftChoiceChange,
   draftCandidates,
+  onPreviewCandidate,
   onSaveDraft,
   onCancelDraft,
   saveState,
@@ -102,6 +103,12 @@ export function CapturePanel({
   draftChoice: string | null | undefined;
   onDraftChoiceChange: (choice: string | null) => void;
   draftCandidates: DraftCandidates | null;
+  /**
+   * Preview one candidate's manifest rectangle on the canvas (null clears).
+   * Fired by mouse hover, keyboard focus, and the documented touch action —
+   * a finger held on a candidate row — and never persists anything.
+   */
+  onPreviewCandidate: (candidate: PinElementSnapshot | null) => void;
   onSaveDraft: () => void;
   onCancelDraft: () => void;
   saveState: "idle" | "saving" | "failed";
@@ -149,7 +156,18 @@ export function CapturePanel({
               placeholder="What should change here?"
             />
           </label>
-          <fieldset className="panel-field panel-candidates" data-testid="draft-context">
+          {/*
+            data-candidates-state is the panel's quiescent marker: it reads
+            "loading" until the nearby-candidate read resolves and "ready" /
+            "failed" once the list below is final. Specs wait for a settled
+            value before clicking a radio — without it the async render can
+            detach a radio mid-click under CPU contention.
+          */}
+          <fieldset
+            className="panel-field panel-candidates"
+            data-testid="draft-context"
+            data-candidates-state={draftCandidates?.status ?? "loading"}
+          >
             <legend>Attach to a nearby element?</legend>
             {draftCandidates?.status === "loading" ? (
               <p className="panel-note">Looking for nearby elements…</p>
@@ -161,21 +179,39 @@ export function CapturePanel({
             ) : null}
             {draftCandidates?.status === "ready"
               ? draftCandidates.items.map((candidate) => (
-                  <label key={candidate.id} className="panel-candidate">
+                  <label
+                    key={candidate.id}
+                    className="panel-candidate"
+                    data-element-id={candidate.id}
+                    onMouseEnter={() => onPreviewCandidate(candidate)}
+                    onMouseLeave={() => onPreviewCandidate(null)}
+                    onTouchStart={() => onPreviewCandidate(candidate)}
+                    onTouchEnd={() => onPreviewCandidate(null)}
+                    onTouchCancel={() => onPreviewCandidate(null)}
+                  >
                     <input
                       type="radio"
                       name="draft-element"
+                      value={candidate.id}
                       checked={draftChoice === candidate.id}
                       onChange={() => onDraftChoiceChange(candidate.id)}
+                      onFocus={() => onPreviewCandidate(candidate)}
+                      onBlur={() => onPreviewCandidate(null)}
                     />
                     <span>{snapshotLabel(candidate)}</span>
                   </label>
                 ))
               : null}
-            <label className="panel-candidate">
+            {/*
+              The explicit "No element" decision. Its key keeps this exact DOM
+              node stable across the loading → ready transition above, so a
+              click already in flight can never land on a detached radio.
+            */}
+            <label key="no-element" className="panel-candidate">
               <input
                 type="radio"
                 name="draft-element"
+                value=""
                 checked={draftChoice === null}
                 onChange={() => onDraftChoiceChange(null)}
               />

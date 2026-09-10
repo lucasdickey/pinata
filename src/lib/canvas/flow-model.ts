@@ -23,6 +23,9 @@ export const PIN_TYPE = "pin";
 /** Custom node type for the one transient, unsaved draft pin. */
 export const DRAFT_PIN_TYPE = "draftPin";
 
+/** Custom node type for the transient nearby-candidate highlight box. */
+export const CONTEXT_PREVIEW_TYPE = "contextPreview";
+
 /** The domain facts a capture frame renders from. */
 export interface CaptureFrameDomain {
   captureId: string;
@@ -84,21 +87,25 @@ export function captureFrameNode(domain: CaptureFrameDomain): CaptureFrameNode {
 
 /**
  * The controlled node array for one active capture: parent frame first, then
- * the persisted pins in stable server-number order, then the transient draft
- * pin when one exists. Adapter artifacts (frame, draft) use namespaced ids;
- * a persisted pin's node id IS its server annotation id — the domain record
- * is canonical and raw React Flow state is never persisted.
+ * the transient context preview highlight when one exists, then the
+ * persisted pins in stable server-number order, then the transient draft pin
+ * when one exists. Adapter artifacts (frame, preview, draft) use namespaced
+ * ids; a persisted pin's node id IS its server annotation id — the domain
+ * record is canonical and raw React Flow state is never persisted.
  */
 export function nodesForCapture(
   domain: CaptureFrameDomain,
   pins: CanvasPin[] = [],
   draftTip?: NaturalPoint | null,
   zoom = 1,
+  preview?: ContextRect | null,
 ): CanvasNode[] {
   const frame = captureFrameNode(domain);
   const ordered = [...pins].sort((a, b) => a.number - b.number);
+  const highlight = preview ? contextPreviewNode(domain, preview) : null;
   const nodes: CanvasNode[] = [
     frame,
+    ...(highlight ? [highlight] : []),
     ...ordered.map((pin) => pinNode(domain, pin, zoom)),
   ];
   return draftTip ? [...nodes, draftPinNode(domain, draftTip, zoom)] : nodes;
@@ -186,7 +193,91 @@ export interface DraftPinData extends Record<string, unknown> {
 
 export type DraftPinNode = Node<DraftPinData, typeof DRAFT_PIN_TYPE>;
 
-export type CanvasNode = CaptureFrameNode | PinNode | DraftPinNode;
+/**
+ * A nearby-candidate bounding rectangle in screenshot-natural CSS pixels —
+ * exactly the persisted manifest element's rect, never a measured or
+ * CSS-scaled box.
+ */
+export interface ContextRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ContextPreviewData extends Record<string, unknown> {
+  rectX: number;
+  rectY: number;
+  rectWidth: number;
+  rectHeight: number;
+  /** Accessible name (the box itself is aria-hidden decoration). */
+  label: string;
+}
+
+export type ContextPreviewNode = Node<ContextPreviewData, typeof CONTEXT_PREVIEW_TYPE>;
+
+export type CanvasNode = CaptureFrameNode | PinNode | DraftPinNode | ContextPreviewNode;
+
+/**
+ * The preview node id is a deterministic namespaced derivative of the
+ * capture id: at most one highlight exists per plane, and it can never
+ * collide with a server-assigned annotation id.
+ */
+export function contextPreviewNodeId(captureId: string): string {
+  return `context-preview:${captureId}`;
+}
+
+/**
+ * The transient nearby-candidate highlight as a child of the screenshot
+ * frame (VAL-PIN-004, VAL-PIN-010). Its position and size are exactly the
+ * candidate's persisted natural-pixel rect, so the box inverse-transforms to
+ * the manifest rectangle within one natural pixel at any zoom. The preview
+ * is decoration over local UI state: it is never draggable, selectable,
+ * persisted, numbered, or listed as an annotation, it ignores all pointer
+ * events, and it vanishes on choice, blur, cancel, save, and plane switch.
+ *
+ * Unlike pins, an invalid rect yields no node instead of a throw: a corrupt
+ * highlight must never take the whole plane down.
+ */
+export function contextPreviewNode(
+  domain: CaptureFrameDomain,
+  rect: ContextRect,
+): ContextPreviewNode | null {
+  const values = [rect.x, rect.y, rect.width, rect.height];
+  if (
+    !values.every((value) => typeof value === "number" && Number.isFinite(value)) ||
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    return null;
+  }
+  return {
+    id: contextPreviewNodeId(domain.captureId),
+    type: CONTEXT_PREVIEW_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: rect.x, y: rect.y },
+    width: rect.width,
+    height: rect.height,
+    data: {
+      rectX: rect.x,
+      rectY: rect.y,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      label: "Highlighted nearby element",
+    },
+    ariaLabel: "Highlighted nearby element",
+    draggable: false,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    focusable: false,
+    // React Flow 12.11 computes the wrapper's pointer-events from
+    // interactivity (selectable/draggable/handlers) and ignores the Node
+    // pointerEvents field; node.style spreads AFTER that computed value, so
+    // this inline style is what actually keeps the box pointer-transparent.
+    style: { pointerEvents: "none" },
+  };
+}
 
 /**
  * The draft pin node id is a deterministic namespaced derivative of the

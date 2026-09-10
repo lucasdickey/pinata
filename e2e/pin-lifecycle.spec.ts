@@ -113,6 +113,18 @@ async function waitPinsLoaded(page: Page): Promise<void> {
 }
 
 /**
+ * Wait for the context panel's quiescent marker before touching any radio:
+ * the async candidates render can detach a radio mid-click under load (the
+ * 2026-09-10 full-gate flake), so specs never click while it reads loading.
+ */
+async function waitContextSettled(page: Page): Promise<void> {
+  await expect(page.getByTestId("draft-context")).toHaveAttribute(
+    "data-candidates-state",
+    /ready|failed/,
+  );
+}
+
+/**
  * Wait for the pin this test just created and return it. Ids — not
  * numbers — identify it: numbering is monotonic across tombstones, so a
  * retired number makes "live max + 1" unreliable.
@@ -218,9 +230,7 @@ test("saving requires an explicit context decision; the server-derived snapshot 
   // Wait out the nearby-candidate read, then decide deliberately: the
   // first ranked candidate when the manifest offers one near the aim,
   // otherwise the explicit No element. Both are real decisions.
-  await expect(page.getByTestId("draft-context")).not.toContainText(
-    "Looking for nearby elements",
-  );
+  await waitContextSettled(page);
   const candidateRows = page.locator('[data-testid="draft-context"] .panel-candidate');
   const candidateCount = await candidateRows.count();
   if (candidateCount > 1) {
@@ -294,6 +304,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
 
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: lifecycle move-edit-delete");
+  await waitContextSettled(page);
   await page.getByRole("radio", { name: "No element" }).check();
   await page.getByRole("button", { name: "Save pin" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
@@ -369,6 +380,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   const aim2 = await aimBottomBand(page, target);
   await placeDraft(page, aim2);
   await page.getByLabel("Comment").fill("e2e: lifecycle number-retirement probe");
+  await waitContextSettled(page);
   await page.getByRole("radio", { name: "No element" }).check();
   await page.getByRole("button", { name: "Save pin" }).click();
   const probe = await awaitNewPin(page, target.captureId, beforeProbe);
@@ -403,6 +415,7 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
 
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: stale conflict victim");
+  await waitContextSettled(page);
   await page.getByRole("radio", { name: "No element" }).check();
   await page.getByRole("button", { name: "Save pin" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
@@ -486,6 +499,7 @@ test("a session that lost authority cannot move the pin and the record is untouc
 
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: lost-authority probe");
+  await waitContextSettled(page);
   await page.getByRole("radio", { name: "No element" }).check();
   await page.getByRole("button", { name: "Save pin" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);

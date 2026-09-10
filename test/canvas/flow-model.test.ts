@@ -10,6 +10,9 @@ import { MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
 import {
   CAPTURE_FRAME_TYPE,
   captureFrameNodeId,
+  CONTEXT_PREVIEW_TYPE,
+  contextPreviewNode,
+  contextPreviewNodeId,
   DRAFT_PIN_TYPE,
   draftPinNode,
   draftPinNodeId,
@@ -221,5 +224,78 @@ describe("persisted pin nodes", () => {
     expect(() => pinNode(domain, { ...pins[1]!, tip: { x: 1, y: Number.NaN } }, 1)).toThrow(
       RangeError,
     );
+  });
+});
+
+describe("context preview node", () => {
+  const rect = { x: 808.5, y: 4202.25, width: 216.75, height: 98.5 };
+  const pins: CanvasPin[] = [
+    { id: "ann-uuid-a", number: 1, tip: { x: 812.25, y: 4231.5 }, selected: false },
+  ];
+
+  test("renders the exact natural-pixel rectangle as a child of the frame", () => {
+    const node = contextPreviewNode(domain, rect);
+    expect(node).not.toBeNull();
+    expect(node!.id).toBe(contextPreviewNodeId(domain.captureId));
+    expect(node!.id).toBe("context-preview:cap-root-desktop-v2");
+    expect(node!.type).toBe(CONTEXT_PREVIEW_TYPE);
+    expect(node!.parentId).toBe(captureFrameNodeId(domain.captureId));
+    // Position and size ARE the candidate's persisted natural-pixel rect —
+    // no rounding, padding, or badge math on a measurement surface.
+    expect(node!.position).toEqual({ x: rect.x, y: rect.y });
+    expect(node!.width).toBe(rect.width);
+    expect(node!.height).toBe(rect.height);
+    expect(node!.data.rectX).toBe(rect.x);
+    expect(node!.data.rectY).toBe(rect.y);
+    expect(node!.data.rectWidth).toBe(rect.width);
+    expect(node!.data.rectHeight).toBe(rect.height);
+  });
+
+  test("is fully inert: no drag, selection, connection, deletion, or pointer events", () => {
+    const node = contextPreviewNode(domain, rect)!;
+    expect(node.draggable).toBe(false);
+    expect(node.selectable).toBe(false);
+    expect(node.connectable).toBe(false);
+    expect(node.deletable).toBe(false);
+    expect(node.focusable).toBe(false);
+    // React Flow 12.11 ignores Node.pointerEvents and derives the wrapper's
+    // pointer-events from interactivity (the canvas's onNodeClick would make
+    // it "all"); node.style spreads after that derivation, so the inline
+    // style is the load-bearing pointer-transparency.
+    expect(node.style).toEqual({ pointerEvents: "none" });
+    // No raw React Flow runtime serialization enters or leaves the adapter.
+    expect("positionAbsolute" in node).toBe(false);
+    expect("measured" in node).toBe(false);
+    expect("selected" in node).toBe(false);
+  });
+
+  test("sits right after the frame so pins and the draft stack above it", () => {
+    const nodes = nodesForCapture(domain, pins, { x: 9, y: 9 }, 1, rect);
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      CONTEXT_PREVIEW_TYPE,
+      PIN_TYPE,
+      DRAFT_PIN_TYPE,
+    ]);
+  });
+
+  test("is absent without a preview rect, and never confused with a domain record", () => {
+    expect(nodesForCapture(domain, pins, null, 1, null).map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+    ]);
+    // The namespaced adapter id can never collide with an annotation id.
+    expect(pins.map((pin) => pin.id)).not.toContain(contextPreviewNodeId(domain.captureId));
+  });
+
+  test("zero-area, negative, and non-finite rectangles produce no node", () => {
+    expect(contextPreviewNode(domain, { ...rect, width: 0 })).toBeNull();
+    expect(contextPreviewNode(domain, { ...rect, height: -4 })).toBeNull();
+    expect(contextPreviewNode(domain, { ...rect, x: Number.NaN })).toBeNull();
+    expect(contextPreviewNode(domain, { ...rect, y: Number.POSITIVE_INFINITY })).toBeNull();
+    // The array builder skips a corrupt preview rather than corrupting the plane.
+    expect(
+      nodesForCapture(domain, [], null, 1, { x: 0, y: 0, width: 0, height: 10 }),
+    ).toHaveLength(1);
   });
 });

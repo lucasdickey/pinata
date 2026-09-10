@@ -7,6 +7,10 @@ export default defineConfig({
   workers: 2,
   retries: 0,
   reporter: [["list"]],
+  // Run-scoped store rows are deleted here, after every worker's last page
+  // has closed — never in a spec's afterAll, where a sibling worker's page
+  // can still be observing them (e2e/run-cleanup.ts explains the race).
+  globalTeardown: "./e2e/global-teardown.ts",
   use: {
     baseURL: "http://127.0.0.1:3100",
   },

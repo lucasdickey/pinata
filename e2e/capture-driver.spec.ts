@@ -237,8 +237,16 @@ test("a project created outside the browser is driven to ready by the editor cli
   await page.waitForTimeout(12_000);
   expect([...dispatched.values()].reduce((sum, count) => sum + count, 0)).toBe(dispatchTotal);
 
-  // The workspace shows the finished project, not a stuck queue.
-  await expect(page.getByText("2 pages · 4 ready · 0 failed · 0 in progress")).toBeVisible();
+  // The workspace shows the finished project, not a stuck queue. Scoped to
+  // THIS run's project: a concurrent suite's run-scoped project can carry
+  // the identical counts text (observed 2026-09-10 when manifest-scan's
+  // 2x2 project raced this assertion into a strict-mode violation).
+  await expect(
+    page
+      .getByRole("listitem")
+      .filter({ hasText: `${RUN_ID} drive` })
+      .getByText("2 pages · 4 ready · 0 failed · 0 in progress"),
+  ).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });
 

@@ -855,6 +855,64 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(save).toBeEnabled();
   });
 
+  test("hovering a candidate highlights its manifest rect on the canvas; choice, cancel, and plane switch clear it (VAL-PIN-004)", async () => {
+    const user = userEvent.setup();
+    const { writes } = stubAnnotations([], [candidateElement]);
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft(user);
+
+    // The candidate list settles, then hover previews exactly the candidate's
+    // persisted rectangle — a pure local render with zero writes.
+    await waitFor(() =>
+      expect(within(detail()).getByTestId("draft-context")).toHaveAttribute(
+        "data-candidates-state",
+        "ready",
+      ),
+    );
+    const row = document.querySelector('.panel-candidate[data-element-id="cell-1"]')!;
+    const preview = () => document.querySelector(".react-flow__node-contextPreview");
+    expect(preview()).toBeNull();
+
+    fireEvent.mouseEnter(row);
+    await waitFor(() => expect(preview()).not.toBeNull());
+    expect((preview() as HTMLElement).style.transform).toContain("translate(800px,4200px)");
+    expect(writes).toHaveLength(0);
+
+    // Replacement: leaving clears, and choosing a candidate ends its preview.
+    fireEvent.mouseLeave(row);
+    await waitFor(() => expect(preview()).toBeNull());
+    fireEvent.mouseEnter(row);
+    await waitFor(() => expect(preview()).not.toBeNull());
+    await user.click(within(detail()).getByRole("radio", { name: /Starter plan/ }));
+    await waitFor(() => expect(preview()).toBeNull());
+    expect(writes).toHaveLength(0);
+
+    // Cancel resolves the draft; the highlight dies with it.
+    fireEvent.mouseEnter(row);
+    await waitFor(() => expect(preview()).not.toBeNull());
+    await user.click(within(detail()).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(within(detail()).queryByTestId("panel-draft")).toBeNull());
+    expect(preview()).toBeNull();
+    expect(writes).toHaveLength(0);
+
+    // A highlight on one plane never crosses a plane switch.
+    await placeDraft(user);
+    await waitFor(() =>
+      expect(within(detail()).getByTestId("draft-context")).toHaveAttribute(
+        "data-candidates-state",
+        "ready",
+      ),
+    );
+    fireEvent.mouseEnter(document.querySelector('.panel-candidate[data-element-id="cell-1"]')!);
+    await waitFor(() => expect(preview()).not.toBeNull());
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    await waitFor(() => expect(preview()).toBeNull());
+    expect(writes).toHaveLength(0);
+  });
+
   test("Cancel discards the draft without any write", async () => {
     const user = userEvent.setup();
     const { writes } = stubAnnotations();

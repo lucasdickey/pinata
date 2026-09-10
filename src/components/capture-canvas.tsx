@@ -65,6 +65,7 @@ import {
 } from "../lib/canvas/geometry";
 import {
   CAPTURE_FRAME_TYPE,
+  CONTEXT_PREVIEW_TYPE,
   DRAFT_PIN_TYPE,
   PIN_TYPE,
   draftPinNodeId,
@@ -72,6 +73,8 @@ import {
   type CanvasPin,
   type CaptureFrameDomain,
   type CaptureFrameNode,
+  type ContextPreviewNode,
+  type ContextRect,
   type DraftPinNode,
   type PinNode,
 } from "../lib/canvas/flow-model";
@@ -180,10 +183,22 @@ function Pin({ data }: NodeProps<PinNode>) {
   );
 }
 
+/**
+ * The transient nearby-candidate highlight: a bare box at exactly the
+ * candidate's persisted natural-pixel rect, parented to the frame so the
+ * plane's own transform keeps it aligned at every zoom. Pure decoration —
+ * it ignores the pointer, is hidden from assistive tech (the panel's
+ * candidate list is the accessible surface), and never persists.
+ */
+function ContextPreview(_: NodeProps<ContextPreviewNode>) {
+  return <div className="context-preview" data-testid="context-preview" aria-hidden="true" />;
+}
+
 const nodeTypes: NodeTypes = {
   [CAPTURE_FRAME_TYPE]: CaptureFrame,
   [PIN_TYPE]: Pin,
   [DRAFT_PIN_TYPE]: DraftPin,
+  [CONTEXT_PREVIEW_TYPE]: ContextPreview,
 };
 
 /** Live zoom percentage, kept inside the provider so it tracks gestures. */
@@ -200,6 +215,7 @@ function CaptureCanvasInner({
   domain,
   regionName,
   pins,
+  previewRect,
   selectedPinId,
   onSelectPin,
   onMovePin,
@@ -213,6 +229,12 @@ function CaptureCanvasInner({
   regionName: string;
   /** This plane's persisted pins (server is canonical; never RF state). */
   pins: Omit<CanvasPin, "selected">[];
+  /**
+   * The transient nearby-candidate highlight: one manifest rectangle in
+   * natural pixels, or null. Local UI state only — never persisted, never
+   * an annotation.
+   */
+  previewRect?: ContextRect | null;
   selectedPinId?: string | null;
   onSelectPin?: (annotationId: string | null) => void;
   /** The single commit at the end of a pin drag: one clamped tip, one write. */
@@ -263,10 +285,10 @@ function CaptureCanvasInner({
     [pins, pinDrag, selectedPinId],
   );
   const nodes = useMemo(() => {
-    const built = nodesForCapture(domain, effectivePins, draft, liveZoom);
+    const built = nodesForCapture(domain, effectivePins, draft, liveZoom, previewRect ?? null);
     if (interaction === "pin") return built;
     return built.map((node) => (node.type === PIN_TYPE ? { ...node, draggable: false } : node));
-  }, [domain, effectivePins, draft, liveZoom, interaction]);
+  }, [domain, effectivePins, draft, liveZoom, interaction, previewRect]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
   const modeRef = useRef(mode);
@@ -594,6 +616,7 @@ export function CaptureCanvas({
   width,
   height,
   pins = [],
+  previewRect = null,
   selectedPinId,
   onSelectPin,
   onMovePin,
@@ -611,6 +634,8 @@ export function CaptureCanvas({
   height: number;
   /** This plane's persisted pins; empty until they load or when none exist. */
   pins?: Omit<CanvasPin, "selected">[];
+  /** The transient nearby-candidate highlight rect in natural pixels. */
+  previewRect?: ContextRect | null;
   selectedPinId?: string | null;
   onSelectPin?: (annotationId: string | null) => void;
   onMovePin?: (annotationId: string, tip: NaturalPoint) => void;
@@ -637,6 +662,7 @@ export function CaptureCanvas({
         domain={domain}
         regionName={name}
         pins={pins}
+        previewRect={previewRect}
         selectedPinId={selectedPinId}
         onSelectPin={onSelectPin}
         onMovePin={onMovePin}

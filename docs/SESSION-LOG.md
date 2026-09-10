@@ -2550,3 +2550,108 @@ and both exposed real defects rather than flakes:
 - D063 (agent-autonomous): in-place render-invisible fix to the published
   tall-motion-v1 fixture, wiring counters before the scripted caret focus
   and excluding that focus by target.
+
+## 2026-09-10 — nearby-DOM context selection: preview highlight, quiescent marker, manifest read route
+
+Mission-worker session (feature `nearby-dom-context-selection`, milestone
+`pins-and-feedback`): Lucas's explicit candidate selection gains a temporary
+on-canvas preview, the context panel gains the quiescent marker that retires
+the known radio-detach flake, and the deferred HTTP-surface half of
+VAL-CAPTURE-006 finally runs against a real manifest read route.
+
+### What happened
+
+- The candidate preview is a new `contextPreview` React Flow node type
+  (D064): a pointer-transparent, aria-hidden, non-draggable child of the
+  capture frame whose position and size are exactly the hovered/focused/
+  touched candidate's persisted manifest rect. Workspace state clears it on
+  replacement, blur, choice, Cancel, Escape, save, and plane switch; it
+  never writes. The on-page hint now documents the hover/tab/touch-hold
+  preview (VAL-CANVAS-009).
+- The context panel exposes `data-candidates-state` (loading/ready/failed)
+  and the "No element" radio got a stable key and value, so the
+  loading-to-ready transition can no longer detach it mid-click. Every e2e
+  radio interaction (pins, lifecycle, and the two new specs) waits for the
+  marker first.
+- New authorized route `GET /api/captures/[captureId]/manifest` serves the
+  persisted manifest bytes verbatim with `no-store` (401 anonymous; generic
+  404 for missing/non-ready/manifest-less), which unblocked the deferred
+  `curl(manifest-forbidden-value-sentinel-scan)` evidence.
+- New e2e specs: `pin-context.spec.ts` (bounded deterministic candidate
+  order cross-checked against the server route, preview alignment measured
+  within one natural pixel at 1x and 8x with zero annotation writes, mobile
+  plane candidates), `pin-planes.spec.ts` (VAL-CANVAS-004 isolation across
+  Desktop, Mobile, old capture, and a real run-scoped recapture, before and
+  after reload), and `manifest-scan.spec.ts` (zero SENTINEL- values in the
+  authorized manifest read plus an anonymous 401, closed-`details`-menu
+  exclusion with the visible summary still selectable, and the stabilized
+  animated subtree ranking with its settled same-layout rect).
+
+### Dead ends and lessons
+
+- React Flow 12.11 ignores the `Node.pointerEvents` field: the wrapper's
+  pointer-events is computed from selectability/draggability/handlers, so
+  the preview's pointer-transparency lives in `node.style` (which spreads
+  after the computed value) plus `focusable: false`.
+- The retry route's response is the attempt RECORD, not the bare attempt
+  number; an early version of the planes spec compared `attempt ===
+  response.attempt` and waited five minutes for a state that had already
+  arrived. The poll now reports the full attempt ledger on timeout.
+- The first planes-spec cleanup missed the recapture row because the server
+  prefixes stored retry keys with `retry:` — scope run cleanup by
+  containment (`%RUN_ID%`), not prefix. The leftover row was deleted by
+  hand and the seeded store verified back to one ready attempt per device.
+- Guaranteeing the candidate list has rendered (the quiescent wait) makes
+  the draft panel taller at Save time, so Playwright's auto-scroll pushes
+  the canvas up and a post-save `boundingBox()` goes off-window; the pins
+  drag test now re-anchors through `visiblePane()` before grabbing the pin,
+  matching the established gesture-section pattern.
+
+### Late addition — shared-store contention under the full gate
+
+Two full-gate runs exposed that run-scoped e2e suites still interfered with
+siblings in three distinct ways, all rooted in the SHARED Turso/Blob store
+and the two-worker gate:
+
+1. Numbering contention: pin-planes v1 wrote to the seeded pricing plane,
+   which pin-lifecycle owns, consuming a pin number mid-run (67 != 66).
+   Fixed by giving pin-planes its own run-scoped project.
+2. The hijack: `findReadyTarget` picks the seeded Chickpea plane by regex
+   (`^https://chickpea.co/`), and a run-scoped project whose root URL is a
+   query-suffixed Chickpea URL MATCHES that regex — so pins.spec and
+   projects.spec opened the run-scoped plane as "the seeded desktop
+   target". A stray pin from such a hijack then FK-blocked pin-planes'
+   captures delete. Fixed by pointing run-scoped projects at the fixtures
+   host (`links-v1` / `manifest-v1` / `tall-motion-v1`), which can never
+   match the seeded regex.
+3. The observer race: even with a foreign URL, deleting run rows in a
+   spec's `afterAll` 404s any sibling worker's page that auto-selected the
+   newest project — every signed-in page observes the shared store, and
+   afterAll runs while other workers' pages are still open (projects.spec
+   failed its console-error gate on exactly this 404). Fixed structurally
+   (D065): suites REGISTER their run id in a file registry in afterAll, and
+   a new Playwright global teardown — which runs after every worker's last
+   page has closed — performs and verifies the deletion. The registry lives
+   outside `test-results/` so a crashed run's entries survive to the next
+   teardown, which mops them up idempotently.
+4. The third gate run then failed on a leftover from gate run 2 itself:
+   that run's FK-blocked pin-planes cleanup had left a ready capture row
+   whose Blob object was already deleted, and its Chickpea-suffixed URL
+   still hijacked `findReadyTarget` — three canvas/pins specs waited
+   forever on an image that could only 404. The leftover run's rows were
+   deleted by hand (stray pin, captures, keys, page, project) and the store
+   verified back to exactly the seeded baseline. Same run: capture-driver's
+   "2 pages · 4 ready · 0 failed · 0 in progress" assertion matched BOTH
+   its own project and manifest-scan's identically shaped one (strict-mode
+   violation); the assertion is now scoped to its own project's listitem.
+   The fourth gate run passed end to end (1067 unit, 50 e2e) with both
+   teardowns cleaning and the registry empty.
+
+### Decisions
+
+- D064 (agent-autonomous): preview node type + quiescent marker + verbatim
+  manifest read route, with the React Flow pointerEvents workaround recorded
+  as a consequence.
+- D065 (agent-autonomous): run-scoped e2e cleanup moves to a registry plus
+  the Playwright global teardown; run-scoped projects use the fixtures host
+  so they can never hijack `findReadyTarget`'s seeded-first pick.

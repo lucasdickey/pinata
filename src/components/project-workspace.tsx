@@ -20,11 +20,13 @@ import { readCsrfProof } from "../lib/csrf";
 import type {
   PinAnnotationView,
   PinContextResponse,
+  PinElementSnapshot,
   PinListResponse,
   PinMutationResponse,
 } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
+import type { ContextRect } from "../lib/canvas/flow-model";
 import {
   CapturePanel,
   STATE_LABELS,
@@ -133,6 +135,13 @@ export function ProjectWorkspace({
   const [draftCandidates, setDraftCandidates] = useState<
     (DraftCandidates & { captureId: string }) | null
   >(null);
+  // The transient candidate highlight: exactly the hovered/focused/touched
+  // candidate's manifest rectangle in natural pixels, rendered on the canvas
+  // as a pointer-transparent box. Pure local UI state — it never writes,
+  // never re-queries, and clears on replacement, blur, choice, Cancel,
+  // Escape, capture switch, and save (all of which flow through the draft
+  // lifecycle effects below).
+  const [previewRect, setPreviewRect] = useState<ContextRect | null>(null);
   // Saved-pin edit/delete lifecycle. Edit keeps its text across failures; a
   // conflict means another session wrote first and the authoritative list
   // is reloaded instead of overwriting.
@@ -271,6 +280,7 @@ export function ProjectWorkspace({
     setSelectedPinId(null);
     setMoveError(null);
     setSaveState("idle");
+    setPreviewRect(null);
     if (selectedReady) {
       void loadPins(selectedReady.id);
     } else {
@@ -293,12 +303,14 @@ export function ProjectWorkspace({
       setDraftKey(crypto.randomUUID());
       setDraftChoice(undefined);
       setDraftCandidates(null);
+      setPreviewRect(null);
     } else if (!draftTip) {
       setDraftKey(null);
       setDraftBody("");
       setSaveState("idle");
       setDraftChoice(undefined);
       setDraftCandidates(null);
+      setPreviewRect(null);
     }
   }, [draftTip]);
 
@@ -315,6 +327,9 @@ export function ProjectWorkspace({
   // response is scoped to the capture it was fetched for; a stale response
   // (plane switch mid-flight) can never land on another capture's draft.
   const fetchContext = useCallback(async (captureId: string, tip: NaturalPoint) => {
+    // A fresh candidate set replaces the old one; any highlight belonging to
+    // the replaced set clears with it.
+    setPreviewRect(null);
     setDraftCandidates({ captureId, status: "loading", items: [] });
     try {
       const response = await fetch(
@@ -363,6 +378,17 @@ export function ProjectWorkspace({
     },
     [selectedReadyId, fetchContext],
   );
+
+  // The candidate highlight previews exactly one manifest rectangle — the
+  // one under the pointer, focus, or a held finger. Choosing a candidate (or
+  // No element) ends the preview; the highlight itself never writes anything.
+  const handlePreviewCandidate = useCallback((candidate: PinElementSnapshot | null) => {
+    setPreviewRect(candidate ? { ...candidate.rect } : null);
+  }, []);
+  const handleDraftChoiceChange = useCallback((choice: string | null) => {
+    setDraftChoice(choice);
+    setPreviewRect(null);
+  }, []);
 
   const saveDraft = useCallback(async () => {
     // The explicit context decision is part of the save contract: an
@@ -641,6 +667,8 @@ export function ProjectWorkspace({
             tap the screenshot to drop a pin, write a comment in the panel,
             choose a nearby element or No element, and press Save pin —
             Escape or Cancel discards the draft — and drag a pin to move it.
+            Hover, tab to, or touch-and-hold a nearby element in the list to
+            highlight its captured bounds on the screenshot.
             Click a saved pin, or its entry in the Pins list, to read its
             comment, edit it, or delete the pin.
           </p>
@@ -683,6 +711,7 @@ export function ProjectWorkspace({
                 width={selectedReady.documentWidth!}
                 height={selectedReady.documentHeight!}
                 pins={activePins}
+                previewRect={previewRect}
                 selectedPinId={selectedPinId}
                 onSelectPin={setSelectedPinId}
                 onMovePin={(annotationId, tip) => void movePin(annotationId, tip)}
@@ -711,7 +740,8 @@ export function ProjectWorkspace({
               draftBody={draftBody}
               onDraftBodyChange={setDraftBody}
               draftChoice={draftChoice}
-              onDraftChoiceChange={setDraftChoice}
+              onDraftChoiceChange={handleDraftChoiceChange}
+              onPreviewCandidate={handlePreviewCandidate}
               draftCandidates={
                 draftCandidates && draftCandidates.captureId === selectedCaptureId
                   ? draftCandidates

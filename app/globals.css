@@ -492,6 +492,24 @@ pre code {
   user-select: none;
 }
 
+/* Nearby-candidate highlight: a transient box at exactly the candidate's
+   persisted natural-pixel rect. The border sits OUTSIDE the rect via outline
+   so the box's own edges stay on the manifest rectangle (the one-pixel
+   measurement contract); pointer-transparent so it never intercepts a
+   placement tap or a pin drag. */
+.react-flow__node-contextPreview {
+  pointer-events: none;
+  z-index: 1;
+}
+.context-preview {
+  width: 100%;
+  height: 100%;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 2px;
+}
+
 .capture-error {
   color: var(--accent);
 }

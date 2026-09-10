@@ -177,6 +177,13 @@ async function placeAndSave(
   }
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
+  // Wait for the context panel's quiescent marker before touching any
+  // control inside it: the async candidates render once detached the
+  // "No element" radio mid-click under full-gate CPU contention.
+  await expect(page.getByTestId("draft-context")).toHaveAttribute(
+    "data-candidates-state",
+    /ready|failed/,
+  );
   await page.getByLabel("Comment").fill(body);
   // The explicit context decision is required before Save (VAL-PIN-003):
   // these specs annotate background, so No element is the honest choice.
@@ -426,6 +433,11 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
 
   // Grab the node off-center and drag: one PATCH at drag end, tip moved by
   // exactly the pointer delta (grab offset preserved), revision bumped.
+  // Re-anchor first: clicking Save scrolled the panel (and its candidate
+  // list) into view, which pushes the canvas up — a bounding box measured
+  // without scrolling the pane back would be off-window, and the drag would
+  // hit nothing.
+  await visiblePane(page);
   const nodeBox = await pinNode(page, number).boundingBox();
   if (!nodeBox) throw new Error("saved pin node not rendered");
   const grab = { x: nodeBox.x + nodeBox.width * 0.25, y: nodeBox.y + nodeBox.height * 0.3 };
@@ -458,6 +470,7 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
 
   // A long drag past the top-left corner clamps inclusively to (0, 0) and
   // commits exactly one more write — never an out-of-bounds tip.
+  await visiblePane(page);
   const nodeBox2 = await pinNode(page, number).boundingBox();
   if (!nodeBox2) throw new Error("saved pin node not rendered after move");
   await page.mouse.move(nodeBox2.x + nodeBox2.width / 2, nodeBox2.y + nodeBox2.height / 2);

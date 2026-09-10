@@ -309,6 +309,63 @@ describe("persisted pins", () => {
   });
 });
 
+describe("context preview highlight", () => {
+  const rect = { x: 808.5, y: 4202.25, width: 216.75, height: 98.5 };
+
+  function previewNodes(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".react-flow__node-contextPreview"));
+  }
+
+  test("renders the candidate rect as one inert box parented to the frame", () => {
+    render(<CaptureCanvas {...props} previewRect={rect} />);
+    expect(previewNodes()).toHaveLength(1);
+    const box = document.querySelector('[data-testid="context-preview"]') as HTMLElement;
+    expect(box).not.toBeNull();
+    // The wrapper carries the exact natural-pixel geometry (jsdom proves
+    // structure; the one-pixel transform contract is measured in e2e).
+    const wrapper = previewNodes()[0]!;
+    expect(wrapper.style.transform).toContain("translate(808.5px,4202.25px)");
+    expect(box).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("is absent without a preview and disappears when the preview clears", () => {
+    const { rerender } = render(<CaptureCanvas {...props} previewRect={null} />);
+    expect(previewNodes()).toHaveLength(0);
+    rerender(<CaptureCanvas {...props} previewRect={rect} />);
+    expect(previewNodes()).toHaveLength(1);
+    rerender(<CaptureCanvas {...props} previewRect={null} />);
+    expect(previewNodes()).toHaveLength(0);
+  });
+
+  test("never stacks: a replacement rect moves the one box", () => {
+    const { rerender } = render(<CaptureCanvas {...props} previewRect={rect} />);
+    rerender(<CaptureCanvas {...props} previewRect={{ ...rect, x: 10, y: 20 }} />);
+    expect(previewNodes()).toHaveLength(1);
+    expect(previewNodes()[0]!.style.transform).toContain("translate(10px,20px)");
+  });
+
+  test("does not disturb pins, drafts, or interaction modes", async () => {
+    const user = userEvent.setup();
+    const pins = [{ id: "ann-1", number: 1, tip: { x: 720, y: 4000 } }];
+    render(<CaptureCanvas {...props} pins={pins} previewRect={rect} />);
+    expect(pinNodes()).toHaveLength(1);
+    await user.click(within(stage()).getByRole("button", { name: "Place pin" }));
+    tap(frameImage(), 400, 300);
+    expect(draftNodes()).toHaveLength(1);
+    expect(previewNodes()).toHaveLength(1);
+    // The highlight ignores the pointer: a tap aimed at it still places.
+    expect(previewNodes()[0]!.style.pointerEvents).toBe("none");
+  });
+
+  test("a corrupt rect renders nothing rather than corrupting the plane", () => {
+    render(
+      <CaptureCanvas {...props} previewRect={{ x: Number.NaN, y: 0, width: 10, height: 10 }} />,
+    );
+    expect(previewNodes()).toHaveLength(0);
+    expect(frameImage()).not.toBeNull();
+  });
+});
+
 describe("per-capture session camera", () => {
   const saved: CaptureCameraState = {
     camera: { x: -1000, y: -20_000, zoom: 4 },

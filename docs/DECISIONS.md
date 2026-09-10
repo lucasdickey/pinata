@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 14 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
-| Agent decided alone | 38 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063 |
+| Agent decided alone | 40 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **63** | |
+| **Total** | **65** | |
 
 ## Index
 
@@ -89,6 +89,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D061](#d061--pin-mutation-lifecycle-explicit-context-decision-with-server-derived-snapshots-expectedrevision-optimistic-concurrency-on-moveeditdelete-tombstone-deletes-and-authoritative-reloads-after-conflict) | build | Pin mutation lifecycle: explicit context decision with server-derived snapshots, expectedRevision optimistic concurrency on move/edit/delete, tombstone deletes, and authoritative reloads after conflict | Agent decided alone | accepted |
 | [D062](#d062--anchor-node-drags-at-pointer-down-react-flow-nodedragthreshold-set-to-0-after-e2e-caught-every-drop-landing-a-few-pixels-short) | build | Anchor node drags at pointer-down: React Flow nodeDragThreshold set to 0 after e2e caught every drop landing a few pixels short | Agent decided alone | accepted |
 | [D063](#d063--fix-the-tall-motion-v1-focus-flake-in-place-wire-interaction-counters-before-the-scripted-caret-focus-and-exclude-that-focus-by-target) | validate | Fix the tall-motion-v1 focus flake in place: wire interaction counters before the scripted caret focus and exclude that focus by target | Agent decided alone | accepted |
+| [D064](#d064--candidate-context-preview-as-a-transient-inert-react-flow-node-a-quiescent-marker-for-the-context-panel-and-an-authorized-verbatim-manifest-read-route) | build | Candidate context preview as a transient inert React Flow node, a quiescent marker for the context panel, and an authorized verbatim manifest read route | Agent decided alone | accepted |
+| [D065](#d065--run-scoped-e2e-cleanup-runs-in-the-playwright-global-teardown-never-in-afterall) | build | Run-scoped e2e cleanup runs in the Playwright global teardown, never in afterAll | Agent decided alone | accepted |
 
 ---
 
@@ -2417,4 +2419,78 @@ The mission feature fixture-tall-motion-focus-ordering, created from the user-te
 
 ---
 
-<sub>Generated from 63 record(s) as of 2026-09-10 · source `fceca8685f9c`</sub>
+## D064 — Candidate context preview as a transient inert React Flow node, a quiescent marker for the context panel, and an authorized verbatim manifest read route
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The nearby-DOM context selection feature needed three mechanisms that constrain every future canvas and panel change: how Lucas previews a candidate's captured bounds before choosing (without the preview ever persisting or intercepting canvas gestures), how e2e specs survive the context panel's async candidate render (a radio detached mid-click caused the known full-gate flake), and how the deferred HTTP-surface half of VAL-CAPTURE-006 (an authorized fetch of persisted manifest JSON scanned for forbidden-source values) can run at all when no manifest read route existed in milestone 1.
+
+**Decision**
+
+Preview is a dedicated contextPreview node type: a pointer-transparent, aria-hidden, non-draggable child of the capture frame whose position and size are exactly the candidate's persisted manifest rect, driven by transient workspace state that clears on hover/focus/touch end, choice, cancel, save, and plane switch. The context panel exposes a data-candidates-state quiescent marker (loading/ready/failed) and gives the No-element radio a stable key and value so the loading-to-ready transition can never detach it; all e2e radio interactions wait for the marker first. A new GET /api/captures/[captureId]/manifest route serves the persisted manifest bytes verbatim (no-store) under the same live-authority guard as the context route, making the sentinel scan a scan of the persisted record itself.
+
+**Alternatives considered**
+
+- *Draw the preview as an SVG/HTML overlay outside React Flow's node tree* — A second coordinate system would need its own transform bookkeeping to satisfy the one-natural-pixel contract at 1x and 8x; a frame-parented node inherits the plane's transform for free and the e2e measurement proves the alignment.
+- *Fix the radio flake by waiting for a fixed timeout or retrying clicks in specs* — Timeouts are exactly the load-dependent pattern the flake thrived on; a semantic quiescent marker is both the spec signal and a self-documenting panel state, and the stable radio key removes the detach window entirely.
+- *Serve the manifest through the existing context route with a flag* — The context route projects a bounded, tip-relative candidate ranking; the sentinel scan needs the exact persisted record, unprojected. A separate verbatim read keeps each route's contract single-purpose.
+
+**Rationale**
+
+The mission feature nearby-dom-context-selection directed all three mechanisms, including the quiescent marker and the deferred sentinel-scan evidence. Safe to decide unilaterally: every choice is inside the approved canvas architecture, adds no dependency, and is covered by focused Vitest suites plus three new e2e specs. One implementation discovery matters for the future: React Flow 12.11 computes a node wrapper's pointer-events from interactivity and ignores the Node pointerEvents field, so the preview's pointer-transparency is carried by node.style, which spreads after the computed value.
+
+**Consequences**
+
+- Any new transient canvas decoration should follow the contextPreview pattern: a namespaced-id child node of the frame, fully inert, fed by server-projected data only.
+- Specs must never click inside the context panel before data-candidates-state reads ready or failed; the marker is now part of the panel's public contract.
+- GET /api/captures/[captureId]/manifest is the authorized surface for whole-manifest reads; it returns 401 anonymous and the same generic 404 for missing, non-ready, and manifest-less captures.
+- React Flow 12.11 node pointer-transparency must be set via node.style.pointerEvents, not the Node pointerEvents field.
+
+**Artifacts**
+
+- `src/lib/canvas/flow-model.ts` — contextPreview node adapter: exact manifest-rect child of the frame, null on invalid rects.
+- `src/components/capture-panel.tsx` — Quiescent marker, stable No-element radio, and hover/focus/touch preview triggers with inert hostile-field rendering.
+- `app/api/captures/[captureId]/manifest/route.ts` — Authorized verbatim manifest read enabling the deferred VAL-CAPTURE-006 sentinel scan.
+- `e2e/manifest-scan.spec.ts` — Zero-SENTINEL scan plus anonymous 401, closed-menu exclusion, and stabilized animated-subtree rect equality.
+
+---
+
+## D065 — Run-scoped e2e cleanup runs in the Playwright global teardown, never in afterAll
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Real-capture e2e suites create run-scoped Turso rows and Blob objects against the one shared local store while sibling specs observe it: every signed-in page auto-selects the newest project's first device. Two full-gate runs showed that deleting run rows in a spec's afterAll races sibling workers — projects.spec failed its console-error gate on a 404 from a capture its page was still displaying, and a hijacked pins.spec run left a stray pin that FK-blocked the captures delete. A run-scoped project whose root URL is a query-suffixed Chickpea URL also matched findReadyTarget's seeded-first regex, pulling concurrent specs onto the disposable plane.
+
+**Decision**
+
+Deletion is coordinated by timing, not scope: suites register their run id plus annotation body prefixes in a file registry (e2e/.run-cleanup/, gitignored) in afterAll — a fast local write that survives test failure — and the Playwright global teardown, which runs after every worker's last page has closed, deletes annotations, blobs, leases, captures, idempotency keys, pages, and projects by run id, verifies absence, removes the registry entry, and fails the run on any leftover. The registry lives outside test-results/ because Playwright wipes that directory at the next run's start, so a crashed run's entries survive to the next teardown, which mops them up idempotently. Run-scoped projects are additionally rooted on the fixtures host (links-v1, manifest-v1, tall-motion-v1) so their URLs can never match findReadyTarget's seeded Chickpea regex.
+
+**Alternatives considered**
+
+- *Keep per-spec afterAll deletion and add retries/FK ordering* — Cannot fix the observer race: a sibling worker's page legitimately holds the newest project open while this suite's afterAll runs; timing, not ordering, is the hazard.
+- *A dedicated teardown worker spec at the end of the run* — Playwright gives no ordering guarantee across files beyond serial-mode within one file, and worker crashes would skip it; the global teardown hook is the one place guaranteed to run after all pages close.
+- *Registry inside test-results/* — Playwright wipes outputDir at the start of the next run, so a crashed run's registry — the only record of leaked rows — would vanish before the next teardown could mop it up.
+
+**Rationale**
+
+Agent-autonomous inside the mission's sanctioned pattern (the mission explicitly anticipates an orchestrator-approved Playwright global teardown for cross-suite cleanup). The teardown hook is the single point where no browser page can still observe the store, and the file registry survives both individual test failures and whole-run crashes.
+
+**Consequences**
+
+- Any future real-capture e2e suite registers its run id and annotation body prefixes in afterAll instead of deleting rows itself; deletion, verification, and loud failure live in e2e/global-teardown.ts.
+- Run-scoped projects use fixture-host URLs only; a Chickpea URL with a run-id query suffix would silently hijack every seeded-target spec in the run.
+- Foreign annotations found on a run's captures are reported and removed so a hijack can neither leak rows nor FK-block cleanup.
+- A cleanup failure fails the whole gate run instead of leaking silently into the shared store.
+
+**Artifacts**
+
+- `e2e/run-cleanup.ts` — The registry helpers suites call from afterAll.
+- `e2e/global-teardown.ts` — The deferred, verified deletion executed after all workers close.
+
+---
+
+<sub>Generated from 65 record(s) as of 2026-09-10 · source `4f3b3943227a`</sub>
