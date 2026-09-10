@@ -163,14 +163,24 @@ pre code {
 .workspace {
   display: grid;
   gap: 1.5rem;
-  grid-template-columns: minmax(16rem, 22rem) 1fr;
+  /* minmax(0, 1fr): a bare 1fr track is minmax(auto, 1fr), which pins the
+     detail column to a natural-size capture's intrinsic width and pushes
+     the whole document past the viewport. The zero minimum lets the column
+     shrink so the stage's scroll region takes the overflow instead. */
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
   align-items: start;
 }
 
 @media (max-width: 48rem) {
   .workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.workspace-detail {
+  /* Grid items default to min-width auto; let the detail shrink below the
+     capture's intrinsic width so the stage scrolls instead of the page. */
+  min-width: 0;
 }
 
 .workspace-tree ul,
@@ -248,7 +258,13 @@ pre code {
 }
 .capture-stage-scroll {
   overflow: auto;
+  /* Bounded in both dimensions so the region pans the unscaled image on
+     both axes: max-height bounds the vertical, and width 100% + min-width 0
+     (flex items default to min-width auto, which would hold the region at
+     the image's intrinsic width and overflow the stage) bounds the
+     horizontal. */
   width: 100%;
+  min-width: 0;
   max-height: 80vh;
 }
 .capture-stage-scroll:focus-visible {

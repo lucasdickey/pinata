@@ -364,11 +364,17 @@ describe("fit view and self-documenting hint", () => {
     );
   });
 
-  test("a hint line states the current capabilities and no pin affordance exists", () => {
+  test("a hint line plainly states pinning and commenting are not available yet", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // Self-documenting: the surface explains what it can and cannot do yet.
-    expect(within(detail()).getByText(/static, read-only screenshots/i)).toBeInTheDocument();
-    expect(within(detail()).getByText(/pins and comments/i)).toBeInTheDocument();
+    // Plain language, no jargon: user-testing round 2 (2026-09-10) found the
+    // old "canvas update" wording sent the user hunting for a pin gesture
+    // that does not exist in this build.
+    const hint = within(detail()).getByText(/read-only preview/i);
+    expect(hint).toHaveTextContent(/static screenshot/i);
+    expect(hint).toHaveTextContent(
+      /pinning and commenting are not available in this build yet/i,
+    );
+    expect(hint.textContent?.toLowerCase()).not.toContain("canvas update");
     // No dead affordance: nothing that looks like a pin/comment/note control.
     expect(
       within(detail()).queryByRole("button", { name: /pin|comment|note/i }),

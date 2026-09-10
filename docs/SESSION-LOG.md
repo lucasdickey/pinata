@@ -1905,3 +1905,72 @@ Roughly 20 minutes of mission-worker time (gate run excluded).
 - None. The checkpoint server was stopped for the gate, then restarted with
   PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
   carries the new PID and commit.
+
+## 2026-09-10 — capture stage natural-size scroll fix and plain-language hint (live checkpoint feedback)
+
+### What was attempted
+
+Two more pieces of verbatim user feedback from the same live milestone-1
+checkpoint session: "this still goes off the page when expanded. i can't
+scroll right either - the page scroll seems fixed horizontally - so i can't
+view the entire page that's been captured." and "what does \"pins and
+comments arrive with the canvas update. Use natural size to scroll into fine
+detail.\" mean? i literally can't figure out how to create a pin and comment
+on it. tell me what to do." Same interim stage, same minimal-change rule —
+the React Flow canvas feature still replaces its internals.
+
+1. Natural-size scroll bug: wide Desktop captures (1440 CSS px) overflowed
+   the stage to the right and nothing scrolled horizontally. Root cause was
+   the CSS automatic minimum size: the workspace grid track was a bare
+   `1fr` (i.e. `minmax(auto, 1fr)`), the grid item `.workspace-detail` kept
+   `min-width: auto`, and the flex item `.capture-stage-scroll` kept
+   `min-width: auto` — three layers each refusing to shrink below the
+   image's intrinsic width, so `overflow: auto` never engaged and the
+   document itself overflowed. Fix: `minmax(0, 1fr)` on both grid
+   templates, `min-width: 0` on `.workspace-detail`, and `min-width: 0` on
+   `.capture-stage-scroll`. The region is now bounded in both dimensions
+   (width 100% + min-width 0 horizontally, max-height 80vh vertically) and
+   pans the unscaled image on both axes. Fit view is untouched.
+2. Hint copy: the jargon "canvas update" sent the user hunting for a pin
+   gesture that does not exist in this build. Reworded to plain language:
+   "Read-only preview: this is a static screenshot. Pinning and commenting
+   are not available in this build yet — they arrive in the next update."
+   One quiet `.workspace-hint` paragraph, existing tokens, still no pin
+   affordance.
+
+Strict TDD: failing tests first — a new structural-guard suite
+(`test/capture-stage-scroll.test.ts`) scanning `app/globals.css` for the
+shrinkable grid tracks, `min-width: 0` on the detail and scroll region, and
+the unchanged fit-view constraints, plus a rewritten hint-copy test in
+`test/project-workspace.test.tsx` (plain-language text present, "canvas
+update" absent, no pin/comment/note button). Then implementation to green
+(28/28 across both files).
+
+### What broke or dead-ended
+
+- Nothing. The vertical scroll already worked (the previous feature
+  verified a 13,091 px capture scrolling); only the horizontal axis was
+  broken, which is why the earlier fit-view verification did not catch it —
+  fit mode contains the image, so no scrolling is exercised by default.
+
+### Elapsed
+
+Roughly 20 minutes of mission-worker time (gate run excluded).
+
+### Decisions and assertions
+
+- No new decision record: both changes execute the user's verbatim
+  checkpoint feedback inside the already-approved interim stage; nothing
+  constrained future work.
+- Evidence: agent-browser verification against the seeded Chickpea project
+  (anonymous, auth-bypass server) that natural-size mode scrolls
+  horizontally and vertically to every edge of the Desktop root capture
+  with zero document-level horizontal overflow, that fit mode still shows
+  the whole capture, and that the hint reads plainly; recorded in
+  `library/checkpoint-m1-state.md`.
+
+### Open questions at end of session
+
+- None. The checkpoint server was stopped for the gate, then restarted with
+  PINATA_AUTH_DISABLED=1 and left running; `library/checkpoint-m1-state.md`
+  carries the new PID and commit.

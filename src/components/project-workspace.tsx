@@ -281,13 +281,13 @@ export function ProjectWorkspace({
             {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
           </h3>
 
-          {/* Self-documenting capabilities line: what this surface does
-              today, and what is deliberately not here yet. No dead pin
-              affordance is rendered. */}
+          {/* Self-documenting capabilities line: plain language about what
+              this surface is, and what is deliberately not here yet. No
+              dead pin affordance is rendered. */}
           <p className="workspace-hint">
-            Captures are static, read-only screenshots — pins and comments
-            arrive with the canvas update. Use natural size to scroll into
-            fine detail.
+            Read-only preview: this is a static screenshot. Pinning and
+            commenting are not available in this build yet — they arrive in
+            the next update.
           </p>
 
           {active.device.attempts.length > 1 ? (
