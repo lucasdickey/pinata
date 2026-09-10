@@ -125,9 +125,11 @@ test("a project created outside the browser is driven to ready by the editor cli
   // Observe every dispatch the page itself issues for THIS run's attempts
   // (other suites' rows are stubbed, but the shared database may legitimately
   // show this page other pending work, which the driver drives by design):
-  // the per-attempt count proves no double-dispatch, and the concurrency
-  // watermark proves the client never schedules beyond the durable lease cap.
+  // the per-attempt answers prove the server fence claims each attempt at
+  // most once, and the concurrency watermark proves the client never
+  // schedules beyond the durable lease cap.
   const dispatched = new Map<string, number>();
+  const dispatchAnswers = new Map<string, number[]>();
   const inFlightRequests = new Set<string>();
   let maxInFlight = 0;
   let own: Set<string> | null = null;
@@ -143,9 +145,21 @@ test("a project created outside the browser is driven to ready by the editor cli
     inFlightRequests.add(request.url());
     maxInFlight = Math.max(maxInFlight, inFlightRequests.size);
   });
+  page.on("response", (response) => {
+    const id = dispatchId(response.url(), response.request().method());
+    if (!id || !own?.has(id)) return;
+    dispatchAnswers.set(id, [...(dispatchAnswers.get(id) ?? []), response.status()]);
+  });
   const release = (request: { url: () => string; method: () => string }) => {
     if (dispatchId(request.url(), request.method())) inFlightRequests.delete(request.url());
   };
+  // The client caps dispatch by promise settlement, and a 2xx fetch promise
+  // resolves at response headers — the driver may start the next dispatch
+  // while the previous body is still streaming to a closed listener.
+  // "In flight" therefore means "no answer from the server yet": release at
+  // the response event, not only at requestfinished, or parallel load turns
+  // body-delivery lag into a phantom cap violation.
+  page.on("response", (response) => release(response.request()));
   page.on("requestfinished", release);
   page.on("requestfailed", release);
   // A reload abandons the page's JS — and with it the driver's in-flight
@@ -194,15 +208,27 @@ test("a project created outside the browser is driven to ready by the editor cli
 
   // The lease cap held end to end: within any one loaded document this
   // client never ran more dispatches than the durable slot count, and every
-  // attempt was driven. A reload racing an in-flight claim may re-dispatch
-  // that attempt once (the server fence makes the second dispatch a 409), so
-  // the bound is two per attempt — never an unbounded retry.
+  // attempt was driven. The real per-attempt guarantee is the server fence,
+  // not a dispatch count: a reload racing an in-flight claim, or a hierarchy
+  // read that still shows a just-claimed row as pending, legitimately
+  // produces a re-drive — and every answer after the claim must be fenced
+  // (409 conflict or 429 quota), with at most one claiming 2xx. A small
+  // absolute bound keeps "never an unbounded retry" explicit.
   expect(maxInFlight).toBeGreaterThan(0);
   expect(maxInFlight).toBeLessThanOrEqual(MAX_ACTIVE_CAPTURES);
   expect(dispatched.size).toBe(4);
   for (const [id, count] of dispatched) {
     expect(count, id).toBeGreaterThanOrEqual(1);
-    expect(count, id).toBeLessThanOrEqual(2);
+    expect(count, id).toBeLessThanOrEqual(8);
+    const statuses = dispatchAnswers.get(id) ?? [];
+    expect(
+      statuses.filter((status) => status >= 200 && status < 300).length,
+      `${id} answers ${JSON.stringify(statuses)}`,
+    ).toBeLessThanOrEqual(1);
+    for (const status of statuses) {
+      const fenced = (status >= 200 && status < 300) || status === 409 || status === 429;
+      expect(fenced, `${id} answered ${status}`).toBe(true);
+    }
   }
 
   // Terminal work is never re-driven: once every attempt is ready the driver
@@ -274,10 +300,15 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
   await expect(page.getByRole("region", { name: "Selected capture" }).getByRole("alert"))
     .toContainText("The address could not be resolved to a public host.");
 
-  // Terminal means terminal: each attempt got exactly one terminal answer,
-  // and no further dispatch leaves the browser afterwards.
+  // Terminal means terminal: this page may observe an own attempt's terminal
+  // answer at most once, and no further dispatch leaves the browser
+  // afterwards. It may observe ZERO: the driver drives any pending row in the
+  // shared database, so a sibling spec's page can legitimately deliver the
+  // terminal answer for this run's attempt while this page's stale redrive is
+  // fenced (409) or the attempt left this page's pending view before its
+  // first tick (D057 — assert the real invariant, not a per-page count).
   for (const id of own) {
-    expect(terminalAnswers.get(id), id).toBe(1);
+    expect(terminalAnswers.get(id) ?? 0, id).toBeLessThanOrEqual(1);
   }
   const settled = dispatchRequests;
   await page.waitForTimeout(8_000);

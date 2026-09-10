@@ -7,7 +7,7 @@
 // and a screenshot stage that cannot navigate.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
@@ -406,22 +406,52 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("the hint explains pan/zoom and states plainly that pinning is not here yet", () => {
+  test("the hint explains navigation and pin placement in plain language", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // Plain language, no jargon: user-testing round 2 (2026-09-10) found the
-    // old "canvas update" wording sent the user hunting for a pin gesture
-    // that does not exist in this build.
+    // Plain language, no jargon, and no dead affordances: the pin control
+    // the hint describes is the real, working Place pin mode toggle.
     const hint = within(detail()).getByText(/drag to pan/i);
     expect(hint).toHaveTextContent(/scroll or pinch to zoom/i);
     expect(hint).toHaveTextContent(/static screenshot/i);
-    expect(hint).toHaveTextContent(
-      /pinning and commenting are not available in this build yet/i,
-    );
+    expect(hint).toHaveTextContent(/place pin mode/i);
+    expect(hint).toHaveTextContent(/escape to cancel/i);
+    expect(hint).toHaveTextContent(/saving pins with comments arrives in the next update/i);
     expect(hint.textContent?.toLowerCase()).not.toContain("canvas update");
-    // No dead affordance: nothing that looks like a pin/comment/note control.
-    expect(
-      within(detail()).queryByRole("button", { name: /pin|comment|note/i }),
-    ).toBeNull();
+    // The affordance is real: an explicit mode toggle, pressed only when on.
+    const pin = within(detail()).getByRole("button", { name: "Place pin" });
+    expect(pin).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("each plane keeps its own camera for the session", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
+    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // An unvisited plane still opens in the entire-capture initial camera.
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    await waitFor(() =>
+      expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+
+    // Returning to the first plane restores its own camera, not the other's.
+    await user.click(
+      within(tree()).getByRole("button", { name: "Desktop capture of https://chickpea.co/" }),
+    );
+    await waitFor(() =>
+      expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
   });
 });
 
@@ -467,6 +497,46 @@ describe("screen-fixed selection and metadata panel", () => {
     const panel = within(detail()).getByTestId("capture-panel");
     expect(panel).toHaveTextContent("Failed");
     expect(panel).not.toHaveTextContent("Natural size");
+  });
+
+  test("a draft pin is announced in the panel and cleared by Escape and switching", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const panel = () => within(detail()).getByTestId("capture-panel");
+
+    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
+    const image = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
+
+    // The screen-fixed panel mirrors the transient draft; the badge itself
+    // stays inside the transformed canvas.
+    await waitFor(() =>
+      expect(panel()).toHaveTextContent(/Draft pin at natural pixel \(/),
+    );
+    expect(panel()).toHaveTextContent(/not saved yet/);
+    expect(panel().querySelector(".pin-badge")).toBeNull();
+
+    // Escape clears only the transient draft.
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() =>
+      expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument(),
+    );
+
+    // A draft on one plane never leaks into another: place again, switch to
+    // Mobile, and the panel and canvas show nothing.
+    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
+    const image2 = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image2, { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerUp(image2, { clientX: 400, clientY: 300, isPrimary: true });
+    await waitFor(() => expect(panel()).toHaveTextContent(/Draft pin at natural pixel \(/));
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    await waitFor(() =>
+      expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument(),
+    );
+    expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
   });
 });
 

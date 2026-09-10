@@ -13,11 +13,12 @@
 // never live source markup, so there is no link, iframe, or handler here that
 // could navigate to the captured site.
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
-import { CaptureCanvas } from "./capture-canvas";
+import type { NaturalPoint } from "../lib/canvas/camera";
+import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 
 export interface AttemptView {
   id: string;
@@ -104,10 +105,13 @@ function CapturePanel({
   attempt,
   pageUrl,
   variant,
+  draftTip,
 }: {
   attempt: AttemptView | null;
   pageUrl: string;
   variant: string;
+  /** The active plane's transient draft pin tip, in natural pixels. */
+  draftTip: NaturalPoint | null;
 }) {
   return (
     <aside
@@ -116,10 +120,18 @@ function CapturePanel({
       data-testid="capture-panel"
     >
       <h4>Selection</h4>
-      <p className="panel-empty">Nothing selected.</p>
+      {draftTip ? (
+        <p className="panel-empty" data-testid="panel-draft">
+          Draft pin at natural pixel ({Math.round(draftTip.x)}, {Math.round(draftTip.y)}) — not
+          saved yet.
+        </p>
+      ) : (
+        <p className="panel-empty">Nothing selected.</p>
+      )}
       <p className="panel-note">
-        Select a pin to read its comment and the captured element it points
-        at. Pins arrive with the next update.
+        Place pin mode drops one draft pin on the screenshot; drag it to
+        adjust, Escape to cancel. Saving pins with comments arrives with the
+        next update.
       </p>
       <h4>Capture</h4>
       <dl className="panel-facts">
@@ -173,6 +185,14 @@ export function ProjectWorkspace({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  // Per-capture session camera memory: each plane restores its own camera
+  // when revisited, and no camera is ever shared between planes or written
+  // anywhere. Reload clears it (in-memory only).
+  const cameras = useRef(new Map<string, CaptureCameraState>());
+  // The active plane's transient draft tip, mirrored here only so the
+  // screen-fixed panel can announce it. The canvas remains the source of
+  // truth and clears it on switch via the keyed remount.
+  const [draftTip, setDraftTip] = useState<NaturalPoint | null>(null);
   // One idempotency key per retry intent: it is refreshed only after the
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
@@ -240,6 +260,13 @@ export function ProjectWorkspace({
       active?.device.latest) ||
     null;
 
+  // A draft belongs to exactly one plane: switching page, device, or version
+  // drops the panel's mirror (the canvas drops its own on remount).
+  const selectedCaptureId = selectedAttempt?.id ?? null;
+  useEffect(() => {
+    setDraftTip(null);
+  }, [selectedCaptureId]);
+
   return (
     <div className="workspace">
       <nav className="workspace-tree" aria-label="Projects, pages, and devices">
@@ -300,12 +327,14 @@ export function ProjectWorkspace({
 
           {/* Self-documenting canvas: plain-language instructions for the
               interactions this build actually has, plus what is deliberately
-              not here yet. No dead pin affordance is rendered. */}
+              not here yet. */}
           <p className="workspace-hint">
-            Drag to pan, scroll or pinch to zoom, or use the camera buttons
-            to fit the whole page, fit its width, or view it at natural size.
-            This is a static screenshot: pinning and commenting are not
-            available in this build yet — they arrive in the next update.
+            Navigate mode: drag to pan, scroll or pinch to zoom, or use the
+            camera buttons to fit the whole page, fit its width, or view it
+            at natural size. Place pin mode: click or tap the screenshot to
+            drop one draft pin, drag it to adjust, Escape to cancel. This is
+            a static screenshot: saving pins with comments arrives in the
+            next update.
           </p>
 
           {active.device.attempts.length > 1 ? (
@@ -336,7 +365,9 @@ export function ProjectWorkspace({
             selectedAttempt.documentWidth !== null &&
             selectedAttempt.documentHeight !== null ? (
               // Keyed by capture id so every selection change remounts the
-              // plane and resets the camera to the entire-capture view.
+              // plane: drafts and transient state die with the old plane,
+              // and the session camera memory restores this plane's own
+              // camera (or the entire-capture view on first visit).
               <CaptureCanvas
                 key={selectedAttempt.id}
                 captureId={selectedAttempt.id}
@@ -345,6 +376,11 @@ export function ProjectWorkspace({
                 attempt={selectedAttempt.attempt}
                 width={selectedAttempt.documentWidth}
                 height={selectedAttempt.documentHeight}
+                savedCamera={cameras.current.get(selectedAttempt.id) ?? null}
+                onCameraChange={(state) => {
+                  cameras.current.set(selectedAttempt.id, state);
+                }}
+                onDraftChange={setDraftTip}
               />
             ) : (
               // Unavailable/empty states are non-annotatable: no canvas, no
@@ -360,6 +396,7 @@ export function ProjectWorkspace({
               attempt={selectedAttempt}
               pageUrl={active.page.normalizedUrl}
               variant={active.device.variant}
+              draftTip={draftTip}
             />
           </div>
 

@@ -8,24 +8,44 @@
 class ResizeObserverMock {
   private callback: ResizeObserverCallback;
 
+  private targets: Element[] = [];
+
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback;
+    resizeObservers.push(this);
   }
 
   observe(target: Element): void {
-    const entry = {
-      target,
-      contentRect: {
-        width: target instanceof HTMLElement ? target.offsetWidth : 0,
-        height: target instanceof HTMLElement ? target.offsetHeight : 0,
-      },
-    } as ResizeObserverEntry;
-    this.callback([entry], this as unknown as ResizeObserver);
+    this.targets.push(target);
+    this.fire();
+  }
+
+  /** Re-deliver current sizes for every observed target (a later resize). */
+  fire(): void {
+    for (const target of this.targets) {
+      const entry = {
+        target,
+        contentRect: {
+          width: target instanceof HTMLElement ? target.offsetWidth : 0,
+          height: target instanceof HTMLElement ? target.offsetHeight : 0,
+        },
+      } as ResizeObserverEntry;
+      this.callback([entry], this as unknown as ResizeObserver);
+    }
   }
 
   unobserve(): void {}
 
-  disconnect(): void {}
+  disconnect(): void {
+    this.targets = [];
+  }
+}
+
+const resizeObservers: ResizeObserverMock[] = [];
+
+/** Fire every observed ResizeObserver again, simulating a later resize. */
+export function triggerObservedResize(): void {
+  for (const observer of resizeObservers) observer.fire();
 }
 
 class DOMMatrixReadOnlyMock {

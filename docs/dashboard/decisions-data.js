@@ -2385,8 +2385,97 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D056",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Pin geometry lives in a pure adapter (canonical tip plus zoom-aware hit box); annotation children carry no React Flow parent extent, and the drag grab offset is captured once per gesture",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Bringing draft pins onto the canvas needed answers to three coupled questions: what the canonical geometry of a pin is (so persistence later stores one unambiguous fact), how a pin stays grabbable at every zoom without its anchor drifting, and who clamps drags at the frame edge. End-to-end testing then exposed that React Flow's parent-extent clamp rewrites emitted drag positions at the frame edge, which stranded the re-derived tip one grab offset inside the boundary (a tip dragged to the corner settled at natural (1.5, 3) instead of (0, 0)), and that React Flow re-emits the final drag position on pointer-up, which advanced a frame-clamped tip with no pointer movement at all.",
+      "decision": "The canonical pin fact is the tip in screenshot-natural CSS pixels. A pure adapter (src/lib/canvas/geometry.ts) owns all conversions: an inclusive document clamp, and a hit box whose on-screen edge never drops below the shared 24px minimum target (it grows in natural units as zoom deepens) while the tip stays recoverable exactly as box plus recorded offsets. Draft pin nodes are React Flow children of the screenshot frame WITHOUT extent: \"parent\" — the adapter is the single clamping authority. The drag grab offset is captured once at drag start and held for the whole gesture. Placement taps are disambiguated from drags by a 6px screen slop, and the draft is transient local UI state (one per plane, Escape clears, never persisted).",
+      "alternatives": [
+        {
+          "option": "Keep extent: \"parent\" and compensate for the clamp in the drag handler",
+          "why_not": "The extent clamp hides how far past the edge the pointer is, so no handler-side compensation can recover the canonical boundary tip; it can only guess. Verified by tracing emitted positions end-to-end."
+        },
+        {
+          "option": "Re-derive the grab offset from the current box on every position change",
+          "why_not": "When the box is frame-clamped but the tip is not at the boundary, each re-derivation shifts the offsets, and React Flow's drag-end position re-emission then moves the tip with no pointer movement. Measured: the tip advanced on pointer-up."
+        },
+        {
+          "option": "Make the hit box a fixed natural-pixel size at every zoom",
+          "why_not": "At 8x a fixed natural box shrinks far below the 24px shared minimum target and pins become ungrabbable exactly when precision matters; a fixed screen box would dwarf the document at overview zoom."
+        },
+        {
+          "option": "Persist the draft tip optimistically on placement",
+          "why_not": "D051 descoped the roadmap to pins-first and the annotation API does not exist yet; persistence with numbering is the next milestone feature, and an optimistic write now would ship an unreviewed server contract."
+        }
+      ],
+      "rationale": "These are technical choices inside the already-approved canvas-and-pins direction (D051, D055): they change no user-visible scope, add no dependency or server contract, and were forced by measured end-to-end behavior, so they were safe to decide without surfacing. A single pure adapter keeps every screen-to-natural conversion in one tested boundary, which is what makes the one-natural-pixel inverse-transform contract provable at 1x and 8x.",
+      "consequences": [
+        "The next feature (pin persistence and numbering) stores exactly one natural-pixel point per pin; no box, zoom, or viewport data may enter the annotation record.",
+        "Annotation child nodes never use React Flow extent clamping; clamping tests live with the pure adapter and in the drag e2e (corner clamps land exactly on 0 and document edges).",
+        "Drag handlers must treat position changes as idempotent: React Flow may re-emit the same position at drag end.",
+        "Touch e2e requires a hasTouch context because d3-zoom ignores touch input when the browser reports no touch support."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/canvas/geometry.ts",
+          "caption": "The pure natural-pixel coordinate adapter: clamps, hit boxes, grab-offset drag math."
+        },
+        {
+          "type": "file",
+          "path": "e2e/canvas-interactions.spec.ts",
+          "caption": "Mouse and CDP-touch e2e proving placement, grab-offset drag, corner clamps, and plane isolation at 1x and 8x."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D057",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Capture-driver e2e asserts the server fence (one claiming answer, fenced redrives) instead of a fixed per-attempt dispatch count",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Under full-suite parallel load the capture-driver e2e flaked on two counting assertions that encoded wrong premises: an in-flight watermark measured at requestfinished (but the client caps by promise settlement, and a 2xx fetch resolves at response headers, so body-delivery lag read as a phantom cap violation), and a hard bound of two dispatches per attempt (but a hierarchy read that still shows a just-claimed row as pending legitimately re-drives the attempt, and the reload race can hide the claiming 2xx from the page entirely). The durable contract — the server fence claims an attempt at most once and every later dispatch is fenced — was never actually broken.",
+      "decision": "The test now counts a dispatch as in flight only until the server answers (response event), and per attempt asserts the real invariant: at most one 2xx claiming answer, every other answer fenced (409 conflict or 429 quota), and a small absolute dispatch bound (8) so \"never an unbounded retry\" stays explicit.",
+      "alternatives": [
+        {
+          "option": "Keep the two-per-attempt count bound and re-run until green",
+          "why_not": "The premise is false once hierarchy reads can lag the claim transition; the suite would stay flaky and every flake would erode trust in the gate."
+        },
+        {
+          "option": "Serialize the e2e suite to one worker",
+          "why_not": "The two-worker bound is a deliberate contract choice; slowing the whole gate to protect one test's wrong premise trades away CI time for nothing learned."
+        },
+        {
+          "option": "Change the driver to never re-drive a conflict",
+          "why_not": "A conflict can also mean another client claimed and then died; the deferred re-drive is how the attempt eventually gets driven again. The behavior is sound; the test premise was wrong."
+        }
+      ],
+      "rationale": "Test-only change that strengthens what is actually proven (the fence, the cap, the stand-down) while dropping a count bound whose premise read-after-write timing invalidates. Safe to decide unilaterally: no product code, route, or schema changes, and the new assertions fail loudly if the fence ever really breaks.",
+      "consequences": [
+        "Capture concurrency evidence now demonstrates fencing directly: redrives happen and are provably fenced, rather than assumed away.",
+        "Any future 5xx or unexpected dispatch answer fails the test loudly — the fence contract stays taut."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "e2e/capture-driver.spec.ts",
+          "caption": "Fence-based per-attempt assertions and the response-time in-flight watermark."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-10",
-  "source_hash": "5c0ffe14283e"
+  "source_hash": "f798fb8ba7f5"
 };

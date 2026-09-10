@@ -15,181 +15,35 @@
 // reaches the far corner, and camera work issues zero mutation requests and
 // zero history entries.
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
-import { localEnvGate, requireLocalEnvValue } from "./local-env";
+import {
+  deviceButtonName,
+  expectedContainZoom,
+  expectEntireCaptureVisible,
+  findReadyTarget,
+  openPlane,
+  paneRect,
+  readCamera,
+  signIn,
+  toNatural,
+  toScreen,
+  trackConsoleErrors,
+  visiblePane,
+  waitForZoom,
+} from "./canvas-session";
+import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
 test.describe.configure({ mode: "serial" });
 
-async function signIn(page: Page): Promise<void> {
-  await page.goto("/");
-  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
-}
-
-interface ReadyTarget {
-  pageUrl: string;
-  variant: "desktop" | "mobile";
-  captureId: string;
-  width: number;
-  height: number;
-}
-
-/** The first ready capture with persisted natural dimensions, if any. */
-async function findReadyTarget(page: Page): Promise<ReadyTarget | null> {
-  return page.evaluate(async () => {
-    const response = await fetch("/api/projects", { cache: "no-store" });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
-      projects: {
-        pages: {
-          normalizedUrl: string;
-          devices: {
-            variant: string;
-            attempts: {
-              id: string;
-              state: string;
-              documentWidth: number | null;
-              documentHeight: number | null;
-            }[];
-          }[];
-        }[];
-      }[];
-    };
-    for (const project of payload.projects) {
-      for (const p of project.pages) {
-        for (const device of p.devices) {
-          const ready = device.attempts.find(
-            (a) => a.state === "ready" && a.documentWidth && a.documentHeight,
-          );
-          if (ready) {
-            return {
-              pageUrl: p.normalizedUrl,
-              variant: device.variant as "desktop" | "mobile",
-              captureId: ready.id,
-              width: ready.documentWidth!,
-              height: ready.documentHeight!,
-            };
-          }
-        }
-      }
-    }
-    return null;
-  });
-}
-
-interface Viewport {
-  x: number;
-  y: number;
-  zoom: number;
-}
-
-/** The live React Flow transform, read from the viewport element style. */
-async function readCamera(page: Page): Promise<Viewport> {
-  return page.evaluate(() => {
-    const el = document.querySelector<HTMLElement>(".react-flow__viewport");
-    const match = el?.style.transform.match(
-      /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)\s*scale\(([\d.]+)\)/,
-    );
-    if (!match) throw new Error("no React Flow viewport transform found");
-    return { x: Number(match[1]), y: Number(match[2]), zoom: Number(match[3]) };
-  });
-}
-
-/** The canvas pane's own bounding rect (the camera's reference frame). */
-async function paneRect(page: Page): Promise<{ left: number; top: number; width: number; height: number }> {
-  return page.evaluate(() => {
-    const el = document.querySelector(".react-flow");
-    if (!el) throw new Error("no React Flow pane");
-    const rect = el.getBoundingClientRect();
-    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-  });
-}
-
-/**
- * Scroll the pane fully into the browser viewport and return its fresh
- * rect. Mouse gestures dispatched outside the window hit nothing, and
- * clicking the toolbar above the canvas scrolls the page — so every gesture
- * section re-anchors through this.
- */
-async function visiblePane(page: Page): Promise<{ left: number; top: number; width: number; height: number }> {
-  await page.evaluate(() => {
-    document.querySelector(".capture-canvas")?.scrollIntoView({ block: "start" });
-  });
-  await page.waitForTimeout(100);
-  return paneRect(page);
-}
-
-/** Screen coordinates of a screenshot-natural point under a camera. */
-function toScreen(point: { x: number; y: number }, camera: Viewport): { x: number; y: number } {
-  return { x: point.x * camera.zoom + camera.x, y: point.y * camera.zoom + camera.y };
-}
-
-/** The natural pixel under a pane-local screen point. */
-function toNatural(point: { x: number; y: number }, camera: Viewport): { x: number; y: number } {
-  return { x: (point.x - camera.x) / camera.zoom, y: (point.y - camera.y) / camera.zoom };
-}
-
-/** Wait until the live camera settles at an expected zoom (mode changes are
-    applied by an effect after mount/click, never synchronously). */
-async function waitForZoom(page: Page, expected: number): Promise<void> {
-  const deadline = Date.now() + 10_000;
-  for (;;) {
-    const zoom = (await readCamera(page)).zoom;
-    if (Math.abs(zoom - expected) / expected < 0.02) return;
-    if (Date.now() > deadline) {
-      throw new Error(`camera never settled at zoom ${expected}; last seen ${zoom}`);
-    }
-    await page.waitForTimeout(50);
-  }
-}
-
-/** The contain zoom the pure camera math predicts for this pane/doc. */
-function expectedContainZoom(
-  pane: { width: number; height: number },
-  doc: { width: number; height: number },
-): number {
-  const area = {
-    width: Math.max(1, pane.width - 2 * CANVAS_PADDING_PX),
-    height: Math.max(1, pane.height - 2 * CANVAS_PADDING_PX),
-  };
-  return Math.min(CANVAS_MAX_ZOOM, Math.min(area.width / doc.width, area.height / doc.height));
-}
-
-/** Every document corner renders inside the pane (the contain contract). */
-async function expectEntireCaptureVisible(
-  page: Page,
-  doc: { width: number; height: number },
-): Promise<Viewport> {
-  const [camera, pane] = await Promise.all([readCamera(page), paneRect(page)]);
-  for (const corner of [
-    { x: 0, y: 0 },
-    { x: doc.width, y: 0 },
-    { x: 0, y: doc.height },
-    { x: doc.width, y: doc.height },
-  ]) {
-    const screen = toScreen(corner, camera);
-    expect(screen.x, `corner ${corner.x},${corner.y} x`).toBeGreaterThanOrEqual(-1);
-    expect(screen.x, `corner ${corner.x},${corner.y} x`).toBeLessThanOrEqual(pane.width + 1);
-    expect(screen.y, `corner ${corner.x},${corner.y} y`).toBeGreaterThanOrEqual(-1);
-    expect(screen.y, `corner ${corner.x},${corner.y} y`).toBeLessThanOrEqual(pane.height + 1);
-  }
-  return camera;
-}
-
 test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page }) => {
   test.skip(!gate.ready, gate.reason);
   test.setTimeout(180_000);
 
-  const consoleErrors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
-  });
-  page.on("pageerror", (error) => consoleErrors.push(String(error)));
+  const consoleErrors = trackConsoleErrors(page);
 
   await stubDispatchQuota(page);
   await signIn(page);
@@ -202,14 +56,7 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   const doc = { width: target!.width, height: target!.height };
 
   // Select the target plane through the out-of-canvas navigation.
-  const deviceName = `${target!.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target!.pageUrl}`;
-  await page.getByRole("button", { name: deviceName, exact: true }).click();
-  const image = page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` });
-  await expect(image).toBeVisible();
-  await page.waitForFunction(() => {
-    const img = document.querySelector<HTMLImageElement>(".capture-frame-image");
-    return img !== null && img.complete && img.naturalWidth > 0;
-  });
+  await openPlane(page, target!);
 
   // The decoded image is exactly the persisted document plane.
   const intrinsic = await page.evaluate(() => {
@@ -361,9 +208,8 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
   test.skip(!target, "no ready capture in the local store");
   const doc = { width: target!.width, height: target!.height };
 
-  const deviceName = `${target!.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target!.pageUrl}`;
-  await page.getByRole("button", { name: deviceName, exact: true }).click();
-  await expect(page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
+  const deviceName = deviceButtonName(target!);
+  await openPlane(page, target!);
 
   // Take the camera somewhere else, then reload: the camera is local state,
   // so the capture reopens in the entire-in-view default.

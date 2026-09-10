@@ -6,12 +6,17 @@
 // domain.
 
 import { describe, expect, test } from "vitest";
+import { MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
 import {
   CAPTURE_FRAME_TYPE,
   captureFrameNodeId,
+  DRAFT_PIN_TYPE,
+  draftPinNode,
+  draftPinNodeId,
   nodesForCapture,
   type CaptureFrameDomain,
 } from "../../src/lib/canvas/flow-model";
+import { pinHitBox, tipFromPinBox } from "../../src/lib/canvas/geometry";
 
 const domain: CaptureFrameDomain = {
   captureId: "cap-root-desktop-v2",
@@ -67,5 +72,77 @@ describe("capture frame node", () => {
   test("rejects missing or non-finite document dimensions", () => {
     expect(() => nodesForCapture({ ...domain, width: 0 })).toThrow(RangeError);
     expect(() => nodesForCapture({ ...domain, height: Number.NaN })).toThrow(RangeError);
+  });
+});
+
+describe("draft pin node", () => {
+  const tip = { x: 812.25, y: 4231.5 };
+
+  test("appends after the frame, parented to it, with a namespaced deterministic id", () => {
+    const nodes = nodesForCapture(domain, tip, 1);
+    expect(nodes).toHaveLength(2);
+    const [frame, draft] = nodes;
+    expect(frame!.type).toBe(CAPTURE_FRAME_TYPE);
+    expect(draft!.type).toBe(DRAFT_PIN_TYPE);
+    expect(draft!.parentId).toBe(captureFrameNodeId(domain.captureId));
+    expect(draft!.id).toBe(draftPinNodeId(domain.captureId));
+    expect(draft!.id).toBe("draft-pin:cap-root-desktop-v2");
+    // The adapter id namespace can never collide with a server annotation id.
+    expect(draft!.id.startsWith("draft-pin:")).toBe(true);
+    // No parent extent on purpose: React Flow's extent clamp hides pointer
+    // overshoot past the frame edge, which strands the re-derived tip one
+    // grab offset inside the boundary. Clamping belongs to the pure adapter
+    // alone (see draftPinNode's doc comment); the rendered box is always
+    // inside the frame by construction.
+    expect(draft!.extent).toBeUndefined();
+  });
+
+  test("the node box comes from the pure adapter and preserves the canonical tip", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = draftPinNode(domain, tip, zoom);
+      const box = pinHitBox(tip, { width: domain.width, height: domain.height }, zoom);
+      expect(node.position).toEqual({ x: box.x, y: box.y });
+      expect(node.width).toBe(box.size);
+      expect(node.height).toBe(box.size);
+      expect(node.data.tipX).toBe(tip.x);
+      expect(node.data.tipY).toBe(tip.y);
+      // The rendered anchor, recovered from node geometry, is the exact tip.
+      const anchor = tipFromPinBox({
+        x: node.position.x,
+        y: node.position.y,
+        size: node.width!,
+        tipOffsetX: node.data.tipOffsetX,
+        tipOffsetY: node.data.tipOffsetY,
+      });
+      expect(anchor).toEqual(tip);
+    }
+  });
+
+  test("the on-screen hit target meets the shared minimum at 1x and 8x", () => {
+    for (const zoom of [1, 8]) {
+      const node = draftPinNode(domain, tip, zoom);
+      expect(node.width! * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+    }
+  });
+
+  test("is draggable but otherwise inert, and carries no React Flow runtime state", () => {
+    const node = draftPinNode(domain, tip, 1);
+    expect(node.draggable).toBe(true);
+    expect(node.selectable).toBe(false);
+    expect(node.connectable).toBe(false);
+    expect(node.deletable).toBe(false);
+    expect("positionAbsolute" in node).toBe(false);
+    expect("measured" in node).toBe(false);
+    expect("selected" in node).toBe(false);
+  });
+
+  test("is a domain-backed view: no draft at all without a tip", () => {
+    expect(nodesForCapture(domain, null, 1)).toHaveLength(1);
+    expect(nodesForCapture(domain, undefined, 1)).toHaveLength(1);
+  });
+
+  test("rejects non-finite tips and zooms rather than rendering a corrupt draft", () => {
+    expect(() => draftPinNode(domain, { x: Number.NaN, y: 1 }, 1)).toThrow(RangeError);
+    expect(() => draftPinNode(domain, tip, 0)).toThrow(RangeError);
   });
 });

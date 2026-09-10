@@ -2174,3 +2174,119 @@ debugging above.
 ### Open questions at end of session
 
 - None new. D054 stays pending.
+
+## 2026-09-10 — coordinate engine and gestures: draft pins, per-capture cameras, touch
+
+### What was attempted
+
+The canvas-coordinate-engine-and-touch-gestures feature (pins-and-feedback
+milestone): the natural-pixel coordinate adapter, explicit navigation /
+placement modes, draft pins, grab-offset dragging with frame clamps,
+per-capture session camera memory, and touch parity. Built test-first in
+slices:
+
+1. Pure adapter (`src/lib/canvas/geometry.ts`): inclusive document clamp,
+   finite-value rejection, and the zoom-aware pin hit box — the on-screen
+   edge never drops below the shared 24px minimum target, and the tip is
+   always recoverable exactly as box plus recorded offsets. 16 property
+   tests.
+2. Flow adapter: a draft pin child node (`draft-pin:<captureId>`,
+   draggable-only, deterministic namespaced id) produced by
+   `nodesForCapture(domain, draftTip?, zoom)`; frame stays index 0.
+3. `CaptureCanvas`: Navigate / Place pin toggle modes (`aria-pressed`),
+   panning bound to navigation mode only, tap placement with a 6px slop and
+   an on-document check (a second deliberate tap moves the one draft, never
+   stacks), Escape cancels (never while typing), drag handling through the
+   pure adapter, and `savedCamera`/`onCameraChange` props for per-capture
+   session camera restore. Draft state is the canonical natural tip; the
+   panel announces it.
+4. Workspace: a session `Map` of cameras keyed by capture id, so switching
+   between Desktop, Mobile, and old/new versions restores each plane's own
+   camera and never leaks a draft across planes.
+5. E2e (`e2e/canvas-interactions.spec.ts`, shared helpers in
+   `e2e/canvas-session.ts`): mouse placement at 1x and 8x with
+   inverse-transform assertions at the one-natural-pixel bar, grab-offset
+   drag, inclusive corner clamps at (0,0) and (document edges), plane
+   camera/draft isolation, reload stability, and CDP trusted-touch pan,
+   focal pinch, tap placement, and drag. Zero mutation requests, zero
+   history entries, zero console errors throughout.
+
+### What broke or dead-ended
+
+- React Flow's `extent: "parent"` on the draft node clamped emitted drag
+  positions at the frame edge and hid pointer overshoot; re-deriving the
+  tip from that pre-clamped box left it stranded one grab offset inside
+  the boundary (natural (1.5, 3) instead of (0,0)). Removed the extent:
+  the pure adapter is the single clamping authority (D056).
+- React Flow re-emits the final drag position on pointer-up; with the
+  grab offset re-derived per change from a frame-clamped box, that
+  re-emission advanced the tip with no pointer movement. The grab offset
+  is now captured once at drag start (D056).
+- `autoPanOnNodeDrag` moves the camera during edge flings and can outlive
+  pointer-up, so clamp measurements now wait for the camera to settle.
+- d3-zoom ignores touch input entirely unless the browser reports touch
+  support, so the touch e2e runs in a `hasTouch` Playwright context.
+- Headless Chromium frame-aligns and coalesces synthetic touchmove events
+  (bursts lose trailing moves; a stall follows a no-change anchor move).
+  The touch drag assertion measures against the moves the page actually
+  received, proving 1:1 tracking of delivered trusted input rather than
+  counting dispatched events.
+- Grab points for edge-clamped pins must come from the node wrapper's box,
+  not the badge: when the tip is clamped at an edge the badge extends past
+  the hit box, and a badge-relative grab point can land on the pane.
+- One physical impossibility found by the property tests: at extreme
+  overview zoom a whole-capture document renders smaller than 24 screen
+  px, so the hit box caps at the document size; the 24px floor holds
+  whenever the document is large enough.
+- Manual real-browser verification (agent-browser against the production
+  build) caught one real defect the suite had not: zoom-button gestures
+  are programmatic, so they carry no source event and `onMoveStart` never
+  saw them — resize-follow silently stayed on, and returning to a plane
+  re-applied the named mode's camera instead of the zoomed one. The zoom
+  buttons now take the camera over (resize-follow ends), with a component
+  test for the resize path and an e2e assertion for the plane-switch
+  restore. Manual measurements otherwise confirmed the contract: a tap at
+  1x inverse-transforms to exactly the announced natural pixel, and at 8x
+  the same pin reads (250, 227.9996) with the 24px hit-target floor held
+  on screen; Escape clears only the draft.
+- Full-suite parallel load surfaced two latent flakes outside this
+  feature's scope, both fixed in test machinery: (1) the capture-driver
+  in-flight watermark measured at requestfinished while the client caps by
+  promise settlement (a 2xx fetch resolves at response headers), so
+  body-delivery lag read as a phantom lease-cap violation; (2) the
+  two-dispatches-per-attempt bound assumed hierarchy reads never lag the
+  claim transition — a stale pending read legitimately re-drives and gets
+  fenced with a 409, so the test now asserts the real invariant (at most
+  one claiming 2xx, all other answers fenced 409/429, bounded total),
+  recorded as D057. The admission-failure test carried the same flawed
+  assumption in its terminal-answer count: a page observes at most one
+  terminal answer per own attempt, but may observe zero when a sibling
+  driver's page delivered it, so that assertion now bounds at ≤1 with the
+  anti-loop storm check unchanged. Both canvas specs also gained a principled
+  console-noise excuse for the dispatch route (the driver drives sibling
+  specs' pending rows by design, and a quota answer logs as a resource
+  error), and ready-capture discovery in `e2e/canvas-session.ts` is now
+  deterministic — the device's server-default capture, seeded Chickpea
+  pages preferred — so concurrently created captures cannot change which
+  plane a spec measures.
+
+### Elapsed
+
+Roughly three hours of mission-worker time, dominated by the drag/clamp
+and synthetic-touch debugging above.
+
+### Decisions and assertions
+
+- D056 (agent-autonomous): canonical natural-pixel tip plus zoom-aware hit
+  box; no React Flow parent extent on annotation children; grab offset
+  captured once per drag; transient one-per-plane drafts.
+- D057 (agent-autonomous): capture-driver e2e asserts the server fence
+  (one claiming answer, fenced redrives) instead of a fixed per-attempt
+  dispatch count; in-flight watermark releases at the response event.
+- Evidence for VAL-CANVAS-001/003/006/008: `test/canvas/geometry.test.ts`
+  property suites, `test/canvas/capture-canvas.test.tsx` component tests,
+  and the `e2e/canvas-interactions.spec.ts` measurements at 1x and 8x.
+
+### Open questions at end of session
+
+- None new. D054 stays pending.
