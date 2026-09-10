@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 18 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071 |
+| Human directed | 20 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D073 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 42 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **71** | |
+| **Total** | **73** | |
 
 ## Index
 
@@ -97,6 +97,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D069](#d069--split-the-public-landing-from-the-editor-workspace--stays-marketing-pins-is-the-app-pinsnew-holds-the-project-form) | build | Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form | Human directed | accepted |
 | [D070](#d070--collapse-the-project-rail-into-nested-native-disclosures-open-only-around-the-current-selection) | build | Collapse the project rail into nested native disclosures, open only around the current selection | Human directed | accepted |
 | [D071](#d071--list-every-pin-in-a-table-below-the-canvas-with-a-markdown-export-for-pasting-into-an-agentic-ide) | build | List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE | Human directed | accepted |
+| [D072](#d072--close-out-the-descoped-milestone-reconcile-every-narrative-document-to-what-actually-shipped-and-fix-repository-hygiene-with-no-application-code-changes) | wrap | Close out the descoped milestone: reconcile every narrative document to what actually shipped, and fix repository hygiene, with no application code changes | Human directed | accepted |
+| [D073](#d073--build-founder-links-and-the-readreply-view-on-a-separate-branch-in-parallel-without-touching-the-demo-build) | build | Build founder links and the read/reply view on a separate branch, in parallel, without touching the demo build | Human directed | accepted |
 
 ---
 
@@ -2758,4 +2760,85 @@ Human approved:
 
 ---
 
-<sub>Generated from 71 record(s) as of 2026-09-10 · source `76ca77c88ea3`</sub>
+## D072 — Close out the descoped milestone: reconcile every narrative document to what actually shipped, and fix repository hygiene, with no application code changes
+
+*2026-09-10 · phase: wrap · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+After D051, the pin lifecycle (D059, D061), the landing page (D066), and the production deployment (D068) shipped, but the narrative documents were not updated behind them: docs/MILESTONES.md still called milestone 1 in progress and milestone 2 pending, the README status described the original three-milestone plan, docs/NEXT.md said nothing had been cut, and the requirements, architecture, and eval documents presented founder links, threads, and rich marks as current requirements without the vision-versus-current note D051's consequences promised. The assignment grades the ability to explain the process, so stale narrative is a defect in a shipped deliverable. Two hygiene items sat alongside: an unreferenced 1.5 MB PNG at the repository root, and no root marker telling a version manager that Node 24 is required even though npm ci fails under Node 22.
+
+**Decision**
+
+Reconcile the documents to the shipped state without touching application code: milestone statuses and per-bullet shipped/deferred markers in docs/MILESTONES.md; a README status section that says plainly what the build does, what it does not do yet, and that the product is editor-only today; docs/NEXT.md filled in with the cut list, an ordered would-build-next list, and the known weaknesses; build-status notes plus inline deferral markers in docs/REQUIREMENTS.md, docs/ARCHITECTURE.md, and docs/EVALS.md; a session-log section recording the review findings. Move the root PNG to docs/brand/ and add a root .nvmrc pinning Node 24. Regenerate the decision artifacts.
+
+**Alternatives considered**
+
+- *Leave the documents as they were until after the live pins checkpoint* — The checkpoint may produce more fixes, but the documents were already wrong about what exists today, and a reviewer reading the repository now would be misled.
+- *Rewrite the requirements and architecture documents to remove the deferred scope* — D051's consequence is that those sections describe the vision, not current work. Removing them would erase the design that the schema and boundary catalog already implement; marking them is honest and cheaper.
+- *Fix the npm audit findings and the dependency line in the same pass* — That is a code and lockfile change. The direction for this pass was documentation and hygiene only.
+
+**Rationale**
+
+The human directed the closeout and the hygiene items explicitly and bounded them to no code changes. Every edit is a statement of fact about what shipped, sourced from the decision log, the session log, the production smoke, and a fresh run of the fast half of the gate.
+
+**Consequences**
+
+- The narrative documents and the code now agree: the current build is the editor half of the product, and the founder half is deferred, not cut.
+- docs/REQUIREMENTS.md keeps exactly nine functional requirements, as test/requirements-sources.test.ts pins; the deferral markers are inline.
+- docs/NEXT.md now carries the ordered follow-up list, so the third interview question has a maintained answer.
+- The root of the repository holds no stray assets; .nvmrc makes the Node 24 requirement visible to version managers before npm ci fails.
+- The short live pins checkpoint and D054 remain the open items for the descoped milestone.
+
+**Provenance evidence**
+
+Human instruction:
+
+> do the docs closeout and the hygiene items, no code changes.
+
+**Artifacts**
+
+- `docs/MILESTONES.md` — Milestone statuses and per-bullet shipped/deferred markers.
+- `docs/NEXT.md` — Cut list, ordered next steps, and known weaknesses.
+- `README.md` — Status section reconciled to the shipped build.
+
+---
+
+## D073 — Build founder links and the read/reply view on a separate branch, in parallel, without touching the demo build
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D051 deferred the founder loop (capability links, the read/reply-only founder view, and append-only threads) to protect the demo budget, which leaves the product usable by the editor alone. The schema, database triggers, feedback and reply-quota boundaries, and the asset authorization seam already exist, so the remaining work is additive routes and one new page. The question was whether and how to start it without risking the working production build before the live pins checkpoint.
+
+**Decision**
+
+Start the founder-links stream now, in parallel with the closeout and the live checkpoint, on a dedicated feature branch (feat/founder-links) cut from main. The branch must not change dependencies, must keep existing editor behavior unchanged by default, and must not edit the decision log or the narrative documents; its decision records are drafted in docs/decisions/drafts/ and folded into the log with sequential ids when the branch is reviewed. A pull request is opened later by the owner; the branch is pushed, not merged.
+
+**Alternatives considered**
+
+- *Commit the founder loop straight to main per D010* — The human does not want to block or break what is already working before the checkpoint. A branch isolates the risk; D010 continues to govern everything else on main.
+- *Wait until after the live pins checkpoint* — The work is independent of the canvas and pin code the checkpoint exercises, so serializing it only spends calendar time.
+- *Keep it deferred* — The human wants the product usable with friends after the assignment, and this is the one feature that makes it so.
+
+**Rationale**
+
+The human directed the stream, its priority relative to the demo, and the branch-and-later-PR shape. This is a bounded exception to D010, not a reversal: main keeps commit-straight-to-main with the gate before every commit, and the branch carries the same gate.
+
+**Consequences**
+
+- D010 still governs main; feat/founder-links was the one branch in flight, and it merged into main on 2026-09-10 as pull request #2.
+- The branch's decision records were drafted in docs/decisions/drafts/ so the sequential id rule on main was never violated by concurrent work; they merged as drafts and still need folding into this log with real ids.
+- Founder pages must satisfy the security boundaries already published in docs/ARCHITECTURE.md: no referrer, no indexing, digests only in the database, generic denials.
+- Requirements 6 and 7 and the role and thread eval scenarios stopped being vision when this branch merged.
+
+**Provenance evidence**
+
+Human instruction:
+
+> let's do this work (below) in parallel, as it's not crucual to the demo, but will make it more usable for future use in the wild with friends. open a separate branch for this and we'll own a PR later as well. I don't want to block/break what's already working.
+
+---
+
+<sub>Generated from 73 record(s) as of 2026-09-10 · source `47a5abd0d64b`</sub>

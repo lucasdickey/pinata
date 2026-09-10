@@ -113,6 +113,9 @@ scenarios (VAL-AUTH-008, VAL-AUTH-009):
 
 ## Role and thread scenarios
 
+Deferred by D051: these scenarios sit outside the current build's executable
+contract and remain the target for the founder-links stream (D070).
+
 1. A founder link opens a read/reply-only view; editing controls are absent
    visually and to assistive technology.
 2. Founder replies and editor follow-ups interleave chronologically and
@@ -583,7 +586,7 @@ clears the bucket.
 ## Quality attributes under test
 
 - Warm, playful, focused design; the whole product demos live in under a
-  minute.
+  minute. (The design pass is deferred, D051.)
 - No horizontal page overflow, clipped controls, or hover-only content at any
   supported width.
 - Keyboard-operable controls with visible focus; reduced-motion preference

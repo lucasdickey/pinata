@@ -4,7 +4,7 @@ The build proceeds in three vertical slices, each gated by
 `npm run validate` and paused for a live headed-browser checkpoint with the
 project owner. Rendered live at `/reqs/milestones`.
 
-## Milestone 1: Capture and organize — in progress
+## Milestone 1: Capture and organize — validated 2026-09-10
 
 The foundation: a working application skeleton that can capture real pages and
 keep them organized.
@@ -34,32 +34,49 @@ no-crawl, and partial-failure assertions moved into the surviving capture
 features, so no coverage was lost. The first production deployment and the
 real Chickpea project now live in milestone 2.
 
-## Milestone 2: Pins and founder feedback — pending
+Status: the live checkpoint ran on 2026-09-09/10 against the local production
+build (see [Evals](/reqs/evals), "Milestone 1 live checkpoint"). Capture and
+organization were validated with conditional acceptance; four escapes were
+fixed in session and one question stays open (D054, the non-retryable
+provider-side unsafe redirect).
+
+## Milestone 2: Pins and founder feedback — pins shipped, founder loop deferred
 
 The feedback loop itself.
 
-- One page/device capture at a time on a React Flow canvas, with the
+Descope (2026-09-09, user-directed — D051): after the milestone-1 checkpoint
+the roadmap was cut to what the product exists for. The bullets marked
+*shipped* below are in the production deployment and covered by the
+production smoke (D068). The bullets marked *deferred* are the founder loop;
+they are not cut, and are being built on a separate branch that does not
+touch the demo build (D070). What remains for this milestone is the short
+live pins checkpoint on production with the owner.
+
+- *Shipped.* One page/device capture at a time on a React Flow canvas, with the
   project/page tree outside the canvas.
-- Numbered pins with directional original comments, persisted in immutable
+- *Shipped.* Numbered pins with directional original comments, persisted in immutable
   screenshot-natural pixel coordinates, with deep pan and zoom on long
   captures.
-- Nearby captured DOM elements offered as explicit metadata attachments when
+- *Shipped.* Nearby captured DOM elements offered as explicit metadata attachments when
   placing a pin.
-- Independent desktop and mobile annotations.
-- Persistent, rotatable, revocable founder capability links.
-- A read/reply-only founder view: founders cannot create, move, edit, or
+- *Shipped.* Independent desktop and mobile annotations.
+- *Deferred (D051), in progress on a branch (D070).* Persistent, rotatable, revocable founder capability links.
+- *Deferred (D051), in progress on a branch (D070).* A read/reply-only founder view: founders cannot create, move, edit, or
   delete annotations.
-- Chronological, append-only two-way threads: founders reply as `founder`,
+- *Deferred (D051), in progress on a branch (D070).* Chronological, append-only two-way threads: founders reply as `founder`,
   Lucas follows up, and founder replies are immutable for everyone.
-- The first Vercel production deployment of the validated build.
-- The real Chickpea project in production: root plus the explicit
+- *Shipped (D068).* The first Vercel production deployment of the validated build.
+- *Shipped (D068); placement, metadata, persistence, and role boundaries proven by the smoke; sharing and replies wait on the founder loop.* The real Chickpea project in production: root plus the explicit
   `/pricing`, `/about`, and `/privacy` URL array, captured as eight ordered
   Desktop/Mobile captures, and used to validate exact placement, metadata
   selection, reload persistence, role boundaries, sharing, and replies.
 
-## Milestone 3: Rich marks, polish, and handoff — pending
+## Milestone 3: Rich marks, polish, and handoff — deferred (D051)
 
-The demoable, reviewable finish.
+The demoable, reviewable finish. Deferred wholesale by D051 except the
+documentation bullets, which were completed at closeout (D069); the final
+production acceptance session is replaced by the short pins checkpoint in
+milestone 2.
 
 - Rectangles and circles as resizable canvas nodes; straight arrows with
   draggable endpoints; directional comments on every mark kind.
