@@ -17,7 +17,7 @@ import {
   findReadyTarget,
   openPlane,
   panUntilNaturalVisible,
-  planeButton,
+  clickPlane,
   readCamera,
   signIn,
   toNatural,
@@ -326,7 +326,7 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
 
   // Reload stability: the transient draft is gone and no write ever left.
   await page.reload();
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expectNoWrites(page, tracked);

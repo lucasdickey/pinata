@@ -27,12 +27,18 @@ function watchConsoleErrors(page: import("@playwright/test").Page) {
   return errors;
 }
 
-test("the landing page links visibly to the requirements hub", async ({ page }) => {
+test("every landing hub link goes to its own route, not all to the hub", async ({ page }) => {
+  // The five titles were once a single anchor, so clicking "Architecture"
+  // landed on /reqs. Each title is now its own link to its own route.
   const errors = watchConsoleErrors(page);
-  await page.goto("/");
-  await page.getByRole("link", { name: /Requirements, architecture/ }).click();
-  await expect(page).toHaveURL(/\/reqs$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Pinata requirements" })).toBeVisible();
+  const nav = page.getByRole("navigation", { name: "Project documentation" });
+  for (const { path, heading } of ROUTES) {
+    await page.goto("/");
+    const title = heading.replace("Pinata ", "");
+    await nav.getByRole("link", { name: title }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+  }
   expect(errors).toEqual([]);
 });
 

@@ -22,7 +22,7 @@ import {
   findReadyTarget,
   openPlane,
   panUntilNaturalVisible,
-  planeButton,
+  clickPlane,
   readCamera,
   signIn,
   toScreen,
@@ -287,7 +287,7 @@ test("saving requires an explicit context decision; the server-derived snapshot 
   // byte-identical — the binding is to the capture, not the session.
   const beforeReload = await listPins(page, target.captureId);
   await page.reload();
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();
@@ -381,7 +381,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
 
   // Reload: still gone, no ghost.
   await page.reload();
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();

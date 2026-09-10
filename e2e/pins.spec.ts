@@ -23,7 +23,7 @@ import {
   findReadyTarget,
   openPlane,
   panUntilNaturalVisible,
-  planeButton,
+  clickPlane,
   readCamera,
   signIn,
   toNatural,
@@ -275,7 +275,7 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   // Reload: the server record is byte-identical and the badge renders it.
   const beforeReload = await listPins(page, target.captureId);
   await page.reload();
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();
@@ -504,7 +504,7 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
 
   // Reload stability: the clamped tip is exactly what the server kept.
   await page.reload();
-  await planeButton(page, target).click();
+  await clickPlane(page, target);
   await expect(
     page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` }),
   ).toBeVisible();

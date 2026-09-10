@@ -158,17 +158,19 @@ test("anonymous entry routes to sign-in, retains the draft, and creates exactly 
   await expect(page.getByLabel("Password")).toBeFocused();
   expect(projectPosts).toBe(0);
 
-  // Sign in; the editor lands back on / with the form active and the draft
-  // retained.
+  // Sign in. A parked draft routes the editor to the project form at
+  // /pins/new (D069) rather than the workspace, and the draft is retained.
   await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
+  await expect(page).toHaveURL(/\/pins\/new$/);
   await expect(page.getByLabel("Root URL")).toHaveValue(ROOT);
   await expect(page.getByRole("textbox", { name: "URL 2" })).toHaveValue(EXTRA);
 
   // Creating the project issues exactly one POST /api/projects, answered 201,
-  // and the project appears in the list on the same page.
+  // and hands off to the workspace, where the project is listed.
   await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page).toHaveURL(/\/pins$/);
+  await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
   await expect(page.getByText(`landing=${RUN_ID}`).first()).toBeVisible();
   expect(projectPosts).toBe(1);
   expect(projectCreates).toBe(1);

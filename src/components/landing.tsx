@@ -8,6 +8,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { CaptureEntryForm } from "./capture-entry-form";
 import { ExampleCapture } from "./example-capture";
 import { LoginForm } from "./login-form";
@@ -36,11 +37,25 @@ export function LandingHero({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * The hub links, one per destination. Rendering the five titles as a single
+ * anchor sent every one of them to `/reqs`; each title is its own link to
+ * its own route, and the list is generated from REQUIREMENTS_NAV so a route
+ * added there can never be missing here.
+ */
 export function LandingLinks() {
   return (
-    <p className="home-nav">
-      <Link href="/reqs">Requirements, architecture, milestones, decisions, and evals</Link>
-    </p>
+    <nav className="home-nav" aria-label="Project documentation">
+      <ul>
+        {REQUIREMENTS_NAV.map(({ route, title, summary }) => (
+          <li key={route}>
+            <Link href={route} title={summary}>
+              {title}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 

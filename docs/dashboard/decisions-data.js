@@ -3014,55 +3014,160 @@ window.PINATA = {
       "id": "D069",
       "date": "2026-09-10",
       "phase": "build",
-      "title": "Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source",
+      "title": "Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form",
       "origin": "user-directed",
       "status": "accepted",
-      "problem": "The landing logo and favicon were a placeholder drawn in code under D066 (an accent tile with a pin teardrop and starburst). The brand exploration sheet committed on 2026-09-08 carries the real mark — a llama-head map pin with orange sparks — and the user asked for its white app-icon variant to replace both the landing image and the favicon. The mark exists only as a raster, while D066 and test/brand-mark.test.tsx require one inline-SVG source for logo and favicon with zero raster or external image assets. The user left the resolution open: keep the PNG and change the requirement, or re-render the mark as SVG.",
-      "decision": "Re-render as SVG and keep the requirement. The app-icon tile was cropped from the committed brand sheet, separated into two color layers (the full pin-plus-sparks silhouette, and the black head with the eye patch cut out and the pupil filled), and traced to two SVG paths that now live in src/lib/brand-mark.ts. The head keeps its own ink black and the pin tip and sparks keep the sheet's spark orange, exposed as two new tokens (--brand-ink, --brand-spark) alongside the existing --surface tile fill. Both paths use the even-odd fill rule so the eye stays open. <PinataLogo> and app/icon.svg render exactly those paths; the test locks the two renderings to the source, the subpath structure (five body contours, three head contours), the fill rule, and the token equality.",
+      "problem": "One route was doing three jobs. `/` rendered the branded hero, the always-active project form, the static example capture, and the whole project workspace stacked underneath. Every visit to the working surface therefore paid for a screenful of marketing before reaching the canvas, and the project form sat permanently open whether or not a project was being created. The landing's hub link had the same collapsing problem in miniature: the five titles 'Requirements, architecture, milestones, decisions, and evals' were one anchor pointing at /reqs, so clicking 'Architecture' landed on the hub rather than /reqs/architecture, even though all five routes already existed.",
+      "decision": "Three routes with one job each. `/` is the public landing only — hero, anonymous capture entry, static example, sign-in, and five separate hub links generated from REQUIREMENTS_NAV. A verified editor session at `/` is redirected to `/pins`. `/pins` is the working surface: a compact header (home, New project, Sign out), the project workspace, and nothing that competes with the canvas. `/pins/new` carries the project form on its own route and hands off to `/pins` once the project commits. Both editor routes redirect an unverified visitor back to `/`, and all three share one server-side predicate (src/lib/server/auth/editor-page.ts) so the boundary cannot drift between them. Sign-in navigates rather than re-rendering in place, and routes to `/pins/new` when a parked anonymous draft (D067) is waiting so that handoff still works.",
       "alternatives": [
         {
-          "option": "Ship the PNG as the logo and favicon and relax the zero-raster requirement",
-          "why_not": "The user offered this path, but the only copy on disk is the 200-pixel tile inside the brand sheet (the pasted high-resolution icon never reached the repository), a raster favicon needs several sizes, and the D066 guarantee that logo and favicon share one source and fetch nothing external would be lost."
+          "option": "Keep one route and hide the hero once projects exist",
+          "why_not": "The surface would still be one component deciding what it is at render time, and the project form would have no address of its own — there would be nothing for a 'New project' link to point at."
         },
         {
-          "option": "Hand-draw a simplified llama pin in SVG primitives",
-          "why_not": "A hand approximation would drift from the sheet the user chose; tracing the actual tile reproduces its curves faithfully at about 6 KB for the favicon."
+          "option": "Keep the project form permanently mounted above the workspace on /pins",
+          "why_not": "That is the cost the split exists to remove: the form is used once per project and occupies the space the canvas needs on every visit."
         },
         {
-          "option": "Recolor the mark to the existing --accent red and reuse the two-color token rule",
-          "why_not": "It would change the logo the user handed over; the mark's orange and black are brand colors, not text colors, so they get their own tokens with no contrast contract."
+          "option": "Make the five hub titles anchor links into sections of one /reqs page",
+          "why_not": "The five routes already exist and already render from separate repository sources; pointing the titles at them is both less work and the behavior the titles already promise."
         }
       ],
-      "rationale": "The user named exactly two acceptable outcomes and the SVG route satisfies the request while keeping every landing guarantee (VAL-LANDING-001: same inline mark as favicon, no external image request) and its tests intact. Choosing between the two offered routes was inside the latitude the user granted.",
+      "rationale": "The user reported both symptoms together — the hub titles all landing on the same page, and the marketing surface crowding the app — and they have the same shape: one thing standing in for several. Splitting by route makes each surface addressable, lets the redirect rather than a conditional render carry the authorization boundary, and gives the 'New project' link somewhere to go.",
       "consequences": [
-        "src/lib/brand-mark.ts now carries traced path data (about 4 KB and 2 KB) instead of hand-written primitives; re-tracing from a new sheet is the way to change the mark, not editing coordinates.",
-        "app/globals.css gains --brand-ink and --brand-spark; they are consumed only by the mark and are not subject to the WCAG text-contrast lock on --accent.",
-        "--accent (#c43448) is unchanged, so links and buttons stay the D047 red while the mark is spark orange; aligning the site accent to the brand orange is a separate visual decision left open.",
-        "The brand sheet PNG stays committed as the source of the trace; the D066 landing screenshot remains as history and D069-landing.png shows the new hero."
+        "The editor surface has a stable address, so 'New project' and 'Back to pins' are ordinary links and browser history behaves.",
+        "Sign-in and sign-out now navigate explicitly (router.replace) instead of relying on router.refresh() to pick up a server-side redirect.",
+        "A parked anonymous draft is consumed at /pins/new rather than on /, so hasCaptureDraft() was added to let sign-in choose the destination without consuming the draft.",
+        "Every e2e spec that reached the editor through / had to learn the new landing; the shared signIn() helper absorbs most of it, and projects.spec.ts now opens the form through the header link.",
+        "The .home-main:has(.workspace) width override is gone: the workspace has its own shell (.pins-main) and is unconditionally wide."
       ],
       "transcript": {
-        "request": "use this base logo png and update the landing page image as well as the favicon [...] either use this PNG and change the requirements OR re-render as an svg"
+        "request": "\"Requirements, architecture, milestones, decisions, and evals\" <-- these all point ot the same page, rather than the same page then the jump to the anchor point. i.e. clicking architecture goes to ./reqs/ rather than ./reqs/architecture/.\n\nUI changes:\n1. (image 1) only show the new project entry when the user is at root, otherwise have a \"new project\" link that directs back to this view. more space efficient. move the \"see what a marked-up capture\" (image 2) to the root as well, don't show when in the primary app.\n2. the changes in #1 above suggest we need a root route and a ./projects endpoint (or ./pins) endpoint for the primary app itself.",
+        "approval": "/pins ... Redirect straight to the app route"
       },
       "artifacts": [
         {
-          "type": "screenshot",
-          "path": "screenshots/D069-landing.png",
-          "caption": "The landing hero with the llama-pin mark above the URL capture entry."
+          "type": "file",
+          "path": "app/page.tsx",
+          "caption": "The public landing, and the redirect that sends a verified editor to /pins."
         },
         {
           "type": "file",
-          "path": "src/lib/brand-mark.ts",
-          "caption": "The traced two-path mark source shared by the logo and the favicon."
+          "path": "app/pins/page.tsx",
+          "caption": "The editor workspace route, gated by redirect."
         },
         {
           "type": "file",
-          "path": "app/icon.svg",
-          "caption": "The favicon, the same two paths from the same source."
+          "path": "app/pins/new/page.tsx",
+          "caption": "The project form on its own route."
         },
         {
           "type": "file",
-          "path": "Codex Image Sep 6, 2026, 04_05_16 PM.png",
-          "caption": "The brand sheet the app-icon tile was traced from."
+          "path": "src/lib/server/auth/editor-page.ts",
+          "caption": "The single shared editor-session predicate the three routes agree on."
+        },
+        {
+          "type": "file",
+          "path": "src/components/landing.tsx",
+          "caption": "LandingLinks: five links from REQUIREMENTS_NAV instead of one anchor."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D070",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "Collapse the project rail into nested native disclosures, open only around the current selection",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The left rail printed every project's entire page and device tree at once. With more than a couple of projects the canvas was pushed off screen, and the rail gave no way to put a project away once its captures were reviewed.",
+      "decision": "Two levels of native <details>: one around the whole rail labelled 'Projects' with a count, and one per project around its pages and devices. The rail starts open; a project starts open only when it holds the current selection, and stays wherever the reader last put it. The disclosure state is session-only React state, never persisted. Each project keeps its heading for assistive technology, now visually hidden inside the disclosure while the summary carries the visible title.",
+      "alternatives": [
+        {
+          "option": "A hand-rolled button with aria-expanded and a controlled region",
+          "why_not": "More code and more ways to get the announcement wrong, for behavior <details> already provides correctly and without script."
+        },
+        {
+          "option": "Default every project collapsed",
+          "why_not": "The canvas is showing something; collapsing the control that produced it hides the reader's own context."
+        },
+        {
+          "option": "Default every project expanded, with collapse available",
+          "why_not": "That is the current behavior plus a control nobody has a reason to press; it does not recover the space the change exists to recover."
+        }
+      ],
+      "rationale": "Native disclosures are keyboard-operable and correctly announced with no dependency and no script, which matches the repository's standing constraint. Anchoring the default to the selection means the rail is never hiding the thing the reader is looking at, while every other project folds away.",
+      "consequences": [
+        "Device buttons in non-selected projects are no longer in the layout, so e2e specs reach them through a revealPlane/clickPlane helper that expands the owning project first — driving the UI the way a reader would.",
+        "The 'Projects' <h2> left the editor surface: the rail's own summary is now the heading for the list, and the region keeps its accessible name via aria-label."
+      ],
+      "transcript": {
+        "request": "3. in the primary app, set it so that Projects in the left-hand rail are moved inside of a collapsable/expandable nav element to save space."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "The nested disclosures and the selection-anchored default."
+        },
+        {
+          "type": "file",
+          "path": "e2e/canvas-session.ts",
+          "caption": "revealPlane/clickPlane: the specs expand a collapsed project before selecting a plane."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D071",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The side panel shows one pin at a time. That is right for editing, and useless for the thing the pins are ultimately for: handing a page's worth of feedback to a coding agent. Getting all of it out meant clicking each pin in turn and copying the comment by hand, losing the element context that makes a note actionable without the screenshot.",
+      "decision": "A table under the canvas listing every pin on the active capture — number, natural-pixel position, element summary and DOM path, and the comment — plus one 'Copy all as Markdown' control. The Markdown is produced by a pure function (src/lib/pin-export.ts) so the exact text that reaches the clipboard is unit-testable; it heads the block with the page, device, and version, and gives each pin its position, element, path, bounds, and its comment quoted verbatim. Selecting a row selects the pin everywhere else, so the table is a second route to the same state rather than a second copy of it.",
+      "alternatives": [
+        {
+          "option": "A per-row copy button instead of one copy-all",
+          "why_not": "The user asked for the whole set in one paste; per-row copying is the manual work the table exists to replace."
+        },
+        {
+          "option": "Export JSON",
+          "why_not": "The destination is a chat-style agent prompt, where prose with inline context reads better than a structure the agent has to interpret."
+        },
+        {
+          "option": "Extend the side panel to list full pin detail",
+          "why_not": "The panel is screen-fixed and narrow by design so it survives panning; a full table there would either overflow or force the canvas to shrink."
+        }
+      ],
+      "rationale": "The element snapshot is the only durable record of where a note points — the capture is a screenshot and the manifest is never re-derived after save (VAL-PIN-003, VAL-PIN-008) — so an export that omits it is not actionable. Emitting the body inside a blockquote keeps arbitrary comment text intact without escaping the content that matters most.",
+      "consequences": [
+        "Two surfaces now list every pin, so component tests naming a pin have to scope to the panel or the table.",
+        "The clipboard is not available in every context; a refused write is reported and the table text stays selectable as the fallback."
+      ],
+      "transcript": {
+        "request": "Pin+annotation set as list view - at the bottom of each project view, rather just one at a time in the right-hand pin manipulation component, have an array of pins - pin #, pin location (from attached DOM object), and copy. this should make it easier to copy past into an agentic IDE/dev tool.",
+        "approval": "Table + \"Copy all as Markdown\" button"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/pin-export.ts",
+          "caption": "The pure Markdown rendering the clipboard receives."
+        },
+        {
+          "type": "file",
+          "path": "src/components/pin-table.tsx",
+          "caption": "The all-pins table and the copy control."
+        },
+        {
+          "type": "file",
+          "path": "test/pin-export.test.ts",
+          "caption": "The export contract: element context present, comment bodies verbatim."
         }
       ],
       "supersedes": null,
@@ -3070,5 +3175,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-09-10",
-  "source_hash": "a5d08e1058d8"
+  "source_hash": "76ca77c88ea3"
 };

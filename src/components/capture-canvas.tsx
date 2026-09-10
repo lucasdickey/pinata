@@ -214,6 +214,7 @@ function ZoomReadout() {
 function CaptureCanvasInner({
   domain,
   regionName,
+  readOnly,
   pins,
   previewRect,
   selectedPinId,
@@ -227,6 +228,13 @@ function CaptureCanvasInner({
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
+  /**
+   * The founder's read/reply-only plane: no Place pin mode, no drafts, no
+   * pin dragging, and no editing controls in the DOM at all. Pan, zoom, and
+   * selecting a saved pin to read its thread still work. Defaults to the
+   * editor's full behavior.
+   */
+  readOnly: boolean;
   /** This plane's persisted pins (server is canonical; never RF state). */
   pins: Omit<CanvasPin, "selected">[];
   /**
@@ -271,7 +279,10 @@ function CaptureCanvasInner({
   // pin mode created it, and adjusting it after switching back to navigate
   // is the shipped placement flow. The adapter marks pins draggable-capable;
   // this layer enforces the mode.
-  const [interaction, setInteraction] = useState<InteractionMode>("navigate");
+  const [interactionState, setInteraction] = useState<InteractionMode>("navigate");
+  // A read-only plane is permanently in Navigate: there is no toggle to
+  // leave it, so no press can ever place or move a mark.
+  const interaction: InteractionMode = readOnly ? "navigate" : interactionState;
   // A persisted pin being dragged: movement is local state, re-derived
   // through the pure clamping adapter; the commit at drag end is one write.
   const [pinDrag, setPinDrag] = useState<{ id: string; tip: NaturalPoint } | null>(null);
@@ -286,9 +297,9 @@ function CaptureCanvasInner({
   );
   const nodes = useMemo(() => {
     const built = nodesForCapture(domain, effectivePins, draft, liveZoom, previewRect ?? null);
-    if (interaction === "pin") return built;
+    if (interaction === "pin" && !readOnly) return built;
     return built.map((node) => (node.type === PIN_TYPE ? { ...node, draggable: false } : node));
-  }, [domain, effectivePins, draft, liveZoom, interaction, previewRect]);
+  }, [domain, effectivePins, draft, liveZoom, interaction, previewRect, readOnly]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
   const modeRef = useRef(mode);
@@ -470,24 +481,30 @@ function CaptureCanvasInner({
         </button>
         <ZoomReadout />
       </p>
-      <p className="capture-camera" role="group" aria-label="Canvas tools">
-        {INTERACTION_MODES.map((candidate) => (
-          <button
-            key={candidate.id}
-            type="button"
-            aria-pressed={interaction === candidate.id}
-            onClick={() => setInteraction(candidate.id)}
-          >
-            {candidate.label}
-          </button>
-        ))}
-      </p>
+      {/* The editing tools exist only on an editable plane: a read-only
+          plane renders no mode toggle at all, so the affordance is absent
+          from the DOM and the accessibility tree, not merely hidden. */}
+      {readOnly ? null : (
+        <p className="capture-camera" role="group" aria-label="Canvas tools">
+          {INTERACTION_MODES.map((candidate) => (
+            <button
+              key={candidate.id}
+              type="button"
+              aria-pressed={interaction === candidate.id}
+              onClick={() => setInteraction(candidate.id)}
+            >
+              {candidate.label}
+            </button>
+          ))}
+        </p>
+      )}
       <div
         className="capture-canvas"
         ref={wrapperRef}
         role="region"
         aria-label={regionName}
         data-interaction={interaction}
+        data-read-only={readOnly ? "true" : undefined}
         onPointerDown={(event) => {
           // isPrimary is undefined on some synthetic event surfaces; only an
           // explicit non-primary pointer is ignored.
@@ -497,7 +514,7 @@ function CaptureCanvasInner({
         onPointerUp={(event) => {
           const start = pressStart.current;
           pressStart.current = null;
-          if (!start || interaction !== "pin" || event.isPrimary === false) return;
+          if (readOnly || !start || interaction !== "pin" || event.isPrimary === false) return;
           const travel = Math.hypot(event.clientX - start.x, event.clientY - start.y);
           if (travel > PLACEMENT_SLOP_SCREEN_PX) return;
           const target = event.target as HTMLElement | null;
@@ -615,6 +632,7 @@ export function CaptureCanvas({
   attempt,
   width,
   height,
+  readOnly = false,
   pins = [],
   previewRect = null,
   selectedPinId,
@@ -632,6 +650,12 @@ export function CaptureCanvas({
   attempt: number;
   width: number;
   height: number;
+  /**
+   * Render the founder's read/reply-only plane: no editing tools, drafts, or
+   * pin drags, and none of their controls in the DOM. Defaults to the
+   * editor's full behavior, so existing planes are unchanged.
+   */
+  readOnly?: boolean;
   /** This plane's persisted pins; empty until they load or when none exist. */
   pins?: Omit<CanvasPin, "selected">[];
   /** The transient nearby-candidate highlight rect in natural pixels. */
@@ -661,6 +685,7 @@ export function CaptureCanvas({
       <CaptureCanvasInner
         domain={domain}
         regionName={name}
+        readOnly={readOnly}
         pins={pins}
         previewRect={previewRect}
         selectedPinId={selectedPinId}

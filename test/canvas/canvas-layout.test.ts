@@ -61,11 +61,13 @@ describe("canvas frame bounds", () => {
     expect(narrow[1]).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
   });
 
-  test("the editor shell widens once the workspace is present", () => {
+  test("the editor shell is wide, not the landing reading column", () => {
     // Without this the workspace inherits the 46rem reading column and the
-    // canvas collapses to a few pixels next to the sidebar and panel.
-    const wide = css.match(/\.home-main:has\(\.workspace\)\s*\{([^}]*)\}/);
-    if (!wide) throw new Error("wide .home-main workspace rule not found");
+    // canvas collapses to a few pixels next to the sidebar and panel. Since
+    // the split (D069) the workspace has its own route and its own shell,
+    // so the width is unconditional rather than a :has() override.
+    const wide = css.match(/\.pins-main\s*\{([^}]*)\}/);
+    if (!wide) throw new Error(".pins-main shell rule not found");
     expect(wide[1]).toMatch(/max-width:\s*min\(/);
   });
 });

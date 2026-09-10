@@ -2,15 +2,17 @@
 // Editor project-entry states (VAL-AUTH-008, VAL-AUTH-009): the project list
 // is an explicit state machine — loading, empty, populated, and failure are
 // distinct and announced; a failed read offers one single-flight retry that
-// issues exactly one GET and never touches the sign-out control; an in-flight
-// or failed list read never unmounts or clears an open create form; and the
-// empty list offers exactly one create action.
+// issues exactly one GET and never touches the sign-out control; and the
+// empty list offers exactly one route to the create form.
+//
+// Since the route split (D069) the create form itself lives at /pins/new,
+// so what this surface owes is a single unambiguous link to it — the form's
+// own behavior is covered by test/new-project-page.test.tsx.
 
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CAPTURE_POLL_INITIAL_INTERVAL_MS } from "../src/lib/boundaries";
-import { CAPTURE_DRAFT_STORAGE_KEY } from "../src/lib/capture-draft";
 import { EditorHome } from "../src/components/editor-home";
 import type {
   AttemptView,
@@ -111,9 +113,16 @@ describe("editor project-entry states", () => {
       screen.getByRole("region", { name: "Projects" }).getAttribute("aria-busy"),
     ).toBe("false");
     expect(screen.getByText(/No projects yet/)).toBeInTheDocument();
+    // The header link is the standing route to the form; the empty state
+    // adds the one inline prompt. Both point at /pins/new and nothing else
+    // on this surface creates a project.
+    expect(screen.getByRole("link", { name: "New project" })).toHaveAttribute(
+      "href",
+      "/pins/new",
+    );
     expect(
-      screen.getAllByRole("button", { name: /new project|create project/i }),
-    ).toHaveLength(1);
+      screen.getByRole("link", { name: /create your first project/i }),
+    ).toHaveAttribute("href", "/pins/new");
   });
 
   test("a populated list names each project and keeps the single create action", async () => {
@@ -125,9 +134,7 @@ describe("editor project-entry states", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/No projects yet/)).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(
-      screen.getAllByRole("button", { name: /new project|create project/i }),
-    ).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "New project" })).toHaveLength(1);
   });
 
   test("a failed read offers one single-flight retry and keeps sign-out available", async () => {
@@ -181,53 +188,20 @@ describe("editor project-entry states", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  test("a failed background read never unmounts or clears the open create form", async () => {
+  test("a failed background read leaves the header controls intact", async () => {
     // A project with in-progress captures arms the polling timer; the next
-    // scheduled read fails while the editor is mid-entry in the always-active
-    // landing form (D066: no New project toggle — the form is the hero).
+    // scheduled read fails. The failure must stay confined to the list
+    // region — the route to the create form and the sign-out control are
+    // how the editor recovers, so a background error can never remove them.
     fetchMock.mockResolvedValueOnce(Response.json({ projects: [projectWith("pending")] }));
     render(<EditorHome />);
     await flush();
 
-    const root = screen.getByLabelText("Root URL");
-    fireEvent.change(root, { target: { value: "https://chickpea.co/" } });
-    fireEvent.change(screen.getByLabelText("Project name (optional)"), {
-      target: { value: "draft in progress" },
-    });
-
     fetchMock.mockRejectedValueOnce(new Error("network down"));
     await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
 
-    // The failure is announced, but the safe input the editor typed is
-    // untouched and the form is still operable.
     expect(screen.getByRole("alert")).toHaveTextContent(/could not be loaded/i);
-    expect(screen.getByLabelText("Root URL")).toHaveValue("https://chickpea.co/");
-    expect(screen.getByLabelText("Project name (optional)")).toHaveValue(
-      "draft in progress",
-    );
-    expect(screen.getByRole("button", { name: "Create project" })).toBeEnabled();
-  });
-
-  test("a parked anonymous draft opens the form with the URLs retained, consumed once", async () => {
-    // VAL-LANDING-003: the anonymous capture entry parks its draft in
-    // sessionStorage before routing to sign-in; the editor landing consumes
-    // it into the always-active form and removes it, so a later reload never
-    // resurrects a stale draft.
-    sessionStorage.setItem(
-      CAPTURE_DRAFT_STORAGE_KEY,
-      JSON.stringify({
-        rootUrl: "https://chickpea.co/",
-        urls: ["https://chickpea.co/pricing"],
-      }),
-    );
-    fetchMock.mockResolvedValueOnce(Response.json({ projects: [] }));
-    render(<EditorHome />);
-    await flush();
-
-    expect(screen.getByLabelText("Root URL")).toHaveValue("https://chickpea.co/");
-    expect(screen.getByRole("textbox", { name: "URL 2" })).toHaveValue(
-      "https://chickpea.co/pricing",
-    );
-    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(screen.getByRole("link", { name: "New project" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
   });
 });

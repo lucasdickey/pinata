@@ -37,6 +37,12 @@ async function signIn(page: Page): Promise<void> {
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 }
 
+/** Open the project form on its own route (D069). */
+async function openCreateForm(page: Page): Promise<void> {
+  await page.getByRole("link", { name: "New project" }).click();
+  await expect(page.getByLabel("Root URL")).toBeVisible();
+}
+
 /**
  * Keep this spec hermetic: the editor's dispatch driver automatically drives
  * every pending attempt it can see, and this spec is about organization, not
@@ -121,8 +127,9 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await signIn(page);
   const before = runScoped(await projectsOf(page.request));
 
-  // The landing's project form is always active for a signed-in editor
-  // (D066) — no toggle. Clear form resets the fields and writes nothing.
+  // The project form has its own route (D069), reached from the workspace
+  // header. Clear form resets the fields and writes nothing.
+  await openCreateForm(page);
   await page.getByLabel("Root URL").fill(ROOT);
   await addRow(page, PRICING);
   await page.getByRole("button", { name: "Clear form" }).click();
@@ -151,20 +158,23 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await page.getByRole("button", { name: "Remove URL 2" }).click();
   await page.getByRole("button", { name: "Create project" }).click();
 
-  // VAL-AUTH-009: the project shows up exactly once and the workspace
-  // (capture progress included) is right there — no manual route entry.
+  // VAL-AUTH-009: creating hands off to the workspace, where the project
+  // shows up exactly once with its capture progress — no manual route entry.
+  await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
   await expect(
     page.getByRole("navigation", { name: "Projects, pages, and devices" }),
   ).toBeVisible();
 
   // Reload and Back/Forward traversal never resubmit the form and never
-  // create a second project.
+  // create a second project. Back lands on the (now empty) form route, so
+  // Forward has to return to the workspace before the count is re-read.
   const postsAfterCreate = projectPosts;
   await page.reload();
   await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
   await page.goBack();
   await page.goForward();
+  await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
   expect(projectPosts).toBe(postsAfterCreate);
   const after = runScoped(await projectsOf(page.request));

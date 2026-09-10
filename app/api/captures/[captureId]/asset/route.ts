@@ -14,16 +14,17 @@
 // `Vary: Cookie`, so a warmed browser or intermediary cache can never replay
 // a private image after the session ends.
 //
-// The founder capability path (rotation/revocation authority for a shared
-// project link) joins this same route in milestone 2 with VAL-CAPTURE-010;
-// nothing here caches or presumes the editor-only authority shape.
+// The founder capability path (VAL-CAPTURE-010) shares this route: a valid
+// founder session whose capability still binds to this capture's project is
+// admitted exactly like the editor; a founder of another project, a rotated
+// or revoked capability, and an anonymous caller all receive the identical
+// editor-only 401. Authority is re-evaluated on every request.
 
 import { ASSET_CACHE_CONTROL, ASSET_VARY } from "../../../../../src/lib/boundaries";
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
-import { requireEditor } from "../../../../../src/lib/server/auth/guard";
 import { deliverCaptureAsset } from "../../../../../src/lib/server/captures/asset";
 import { getScreenshotStore } from "../../../../../src/lib/server/captures/deps";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
+import { authorizeCaptureReader } from "../../../../../src/lib/server/founder/reader";
 import { ERRORS, isSecureRequest, jsonError } from "../../../../../src/lib/server/http";
 
 interface RouteContext {
@@ -44,22 +45,21 @@ async function handle(
   method: "GET" | "HEAD",
 ): Promise<Response> {
   // Safe methods need no Origin/CSRF proof, but authority is always live:
-  // the session is verified here, immediately before any lookup, and never
+  // the editor session — or the founder capability bound to this capture's
+  // project — is verified here, immediately before any lookup, and never
   // cached between requests.
-  const auth = requireEditor(request);
-  if (!auth.ok) return withAssetSafety(auth.response);
   const secure = isSecureRequest(request);
+  const db = getDatabase();
+  const { captureId } = await context.params;
+  const auth = await authorizeCaptureReader(request, db, captureId, secure);
+  if (!auth.ok) return withAssetSafety(auth.response);
   const withRenewal = (response: Response) => {
-    if (auth.renewedToken) {
-      response.headers.append("set-cookie", sessionCookie(auth.renewedToken, secure));
-    }
+    if (auth.actor.renewCookie) response.headers.append("set-cookie", auth.actor.renewCookie);
     return response;
   };
 
-  const db = getDatabase();
   if (!db) return withRenewal(withAssetSafety(jsonError(503, ERRORS.unavailable)));
 
-  const { captureId } = await context.params;
   let response: Response;
   try {
     response = await deliverCaptureAsset(db, getScreenshotStore(), captureId, {

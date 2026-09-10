@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 16 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069 |
+| Human directed | 18 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 42 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **69** | |
+| **Total** | **71** | |
 
 ## Index
 
@@ -94,7 +94,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D066](#d066--the-root-route-is-a-branded-landing-page-the-pinata-mark-directly-above-the-url-capture-entry-a-brief-value-proposition-a-fully-static-example-of-a-marked-up-capture-and-a-clear-sign-in-path) | build | The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path | Human directed | accepted |
 | [D067](#d067--anonymous-capture-entries-park-in-same-tab-sessionstorage-and-route-to-the-on-page-sign-in-prompt-the-editor-form-consumes-the-draft-exactly-once) | build | Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once | Agent decided alone | accepted |
 | [D068](#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke) | build | Deploy to Vercel production behind SSO protection, fixing the framework preset and adding a Protection-Bypass-for-Automation secret for the smoke | Agent decided alone | accepted |
-| [D069](#d069--adopt-the-llama-pin-app-icon-from-the-brand-sheet-as-the-pinata-mark-re-rendered-as-vector-paths-in-the-one-shared-svg-source) | build | Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source | Human directed | accepted |
+| [D069](#d069--split-the-public-landing-from-the-editor-workspace--stays-marketing-pins-is-the-app-pinsnew-holds-the-project-form) | build | Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form | Human directed | accepted |
+| [D070](#d070--collapse-the-project-rail-into-nested-native-disclosures-open-only-around-the-current-selection) | build | Collapse the project rail into nested native disclosures, open only around the current selection | Human directed | accepted |
+| [D071](#d071--list-every-pin-in-a-table-below-the-canvas-with-a-markdown-export-for-pasting-into-an-agentic-ide) | build | List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE | Human directed | accepted |
 
 ---
 
@@ -2613,48 +2615,147 @@ Protection Bypass for Automation is Vercel"s documented mechanism for exactly th
 
 ---
 
-## D069 — Adopt the llama-pin app icon from the brand sheet as the pinata mark, re-rendered as vector paths in the one shared SVG source
+## D069 — Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form
 
 *2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
 
 **Problem**
 
-The landing logo and favicon were a placeholder drawn in code under D066 (an accent tile with a pin teardrop and starburst). The brand exploration sheet committed on 2026-09-08 carries the real mark — a llama-head map pin with orange sparks — and the user asked for its white app-icon variant to replace both the landing image and the favicon. The mark exists only as a raster, while D066 and test/brand-mark.test.tsx require one inline-SVG source for logo and favicon with zero raster or external image assets. The user left the resolution open: keep the PNG and change the requirement, or re-render the mark as SVG.
+One route was doing three jobs. `/` rendered the branded hero, the always-active project form, the static example capture, and the whole project workspace stacked underneath. Every visit to the working surface therefore paid for a screenful of marketing before reaching the canvas, and the project form sat permanently open whether or not a project was being created. The landing's hub link had the same collapsing problem in miniature: the five titles 'Requirements, architecture, milestones, decisions, and evals' were one anchor pointing at /reqs, so clicking 'Architecture' landed on the hub rather than /reqs/architecture, even though all five routes already existed.
 
 **Decision**
 
-Re-render as SVG and keep the requirement. The app-icon tile was cropped from the committed brand sheet, separated into two color layers (the full pin-plus-sparks silhouette, and the black head with the eye patch cut out and the pupil filled), and traced to two SVG paths that now live in src/lib/brand-mark.ts. The head keeps its own ink black and the pin tip and sparks keep the sheet's spark orange, exposed as two new tokens (--brand-ink, --brand-spark) alongside the existing --surface tile fill. Both paths use the even-odd fill rule so the eye stays open. <PinataLogo> and app/icon.svg render exactly those paths; the test locks the two renderings to the source, the subpath structure (five body contours, three head contours), the fill rule, and the token equality.
+Three routes with one job each. `/` is the public landing only — hero, anonymous capture entry, static example, sign-in, and five separate hub links generated from REQUIREMENTS_NAV. A verified editor session at `/` is redirected to `/pins`. `/pins` is the working surface: a compact header (home, New project, Sign out), the project workspace, and nothing that competes with the canvas. `/pins/new` carries the project form on its own route and hands off to `/pins` once the project commits. Both editor routes redirect an unverified visitor back to `/`, and all three share one server-side predicate (src/lib/server/auth/editor-page.ts) so the boundary cannot drift between them. Sign-in navigates rather than re-rendering in place, and routes to `/pins/new` when a parked anonymous draft (D067) is waiting so that handoff still works.
 
 **Alternatives considered**
 
-- *Ship the PNG as the logo and favicon and relax the zero-raster requirement* — The user offered this path, but the only copy on disk is the 200-pixel tile inside the brand sheet (the pasted high-resolution icon never reached the repository), a raster favicon needs several sizes, and the D066 guarantee that logo and favicon share one source and fetch nothing external would be lost.
-- *Hand-draw a simplified llama pin in SVG primitives* — A hand approximation would drift from the sheet the user chose; tracing the actual tile reproduces its curves faithfully at about 6 KB for the favicon.
-- *Recolor the mark to the existing --accent red and reuse the two-color token rule* — It would change the logo the user handed over; the mark's orange and black are brand colors, not text colors, so they get their own tokens with no contrast contract.
+- *Keep one route and hide the hero once projects exist* — The surface would still be one component deciding what it is at render time, and the project form would have no address of its own — there would be nothing for a 'New project' link to point at.
+- *Keep the project form permanently mounted above the workspace on /pins* — That is the cost the split exists to remove: the form is used once per project and occupies the space the canvas needs on every visit.
+- *Make the five hub titles anchor links into sections of one /reqs page* — The five routes already exist and already render from separate repository sources; pointing the titles at them is both less work and the behavior the titles already promise.
 
 **Rationale**
 
-The user named exactly two acceptable outcomes and the SVG route satisfies the request while keeping every landing guarantee (VAL-LANDING-001: same inline mark as favicon, no external image request) and its tests intact. Choosing between the two offered routes was inside the latitude the user granted.
+The user reported both symptoms together — the hub titles all landing on the same page, and the marketing surface crowding the app — and they have the same shape: one thing standing in for several. Splitting by route makes each surface addressable, lets the redirect rather than a conditional render carry the authorization boundary, and gives the 'New project' link somewhere to go.
 
 **Consequences**
 
-- src/lib/brand-mark.ts now carries traced path data (about 4 KB and 2 KB) instead of hand-written primitives; re-tracing from a new sheet is the way to change the mark, not editing coordinates.
-- app/globals.css gains --brand-ink and --brand-spark; they are consumed only by the mark and are not subject to the WCAG text-contrast lock on --accent.
-- --accent (#c43448) is unchanged, so links and buttons stay the D047 red while the mark is spark orange; aligning the site accent to the brand orange is a separate visual decision left open.
-- The brand sheet PNG stays committed as the source of the trace; the D066 landing screenshot remains as history and D069-landing.png shows the new hero.
+- The editor surface has a stable address, so 'New project' and 'Back to pins' are ordinary links and browser history behaves.
+- Sign-in and sign-out now navigate explicitly (router.replace) instead of relying on router.refresh() to pick up a server-side redirect.
+- A parked anonymous draft is consumed at /pins/new rather than on /, so hasCaptureDraft() was added to let sign-in choose the destination without consuming the draft.
+- Every e2e spec that reached the editor through / had to learn the new landing; the shared signIn() helper absorbs most of it, and projects.spec.ts now opens the form through the header link.
+- The .home-main:has(.workspace) width override is gone: the workspace has its own shell (.pins-main) and is unconditionally wide.
 
 **Provenance evidence**
 
 Human instruction:
 
-> use this base logo png and update the landing page image as well as the favicon [...] either use this PNG and change the requirements OR re-render as an svg
+> "Requirements, architecture, milestones, decisions, and evals" <-- these all point ot the same page, rather than the same page then the jump to the anchor point. i.e. clicking architecture goes to ./reqs/ rather than ./reqs/architecture/.
+>
+> 
+>
+> UI changes:
+>
+> 1. (image 1) only show the new project entry when the user is at root, otherwise have a "new project" link that directs back to this view. more space efficient. move the "see what a marked-up capture" (image 2) to the root as well, don't show when in the primary app.
+>
+> 2. the changes in #1 above suggest we need a root route and a ./projects endpoint (or ./pins) endpoint for the primary app itself.
+
+Human approved:
+
+> /pins ... Redirect straight to the app route
 
 **Artifacts**
 
-- ![The landing hero with the llama-pin mark above the URL capture entry.](dashboard/screenshots/D069-landing.png) — The landing hero with the llama-pin mark above the URL capture entry.
-- `src/lib/brand-mark.ts` — The traced two-path mark source shared by the logo and the favicon.
-- `app/icon.svg` — The favicon, the same two paths from the same source.
-- `Codex Image Sep 6, 2026, 04_05_16 PM.png` — The brand sheet the app-icon tile was traced from.
+- `app/page.tsx` — The public landing, and the redirect that sends a verified editor to /pins.
+- `app/pins/page.tsx` — The editor workspace route, gated by redirect.
+- `app/pins/new/page.tsx` — The project form on its own route.
+- `src/lib/server/auth/editor-page.ts` — The single shared editor-session predicate the three routes agree on.
+- `src/components/landing.tsx` — LandingLinks: five links from REQUIREMENTS_NAV instead of one anchor.
 
 ---
 
-<sub>Generated from 69 record(s) as of 2026-09-10 · source `a5d08e1058d8`</sub>
+## D070 — Collapse the project rail into nested native disclosures, open only around the current selection
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The left rail printed every project's entire page and device tree at once. With more than a couple of projects the canvas was pushed off screen, and the rail gave no way to put a project away once its captures were reviewed.
+
+**Decision**
+
+Two levels of native <details>: one around the whole rail labelled 'Projects' with a count, and one per project around its pages and devices. The rail starts open; a project starts open only when it holds the current selection, and stays wherever the reader last put it. The disclosure state is session-only React state, never persisted. Each project keeps its heading for assistive technology, now visually hidden inside the disclosure while the summary carries the visible title.
+
+**Alternatives considered**
+
+- *A hand-rolled button with aria-expanded and a controlled region* — More code and more ways to get the announcement wrong, for behavior <details> already provides correctly and without script.
+- *Default every project collapsed* — The canvas is showing something; collapsing the control that produced it hides the reader's own context.
+- *Default every project expanded, with collapse available* — That is the current behavior plus a control nobody has a reason to press; it does not recover the space the change exists to recover.
+
+**Rationale**
+
+Native disclosures are keyboard-operable and correctly announced with no dependency and no script, which matches the repository's standing constraint. Anchoring the default to the selection means the rail is never hiding the thing the reader is looking at, while every other project folds away.
+
+**Consequences**
+
+- Device buttons in non-selected projects are no longer in the layout, so e2e specs reach them through a revealPlane/clickPlane helper that expands the owning project first — driving the UI the way a reader would.
+- The 'Projects' <h2> left the editor surface: the rail's own summary is now the heading for the list, and the region keeps its accessible name via aria-label.
+
+**Provenance evidence**
+
+Human instruction:
+
+> 3. in the primary app, set it so that Projects in the left-hand rail are moved inside of a collapsable/expandable nav element to save space.
+
+**Artifacts**
+
+- `src/components/project-workspace.tsx` — The nested disclosures and the selection-anchored default.
+- `e2e/canvas-session.ts` — revealPlane/clickPlane: the specs expand a collapsed project before selecting a plane.
+
+---
+
+## D071 — List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The side panel shows one pin at a time. That is right for editing, and useless for the thing the pins are ultimately for: handing a page's worth of feedback to a coding agent. Getting all of it out meant clicking each pin in turn and copying the comment by hand, losing the element context that makes a note actionable without the screenshot.
+
+**Decision**
+
+A table under the canvas listing every pin on the active capture — number, natural-pixel position, element summary and DOM path, and the comment — plus one 'Copy all as Markdown' control. The Markdown is produced by a pure function (src/lib/pin-export.ts) so the exact text that reaches the clipboard is unit-testable; it heads the block with the page, device, and version, and gives each pin its position, element, path, bounds, and its comment quoted verbatim. Selecting a row selects the pin everywhere else, so the table is a second route to the same state rather than a second copy of it.
+
+**Alternatives considered**
+
+- *A per-row copy button instead of one copy-all* — The user asked for the whole set in one paste; per-row copying is the manual work the table exists to replace.
+- *Export JSON* — The destination is a chat-style agent prompt, where prose with inline context reads better than a structure the agent has to interpret.
+- *Extend the side panel to list full pin detail* — The panel is screen-fixed and narrow by design so it survives panning; a full table there would either overflow or force the canvas to shrink.
+
+**Rationale**
+
+The element snapshot is the only durable record of where a note points — the capture is a screenshot and the manifest is never re-derived after save (VAL-PIN-003, VAL-PIN-008) — so an export that omits it is not actionable. Emitting the body inside a blockquote keeps arbitrary comment text intact without escaping the content that matters most.
+
+**Consequences**
+
+- Two surfaces now list every pin, so component tests naming a pin have to scope to the panel or the table.
+- The clipboard is not available in every context; a refused write is reported and the table text stays selectable as the fallback.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Pin+annotation set as list view - at the bottom of each project view, rather just one at a time in the right-hand pin manipulation component, have an array of pins - pin #, pin location (from attached DOM object), and copy. this should make it easier to copy past into an agentic IDE/dev tool.
+
+Human approved:
+
+> Table + "Copy all as Markdown" button
+
+**Artifacts**
+
+- `src/lib/pin-export.ts` — The pure Markdown rendering the clipboard receives.
+- `src/components/pin-table.tsx` — The all-pins table and the copy control.
+- `test/pin-export.test.ts` — The export contract: element context present, comment bodies verbatim.
+
+---
+
+<sub>Generated from 71 record(s) as of 2026-09-10 · source `76ca77c88ea3`</sub>

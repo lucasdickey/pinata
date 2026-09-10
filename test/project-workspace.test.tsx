@@ -149,6 +149,10 @@ afterEach(() => {
 
 const tree = () => screen.getByRole("navigation", { name: "Projects, pages, and devices" });
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
+// Two surfaces now list every pin: the side panel (one selection at a time)
+// and the all-pins table below the canvas (D071). Pin queries have to name
+// which one they mean, or every pin matches twice.
+const sidePanel = () => within(detail()).getByTestId("capture-panel");
 
 describe("hierarchy", () => {
   test("lists each page only under its owning project, in submitted order", () => {
@@ -833,7 +837,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await waitFor(() =>
       expect(within(detail()).queryByTestId("panel-draft")).toBeNull(),
     );
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     expect(within(detail()).getByTestId("panel-snapshot")).toHaveTextContent(/Starter plan/);
   });
 
@@ -964,11 +968,11 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() =>
       expect(
-        within(detail()).getByRole("button", { name: /Pin 1 — at \(720, 4000\)/ }),
+        within(sidePanel()).getByRole("button", { name: /Pin 1 — at \(720, 4000\)/ }),
       ).toBeInTheDocument(),
     );
 
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     const panel = within(detail()).getByTestId("panel-pin");
     expect(panel).toHaveTextContent("Pin 1");
     expect(panel).toHaveTextContent("The hero headline duplicates the nav wordmark.");
@@ -976,7 +980,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(document.querySelector('[data-selected="true"]')).not.toBeNull();
 
     // Selecting again clears back to the empty state.
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
     expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
   });
@@ -986,7 +990,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
     expect(document.querySelectorAll(".react-flow__node-pin")).toHaveLength(1);
 
@@ -996,7 +1000,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
     );
     await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
     const requested = fetchMock.mock.calls
       .map((call) => String(call[0]))
@@ -1031,15 +1035,15 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await act(async () => {
       pending.get("/api/captures/root-d1/annotations")!(json({ annotations: [savedPin] }));
     });
-    expect(within(detail()).queryByRole("button", { name: /Pin 1/ })).toBeNull();
+    expect(within(sidePanel()).queryByRole("button", { name: /Pin 1/ })).toBeNull();
 
     await act(async () => {
       pending.get("/api/captures/root-m1/annotations")!(json({ annotations: [] }));
     });
     await waitFor(() =>
-      expect(within(detail()).getByText(/No pins yet/)).toBeInTheDocument(),
+      expect(within(sidePanel()).getByText(/No pins yet/)).toBeInTheDocument(),
     );
-    expect(within(detail()).queryByRole("button", { name: /Pin 1/ })).toBeNull();
+    expect(within(sidePanel()).queryByRole("button", { name: /Pin 1/ })).toBeNull();
   });
 
   test("editing a saved comment sends one revisioned PATCH and shows the result", async () => {
@@ -1047,9 +1051,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const { pins, writes } = stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
 
     await user.click(within(detail()).getByRole("button", { name: "Edit comment" }));
     const editor = within(detail()).getByLabelText("Edit comment");
@@ -1077,11 +1081,11 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const { pins } = stubAnnotations([stalePin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
     // The server-side truth moves first (another session's write).
     pins[0] = { ...pins[0]!, body: "Another session rewrote this.", revision: 2 };
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     await user.click(within(detail()).getByRole("button", { name: "Edit comment" }));
     await user.type(within(detail()).getByLabelText("Edit comment"), " stale text");
     await user.click(within(detail()).getByRole("button", { name: "Save edit" }));
@@ -1105,9 +1109,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const { pins, writes } = stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
-    await user.click(within(detail()).getByRole("button", { name: /Pin 1/ }));
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
 
     // Step one arms the confirm; Keep pin backs out without a write.
     await user.click(within(detail()).getByRole("button", { name: "Delete pin" }));
@@ -1121,7 +1125,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(writes[0]!.body.expectedRevision).toBe(1);
     await waitFor(() =>
       expect(
-        within(detail()).queryByRole("button", { name: /Pin 1 — at/ }),
+        within(sidePanel()).queryByRole("button", { name: /Pin 1 — at/ }),
       ).toBeNull(),
     );
     expect(pins).toHaveLength(0);

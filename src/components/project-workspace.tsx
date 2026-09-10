@@ -25,6 +25,7 @@ import type {
   PinMutationResponse,
 } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
+import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import {
@@ -33,6 +34,9 @@ import {
   variantLabel,
   type DraftCandidates,
 } from "./capture-panel";
+import { FounderShareControl } from "./founder-share";
+import { PinTable } from "./pin-table";
+import type { ReplySendState, ThreadStatus } from "./thread-view";
 
 export interface AttemptView {
   id: string;
@@ -112,6 +116,13 @@ export function ProjectWorkspace({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  // Rail disclosure state (D070), session-only and deliberately unpersisted:
+  // it is a view preference, not project data, and storing it would mean
+  // reasoning about a stale rail after the project list changes underneath.
+  // `openProjects` holds only projects the reader has explicitly toggled;
+  // anything absent falls back to "open when it holds the selection".
+  const [railOpen, setRailOpen] = useState(true);
+  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
   // Per-capture session camera memory: each plane restores its own camera
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
@@ -166,6 +177,17 @@ export function ProjectWorkspace({
   } | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  // The selected pin's append-only thread (REQUIREMENTS 6): loaded per
+  // selection and scoped to the pin it was fetched for, with one follow-up
+  // composer whose idempotency key lives exactly as long as the draft text.
+  const [threadState, setThreadState] = useState<{
+    annotationId: string;
+    status: ThreadStatus;
+    entries: ThreadEntryView[];
+  } | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [replyKey, setReplyKey] = useState<string | null>(null);
+  const [replyState, setReplyState] = useState<ReplySendState>("idle");
   // One idempotency key per retry intent: it is refreshed only after the
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
@@ -322,6 +344,93 @@ export function ProjectWorkspace({
     setConfirmingDelete(false);
     setDeleteState("idle");
   }, [selectedPinId, selectedCaptureId]);
+
+  // The thread follows the selected pin: a fresh read per selection, scoped
+  // to that pin so a late answer for a previous selection can never render
+  // under the current one, and the follow-up draft resets with it.
+  const threadRequestRef = useRef<string | null>(null);
+  const loadThread = useCallback(async (captureId: string, annotationId: string) => {
+    threadRequestRef.current = annotationId;
+    setThreadState({ annotationId, status: "loading", entries: [] });
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}/thread`,
+        { cache: "no-store" },
+      );
+      if (threadRequestRef.current !== annotationId) return;
+      if (!response.ok) {
+        setThreadState({ annotationId, status: "failed", entries: [] });
+        return;
+      }
+      const payload = (await response.json()) as ThreadListResponse;
+      if (threadRequestRef.current !== annotationId) return;
+      setThreadState({
+        annotationId,
+        status: "ready",
+        entries: Array.isArray(payload.entries) ? payload.entries : [],
+      });
+    } catch {
+      if (threadRequestRef.current !== annotationId) return;
+      setThreadState({ annotationId, status: "failed", entries: [] });
+    }
+  }, []);
+
+  useEffect(() => {
+    setReplyBody("");
+    setReplyKey(null);
+    setReplyState("idle");
+    if (selectedPinId && selectedCaptureId) {
+      void loadThread(selectedCaptureId, selectedPinId);
+    } else {
+      threadRequestRef.current = null;
+      setThreadState(null);
+    }
+  }, [selectedPinId, selectedCaptureId, loadThread]);
+
+  const sendFollowUp = useCallback(async () => {
+    const captureId = selectedReady?.id;
+    if (!captureId || !selectedPinId || replyState === "sending") return;
+    if (replyBody.trim().length === 0) return;
+    // One key per drafted follow-up: a retry of the same text replays the
+    // same intent instead of appending twice.
+    const key = replyKey ?? crypto.randomUUID();
+    setReplyKey(key);
+    setReplyState("sending");
+    try {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(selectedPinId)}/thread`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [EDITOR_CSRF_HEADER]: readCsrfProof(),
+          },
+          body: JSON.stringify({ body: replyBody, idempotencyKey: key }),
+        },
+      );
+      if (!response.ok) {
+        setReplyState(response.status === 429 ? "throttled" : "failed");
+        return;
+      }
+      const payload = (await response.json()) as ThreadAppendResponse;
+      setThreadState((current) =>
+        current && current.annotationId === selectedPinId
+          ? {
+              ...current,
+              status: "ready",
+              entries: current.entries.some((entry) => entry.id === payload.entry.id)
+                ? current.entries
+                : [...current.entries, payload.entry],
+            }
+          : current,
+      );
+      setReplyBody("");
+      setReplyKey(null);
+      setReplyState("idle");
+    } catch {
+      setReplyState("failed");
+    }
+  }, [selectedReady, selectedPinId, replyState, replyBody, replyKey]);
 
   // Nearby context for the draft, fetched once per settled position. The
   // response is scoped to the capture it was fetched for; a stale response
@@ -600,53 +709,106 @@ export function ProjectWorkspace({
   return (
     <div className="workspace">
       <nav className="workspace-tree" aria-label="Projects, pages, and devices">
-        <ul>
-          {projects.map((project) => (
-            <li key={project.projectId}>
-              <h3>{project.title}</h3>
-              <p className="project-counts">
-                {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
-                {project.counts.failed} failed · {project.counts.inProgress} in progress
-              </p>
-              <ol>
-                {project.pages.map((page) => (
-                  <li key={page.id}>
-                    <span className="page-url">{page.normalizedUrl}</span>
-                    <ul className="page-devices">
-                      {page.devices.map((device) => {
-                        const isActive =
-                          active?.page.id === page.id && active.device.variant === device.variant;
-                        return (
-                          <li key={device.variant}>
-                            <button
-                              type="button"
-                              // The visible label is just "Desktop"; the page
-                              // it belongs to has to be in the accessible
-                              // name or every project repeats two identical
-                              // buttons.
-                              aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
-                              aria-current={isActive ? "true" : undefined}
-                              onClick={() =>
-                                setSelection({
-                                  pageId: page.id,
-                                  variant: device.variant,
-                                  captureId: null,
-                                })
-                              }
-                            >
-                              {variantLabel(device.variant)}
-                              <span className="device-status"> — {deviceStatus(device)}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                ))}
-              </ol>
-            </li>
-          ))}
-        </ul>
+        {/* Two levels of disclosure (D070). The rail used to print every
+            project's whole page/device tree at once, so a handful of
+            projects pushed the canvas off screen. Native <details> is used
+            rather than a hand-rolled toggle: it is keyboard-operable and
+            correctly announced with no script and no dependency, and it
+            keeps working if hydration has not happened yet. */}
+        <details
+          className="tree-root"
+          open={railOpen}
+          onToggle={(event) => setRailOpen(event.currentTarget.open)}
+        >
+          <summary>
+            <span className="tree-summary-label">Projects</span>
+            <span className="tree-count">{projects.length}</span>
+          </summary>
+          <ul>
+            {projects.map((project) => {
+              // The project holding the current selection stays open; the
+              // rest start collapsed. Collapsing the active project would
+              // hide the control that produced what the canvas is showing.
+              const holdsActive = active?.project.projectId === project.projectId;
+              const expanded = openProjects[project.projectId] ?? holdsActive;
+              return (
+                <li key={project.projectId}>
+                  <details
+                    className="tree-project"
+                    open={expanded}
+                    onToggle={(event) => {
+                      // Read the element before the updater runs: React has
+                      // detached the synthetic event by then and
+                      // currentTarget is null inside the callback.
+                      const isOpen = event.currentTarget.open;
+                      setOpenProjects((current) => ({
+                        ...current,
+                        [project.projectId]: isOpen,
+                      }));
+                    }}
+                  >
+                    <summary>
+                      <span className="tree-summary-label">{project.title}</span>
+                      <span className="tree-count">{project.counts.pages}</span>
+                    </summary>
+                    {/* The heading stays in the tree so assistive technology
+                        and the e2e specs can still address a project by
+                        name, but it now lives inside the disclosure. */}
+                    <h3 className="visually-hidden">{project.title}</h3>
+                    <p className="project-counts">
+                      {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
+                      {project.counts.failed} failed · {project.counts.inProgress} in progress
+                    </p>
+                    <FounderShareControl
+                      publicId={project.publicId}
+                      projectTitle={project.title}
+                    />
+                    <ol>
+                      {project.pages.map((page) => (
+                        <li key={page.id}>
+                          <span className="page-url">{page.normalizedUrl}</span>
+                          <ul className="page-devices">
+                            {page.devices.map((device) => {
+                              const isActive =
+                                active?.page.id === page.id &&
+                                active.device.variant === device.variant;
+                              return (
+                                <li key={device.variant}>
+                                  <button
+                                    type="button"
+                                    // The visible label is just "Desktop"; the page
+                                    // it belongs to has to be in the accessible
+                                    // name or every project repeats two identical
+                                    // buttons.
+                                    aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
+                                    aria-current={isActive ? "true" : undefined}
+                                    onClick={() =>
+                                      setSelection({
+                                        pageId: page.id,
+                                        variant: device.variant,
+                                        captureId: null,
+                                      })
+                                    }
+                                  >
+                                    {variantLabel(device.variant)}
+                                    <span className="device-status">
+                                      {" "}
+                                      — {deviceStatus(device)}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       </nav>
 
       {active ? (
@@ -783,6 +945,22 @@ export function ProjectWorkspace({
               }}
               onConfirmDelete={() => void confirmDelete()}
               deleteState={deleteState}
+              thread={
+                selectedPinId && threadState && threadState.annotationId === selectedPinId
+                  ? {
+                      originalBody:
+                        activePins.find((pin) => pin.id === selectedPinId)?.body ?? "",
+                      status: threadState.status,
+                      entries: threadState.entries,
+                      replyBody,
+                      onReplyBodyChange: setReplyBody,
+                      onSendReply: () => void sendFollowUp(),
+                      sendState: replyState,
+                      composerLabel: "Follow up as Lucas",
+                      sendLabel: "Send follow-up",
+                    }
+                  : undefined
+              }
             />
           </div>
 
@@ -813,6 +991,24 @@ export function ProjectWorkspace({
                 ? "Retrying…"
                 : `Retry ${variantLabel(active.device.variant)} capture`}
             </button>
+          ) : null}
+
+          {/* Every pin at once, below the canvas (D071) — the side panel can
+              only ever show the selected one. */}
+          {selectedReady ? (
+            <PinTable
+              pins={activePins}
+              status={
+                pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
+              }
+              context={{
+                pageUrl: active.page.normalizedUrl,
+                variant: variantLabel(active.device.variant),
+                attempt: selectedAttempt?.attempt ?? null,
+              }}
+              selectedPinId={selectedPinId}
+              onSelectPin={setSelectedPinId}
+            />
           ) : null}
         </section>
       ) : null}

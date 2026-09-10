@@ -13,3 +13,16 @@ export const EDITOR_CSRF_COOKIE = "pinata_csrf";
 
 /** Header carrying the CSRF proof on authenticated mutations. */
 export const EDITOR_CSRF_HEADER = "x-pinata-csrf";
+
+/**
+ * HttpOnly cookie carrying the signed founder capability session. A founder
+ * session is bound to exactly one project and one capability version; the
+ * cookie name is an identifier, never a secret.
+ */
+export const FOUNDER_SESSION_COOKIE = "pinata_founder_session";
+
+/**
+ * Browser-readable cookie carrying the double-submit CSRF proof bound to the
+ * founder session. Founder reply mutations echo it in EDITOR_CSRF_HEADER.
+ */
+export const FOUNDER_CSRF_COOKIE = "pinata_founder_csrf";

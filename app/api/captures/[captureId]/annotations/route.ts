@@ -14,16 +14,14 @@
 
 import { ANNOTATION_REQUEST_MAX_BYTES } from "../../../../../src/lib/boundaries";
 import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
-import {
-  requireEditor,
-  requireEditorMutation,
-} from "../../../../../src/lib/server/auth/guard";
+import { requireEditorMutation } from "../../../../../src/lib/server/auth/guard";
 import {
   createPinAtomically,
   listPins,
 } from "../../../../../src/lib/server/annotations/pins";
 import { createPinBodySchema } from "../../../../../src/lib/server/annotations/schemas";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
+import { authorizeCaptureReader } from "../../../../../src/lib/server/founder/reader";
 import {
   ERRORS,
   hasSameOrigin,
@@ -41,34 +39,35 @@ function withRenewal(response: Response, renewedToken: string | null, secure: bo
   return response;
 }
 
-/** List the live pins of one ready capture, numbered in stable order. */
+/**
+ * List the live pins of one ready capture, numbered in stable order. This
+ * is the founder's read path too: a founder session bound to the capture's
+ * project is admitted alongside the editor, and every other caller gets the
+ * editor-only denial this route always answered.
+ */
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   // A safe method needs no Origin/CSRF proof, but authority is always live:
   // the session is verified here, immediately before any lookup.
-  const auth = requireEditor(request);
-  if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
-
   const db = getDatabase();
-  if (!db) {
-    return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
-  }
-
   const { captureId } = await context.params;
+  const auth = await authorizeCaptureReader(request, db, captureId, secure);
+  if (!auth.ok) return auth.response;
+  const finish = (response: Response) => {
+    if (auth.actor.renewCookie) response.headers.append("set-cookie", auth.actor.renewCookie);
+    return response;
+  };
+
+  if (!db) return finish(jsonError(503, ERRORS.unavailable));
+
   let result;
   try {
     result = await listPins(db, captureId);
   } catch {
-    return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
+    return finish(jsonError(503, ERRORS.unavailable));
   }
-  if (!result.ok) {
-    return withRenewal(jsonError(404, ERRORS.rejected), auth.renewedToken, secure);
-  }
-  return withRenewal(
-    Response.json({ annotations: result.annotations }),
-    auth.renewedToken,
-    secure,
-  );
+  if (!result.ok) return finish(jsonError(404, ERRORS.rejected));
+  return finish(Response.json({ annotations: result.annotations }));
 }
 
 /** Create one pin: one tip, one bounded comment, one idempotency key. */

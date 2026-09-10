@@ -2809,46 +2809,71 @@ Chickpea lazy/animated/mobile capture set against a same-run baseline),
 VAL-REQS-003 (deployed source revision + provenance cues match deployment
 metadata).
 
-## 2026-09-10 — brand mark: the llama pin from the sheet, re-rendered as SVG
+---
 
-### What happened
+## 2026-09-10 — route split, collapsible rail, all-pins table (D069–D071)
 
-The user handed over the white app-icon variant of the llama-pin mark from
-the committed brand sheet and asked for it to replace the landing image and
-the favicon, adding "either use this PNG and change the requirements OR
-re-render as an svg" once the D066 zero-raster rule surfaced. Took the SVG
-route (D069): cropped the 200-pixel app-icon tile out of
-`Codex Image Sep 6, 2026, 04_05_16 PM.png` (the pasted high-resolution icon
-never reached the repository), split it into two color masks — the whole
-pin-plus-sparks silhouette and the black head with the eye patch cut out and
-the pupil filled — upscaled, smoothed, and traced each with potrace into a
-64-unit path. Both paths now live in `src/lib/brand-mark.ts`; `<PinataLogo>`
-and `app/icon.svg` render exactly those paths with the even-odd fill rule.
+Driven by a single user report with four parts: the landing's hub titles all
+went to the same page, the new-project form crowded the working surface, the
+project rail wanted collapsing, and the pins needed a list view worth pasting
+into an agentic IDE.
 
-### Dead ends / fixes along the way
+### Starting state
 
-- The first trace swallowed the dark sheet background at the tile corners;
-  clipping the masks to the rounded tile fixed it.
-- The first trace was far too detailed (about 44 KB of path data); a higher
-  optimisation tolerance and a stronger blur before thresholding brought the
-  two paths to about 6 KB combined with no visible loss at 72 px or 32 px.
-- The eye patch rendered filled under the default nonzero rule because
-  potrace emits holes for even-odd; both paths carry `fill-rule="evenodd"`
-  and the test now asserts it, plus the subpath counts (five body contours,
-  three head contours) so a re-trace cannot silently lose the eye or a spark.
-- The mark's black and orange are not text colors, so they became two new
-  tokens (`--brand-ink`, `--brand-spark`) outside the `--accent` contrast
-  lock; `--accent` itself is unchanged and aligning it to the brand orange is
-  left open.
-- The repository's Playwright pin wants Chromium build 1243 while the
-  container ships 1194; a container-local alias let the e2e gate run here.
-  Nothing in the repository changed for that.
+The working copy was stale — checked out on `mission/mvp` at `275a238`, the
+docs-only scaffold, with no `app/` or `src/` at all. All the real work lived
+on remote branches. On the user's instruction, `feat/founder-links` was
+fast-forwarded into `main` (no conflicts) before anything else, so this
+session builds on the founder read/reply view and pin threads.
+
+### What was attempted
+
+- **The hub-link bug.** `LandingLinks` rendered "Requirements, architecture,
+  milestones, decisions, and evals" as one anchor pointing at `/reqs`. All
+  five routes already existed and worked; nothing linked to four of them.
+  The list is now generated from `REQUIREMENTS_NAV`, so a route added there
+  cannot be missing from the landing.
+- **The route split (D069).** `/` is the public landing, `/pins` is the
+  workspace, `/pins/new` is the project form. A verified session at `/`
+  redirects to `/pins`; both editor routes redirect back to `/` without one.
+- **The rail (D070).** Nested native `<details>`, open only around the
+  current selection.
+- **The pin table (D071).** Every pin on the active capture, plus "Copy all
+  as Markdown" backed by a pure formatter.
+
+### What broke
+
+- **The committed lockfile was out of sync with `package.json`** — it
+  referenced `@esbuild/*@0.28.2` as dependencies with no entries for them, so
+  `npm ci` refused to run and nothing could be validated. Repaired with
+  `npm install --package-lock-only`: purely additive, 461 insertions, no
+  package removed or moved.
+- **`event.currentTarget` is null inside a React state updater.** The
+  per-project `<details>` `onToggle` read `.open` inside the `setState`
+  callback, by which point React had detached the synthetic event. 28 uncaught
+  exceptions across the workspace suite. Fixed by reading the value first.
+- **`userEvent.setup()` installs its own clipboard stub**, so the copy spy
+  planted in `beforeEach` was never the one the component wrote to. The spy
+  now goes in after setup.
+- **Two surfaces now list every pin**, so `within(detail())` matched "Pin 1"
+  twice throughout `project-workspace.test.tsx`. Pin queries are scoped to
+  the side panel.
+- **Collapsed projects hide their device buttons from the e2e specs.** Rather
+  than default everything open, the specs gained `revealPlane`/`clickPlane`,
+  which expands the owning project first — driving the UI the way a reader
+  would.
+
+### Environment gaps, unresolved
+
+Node on this machine defaults to v20.9 (the repository needs 24+; v25 was
+used throughout), and there is **no `.env.local`**, so every credentialed
+Playwright spec skips through `localEnvGate`. Per AGENTS.md §3 that means the
+gate proves the anonymous and public surfaces only: the sign-in redirect,
+the collapsed-rail plane selection, and the pin table against real captures
+are covered by specs that did not execute here.
 
 ### Decisions
 
-- D069 (user-directed): adopt the llama-pin app icon as the mark, traced into
-  the one shared SVG source; requirement and tests kept.
-
-### Assertions
-
-VAL-LANDING-001 (same inline mark as favicon, no external image request).
+- D069 (user-directed): split `/`, `/pins`, `/pins/new`; five per-topic hub links.
+- D070 (user-directed): nested collapsible project rail.
+- D071 (user-directed): all-pins table with Markdown export.
