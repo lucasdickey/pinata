@@ -83,6 +83,13 @@ pre code {
   padding: 3rem 1.25rem;
 }
 
+/* The workspace is a wide pan/zoom surface, not a reading column: once the
+   canvas is present the shell widens to the viewport (capped), while the
+   login and landing content keep the narrow measure. */
+.home-main:has(.workspace) {
+  max-width: min(110rem, 100vw - 2.5rem);
+}
+
 .home-main h1 {
   font-size: 2.6rem;
   margin: 0 0 0.25rem;
@@ -166,7 +173,7 @@ pre code {
   /* minmax(0, 1fr): a bare 1fr track is minmax(auto, 1fr), which pins the
      detail column to a natural-size capture's intrinsic width and pushes
      the whole document past the viewport. The zero minimum lets the column
-     shrink so the stage's scroll region takes the overflow instead. */
+     shrink so the canvas takes the overflow as pan/zoom instead. */
   grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
   align-items: start;
 }
@@ -179,7 +186,7 @@ pre code {
 
 .workspace-detail {
   /* Grid items default to min-width auto; let the detail shrink below the
-     capture's intrinsic width so the stage scrolls instead of the page. */
+     capture's intrinsic width so the canvas pans instead of the page. */
   min-width: 0;
 }
 
@@ -234,8 +241,79 @@ pre code {
   max-width: var(--max);
 }
 
-.capture-view-toggle {
-  margin: 0 0 0.5rem;
+/* The stage and its screen-fixed panel sit side by side; the panel never
+   moves with the transformed canvas. */
+.workspace-body {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.workspace-body > .capture-stage {
+  /* Flex items default to min-width auto; the canvas column must shrink
+     below the capture's intrinsic width so the canvas pans instead of
+     pushing the document past the viewport. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.workspace-panel {
+  flex: 0 0 17rem;
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  padding: 1rem;
+}
+
+.workspace-panel h4 {
+  margin: 0 0 0.4rem;
+}
+
+.workspace-panel h4 + p {
+  margin-top: 0;
+}
+
+.panel-note,
+.panel-empty {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.panel-facts {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.panel-facts dt {
+  color: var(--ink-soft);
+}
+
+.panel-facts dd {
+  margin: 0 0 0.4rem;
+}
+
+.panel-url {
+  word-break: break-all;
+}
+
+@media (max-width: 64rem) {
+  .workspace-body {
+    flex-direction: column;
+  }
+
+  .workspace-body > .capture-stage {
+    width: 100%;
+  }
+
+  .workspace-panel {
+    position: static;
+    flex-basis: auto;
+    width: 100%;
+    box-sizing: border-box;
+  }
 }
 
 .capture-stage {
@@ -248,39 +326,57 @@ pre code {
   justify-content: center;
   text-align: center;
 }
-/* The ready state fills the stage with a scroll region. The canvas work
-   will replace this stage's internals; no zoom/pan here. */
-.capture-stage:has(.capture-stage-scroll) {
-  padding: 0;
-  text-align: left;
-  align-items: stretch;
-  justify-content: flex-start;
-}
-.capture-stage-scroll {
-  overflow: auto;
-  /* Bounded in both dimensions so the region pans the unscaled image on
-     both axes: max-height bounds the vertical, and width 100% + min-width 0
-     (flex items default to min-width auto, which would hold the region at
-     the image's intrinsic width and overflow the stage) bounds the
-     horizontal. */
-  width: 100%;
-  min-width: 0;
-  max-height: 80vh;
-}
-.capture-stage-scroll:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.capture-stage-image {
+
+/* The ready state is a pan/zoom canvas, not a scroll region: the dashed
+   placeholder styling gives way to a solid bounded frame. */
+.capture-stage-canvas {
   display: block;
+  padding: 0.75rem;
+  text-align: left;
+  border-style: solid;
 }
-/* Fit view (the default): the entire capture is contained in the visible
-   stage area, so nothing scrolls. Natural size removes these constraints
-   and the region scrolls the image at its intrinsic 1:1 dimensions. */
-.capture-stage-fit .capture-stage-image {
-  max-width: 100%;
-  max-height: 80vh;
-  margin: 0 auto;
+
+.capture-camera {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0 0 0.5rem;
+}
+
+.capture-camera button[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.capture-zoom {
+  min-width: 4ch;
+  text-align: right;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bounded in both dimensions: React Flow pans and zooms the natural-size
+   screenshot inside this frame; the document page itself never scrolls or
+   overflows because of a capture. */
+.capture-canvas {
+  height: min(76vh, 60rem);
+  min-height: 24rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* React Flow 12 ships no sizing for its root — the parent must provide it.
+   Without this the pane collapses to 0×0 and the camera never applies. */
+.capture-canvas .react-flow {
+  width: 100%;
+  height: 100%;
+}
+
+.capture-frame-image {
+  display: block;
 }
 
 .capture-error {

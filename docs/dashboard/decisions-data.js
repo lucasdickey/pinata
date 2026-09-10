@@ -2343,8 +2343,50 @@ window.PINATA = {
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D055",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "At the milestone-1 live checkpoint the human could not take in a tall capture (~9,000 px) without scrolling: the interim stage defaulted to a natural-size slice. The permanent React Flow canvas needed an initial camera, and a wrong default would enshrine the rejected behavior.",
+      "decision": "Every capture opens with the camera contain-fitted so the entire screenshot is inside the viewport with a small padding. Width-fit and natural-size stay reachable as named pressed-state modes; any pan/zoom gesture ends the mode's resize-follow until a mode is picked again. The camera is local UI state only: never persisted, never written to browser history, and issuing zero annotation mutations.",
+      "alternatives": [
+        {
+          "option": "Open at natural size (1:1) inside a scrollable stage",
+          "why_not": "Exactly the behavior the human rejected at the checkpoint: tall captures open on an arbitrary slice, not the page."
+        },
+        {
+          "option": "Open width-fit (full width, vertical overflow)",
+          "why_not": "Still crops tall pages vertically on open; the direction was the entire page in view."
+        },
+        {
+          "option": "Persist the last camera per capture",
+          "why_not": "D015 keeps domain state canonical in screenshot-natural pixels; a persisted viewport adds server state nobody asked for and complicates capture switching."
+        }
+      ],
+      "rationale": "Verbatim checkpoint instruction. Contain makes the first thing a reviewer sees the whole page, while the named modes keep precise inspection one click away.",
+      "consequences": [
+        "VAL-CANVAS-002 is worded around an entire-in-view initial camera; the canvas e2e measures all four corners inside the pane on open and after every selection change and hard reload.",
+        "Camera work (pan, wheel, pinch, zoom buttons, named modes) is guaranteed side-effect-free: zero mutation requests, zero history entries.",
+        "Zoom clamps at 8x; pan is unclamped so corner targets can center under the cursor, and the Entire-page mode is the one-click recovery when a user pans away."
+      ],
+      "transcript": {
+        "request": "it should be presented such that the entire page is in view"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The controlled React Flow canvas implementing the three named camera modes."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-10",
-  "source_hash": "3de60eec7ab6"
+  "source_hash": "5c0ffe14283e"
 };

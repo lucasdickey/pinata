@@ -31,6 +31,8 @@ function projectWith(state: AttemptView["state"]): WorkspaceProject {
     state,
     errorCode: null,
     imageHash: null,
+    documentWidth: null,
+    documentHeight: null,
   };
   const device: DeviceView = {
     variant: "desktop",

@@ -25,6 +25,9 @@ export interface CaptureAttemptRecord {
   status: string;
   errorCode: string | null;
   imageHash: string | null;
+  /** Natural screenshot dimensions; null until the capture is ready. */
+  documentWidth: number | null;
+  documentHeight: number | null;
   capturedAt: number | null;
   createdAt: number;
   updatedAt: number;
@@ -41,6 +44,9 @@ export interface CaptureAttemptView {
   state: CaptureAttemptState;
   errorCode: string | null;
   imageHash: string | null;
+  /** Natural screenshot dimensions; null until the capture is ready. */
+  documentWidth: number | null;
+  documentHeight: number | null;
   capturedAt: number | null;
   createdAt: number;
   updatedAt: number;
@@ -90,6 +96,8 @@ function toView(row: CaptureAttemptRecord, now: number): CaptureAttemptView {
     state: captureAttemptState(row, now),
     errorCode: row.errorCode,
     imageHash: row.imageHash,
+    documentWidth: row.documentWidth,
+    documentHeight: row.documentHeight,
     capturedAt: row.capturedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

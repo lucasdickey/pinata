@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 12 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052 |
+| Human directed | 13 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055 |
 | Agent proposed, human approved | 9 | D009, D010, D014, D015, D016, D017, D018, D019, D020 |
 | Agent decided alone | 31 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **54** | |
+| **Total** | **55** | |
 
 ## Index
 
@@ -80,6 +80,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D052](#d052--add-a-temporary-local-only-editor-auth-bypass-flag-pinataauthdisabled-default-off-never-in-envlocal-or-any-deployment) | build | Add a temporary local-only editor auth bypass flag (PINATA_AUTH_DISABLED), default off, never in .env.local or any deployment | Human directed | accepted |
 | [D053](#d053--correct-the-checkpoint-capture-target-the-seeded-and-demonstrated-chickpea-is-httpschickpeaco-not-chickpeavercelapp) | validate | Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app | Agent decided alone | accepted |
 | [D054](#d054--decide-later-whether-an-execution-time-provider-side-unsafe-redirect-should-stay-non-retryable) | validate | Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable | Raised and deferred | pending |
+| [D055](#d055--the-canvas-opens-every-capture-with-the-entire-page-in-view-contain-width-fit-and-natural-size-remain-named-modes) | build | The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes | Human directed | accepted |
 
 ---
 
@@ -2080,4 +2081,44 @@ Agent asked:
 
 ---
 
-<sub>Generated from 54 record(s) as of 2026-09-10 · source `3de60eec7ab6`</sub>
+## D055 — The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+At the milestone-1 live checkpoint the human could not take in a tall capture (~9,000 px) without scrolling: the interim stage defaulted to a natural-size slice. The permanent React Flow canvas needed an initial camera, and a wrong default would enshrine the rejected behavior.
+
+**Decision**
+
+Every capture opens with the camera contain-fitted so the entire screenshot is inside the viewport with a small padding. Width-fit and natural-size stay reachable as named pressed-state modes; any pan/zoom gesture ends the mode's resize-follow until a mode is picked again. The camera is local UI state only: never persisted, never written to browser history, and issuing zero annotation mutations.
+
+**Alternatives considered**
+
+- *Open at natural size (1:1) inside a scrollable stage* — Exactly the behavior the human rejected at the checkpoint: tall captures open on an arbitrary slice, not the page.
+- *Open width-fit (full width, vertical overflow)* — Still crops tall pages vertically on open; the direction was the entire page in view.
+- *Persist the last camera per capture* — D015 keeps domain state canonical in screenshot-natural pixels; a persisted viewport adds server state nobody asked for and complicates capture switching.
+
+**Rationale**
+
+Verbatim checkpoint instruction. Contain makes the first thing a reviewer sees the whole page, while the named modes keep precise inspection one click away.
+
+**Consequences**
+
+- VAL-CANVAS-002 is worded around an entire-in-view initial camera; the canvas e2e measures all four corners inside the pane on open and after every selection change and hard reload.
+- Camera work (pan, wheel, pinch, zoom buttons, named modes) is guaranteed side-effect-free: zero mutation requests, zero history entries.
+- Zoom clamps at 8x; pan is unclamped so corner targets can center under the cursor, and the Entire-page mode is the one-click recovery when a user pans away.
+
+**Provenance evidence**
+
+Human instruction:
+
+> it should be presented such that the entire page is in view
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — The controlled React Flow canvas implementing the three named camera modes.
+
+---
+
+<sub>Generated from 55 record(s) as of 2026-09-10 · source `5c0ffe14283e`</sub>

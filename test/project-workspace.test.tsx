@@ -16,18 +16,26 @@ import {
   type DeviceView,
   type WorkspaceProject,
 } from "../src/components/project-workspace";
+import { installReactFlowMocks } from "./helpers/react-flow";
+
+installReactFlowMocks();
 
 const onChanged = vi.fn();
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function attempt(overrides: Partial<AttemptView> = {}): AttemptView {
+  const state = overrides.state ?? "pending";
   return {
     id: "cap-1",
     variant: "desktop",
     attempt: 1,
-    state: "pending",
+    state,
     errorCode: null,
     imageHash: null,
+    // The canvas sizes its screenshot parent from these persisted document
+    // dimensions; non-ready attempts have none.
+    documentWidth: state === "ready" ? 1440 : null,
+    documentHeight: state === "ready" ? 8966 : null,
     ...overrides,
   };
 }
@@ -153,9 +161,9 @@ describe("hierarchy", () => {
     await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
     expect(current()).toHaveLength(1);
     expect(current()[0]).toHaveAccessibleName(/^Mobile capture of/);
-    expect(within(detail()).getByRole("heading")).toHaveTextContent(
-      "Mobile — https://chickpea.co/pricing",
-    );
+    expect(
+      within(detail()).getByRole("heading", { name: "Mobile — https://chickpea.co/pricing" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -193,7 +201,7 @@ describe("partial status", () => {
       "Version 1 — Ready (default)",
     ]);
     // The older ready version is what renders while the retry is queued.
-    expect(within(detail()).getByRole("img")).toHaveAttribute(
+    expect(await within(detail()).findByRole("img")).toHaveAttribute(
       "src",
       "/api/captures/m1/asset",
     );
@@ -213,18 +221,18 @@ describe("partial status", () => {
     expect(buttons[0]!.getAttribute("aria-current")).toBe("true");
     // The older version stays addressable, and selecting it renders its image.
     await user.click(buttons[1]!);
-    expect(within(detail()).getByRole("img")).toHaveAttribute(
+    expect(await within(detail()).findByRole("img")).toHaveAttribute(
       "src",
       "/api/captures/d1/asset",
     );
   });
 });
 
-describe("capture image stage (VAL-CAPTURE-015)", () => {
-  test("a ready capture renders through the authorized same-origin asset route", () => {
+describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
+  test("a ready capture renders through the authorized same-origin asset route", async () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     const stage = within(detail()).getByTestId("capture-stage");
-    const image = within(stage).getByRole("img");
+    const image = await within(stage).findByRole("img");
     // The authorized editor-session route only: same-origin, never a public
     // or cross-origin (provider) URL.
     expect(image).toHaveAttribute("src", "/api/captures/root-d1/asset");
@@ -234,30 +242,32 @@ describe("capture image stage (VAL-CAPTURE-015)", () => {
   test("the image's accessible name carries page URL, device, and attempt", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    expect(within(detail()).getByRole("img")).toHaveAccessibleName(
+    expect(await within(detail()).findByRole("img")).toHaveAccessibleName(
       "Screenshot of https://chickpea.co/ (Desktop, version 1)",
     );
 
     await user.click(
       within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
     );
-    expect(within(detail()).getByRole("img")).toHaveAccessibleName(
+    expect(await within(detail()).findByRole("img")).toHaveAccessibleName(
       "Screenshot of https://chickpea.co/ (Mobile, version 1)",
     );
   });
 
-  test("the image sits in a named, focusable, scrollable region", () => {
+  test("the image renders at natural document dimensions inside a named canvas region", async () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     const stage = within(detail()).getByTestId("capture-stage");
+    // The canvas region carries the capture's accessible name; pan/zoom
+    // replaces the old scroll region.
     const region = within(stage).getByRole("region", {
       name: "Screenshot of https://chickpea.co/ (Desktop, version 1)",
     });
-    // Keyboard users must be able to scroll the tall capture.
-    expect(region).toHaveAttribute("tabindex", "0");
-    // The region scrolls rather than scaling: the image keeps its intrinsic
-    // size (no max-width / object-fit constraint that would shrink it).
-    const image = within(region).getByRole("img");
-    expect(image.className).toBe("capture-stage-image");
+    const image = await within(region).findByRole("img");
+    // Intrinsic natural dimensions, persisted on the capture, with no
+    // constraint class that would scale or crop it inside the node.
+    expect(image).toHaveAttribute("width", "1440");
+    expect(image).toHaveAttribute("height", "8966");
+    expect(image.className).toBe("capture-frame-image");
   });
 
   test.each([
@@ -289,7 +299,7 @@ describe("capture image stage (VAL-CAPTURE-015)", () => {
     },
   );
 
-  test("explicitly selecting a non-ready version swaps the image for its named state", async () => {
+  test("explicitly selecting a non-ready version swaps the canvas for its named state", async () => {
     const user = userEvent.setup();
     const mixed = project();
     mixed.pages[0]!.devices[0] = device("desktop", [
@@ -298,7 +308,7 @@ describe("capture image stage (VAL-CAPTURE-015)", () => {
     ]);
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
     // The ready default renders its image.
-    expect(within(detail()).getByRole("img")).toHaveAttribute(
+    expect(await within(detail()).findByRole("img")).toHaveAttribute(
       "src",
       "/api/captures/d1/asset",
     );
@@ -311,41 +321,65 @@ describe("capture image stage (VAL-CAPTURE-015)", () => {
   });
 });
 
-describe("fit view and self-documenting hint", () => {
-  test("a ready capture defaults to the entire capture in view, no scrolling", () => {
+describe("camera modes (VAL-CANVAS-002)", () => {
+  test("the initial camera is the named entire-capture (contain) mode", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    const stage = within(detail()).getByTestId("capture-stage");
-    // Fit (contain) mode is the default: the whole capture is visible.
-    expect(stage.className).toContain("capture-stage-fit");
-    // The clearly labeled control that switches to the scrollable 1:1 view.
-    const toggle = within(detail()).getByRole("button", { name: /natural size/i });
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-  });
-
-  test("the natural-size control restores the scrollable 1:1 view", async () => {
-    const user = userEvent.setup();
-    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
-    const stage = within(detail()).getByTestId("capture-stage");
-    expect(stage.className).not.toContain("capture-stage-fit");
-    expect(
-      within(detail()).getByRole("button", { name: /entire capture/i }),
-    ).toHaveAttribute("aria-pressed", "true");
-  });
-
-  test("changing the selected capture resets the stage to entire-in-view", async () => {
-    const user = userEvent.setup();
-    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
-    expect(within(detail()).getByTestId("capture-stage").className).not.toContain(
-      "capture-stage-fit",
+    // User-directed 2026-09-09: "it should be presented such that the entire
+    // page is in view". Contain is the pressed default; width-fit and
+    // natural-size remain reachable named modes.
+    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
+    expect(within(detail()).getByRole("button", { name: "Fit width" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  test("each named mode is reachable and exactly one is pressed", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const entire = within(detail()).getByRole("button", { name: "Entire page" });
+    const width = within(detail()).getByRole("button", { name: "Fit width" });
+    const natural = within(detail()).getByRole("button", { name: "Natural size" });
+
+    await user.click(width);
+    expect(width).toHaveAttribute("aria-pressed", "true");
+    expect(entire).toHaveAttribute("aria-pressed", "false");
+    expect(natural).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(natural);
+    expect(natural).toHaveAttribute("aria-pressed", "true");
+    expect(width).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(entire);
+    expect(entire).toHaveAttribute("aria-pressed", "true");
+    expect(natural).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("changing the selected capture resets the camera to entire-in-view", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
+    expect(
+      within(detail()).getByRole("button", { name: "Natural size" }),
+    ).toHaveAttribute("aria-pressed", "true");
 
     await user.click(
       within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
     );
-    expect(within(detail()).getByTestId("capture-stage").className).toContain(
-      "capture-stage-fit",
+    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
     );
 
     // Switching versions of the same device resets too.
@@ -356,20 +390,29 @@ describe("fit view and self-documenting hint", () => {
     ]);
     cleanup();
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
-    await user.click(within(detail()).getByRole("button", { name: /natural size/i }));
+    await user.click(within(detail()).getByRole("button", { name: "Fit width" }));
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     await user.click(within(versions).getByRole("button", { name: /Version 1 — Ready/ }));
-    expect(within(detail()).getByTestId("capture-stage").className).toContain(
-      "capture-stage-fit",
+    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
     );
   });
 
-  test("a hint line plainly states pinning and commenting are not available yet", () => {
+  test("zoom controls and a live zoom readout sit with the mode buttons", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    expect(within(detail()).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(within(detail()).getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
+    expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
+  });
+
+  test("the hint explains pan/zoom and states plainly that pinning is not here yet", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     // Plain language, no jargon: user-testing round 2 (2026-09-10) found the
     // old "canvas update" wording sent the user hunting for a pin gesture
     // that does not exist in this build.
-    const hint = within(detail()).getByText(/read-only preview/i);
+    const hint = within(detail()).getByText(/drag to pan/i);
+    expect(hint).toHaveTextContent(/scroll or pinch to zoom/i);
     expect(hint).toHaveTextContent(/static screenshot/i);
     expect(hint).toHaveTextContent(
       /pinning and commenting are not available in this build yet/i,
@@ -382,17 +425,66 @@ describe("fit view and self-documenting hint", () => {
   });
 });
 
-describe("static screenshot stage", () => {
-  test("contains no link, iframe, or navigable element", () => {
-    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    const stage = within(detail()).getByTestId("capture-stage");
-    expect(stage.querySelector("a")).toBeNull();
-    expect(stage.querySelector("iframe")).toBeNull();
-    expect(stage.querySelector("button")).toBeNull();
-    expect(stage.getAttribute("onclick")).toBeNull();
+describe("screen-fixed selection and metadata panel", () => {
+  test("shows the synchronized empty selection and the active capture's identity", () => {
+    const identified = project();
+    identified.pages[0]!.devices[0] = device("desktop", [
+      attempt({ id: "root-d1", state: "ready", imageHash: "a3d087b2cafe".repeat(5).slice(0, 64) }),
+    ]);
+    render(<ProjectWorkspace projects={[identified]} onChanged={onChanged} />);
+    const panel = within(detail()).getByTestId("capture-panel");
+    expect(within(panel).getByText("Nothing selected.")).toBeInTheDocument();
+    expect(panel).toHaveTextContent("https://chickpea.co/");
+    expect(panel).toHaveTextContent("Desktop");
+    expect(panel).toHaveTextContent("v1");
+    expect(panel).toHaveTextContent("1440 × 8966 px");
+    expect(panel).toHaveTextContent("a3d087b2cafe…");
   });
 
-  test("clicking the stage issues no request and does not change location", async () => {
+  test("is not inside the transformed canvas and tracks the active capture", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const panel = within(detail()).getByTestId("capture-panel");
+    // Screen-fixed: the panel is layout chrome, never canvas content.
+    expect(panel.closest(".react-flow")).toBeNull();
+
+    await user.click(
+      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+    );
+    expect(within(detail()).getByTestId("capture-panel")).toHaveTextContent("Mobile");
+  });
+
+  test("a non-ready capture keeps its named state and annotates nothing", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(
+      within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!,
+    );
+    const stage = within(detail()).getByTestId("capture-stage");
+    // Unavailable captures are non-annotatable: no canvas, no pin affordance.
+    expect(stage.querySelector(".react-flow")).toBeNull();
+    expect(within(detail()).queryByRole("button", { name: /pin|comment|note/i })).toBeNull();
+    const panel = within(detail()).getByTestId("capture-panel");
+    expect(panel).toHaveTextContent("Failed");
+    expect(panel).not.toHaveTextContent("Natural size");
+  });
+});
+
+describe("static screenshot stage", () => {
+  test("contains no iframe and no link that could reach the captured site", async () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const stage = within(detail()).getByTestId("capture-stage");
+    expect(stage.querySelector("iframe")).toBeNull();
+    expect(stage.getAttribute("onclick")).toBeNull();
+    // The only anchor React Flow renders is its required library
+    // attribution; nothing ever links to the captured source.
+    for (const anchor of Array.from(stage.querySelectorAll("a"))) {
+      expect(anchor.getAttribute("href") ?? "").not.toContain("chickpea.co");
+      expect(anchor.getAttribute("href") ?? "").toMatch(/xyflow|reactflow/);
+    }
+  });
+
+  test("clicking the canvas issues no request and does not change location", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     const before = window.location.href;

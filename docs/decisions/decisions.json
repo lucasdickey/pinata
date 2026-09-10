@@ -2165,7 +2165,7 @@
       "title": "Trim milestone 1: defer first Vercel deployment and the variant/retry integration matrix to milestone 2",
       "origin": "user-directed",
       "status": "accepted",
-      "problem": "Milestone 1's critical path ran through its two longest-lead items before the user could ever see the product: a first Vercel production deployment carrying the real Chickpea project, and a standalone variant/retry integration matrix feature. Both were validation surfaces, not new product behavior \u2014 the underlying variant-isolation, stabilization, no-crawl, and partial-failure assertions were already covered by the surviving capture features \u2014 and waiting on them delayed the first live headed-browser checkpoint.",
+      "problem": "Milestone 1's critical path ran through its two longest-lead items before the user could ever see the product: a first Vercel production deployment carrying the real Chickpea project, and a standalone variant/retry integration matrix feature. Both were validation surfaces, not new product behavior — the underlying variant-isolation, stabilization, no-crawl, and partial-failure assertions were already covered by the surviving capture features — and waiting on them delayed the first live headed-browser checkpoint.",
       "decision": "Per the user's scope trim, milestone 1 no longer includes a Vercel deployment or the standalone variant/retry integration feature. The capture-variant-partial-retry-integration and production-chickpea-capture-and-deployment features are cancelled with their assertions re-homed into the surviving capture features (no coverage lost). Milestone 1 validates the capture-and-organize slice locally as a production build on 127.0.0.1:3100, including live captures of Chickpea's root and its explicit /pricing, /about, and /privacy URL array. The first Vercel production deployment and the real production Chickpea project move to milestone 2 (real-chickpea-pin-and-founder-review), where deployment-backed assertions are re-verified against the real deployment.",
       "alternatives": [
         {
@@ -2177,7 +2177,7 @@
           "why_not": "Rejected by the trim itself: the user asked to remove the deployment and the matrix feature, not the behavior coverage. Variant isolation, stabilization, no-crawl, and partial-failure assertions moved into the surviving capture features so nothing became untested."
         }
       ],
-      "rationale": "The user directed both the trim and its contents, so the decision is recorded as user-directed with the verbatim request. The trim is coverage-neutral by construction \u2014 every assertion from the cancelled features was re-homed \u2014 and it is reversible: milestone 2 reinstates the deployment and the production Chickpea project as its own validation surface.",
+      "rationale": "The user directed both the trim and its contents, so the decision is recorded as user-directed with the verbatim request. The trim is coverage-neutral by construction — every assertion from the cancelled features was re-homed — and it is reversible: milestone 2 reinstates the deployment and the production Chickpea project as its own validation surface.",
       "consequences": [
         "Milestone 1 has no Vercel deployment: 'production/deployed' contract clauses are satisfied by the local production build (npm run start on 127.0.0.1:3100) with the substitution recorded per assertion, and must be re-verified against the real deployment in milestones 2 and 3.",
         "docs/MILESTONES.md milestone 1 no longer promises a Vercel deployment or the production Chickpea validation; both are milestone 2 bullets.",
@@ -2185,7 +2185,7 @@
         "Capture test fixtures are unaffected: they remain on the separate unprotected pinata-fixtures project (D041), and the main project's deployment protection stays on."
       ],
       "transcript": {
-        "request": "\"Trim scope to shorten critical path\" \u2014 \"remove Chickpea deployment, and variant/retry integraiton matrix\""
+        "request": "\"Trim scope to shorten critical path\" — \"remove Chickpea deployment, and variant/retry integraiton matrix\""
       },
       "artifacts": [
         {
@@ -2338,6 +2338,48 @@
         "proposal": "A transient unsafe-redirect (execution-time final-URL inconsistency inside the Browserless mobile session, not reproducible via curl or Playwright mobile emulation) permanently failed mobile root attempt 1. The outcome catalog marks unsafe-redirect retryable:false, so the product offered no recovery path for what was effectively provider flake. (Raised by the checkpoint worker, carried to the user by the orchestrator as a session talking point, unanswered.)"
       },
       "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D055",
+      "date": "2026-09-10",
+      "phase": "build",
+      "title": "The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "At the milestone-1 live checkpoint the human could not take in a tall capture (~9,000 px) without scrolling: the interim stage defaulted to a natural-size slice. The permanent React Flow canvas needed an initial camera, and a wrong default would enshrine the rejected behavior.",
+      "decision": "Every capture opens with the camera contain-fitted so the entire screenshot is inside the viewport with a small padding. Width-fit and natural-size stay reachable as named pressed-state modes; any pan/zoom gesture ends the mode's resize-follow until a mode is picked again. The camera is local UI state only: never persisted, never written to browser history, and issuing zero annotation mutations.",
+      "alternatives": [
+        {
+          "option": "Open at natural size (1:1) inside a scrollable stage",
+          "why_not": "Exactly the behavior the human rejected at the checkpoint: tall captures open on an arbitrary slice, not the page."
+        },
+        {
+          "option": "Open width-fit (full width, vertical overflow)",
+          "why_not": "Still crops tall pages vertically on open; the direction was the entire page in view."
+        },
+        {
+          "option": "Persist the last camera per capture",
+          "why_not": "D015 keeps domain state canonical in screenshot-natural pixels; a persisted viewport adds server state nobody asked for and complicates capture switching."
+        }
+      ],
+      "rationale": "Verbatim checkpoint instruction. Contain makes the first thing a reviewer sees the whole page, while the named modes keep precise inspection one click away.",
+      "consequences": [
+        "VAL-CANVAS-002 is worded around an entire-in-view initial camera; the canvas e2e measures all four corners inside the pane on open and after every selection change and hard reload.",
+        "Camera work (pan, wheel, pinch, zoom buttons, named modes) is guaranteed side-effect-free: zero mutation requests, zero history entries.",
+        "Zoom clamps at 8x; pan is unclamped so corner targets can center under the cursor, and the Entire-page mode is the one-click recovery when a user pans away."
+      ],
+      "transcript": {
+        "request": "it should be presented such that the entire page is in view"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The controlled React Flow canvas implementing the three named camera modes."
+        }
+      ],
       "supersedes": null,
       "superseded_by": null
     }

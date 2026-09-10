@@ -23,6 +23,8 @@ function attempt(overrides: Partial<CaptureAttemptRecord> = {}): CaptureAttemptR
     status: "pending",
     errorCode: null,
     imageHash: null,
+    documentWidth: null,
+    documentHeight: null,
     capturedAt: null,
     createdAt: T0,
     updatedAt: T0,
@@ -156,5 +158,27 @@ describe("summarizeVariant", () => {
     expect(summary.latest).toBeNull();
     expect(summary.retryable).toBe(false);
     expect(summary.usable).toBe(false);
+  });
+
+  test("natural document dimensions ride along to the view, null until ready", () => {
+    // The canvas needs the persisted document dimensions to size its
+    // screenshot parent node before any image byte reaches the browser.
+    const rows = [
+      attempt({
+        id: "a1",
+        attempt: 1,
+        status: "ready",
+        documentWidth: 1440,
+        documentHeight: 8966,
+      }),
+      attempt({ id: "a2", attempt: 2, status: "pending" }),
+    ];
+    const summary = summarizeVariant("desktop", rows, T0);
+    const ready = summary.attempts.find((a) => a.id === "a1");
+    expect(ready?.documentWidth).toBe(1440);
+    expect(ready?.documentHeight).toBe(8966);
+    const pending = summary.attempts.find((a) => a.id === "a2");
+    expect(pending?.documentWidth).toBeNull();
+    expect(pending?.documentHeight).toBeNull();
   });
 });

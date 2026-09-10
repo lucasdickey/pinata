@@ -2093,3 +2093,84 @@ span is recorded above.
 
 - D054 (provider-side unsafe-redirect retryability) stays pending until the
   user answers it.
+
+## 2026-09-10 — canvas shell: controlled React Flow workspace, camera modes, fixed panel
+
+### What was attempted
+
+The canvas-shell feature (pins-and-feedback milestone): the interim
+scrollable `<img>` stage is replaced by a controlled React Flow
+(`@xyflow/react`) workspace holding exactly one active ready capture. Built
+test-first in thin slices:
+
+1. Document dimensions surfaced: `CaptureAttemptRecord`/`CaptureAttemptView`
+   now carry `documentWidth`/`documentHeight` (null until ready), flowing
+   through the hierarchy into `/api/projects`.
+2. Pure camera math (`src/lib/canvas/camera.ts`): contain (initial),
+   width-fit, natural-size modes, a 0.01–8x clamp, padding, and
+   flow↔screen transforms — an independent oracle the e2e measures against.
+3. Domain→React Flow adapter (`src/lib/canvas/flow-model.ts`): one fixed,
+   unselectable, non-draggable parent node at exact persisted natural
+   dimensions, id `capture:<id>`, parent always first. No measured/selected
+   React Flow state leaks back; the domain model stays canonical (D015).
+4. `CaptureCanvas` component + workspace integration: named mode buttons
+   ("Entire page" / "Fit width" / "Natural size", `aria-pressed`), zoom
+   in/out, live zoom readout, ResizeObserver resize-follow that ends on the
+   first real gesture, camera applied on `onInit` (setViewport is a no-op
+   before init). Navigation (project/page/device/version) stays outside the
+   canvas; the canvas remounts per capture id. A screen-fixed panel shows
+   the synchronized empty selection ("Nothing selected.") and capture
+   identity facts.
+5. E2e (`e2e/canvas.spec.ts`): real-browser transform measurements against
+   the seeded Chickpea project — intrinsic image dims equal persisted doc
+   dims, all four corners in view on open and after reload, fit-width and
+   natural-size modes exact, per-wheel-step focal invariance (tolerance =
+   max(2 screen px, one natural pixel — the contract bar at 8x)), 8x clamp,
+   pan to the bottom-right corner, panel stationarity, zero mutation
+   requests, zero history entries, zero console errors. Read-only; the
+   dispatch route is stubbed.
+
+### What broke or dead-ended
+
+- React Flow 12 ships no sizing for the `.react-flow` root: the pane was
+  0x0 and the camera never applied. Fixed with explicit
+  `.capture-canvas .react-flow { width/height: 100% }` plus a structural
+  CSS test.
+- `.home-main`'s 46rem reading column collapsed the workspace (canvas ~2px
+  wide next to sidebar and panel). Fixed with a wide shell only when the
+  workspace is present (`.home-main:has(.workspace)`) plus a test.
+- jsdom needed a fuller React Flow mock set: ResizeObserver entries with
+  `contentRect` (XYPanZoom crashed without it), plus
+  `clientWidth/clientHeight` so the zero-size guard lets mode buttons work.
+- Playwright e2e: `expect.poll().toSatisfy` doesn't exist (manual polling
+  loop instead); mouse gestures dispatched below the browser fold hit
+  nothing, and clicking the toolbar scrolls the page — every gesture
+  section re-anchors through scrollIntoView + a fresh pane rect.
+- Focal-zoom tolerance: at contain zoom one natural pixel is 0.058 screen
+  px, so a one-natural-pixel bar is unmeasurable; d3 wheel zoom also shows
+  a real ~0.7 screen px per-step y jitter. The assertion is now per-step
+  screen-space with the contract's one-natural-pixel bar applying at 8x.
+- agent-browser's daemon died between calls repeatedly on this host, so
+  each verification had to run as one self-contained chain; a synthetic
+  PointerEvent drag is aborted by d3's pointer capture, so pan-to-corner
+  with trusted input is covered by the Playwright e2e and the agent-browser
+  pass uses focal wheel aimed at the corner pixel for the 8x visual.
+
+### Elapsed
+
+Roughly two hours of mission-worker time, dominated by the e2e/browser
+debugging above.
+
+### Decisions and assertions
+
+- D055 (user-directed): the canvas opens every capture entire-in-view;
+  width-fit and natural size remain named modes; the camera is local UI
+  state only.
+- Evidence for VAL-CANVAS-002 (and setup for VAL-CANVAS-001/003/004/009):
+  `e2e/canvas.spec.ts` measurements, `test/canvas/` unit suites, and
+  agent-browser screenshots (contain, 1x, ~4x readout, 8x corner) against
+  the seeded Chickpea project.
+
+### Open questions at end of session
+
+- None new. D054 stays pending.

@@ -17,6 +17,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
+import { CaptureCanvas } from "./capture-canvas";
 
 export interface AttemptView {
   id: string;
@@ -25,6 +26,9 @@ export interface AttemptView {
   state: "pending" | "capturing" | "stale" | "ready" | "failed";
   errorCode: string | null;
   imageHash: string | null;
+  /** Natural screenshot dimensions; null until the capture is ready. */
+  documentWidth: number | null;
+  documentHeight: number | null;
 }
 
 export interface DeviceView {
@@ -89,57 +93,64 @@ function deviceStatus(device: DeviceView): string {
 }
 
 /**
- * The ready-capture stage with its view-mode control. Fit view is the
- * default: the entire capture is visible at once (contain, no scrolling).
- * "Natural size" restores the scrollable 1:1 view for reading fine detail.
- * The component is keyed by capture id, so every selection change resets
- * the stage to entire-in-view.
+ * The screen-fixed selection/comment/metadata panel (VAL-CANVAS-002). It
+ * lives outside the transformed canvas, so panning and zooming never move
+ * it. Exactly one canvas object can be selected at a time and this panel
+ * is where its comment, captured element context, and thread render; with
+ * no pins in this build it shows the synchronized empty-selection state
+ * plus the active capture's identity metadata.
  */
-function CaptureStageView({
+function CapturePanel({
   attempt,
   pageUrl,
   variant,
 }: {
-  attempt: AttemptView;
+  attempt: AttemptView | null;
   pageUrl: string;
   variant: string;
 }) {
-  const [naturalSize, setNaturalSize] = useState(false);
-  const name = `Screenshot of ${pageUrl} (${variantLabel(variant)}, version ${attempt.attempt})`;
   return (
-    <>
-      <p className="capture-view-toggle">
-        <button
-          type="button"
-          aria-pressed={naturalSize}
-          onClick={() => setNaturalSize((current) => !current)}
-        >
-          {naturalSize
-            ? "Show the entire capture in view"
-            : "View at natural size (scrollable)"}
-        </button>
+    <aside
+      className="workspace-panel"
+      aria-label="Selection and capture details"
+      data-testid="capture-panel"
+    >
+      <h4>Selection</h4>
+      <p className="panel-empty">Nothing selected.</p>
+      <p className="panel-note">
+        Select a pin to read its comment and the captured element it points
+        at. Pins arrive with the next update.
       </p>
-      {/* A static image of the captured page: no link, no embedded
-          document, and no handler that could navigate to the source. The
-          bytes come only from the authorized same-origin asset route
-          (/api/captures/[captureId]/asset), which re-verifies the editor
-          session on every request — never a public or cross-origin URL. */}
-      <div
-        className={naturalSize ? "capture-stage" : "capture-stage capture-stage-fit"}
-        data-testid="capture-stage"
-      >
-        <div
-          className="capture-stage-scroll"
-          role="region"
-          aria-label={name}
-          // Focusable so keyboard users can scroll the capture in natural
-          // size; in fit view the whole image is visible without scrolling.
-          tabIndex={0}
-        >
-          <img className="capture-stage-image" src={`/api/captures/${encodeURIComponent(attempt.id)}/asset`} alt={name} />
-        </div>
-      </div>
-    </>
+      <h4>Capture</h4>
+      <dl className="panel-facts">
+        <dt>Page</dt>
+        <dd className="panel-url">{pageUrl}</dd>
+        <dt>Device</dt>
+        <dd>{variantLabel(variant)}</dd>
+        <dt>Version</dt>
+        <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
+        <dt>State</dt>
+        <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
+        {attempt?.state === "ready" &&
+        attempt.documentWidth !== null &&
+        attempt.documentHeight !== null ? (
+          <>
+            <dt>Natural size</dt>
+            <dd>
+              {attempt.documentWidth} × {attempt.documentHeight} px
+            </dd>
+          </>
+        ) : null}
+        {attempt?.imageHash ? (
+          <>
+            <dt>Image hash</dt>
+            <dd>
+              <code>{attempt.imageHash.slice(0, 12)}…</code>
+            </dd>
+          </>
+        ) : null}
+      </dl>
+    </aside>
   );
 }
 
@@ -218,10 +229,16 @@ export function ProjectWorkspace({
 
   if (projects.length === 0) return null;
 
+  // The shown attempt is the explicit selection or the server default; when
+  // a device has no ready capture at all, its latest attempt still names the
+  // unavailable state (failed/stale/queued) rather than a bare "not
+  // captured".
   const selectedAttempt =
-    active?.device.attempts.find(
+    (active?.device.attempts.find(
       (attempt) => attempt.id === (active.selection.captureId ?? active.device.selectedCaptureId),
-    ) ?? null;
+    ) ??
+      active?.device.latest) ||
+    null;
 
   return (
     <div className="workspace">
@@ -281,13 +298,14 @@ export function ProjectWorkspace({
             {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
           </h3>
 
-          {/* Self-documenting capabilities line: plain language about what
-              this surface is, and what is deliberately not here yet. No
-              dead pin affordance is rendered. */}
+          {/* Self-documenting canvas: plain-language instructions for the
+              interactions this build actually has, plus what is deliberately
+              not here yet. No dead pin affordance is rendered. */}
           <p className="workspace-hint">
-            Read-only preview: this is a static screenshot. Pinning and
-            commenting are not available in this build yet — they arrive in
-            the next update.
+            Drag to pan, scroll or pinch to zoom, or use the camera buttons
+            to fit the whole page, fit its width, or view it at natural size.
+            This is a static screenshot: pinning and commenting are not
+            available in this build yet — they arrive in the next update.
           </p>
 
           {active.device.attempts.length > 1 ? (
@@ -313,23 +331,37 @@ export function ProjectWorkspace({
             </ul>
           ) : null}
 
-          {selectedAttempt?.state === "ready" ? (
-            // Keyed by capture id so every selection change resets the
-            // stage to the entire-capture-in-view default.
-            <CaptureStageView
-              key={selectedAttempt.id}
+          <div className="workspace-body">
+            {selectedAttempt?.state === "ready" &&
+            selectedAttempt.documentWidth !== null &&
+            selectedAttempt.documentHeight !== null ? (
+              // Keyed by capture id so every selection change remounts the
+              // plane and resets the camera to the entire-capture view.
+              <CaptureCanvas
+                key={selectedAttempt.id}
+                captureId={selectedAttempt.id}
+                pageUrl={active.page.normalizedUrl}
+                variant={variantLabel(active.device.variant)}
+                attempt={selectedAttempt.attempt}
+                width={selectedAttempt.documentWidth}
+                height={selectedAttempt.documentHeight}
+              />
+            ) : (
+              // Unavailable/empty states are non-annotatable: no canvas, no
+              // pin affordance, and a named next action (wait, or retry).
+              <div className="capture-stage" data-testid="capture-stage">
+                <p>
+                  No capture to show yet:{" "}
+                  {selectedAttempt ? STATE_LABELS[selectedAttempt.state] : "not captured"}.
+                </p>
+              </div>
+            )}
+            <CapturePanel
               attempt={selectedAttempt}
               pageUrl={active.page.normalizedUrl}
               variant={active.device.variant}
             />
-          ) : (
-            <div className="capture-stage" data-testid="capture-stage">
-              <p>
-                No capture to show yet:{" "}
-                {selectedAttempt ? STATE_LABELS[selectedAttempt.state] : "not captured"}.
-              </p>
-            </div>
-          )}
+          </div>
 
           {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
             <p role="alert" className="capture-error">

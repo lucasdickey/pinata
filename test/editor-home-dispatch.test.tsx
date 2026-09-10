@@ -49,6 +49,8 @@ function attempt(id: string, state: State): AttemptView {
     state,
     errorCode: state === "failed" ? "dns-failed" : null,
     imageHash: state === "ready" ? "a".repeat(64) : null,
+    documentWidth: null,
+    documentHeight: null,
   };
 }
 

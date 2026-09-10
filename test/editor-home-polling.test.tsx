@@ -34,6 +34,8 @@ function attempt(state: AttemptView["state"]): AttemptView {
     state,
     errorCode: state === "failed" ? "total-timeout" : null,
     imageHash: state === "ready" ? "a".repeat(64) : null,
+    documentWidth: null,
+    documentHeight: null,
   };
 }
 
