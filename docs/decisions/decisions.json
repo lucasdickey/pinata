@@ -3169,6 +3169,105 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D072",
+      "date": "2026-09-10",
+      "phase": "wrap",
+      "title": "Build a ten-slide interactive walkthrough of Pinata with Remotion, borrowing the repository's existing imagery",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The assignment is graded on explaining the product and the process, and the only explainer surfaces were prose: README, the /reqs hub, and the decision log. Nothing walked a first-time viewer through what Pinata is and how the four steps fit together in a form that could be played, paused, and pointed at during the interview.",
+      "decision": "A Remotion composition of exactly ten slides (title, the problem, who it is for, the four steps, guardrails, the stack and gate, the decision trail), 1920 x 1080 at 30 fps, about 104 seconds end to end. Every slide paints with the application's own color tokens and the shared brand mark, and the imagery is borrowed rather than invented: the brand exploration board that was already committed at the repository root (cropped into tiles), and the two dashboard screenshots already attached to D004 and D066. One slide table (remotion/walkthrough/slides.ts) carries the chapter names, durations, and a prose transcript, and is the single source for the video, the chapter navigation, and the on-page notes.",
+      "alternatives": [
+        {
+          "option": "A static HTML or Markdown slide deck",
+          "why_not": "The user asked for Remotion specifically, and a static deck cannot show the pin dropping, the canvas zooming with the pins staying put, or the thread growing, which are the parts of the product that prose explains worst."
+        },
+        {
+          "option": "A screen recording of the live app",
+          "why_not": "A recording goes stale the moment the UI changes and cannot be regenerated from source; a composition re-renders from the same code the tests cover."
+        },
+        {
+          "option": "More than ten slides, one per feature",
+          "why_not": "The user sized it at about ten, and ten is what a viewer will sit through before the live demo; the /reqs hub already holds the long form."
+        }
+      ],
+      "rationale": "Directed by the user. Remotion keeps the walkthrough in code, typed by the same tsconfig as the app and covered by the same gate, and its Player lets the same composition run in the deployed product, so the walkthrough is demoable over a link rather than only from a checkout. Borrowing the committed board and screenshots keeps the visual language honest: it is the product's own material, not stock.",
+      "consequences": [
+        "The dependency allowlist widens for the first time since D021: remotion and @remotion/player in the app bundle, @remotion/cli dev-only (D073 records where the walkthrough lives and why).",
+        "public/walkthrough/ now holds derived copies of imagery that already existed elsewhere in the repository; test/walkthrough-slides.test.ts fails if any referenced image is missing.",
+        "Slide copy is a second statement of the product story next to README and REQUIREMENTS.md; when scope changes, the slide table is one more place to update.",
+        "npm run walkthrough opens Remotion Studio and npm run walkthrough:render writes out/pinata-walkthrough.mp4; the MP4 is generated, git-ignored, and never committed."
+      ],
+      "transcript": {
+        "request": "use the remotion library and create an interactive walkthrough on what pinata is and how it works. think maybe 10 total slides and borrow from any imagery that exists in the repository"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "remotion/walkthrough/slides.ts",
+          "caption": "The ten-slide table: chapters, durations, transcript."
+        },
+        {
+          "type": "file",
+          "path": "remotion/walkthrough/Walkthrough.tsx",
+          "caption": "The composition, one component per slide id."
+        },
+        {
+          "type": "file",
+          "path": "public/walkthrough/brand-board.webp",
+          "caption": "The borrowed brand exploration board the title slide draws its tiles from."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D073",
+      "date": "2026-09-10",
+      "phase": "wrap",
+      "title": "Host the walkthrough inside the app at /walkthrough through @remotion/player, keep the Remotion CLI dev-only, and widen the dependency allowlist to match",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "D072 asked for Remotion and for the walkthrough to be interactive, but not where it should live. Remotion can run three ways: in Studio from a checkout, as a rendered MP4, or in the browser through @remotion/player. Each has a different footprint on the one-lockfile, allowlisted-dependency repository, and only one of them is reachable from the deployed product.",
+      "decision": "The composition lives in remotion/ inside the one package, typed by the app's tsconfig. The Next.js app mounts it at the public route /walkthrough through @remotion/player, wrapped in a chapter list that seeks the player to a slide, Previous/Next controls, arrow-key navigation, and the transcript for the chapter on screen. remotion and @remotion/player join the application dependencies; @remotion/cli is a devDependency for Studio and the MP4 render. All three are pinned exactly and added to scripts/lib/approved-deps.mjs, the allowlist the gate enforces. The landing page links to the walkthrough; REQUIREMENTS_NAV is untouched because the walkthrough is not a Markdown-backed requirements source and must not enter the dogfood URL array.",
+      "alternatives": [
+        {
+          "option": "A standalone Remotion project in a subdirectory with its own package.json",
+          "why_not": "A second lockfile and a second toolchain to keep green, nothing the deployed app could show, and the gate would not cover it."
+        },
+        {
+          "option": "Remotion Studio only, no in-app page",
+          "why_not": "Studio needs a checkout and a dev server; the assignment is demonstrated over a link and screen share, and the working rule is that anything not demoable in a browser in under a minute is deprioritized."
+        },
+        {
+          "option": "Render the MP4 and commit it, embed a <video>",
+          "why_not": "A binary in git that drifts from the composition on every edit, and no chapter navigation; the Player gives the same frames with seeking for free."
+        }
+      ],
+      "rationale": "Decided without asking because the user had already fixed the direction (Remotion, interactive, about ten slides) and these are the mechanics inside it. The AGENTS.md rule is no unrequested dependencies; Remotion was requested, and the allowlist edit is the recorded mechanism for admitting it, not a new direction. Choosing the Player over Studio-only follows the standing demo-first rule. Keeping the CLI dev-only keeps the production bundle to what the page needs.",
+      "consequences": [
+        "The application bundle carries the Remotion runtime on /walkthrough only; no other route imports it.",
+        "/walkthrough is public and anonymous like /reqs; it calls no /api route and loads nothing from outside the app, which e2e/walkthrough.spec.ts asserts along with an axe sweep at desktop and 390 px.",
+        "test/walkthrough-player.test.tsx stubs the Player and proves the page's own contract: one chapter per slide, seeking to a slide's first frame, the marker following frame updates.",
+        "Anyone wanting the MP4 runs npm run walkthrough:render locally; out/ is git-ignored."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/walkthrough-player.tsx",
+          "caption": "The in-app player with chapter navigation."
+        },
+        {
+          "type": "file",
+          "path": "scripts/lib/approved-deps.mjs",
+          "caption": "The allowlist, now naming the three Remotion packages."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
