@@ -3297,10 +3297,11 @@ window.PINATA = {
       ],
       "rationale": "Proposed by the agent from the code review and the checkpoint evidence, approved by the human in the same message as the rest of the overhaul. The data contract does not change: drafts still write nothing, one create per save, one move per drag, the snapshot still derives server-side from the persisted manifest. Only the number of user actions between intent and a saved pin changes, from six to two.",
       "consequences": [
-        "INTERACTION_MODES and the Place pin toolbar are removed from capture-canvas; specs that clicked 'Place pin' change to press-and-release on the frame.",
-        "The click-versus-drag distinction now carries product meaning, so PLACEMENT_SLOP_SCREEN_PX becomes a published interaction boundary and the drag threshold decision (D062) is re-examined against it.",
+        "INTERACTION_MODES and the Place pin toolbar are removed from capture-canvas; specs that clicked 'Place pin' now press and release on the frame.",
+        "The click-versus-drag distinction carries product meaning, so PLACEMENT_SLOP_SCREEN_PX is a published interaction boundary. It also governs a press on a saved pin: nodeDragThreshold stays 0 for drop fidelity (D062), but a press whose tip travelled no further than the slop selects the pin and writes nothing, so a tap can never commit a sub-pixel move.",
         "Pins are draggable in the only mode there is; an accidental nudge is undone by dragging back, and the move is one revisioned write as before.",
-        "Keyboard shortcuts must not fire while focus is in a text field, and are listed in the details disclosure D078 introduces."
+        "The composer is positioned inside the visible canvas frame, falling back to the browser viewport when the frame is too small, so it never covers the toolbar or the side panel yet is always on screen. Re-settling a draft by dragging it re-runs pre-selection, and a late candidates answer can never overwrite a newer set.",
+        "Keyboard shortcuts must not fire while focus is in a text field. They are editor-only: the founder's read-only plane has no focusable region and no shortcuts, which D078 may extend later."
       ],
       "transcript": {
         "proposal": "Make dropping a pin a one-gesture act, not a mode plus three decisions. Today the editor switches to Place pin mode, clicks, writes the comment in a panel on the far side of the screen, must pick a nearby element or explicitly choose 'No element' before Save enables, saves, then switches back to Navigate to pan again. The hint paragraph explaining this runs about 120 words, and the live checkpoint recorded the owner unable to find the mechanism at all. The fix: drop the mode switch (a click that doesn't move drops a draft; a drag pans; pins drag by their badge in every state); compose at the pin in a popover anchored to the draft; pre-select the top-ranked nearby element as a chip with 'change' and 'none' as overrides so Save becomes Enter after typing; keyboard: Escape cancels, Enter saves, arrows or J/K step between pins, N starts a new pin at the viewport center.",
@@ -3346,10 +3347,12 @@ window.PINATA = {
       ],
       "rationale": "Proposed by the agent, approved by the human. Status and last-seen are additive columns and one new thread-entry kind; the append-only triggers and the founder's read/reply-only boundary are untouched. Counts ride on the existing hierarchy read so the workspace's default traffic does not grow.",
       "consequences": [
-        "Schema migration: annotations.status, a system entry kind in thread_entries, and per-role last-seen rows; migrations committed, D-tests updated.",
-        "New authorized routes: resolve/reopen per annotation (both roles), and mark-seen; the founder capability grants exactly these in addition to reply.",
-        "The pin table, the Markdown export, and the walkthrough copy learn about status.",
-        "D077's overview consumes the same counts; D078 renames the labels."
+        "Schema migration: annotations.status, thread_entries.kind (message or status), and an annotation_views table for per-role last-seen. Value domains on the two existing tables are enforced by RAISE(ABORT) triggers rather than CHECK constraints, because drizzle-kit adds a CHECK by recreating the table, and recreating thread_entries would drop the append-only triggers from migration 0001.",
+        "Status rule: open on create; the founder's first message moves open to replied in the same transaction as the entry; editor follow-ups never change status; a reply on a resolved pin leaves it resolved; reopen returns to replied if any founder message exists, else open. Status changes never bump the annotation revision.",
+        "Unread means message entries by the other role after the viewer's last-seen time; status entries never count. The founder's viewer key is the capability version, so rotating the link starts the founder's read state fresh and no session id is stored.",
+        "New authorized routes: resolve, reopen, and seen per annotation, for the editor session and for a founder capability session on that project; the founder capability grants exactly reply, resolve, reopen, and seen.",
+        "The project header shows the share control with its state loaded on mount, one status read per selected project; the header title is not a heading so existing heading queries keep resolving to the rail.",
+        "The pin table and the Markdown export carry status; the walkthrough's share slide learns about status under D078."
       ],
       "transcript": {
         "proposal": "Close the feedback loop with pin state and unread signals. The reply is invisible until the editor selects each pin and opens its thread; nothing says '3 new replies on the pricing page'; neither side can mark anything done; the founder has no list of what they're expected to look at. Build: a pin lifecycle (open, replied, resolved; either role can resolve; reversible and logged as a thread entry so the append-only rule holds); unread reply counts on pins, on each capture in the rail, and on the project header, from a last-seen timestamp per role; a founder-side pin list with comment excerpts and status; move 'Share with founder' out of the collapsed rail into the project header with the link state visible.",
@@ -3531,5 +3534,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-09-12",
-  "source_hash": "50cc5d1bece8"
+  "source_hash": "f625fb261f02"
 };
