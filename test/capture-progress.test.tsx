@@ -305,20 +305,22 @@ describe("in the workspace", () => {
     const line = within(detail()).getByTestId("capture-progress");
     expect(line).toHaveTextContent("Capturing 2 of 4 · chickpea.co · about 2 minutes left");
     expect(within(line).getByRole("status")).toBeInTheDocument();
-    // Before the hint and the canvas: the first thing after the heading.
+    // Before the canvas and its one-line hint: the first thing after the heading.
     const heading = within(detail()).getByRole("heading", { level: 3 });
     expect(heading.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const hint = within(detail()).getByText(/drag to pan/i);
+    const hint = within(detail()).getByText(/drop a pin/i);
     expect(line.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("pinning is available on the ready capture while its siblings still capture", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     // The default selection is the first page's Desktop device, which is
-    // ready; its siblings are capturing or queued.
-    const placePin = within(detail()).getByRole("button", { name: "Place pin" });
-    expect(placePin).toBeEnabled();
-    expect(placePin).toHaveAttribute("aria-pressed", "false");
+    // ready; its siblings are capturing or queued. The canvas is modeless
+    // (D074): an editable plane is the focusable region that takes clicks
+    // and keyboard shortcuts, so its presence is what "pinnable" means.
+    const canvas = within(detail()).getByRole("region", { name: /Screenshot of/ });
+    expect(canvas).toHaveAttribute("tabindex", "0");
+    expect(canvas).toHaveAttribute("aria-keyshortcuts");
     expect(within(detail()).getByTestId("capture-progress")).toHaveTextContent(
       /Capturing 2 of 4/,
     );
