@@ -19,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import {
+  clickPlane,
   findClearAim,
   readCamera,
   signIn,
@@ -110,18 +111,13 @@ function planeTarget(
   };
 }
 
-/** Select a plane and wait for its screenshot to decode. */
+/**
+ * Select a plane and wait for its screenshot to decode. The shared helper
+ * opens the page from the rail and picks the device from the toggle above
+ * the canvas (D077), expanding a collapsed project first (D070).
+ */
 async function openPlane(page: Page, target: ReadyTarget): Promise<void> {
-  const button = page.getByRole("button", {
-    name: `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`,
-    exact: true,
-  });
-  // The rail collapses every project but the one holding the selection
-  // (D070), so a plane in another project has to be revealed first.
-  if (!(await button.isVisible())) {
-    await page.locator("details.tree-project").filter({ has: button }).locator("> summary").first().click();
-  }
-  await button.click();
+  await clickPlane(page, target);
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>(".capture-frame-image");

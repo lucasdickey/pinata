@@ -328,6 +328,8 @@ function CaptureCanvasInner({
   onDraftSettled,
   draftResetSignal,
   composer,
+  onStepPin,
+  autoFocus,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
@@ -364,9 +366,28 @@ function CaptureCanvasInner({
   draftResetSignal?: number;
   /** The draft composer's state and callbacks; shown beside the draft badge. */
   composer?: PinComposerProps | null;
+  /**
+   * Project-wide stepping (D077): when given, J/K and the arrow keys hand
+   * the direction to the workspace, which steps through every pin in the
+   * project and switches plane as needed, instead of wrapping inside this
+   * plane. Without it the shortcuts step through this plane's pins alone.
+   */
+  onStepPin?: (direction: 1 | -1) => void;
+  /**
+   * Focus the canvas region as soon as it mounts, so a keyboard step that
+   * landed on another plane keeps the keyboard in the new plane (D077).
+   */
+  autoFocus?: boolean;
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // A plane opened by a keyboard step takes focus once, on mount, so the
+  // next J or K keeps stepping without a click (D077).
+  useEffect(() => {
+    if (autoFocus && !readOnly) wrapperRef.current?.focus({ preventScroll: true });
+    // Mount only: focus is handed over once, never re-stolen on re-render.
+  }, []);
   const doc = useMemo(() => ({ width: domain.width, height: domain.height }), [domain]);
   // The canonical draft state is the pin tip in screenshot-natural pixels.
   // The node array is a disposable view derived from it; the hit-box sizes
@@ -607,13 +628,13 @@ function CaptureCanvasInner({
       case "J":
       case "ArrowDown":
         event.preventDefault();
-        stepSelection(1);
+        (onStepPin ?? stepSelection)(1);
         return;
       case "k":
       case "K":
       case "ArrowUp":
         event.preventDefault();
-        stepSelection(-1);
+        (onStepPin ?? stepSelection)(-1);
         return;
       case "n":
       case "N":
@@ -833,6 +854,8 @@ export function CaptureCanvas({
   onDraftSettled,
   draftResetSignal,
   composer,
+  onStepPin,
+  autoFocus = false,
 }: {
   captureId: string;
   pageUrl: string;
@@ -860,6 +883,10 @@ export function CaptureCanvas({
   draftResetSignal?: number;
   /** The draft composer's state and callbacks; rendered beside the draft. */
   composer?: PinComposerProps | null;
+  /** Project-wide J/K stepping (D077); see CaptureCanvasInner. */
+  onStepPin?: (direction: 1 | -1) => void;
+  /** Focus the canvas region on mount (D077); see CaptureCanvasInner. */
+  autoFocus?: boolean;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -889,6 +916,8 @@ export function CaptureCanvas({
         onDraftSettled={onDraftSettled}
         draftResetSignal={draftResetSignal}
         composer={composer}
+        onStepPin={onStepPin}
+        autoFocus={autoFocus}
       />
     </ReactFlowProvider>
   );

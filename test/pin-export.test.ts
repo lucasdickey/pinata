@@ -8,6 +8,7 @@ import { describe, expect, test } from "vitest";
 import type { PinAnnotationView, PinElementSnapshot } from "../src/lib/annotations";
 import {
   formatPinsAsMarkdown,
+  formatProjectPinsAsMarkdown,
   pinPosition,
   snapshotPath,
   snapshotSummary,
@@ -136,5 +137,74 @@ describe("formatPinsAsMarkdown", () => {
 
   test("the block never ends in blank lines", () => {
     expect(formatPinsAsMarkdown([pin()], context)).not.toMatch(/\n\s*$/);
+  });
+
+  test("a supplied heading replaces the default one and nothing else changes", () => {
+    const markdown = formatPinsAsMarkdown([pin()], { ...context, heading: "Pricing — Desktop" });
+    expect(markdown.split("\n")[0]).toBe("# Pricing — Desktop");
+    expect(markdown).not.toContain("Pinata pins");
+    expect(markdown).toContain("## Pin 1 — at (392, 387)");
+  });
+});
+
+// The project export (D077): one document for the whole project, one heading
+// per capture in page/device order, each capture's pins beneath it in the
+// per-capture format. Pin numbers stay per capture, so the capture heading
+// is what makes "Pin 1" unambiguous.
+describe("formatProjectPinsAsMarkdown", () => {
+  const project = { title: "chickpea.co", rootUrl: "https://chickpea.co/" };
+  const groups = [
+    {
+      context: { pageUrl: "https://chickpea.co/", variant: "Desktop", attempt: 1 },
+      pins: [pin({ id: "h1", number: 1, body: "Home desktop note." })],
+    },
+    {
+      context: { pageUrl: "https://chickpea.co/", variant: "Mobile", attempt: 1 },
+      pins: [],
+    },
+    {
+      context: { pageUrl: "https://chickpea.co/pricing", variant: "Desktop", attempt: 2 },
+      pins: [
+        pin({ id: "p1", number: 1, body: "Pricing note one." }),
+        pin({ id: "p2", number: 2, body: "Pricing note two.", elementSnapshot: null }),
+      ],
+    },
+  ];
+
+  test("heads the document with the project and the totals", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    expect(markdown.split("\n")[0]).toBe("# Pinata pins — chickpea.co");
+    expect(markdown).toContain("https://chickpea.co/ · 2 captures · 3 pins");
+  });
+
+  test("one heading per capture with pins, in the order given, naming page and device", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    const headings = markdown.split("\n").filter((line) => line.startsWith("## "));
+    expect(headings).toEqual(["## https://chickpea.co/ — Desktop", "## https://chickpea.co/pricing — Desktop"]);
+    // The capture with no pins gets no section: nothing to hand an agent.
+    expect(markdown).not.toContain("Mobile");
+    expect(markdown).toContain("Desktop · version 2 · 2 pins");
+  });
+
+  test("each capture's pins follow its heading in the per-capture format, one level down", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    const home = markdown.indexOf("## https://chickpea.co/ — Desktop");
+    const pricing = markdown.indexOf("## https://chickpea.co/pricing — Desktop");
+    const homePin = markdown.indexOf("### Pin 1 — at (392, 387)");
+    expect(home).toBeLessThan(homePin);
+    expect(homePin).toBeLessThan(pricing);
+    expect(markdown.indexOf("### Pin 2 — at (392, 387)")).toBeGreaterThan(pricing);
+    // Exactly one top-level heading in the whole document.
+    expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
+    // The per-pin details and the verbatim comment come through unchanged.
+    expect(markdown).toContain("- Path: `main > section.pricing > div.billing-toggle`");
+    expect(markdown).toContain("> Pricing note two.");
+  });
+
+  test("a project with no pins produces a readable block and never ends in blank lines", () => {
+    const empty = formatProjectPinsAsMarkdown([groups[1]!], project);
+    expect(empty).toContain("0 captures · 0 pins");
+    expect(empty).toContain("_No pins in this project._");
+    expect(formatProjectPinsAsMarkdown(groups, project)).not.toMatch(/\n\s*$/);
   });
 });

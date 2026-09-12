@@ -9,6 +9,13 @@
 // the selected version of that one capture. A failing device never removes a
 // sibling that succeeded: the sibling stays listed, usable, and in order.
 //
+// The detail area opens on a project overview (D077): one card per capture
+// with its thumbnail, state, and counts. Opening a card, or a page in the
+// rail, shows that capture in the canvas view, where Desktop and Mobile are
+// a toggle above the canvas and Next/Previous pin (and J/K) step through
+// every pin in the project, switching plane as needed. The rail lists
+// projects and pages only.
+//
 // The screenshot stage is deliberately inert — it renders a static capture,
 // never live source markup, so there is no link, iframe, or handler here that
 // could navigate to the captured site.
@@ -25,24 +32,39 @@ import type {
   PinListResponse,
   PinMutationResponse,
   PinStatusResponse,
+  ProjectPinAnnotationView,
+  ProjectPinListResponse,
 } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
 import {
-  captureFeedback,
   feedbackBadge,
   feedbackSummary,
+  pageFeedback,
   pinFeedbackPath,
   projectFeedback,
   type SeenAdjustments,
 } from "../lib/feedback-counts";
+import {
+  formatPinsAsMarkdown,
+  formatProjectPinsAsMarkdown,
+  type PinExportGroup,
+} from "../lib/pin-export";
+import {
+  orderProjectPins,
+  planeOrder,
+  preferredVariant,
+  stepProjectPin,
+} from "../lib/pin-order";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
+import { DeviceToggle } from "./device-toggle";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
-import { PinTable } from "./pin-table";
+import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
+import { ProjectOverview } from "./project-overview";
 import type { ReplySendState, ThreadStatus } from "./thread-view";
 
 export interface AttemptView {
@@ -92,6 +114,10 @@ export interface WorkspaceProject {
   captureFeedback?: Record<string, FeedbackCounts>;
 }
 
+/**
+ * The open capture in the canvas view. Null means the detail area shows the
+ * selected project's overview instead (D077).
+ */
 interface Selection {
   pageId: string;
   variant: string;
@@ -102,16 +128,6 @@ interface Selection {
 const outcomeMessages = new Map(
   CAPTURE_OUTCOMES.map((outcome) => [outcome.code, outcome.publicMessage] as const),
 );
-
-/** What the device row shows: the usable capture wins over a later failure. */
-function deviceStatus(device: DeviceView): string {
-  if (device.usable && device.latest?.state !== "ready") {
-    return `Ready (v${device.selectedAttempt}) · newest ${STATE_LABELS[
-      device.latest?.state ?? "pending"
-    ].toLowerCase()}`;
-  }
-  return device.latest ? STATE_LABELS[device.latest.state] : "Not captured";
-}
 
 function findDevice(project: WorkspaceProject | undefined, selection: Selection | null) {
   if (!project || !selection) return null;
@@ -129,7 +145,29 @@ export function ProjectWorkspace({
   projects: WorkspaceProject[];
   onChanged: () => void;
 }) {
+  // Which project the detail area shows (its overview, or one of its
+  // captures), and which capture is open in the canvas view; null opens
+  // the overview (D077). The first project's overview is the default.
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  // A pin to select as soon as the plane it lives on is shown: set by a
+  // step or a table row that lands on another capture, consumed by the
+  // capture-change effect below so the plane switch and the selection are
+  // one move rather than a switch that clears and a click that re-selects.
+  const pendingPin = useRef<{ captureId: string; pinId: string } | null>(null);
+  // The capture a keyboard step opened, so its canvas takes focus on mount
+  // and the next J or K keeps stepping; a click anywhere else clears it.
+  const [focusCanvasFor, setFocusCanvasFor] = useState<string | null>(null);
+  // Every live pin in the selected project (D077), read from the
+  // project-scoped route and scoped to the project it was fetched for. It
+  // orders the Next/Previous stepping and fills the whole-project table;
+  // the canvas and the side panel keep reading the per-capture list.
+  const [projectPins, setProjectPins] = useState<{
+    publicId: string;
+    status: "loading" | "ready" | "failed";
+    pins: ProjectPinAnnotationView[];
+  } | null>(null);
+  const [tableScope, setTableScope] = useState<PinTableScope>("capture");
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   // Rail disclosure state (D070), session-only and deliberately unpersisted:
@@ -220,20 +258,64 @@ export function ProjectWorkspace({
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
 
-  const fallback = useMemo<Selection | null>(() => {
-    const page = projects[0]?.pages[0];
-    const variant = page?.devices[0]?.variant;
-    return page && variant ? { pageId: page.id, variant, captureId: null } : null;
-  }, [projects]);
+  // The project the detail area shows: the chosen one, or the first when
+  // nothing has been chosen yet or the chosen project has gone.
+  const activeProject = useMemo(
+    () => projects.find((project) => project.projectId === selectedProjectId) ?? projects[0],
+    [projects, selectedProjectId],
+  );
 
+  // The open capture, or null for the overview. A selection whose page is
+  // not in the shown project (the list changed underneath it) is treated as
+  // no selection rather than as another project's plane.
   const active = useMemo(() => {
-    const chosen = selection ?? fallback;
-    const owner = projects.find((project) =>
-      project.pages.some((page) => page.id === chosen?.pageId),
-    );
-    const found = findDevice(owner, chosen);
-    return found && chosen ? { ...found, project: owner!, selection: chosen } : null;
-  }, [projects, selection, fallback]);
+    const found = findDevice(activeProject, selection);
+    return found && selection && activeProject
+      ? { ...found, project: activeProject, selection }
+      : null;
+  }, [activeProject, selection]);
+
+  // ---- navigation (D077) ---------------------------------------------------
+
+  /** Show one capture in the canvas view. */
+  const openCapture = useCallback(
+    (projectId: string, pageId: string, variant: string, captureId: string | null = null) => {
+      pendingPin.current = null;
+      setFocusCanvasFor(null);
+      setSelectedProjectId(projectId);
+      setSelection({ pageId, variant, captureId });
+    },
+    [],
+  );
+
+  /** Show a project's overview (the default view of a project). */
+  const showOverview = useCallback((projectId: string) => {
+    pendingPin.current = null;
+    setFocusCanvasFor(null);
+    setSelectedProjectId(projectId);
+    setSelection(null);
+  }, []);
+
+  /** Open a page on its preferred device: Desktop, or Mobile when Desktop is not usable. */
+  const openPage = useCallback(
+    (projectId: string, page: WorkspacePage) => {
+      const variant = preferredVariant(page);
+      if (variant) openCapture(projectId, page.id, variant);
+    },
+    [openCapture],
+  );
+
+  /**
+   * Open the plane a pin lives on with that pin selected. A keyboard step
+   * also hands focus to the new plane's canvas so the next key keeps going.
+   */
+  const goToPin = useCallback((pin: ProjectPinAnnotationView, viaKeyboard: boolean) => {
+    pendingPin.current = { captureId: pin.captureId, pinId: pin.id };
+    setFocusCanvasFor(viaKeyboard ? pin.captureId : null);
+    setSelection({ pageId: pin.pageId, variant: pin.variant, captureId: pin.captureId });
+  }, []);
+
+  // ---- end navigation --------------------------------------------------------
 
   const retry = useCallback(
     async (pageId: string, variant: string) => {
@@ -270,7 +352,7 @@ export function ProjectWorkspace({
     [onChanged, retrying],
   );
 
-  if (projects.length === 0) return null;
+  if (projects.length === 0 || !activeProject) return null;
 
   // The shown attempt is the explicit selection or the server default; when
   // a device has no ready capture at all, its latest attempt still names the
@@ -327,7 +409,11 @@ export function ProjectWorkspace({
 
   useEffect(() => {
     setDraftTip(null);
-    setSelectedPinId(null);
+    // A plane switch clears the pin selection, unless the switch was made
+    // to reach a pin on this very plane (a cross-plane step or table row).
+    const pending = pendingPin.current;
+    pendingPin.current = null;
+    setSelectedPinId(pending && pending.captureId === selectedCaptureId ? pending.pinId : null);
     setMoveError(null);
     setSaveState("idle");
     setPreviewRect(null);
@@ -338,6 +424,66 @@ export function ProjectWorkspace({
       setPinsState(null);
     }
   }, [selectedCaptureId, selectedReady, loadPins]);
+
+  // ---- project-scoped pins (D077) --------------------------------------------
+  // One read per selected project, guarded like the per-capture load so a
+  // late answer for a previous project can never fill the current one's
+  // table or stepping order. Mutations below re-read it after they land.
+  const activePublicId = activeProject.publicId;
+  const activePublicIdRef = useRef(activePublicId);
+  activePublicIdRef.current = activePublicId;
+  const projectPinsRequestRef = useRef<string | null>(null);
+  const loadProjectPins = useCallback(async (publicId: string) => {
+    projectPinsRequestRef.current = publicId;
+    setProjectPins((current) =>
+      current && current.publicId === publicId
+        ? { ...current, status: "loading" }
+        : { publicId, status: "loading", pins: [] },
+    );
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(publicId)}/annotations`,
+        { cache: "no-store" },
+      );
+      if (projectPinsRequestRef.current !== publicId) return;
+      if (!response.ok) {
+        setProjectPins({ publicId, status: "failed", pins: [] });
+        return;
+      }
+      const payload = (await response.json()) as ProjectPinListResponse;
+      if (projectPinsRequestRef.current !== publicId) return;
+      setProjectPins({
+        publicId,
+        status: "ready",
+        pins: Array.isArray(payload.annotations) ? payload.annotations : [],
+      });
+    } catch {
+      if (projectPinsRequestRef.current !== publicId) return;
+      setProjectPins({ publicId, status: "failed", pins: [] });
+    }
+  }, []);
+  useEffect(() => {
+    setTableScope("capture");
+    void loadProjectPins(activePublicId);
+  }, [activePublicId, loadProjectPins]);
+  /** Re-read the shown project's pins after a write changed them. */
+  const reloadProjectPins = useCallback(() => {
+    void loadProjectPins(activePublicIdRef.current);
+  }, [loadProjectPins]);
+  /** Apply a returned record to the listed project pin with the same id. */
+  const patchProjectPin = useCallback((annotationId: string, patch: Partial<PinAnnotationView>) => {
+    setProjectPins((current) =>
+      current
+        ? {
+            ...current,
+            pins: current.pins.map((pin) =>
+              pin.id === annotationId ? { ...pin, ...patch } : pin,
+            ),
+          }
+        : current,
+    );
+  }, []);
+  // ---- end project-scoped pins -------------------------------------------------
 
   // The draft's intent — idempotency key, context decision, candidates —
   // lives exactly as long as the draft. A null→tip transition is a brand
@@ -401,10 +547,11 @@ export function ProjectWorkspace({
         ...current,
         [captureId]: (current[captureId] ?? 0) + unread,
       }));
+      patchProjectPin(annotationId, { unreadReplies: 0 });
     } catch {
       // Marking seen is best effort; the counts stay as the server last said.
     }
-  }, []);
+  }, [patchProjectPin]);
 
   // The thread follows the selected pin: a fresh read per selection, scoped
   // to that pin so a late answer for a previous selection can never render
@@ -525,6 +672,10 @@ export function ProjectWorkspace({
               }
             : current,
         );
+        patchProjectPin(payload.annotation.id, {
+          status: payload.annotation.status,
+          unreadReplies: payload.annotation.unreadReplies,
+        });
         const entry = payload.entry;
         if (entry) {
           setThreadState((current) =>
@@ -544,7 +695,7 @@ export function ProjectWorkspace({
         setStatusState("failed");
       }
     },
-    [selectedReady, selectedPinId, statusState, onChanged],
+    [selectedReady, selectedPinId, statusState, onChanged, patchProjectPin],
   );
 
   // Nearby context for the draft, fetched once per settled position. The
@@ -670,10 +821,20 @@ export function ProjectWorkspace({
       // authoritative list is re-read rather than patched locally.
       setDraftResetSignal((value) => value + 1);
       await loadPins(selectedReady.id);
+      reloadProjectPins();
     } catch {
       setSaveState("failed");
     }
-  }, [draftTip, selectedReady, draftKey, draftBody, draftChoice, saveState, loadPins]);
+  }, [
+    draftTip,
+    selectedReady,
+    draftKey,
+    draftBody,
+    draftChoice,
+    saveState,
+    loadPins,
+    reloadProjectPins,
+  ]);
 
   const cancelDraft = useCallback(() => {
     // Same mechanism as a successful save: the canvas drops the draft and
@@ -740,6 +901,10 @@ export function ProjectWorkspace({
               }
             : current,
         );
+        patchProjectPin(annotationId, {
+          tip: payload.annotation.tip,
+          revision: payload.annotation.revision,
+        });
       } catch {
         setMoveError("That pin move could not be saved. The saved position was restored.");
         setEditState("idle");
@@ -747,7 +912,7 @@ export function ProjectWorkspace({
         await loadPins(captureId);
       }
     },
-    [selectedReady, pinsState, loadPins],
+    [selectedReady, pinsState, loadPins, patchProjectPin],
   );
 
   const saveEdit = useCallback(async () => {
@@ -790,12 +955,16 @@ export function ProjectWorkspace({
             }
           : current,
       );
+      patchProjectPin(pin.id, {
+        body: payload.annotation.body,
+        revision: payload.annotation.revision,
+      });
       setEditing(false);
       setEditState("idle");
     } catch {
       setEditState("failed");
     }
-  }, [selectedReady, pinsState, selectedPinId, editBody, editState, loadPins]);
+  }, [selectedReady, pinsState, selectedPinId, editBody, editState, loadPins, patchProjectPin]);
 
   const confirmDelete = useCallback(async () => {
     const captureId = selectedReady?.id;
@@ -830,20 +999,135 @@ export function ProjectWorkspace({
       setDeleteState("idle");
       setSelectedPinId(null);
       await loadPins(captureId);
+      reloadProjectPins();
     } catch {
       setDeleteState("failed");
     }
-  }, [selectedReady, pinsState, selectedPinId, deleteState, loadPins]);
+  }, [selectedReady, pinsState, selectedPinId, deleteState, loadPins, reloadProjectPins]);
+
+  // ---- stepping and the project table (D077) ---------------------------------
+  // Every pin in the shown project, in page, device, version, number order:
+  // the sequence Next/Previous pin and J/K follow, and the rows of the
+  // whole-project table.
+  const planes = useMemo(() => planeOrder(activeProject), [activeProject]);
+  const orderedPins = useMemo(
+    () =>
+      projectPins && projectPins.publicId === activePublicId && projectPins.status === "ready"
+        ? orderProjectPins(projectPins.pins, planes)
+        : [],
+    [projectPins, activePublicId, planes],
+  );
+  const projectPinsStatus =
+    projectPins && projectPins.publicId === activePublicId ? projectPins.status : null;
+
+  /** Select a pin wherever it lives, switching plane when it is elsewhere. */
+  const selectPinAnywhere = useCallback(
+    (annotationId: string | null) => {
+      if (annotationId === null) {
+        setSelectedPinId(null);
+        return;
+      }
+      const target = orderedPins.find((pin) => pin.id === annotationId);
+      if (target && target.captureId !== selectedCaptureId) goToPin(target, false);
+      else setSelectedPinId(annotationId);
+    },
+    [orderedPins, selectedCaptureId, goToPin],
+  );
+
+  /** One step through the project's pins; the canvas keeps its own camera per plane. */
+  const stepPin = useCallback(
+    (direction: 1 | -1, viaKeyboard: boolean) => {
+      const target = stepProjectPin(
+        orderedPins,
+        planes,
+        { captureId: selectedCaptureId, pinId: selectedPinId },
+        direction,
+      );
+      if (!target) return;
+      if (target.captureId === selectedCaptureId) setSelectedPinId(target.id);
+      else goToPin(target, viaKeyboard);
+    },
+    [orderedPins, planes, selectedCaptureId, selectedPinId, goToPin],
+  );
+  const stepPinByKey = useCallback((direction: 1 | -1) => stepPin(direction, true), [stepPin]);
+  const selectedStepIndex = selectedPinId
+    ? orderedPins.findIndex((pin) => pin.id === selectedPinId)
+    : -1;
+  const stepPosition =
+    orderedPins.length === 0
+      ? "No pins in this project"
+      : selectedStepIndex === -1
+        ? `${orderedPins.length} pin${orderedPins.length === 1 ? "" : "s"} in this project`
+        : `${selectedStepIndex + 1} of ${orderedPins.length} pins`;
+
+  // Table rows: the open capture's pins from the per-capture list (always
+  // current after a write), or the whole project's from the project read.
+  const projectRows = useMemo<PinTableRow[]>(
+    () =>
+      orderedPins.map((pin) => ({
+        pin,
+        pageUrl: pin.normalizedUrl,
+        variant: variantLabel(pin.variant),
+        attempt: pin.attempt,
+      })),
+    [orderedPins],
+  );
+  const captureRows = useMemo<PinTableRow[]>(
+    () =>
+      active
+        ? activePins.map((pin) => ({
+            pin,
+            pageUrl: active.page.normalizedUrl,
+            variant: variantLabel(active.device.variant),
+            attempt: selectedAttempt?.attempt ?? null,
+          }))
+        : [],
+    [active, activePins, selectedAttempt],
+  );
+  const projectMarkdown = () => {
+    // One group per capture, in the order the pins already have.
+    const groups: { context: PinExportGroup["context"]; pins: ProjectPinAnnotationView[] }[] = [];
+    for (const pin of orderedPins) {
+      const last = groups[groups.length - 1];
+      if (last && last.pins[0]?.captureId === pin.captureId) {
+        last.pins.push(pin);
+      } else {
+        groups.push({
+          context: {
+            pageUrl: pin.normalizedUrl,
+            variant: variantLabel(pin.variant),
+            attempt: pin.attempt,
+          },
+          pins: [pin],
+        });
+      }
+    }
+    return formatProjectPinsAsMarkdown(groups, {
+      title: activeProject.title,
+      rootUrl: activeProject.rootUrl,
+    });
+  };
+  const captureMarkdown = () =>
+    active
+      ? formatPinsAsMarkdown(activePins, {
+          pageUrl: active.page.normalizedUrl,
+          variant: variantLabel(active.device.variant),
+          attempt: selectedAttempt?.attempt ?? null,
+        })
+      : "";
+  // ---- end stepping and the project table --------------------------------------
 
   return (
     <div className="workspace">
-      <nav className="workspace-tree" aria-label="Projects, pages, and devices">
+      <nav className="workspace-tree" aria-label="Projects and pages">
         {/* Two levels of disclosure (D070). The rail used to print every
             project's whole page/device tree at once, so a handful of
             projects pushed the canvas off screen. Native <details> is used
             rather than a hand-rolled toggle: it is keyboard-operable and
             correctly announced with no script and no dependency, and it
-            keeps working if hydration has not happened yet. */}
+            keeps working if hydration has not happened yet. Since D077 the
+            rail lists projects and pages only; the device is chosen above
+            the canvas. */}
         <details
           className="tree-root"
           open={railOpen}
@@ -855,10 +1139,10 @@ export function ProjectWorkspace({
           </summary>
           <ul>
             {projects.map((project) => {
-              // The project holding the current selection stays open; the
-              // rest start collapsed. Collapsing the active project would
-              // hide the control that produced what the canvas is showing.
-              const holdsActive = active?.project.projectId === project.projectId;
+              // The project the detail area shows stays open; the rest
+              // start collapsed. Collapsing the shown project would hide
+              // the controls that produced what the detail area is showing.
+              const holdsActive = activeProject.projectId === project.projectId;
               const expanded = openProjects[project.projectId] ?? holdsActive;
               return (
                 <li key={project.projectId}>
@@ -893,64 +1177,48 @@ export function ProjectWorkspace({
                     <p className="project-counts" data-testid="project-feedback-summary">
                       {feedbackSummary(projectFeedback(project, seenAdjust))}
                     </p>
-                    <ol>
-                      {project.pages.map((page) => (
-                        <li key={page.id}>
-                          <span className="page-url">{page.normalizedUrl}</span>
-                          <ul className="page-devices">
-                            {page.devices.map((device) => {
-                              const isActive =
-                                active?.page.id === page.id &&
-                                active.device.variant === device.variant;
-                              // Unread and open counts of the device's selected
-                              // capture (D075), beside the button so its
-                              // accessible name stays the stable device label.
-                              const feedback = captureFeedback(
-                                project,
-                                device.selectedCaptureId,
-                                seenAdjust,
-                              );
-                              const badge = feedbackBadge(feedback);
-                              return (
-                                <li key={device.variant}>
-                                  <button
-                                    type="button"
-                                    // The visible label is just "Desktop"; the page
-                                    // it belongs to has to be in the accessible
-                                    // name or every project repeats two identical
-                                    // buttons.
-                                    aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
-                                    aria-current={isActive ? "true" : undefined}
-                                    onClick={() =>
-                                      setSelection({
-                                        pageId: page.id,
-                                        variant: device.variant,
-                                        captureId: null,
-                                      })
-                                    }
-                                  >
-                                    {variantLabel(device.variant)}
-                                    <span className="device-status">
-                                      {" "}
-                                      — {deviceStatus(device)}
-                                    </span>
-                                  </button>
-                                  {badge ? (
-                                    <span
-                                      className="tree-count feedback-badge"
-                                      data-testid="feedback-badge"
-                                      data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
-                                      aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}: ${badge}`}
-                                    >
-                                      {badge}
-                                    </span>
-                                  ) : null}
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </li>
-                      ))}
+                    {/* The project's overview (D077): the way to select a
+                        project without opening one of its captures. */}
+                    <button
+                      type="button"
+                      className="tree-overview"
+                      aria-label={`Overview of ${project.title}`}
+                      aria-current={holdsActive && !active ? "true" : undefined}
+                      onClick={() => showOverview(project.projectId)}
+                    >
+                      Overview
+                    </button>
+                    <ol className="tree-pages">
+                      {project.pages.map((page) => {
+                        const isActive = holdsActive && active?.page.id === page.id;
+                        // Unread and open counts summed over the page's
+                        // devices (D075, D077), beside the button so its
+                        // accessible name stays the page URL.
+                        const feedback = pageFeedback(project, page, seenAdjust);
+                        const badge = feedbackBadge(feedback);
+                        return (
+                          <li key={page.id}>
+                            <button
+                              type="button"
+                              className="page-url"
+                              aria-current={isActive ? "true" : undefined}
+                              onClick={() => openPage(project.projectId, page)}
+                            >
+                              {page.normalizedUrl}
+                            </button>
+                            {badge ? (
+                              <span
+                                className="tree-count feedback-badge"
+                                data-testid="feedback-badge"
+                                data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
+                                aria-label={`${page.normalizedUrl}: ${badge}`}
+                              >
+                                {badge}
+                              </span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
                     </ol>
                   </details>
                 </li>
@@ -960,221 +1228,294 @@ export function ProjectWorkspace({
         </details>
       </nav>
 
-      {active ? (
-        <section className="workspace-detail" aria-label="Selected capture">
-          {/* The selected project's header (D075): its title, the feedback
-              counts for the editor, and the share control that used to sit
-              inside the collapsed rail entry. */}
-          <div className="project-header" data-testid="project-header">
-            {/* Not a heading: the rail already carries the one heading with
-                this project's name, and the specs address it by that role. */}
-            <p className="project-title" data-testid="project-title">
-              {active.project.title}
-            </p>
-            <p className="project-feedback" data-testid="project-feedback">
-              {feedbackSummary(projectFeedback(active.project, seenAdjust))}
-            </p>
-            <FounderShareControl
-              key={active.project.publicId}
-              publicId={active.project.publicId}
-              projectTitle={active.project.title}
-            />
-          </div>
-          <h3>
-            {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
-          </h3>
+      <section
+        className="workspace-detail"
+        aria-label={active ? "Selected capture" : "Project overview"}
+      >
+        {/* The selected project's header (D075): its title, the feedback
+            counts for the editor, and the share control that used to sit
+            inside the collapsed rail entry. */}
+        <div className="project-header" data-testid="project-header">
+          {/* Not a heading: the rail already carries the one heading with
+              this project's name, and the specs address it by that role. */}
+          <p className="project-title" data-testid="project-title">
+            {activeProject.title}
+          </p>
+          <p className="project-feedback" data-testid="project-feedback">
+            {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
+          </p>
+          <FounderShareControl
+            key={activeProject.publicId}
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+          />
+        </div>
 
-          {/* Project-level capture progress and retry (D076). */}
-          <CaptureProgress project={active.project} onChanged={onChanged} />
+        {/* Project-level capture progress and retry (D076). */}
+        <CaptureProgress project={activeProject} onChanged={onChanged} />
 
-          {active.device.attempts.length > 1 ? (
-            <ul className="capture-versions" aria-label="Capture versions">
-              {active.device.attempts.map((attempt) => (
-                <li key={attempt.id}>
-                  <button
-                    type="button"
-                    aria-current={attempt.id === selectedAttempt?.id ? "true" : undefined}
-                    onClick={() =>
-                      setSelection({
-                        pageId: active.page.id,
-                        variant: active.device.variant,
-                        captureId: attempt.id,
-                      })
-                    }
-                  >
-                    Version {attempt.attempt} — {STATE_LABELS[attempt.state]}
-                    {attempt.id === active.device.selectedCaptureId ? " (default)" : ""}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-
-          <div className="workspace-body">
-            {selectedReady ? (
-              // Keyed by capture id so every selection change remounts the
-              // plane: drafts and transient state die with the old plane,
-              // and the session camera memory restores this plane's own
-              // camera (or the entire-capture view on first visit).
-              <CaptureCanvas
-                key={selectedReady.id}
-                captureId={selectedReady.id}
+        {active ? (
+          <>
+            {/* The canvas view's controls (D077): back to the overview, the
+                device toggle for this page, and stepping through every pin
+                in the project. */}
+            <div className="canvas-toolbar" data-testid="canvas-toolbar">
+              <button
+                type="button"
+                className="back-to-overview"
+                onClick={() => showOverview(activeProject.projectId)}
+              >
+                Back to overview
+              </button>
+              <DeviceToggle
                 pageUrl={active.page.normalizedUrl}
-                variant={variantLabel(active.device.variant)}
-                attempt={selectedReady.attempt}
-                width={selectedReady.documentWidth!}
-                height={selectedReady.documentHeight!}
+                devices={active.page.devices}
+                activeVariant={active.device.variant}
+                onChange={(variant) =>
+                  openCapture(activeProject.projectId, active.page.id, variant)
+                }
+              />
+              <p className="pin-step" role="group" aria-label="Step through pins">
+                <button
+                  type="button"
+                  disabled={orderedPins.length === 0}
+                  onClick={() => stepPin(-1, false)}
+                >
+                  Previous pin
+                </button>
+                <button
+                  type="button"
+                  disabled={orderedPins.length === 0}
+                  onClick={() => stepPin(1, false)}
+                >
+                  Next pin
+                </button>
+                <span className="pin-step-position" data-testid="pin-step-position">
+                  {stepPosition}
+                </span>
+              </p>
+            </div>
+            <h3>
+              {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
+            </h3>
+
+            {active.device.attempts.length > 1 ? (
+              <ul className="capture-versions" aria-label="Capture versions">
+                {active.device.attempts.map((attempt) => (
+                  <li key={attempt.id}>
+                    <button
+                      type="button"
+                      aria-current={attempt.id === selectedAttempt?.id ? "true" : undefined}
+                      onClick={() =>
+                        openCapture(
+                          activeProject.projectId,
+                          active.page.id,
+                          active.device.variant,
+                          attempt.id,
+                        )
+                      }
+                    >
+                      Version {attempt.attempt} — {STATE_LABELS[attempt.state]}
+                      {attempt.id === active.device.selectedCaptureId ? " (default)" : ""}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="workspace-body">
+              {selectedReady ? (
+                // Keyed by capture id so every selection change remounts the
+                // plane: drafts and transient state die with the old plane,
+                // and the session camera memory restores this plane's own
+                // camera (or the entire-capture view on first visit).
+                <CaptureCanvas
+                  key={selectedReady.id}
+                  captureId={selectedReady.id}
+                  pageUrl={active.page.normalizedUrl}
+                  variant={variantLabel(active.device.variant)}
+                  attempt={selectedReady.attempt}
+                  width={selectedReady.documentWidth!}
+                  height={selectedReady.documentHeight!}
+                  pins={activePins}
+                  previewRect={previewRect}
+                  selectedPinId={selectedPinId}
+                  onSelectPin={setSelectedPinId}
+                  onMovePin={(annotationId, tip) => void movePin(annotationId, tip)}
+                  savedCamera={cameras.current.get(selectedReady.id) ?? null}
+                  onCameraChange={handleCameraChange}
+                  onDraftChange={setDraftTip}
+                  onDraftSettled={handleDraftSettled}
+                  draftResetSignal={draftResetSignal}
+                  onStepPin={stepPinByKey}
+                  autoFocus={focusCanvasFor === selectedReady.id}
+                  composer={{
+                    draftBody,
+                    onDraftBodyChange: setDraftBody,
+                    draftChoice,
+                    onDraftChoiceChange: handleDraftChoiceChange,
+                    draftCandidates:
+                      draftCandidates && draftCandidates.captureId === selectedCaptureId
+                        ? draftCandidates
+                        : null,
+                    onPreviewCandidate: handlePreviewCandidate,
+                    onSaveDraft: () => void saveDraft(),
+                    onCancelDraft: cancelDraft,
+                    saveState,
+                  }}
+                />
+              ) : (
+                // Unavailable/empty states are non-annotatable: no canvas, no
+                // pin affordance, and a named next action (wait, or retry).
+                <div className="capture-stage" data-testid="capture-stage">
+                  <p>
+                    No capture to show yet:{" "}
+                    {selectedAttempt ? STATE_LABELS[selectedAttempt.state] : "not captured"}.
+                  </p>
+                </div>
+              )}
+              <CapturePanel
+                attempt={selectedAttempt}
+                pageUrl={active.page.normalizedUrl}
+                variant={active.device.variant}
+                ready={selectedReady !== null}
+                pinsStatus={
+                  pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
+                }
                 pins={activePins}
-                previewRect={previewRect}
                 selectedPinId={selectedPinId}
                 onSelectPin={setSelectedPinId}
-                onMovePin={(annotationId, tip) => void movePin(annotationId, tip)}
-                savedCamera={cameras.current.get(selectedReady.id) ?? null}
-                onCameraChange={handleCameraChange}
-                onDraftChange={setDraftTip}
-                onDraftSettled={handleDraftSettled}
-                draftResetSignal={draftResetSignal}
-                composer={{
-                  draftBody,
-                  onDraftBodyChange: setDraftBody,
-                  draftChoice,
-                  onDraftChoiceChange: handleDraftChoiceChange,
-                  draftCandidates:
-                    draftCandidates && draftCandidates.captureId === selectedCaptureId
-                      ? draftCandidates
-                      : null,
-                  onPreviewCandidate: handlePreviewCandidate,
-                  onSaveDraft: () => void saveDraft(),
-                  onCancelDraft: cancelDraft,
-                  saveState,
+                moveError={moveError}
+                editing={editing}
+                editBody={editBody}
+                onEditBodyChange={setEditBody}
+                onStartEdit={() => {
+                  const pin = activePins.find((candidate) => candidate.id === selectedPinId);
+                  setEditBody(pin?.body ?? "");
+                  setEditState("idle");
+                  setEditing(true);
                 }}
+                onCancelEdit={() => {
+                  setEditing(false);
+                  setEditState("idle");
+                }}
+                onSaveEdit={() => void saveEdit()}
+                editState={editState}
+                confirmingDelete={confirmingDelete}
+                onRequestDelete={() => {
+                  setDeleteState("idle");
+                  setConfirmingDelete(true);
+                }}
+                onCancelDelete={() => {
+                  setConfirmingDelete(false);
+                  setDeleteState("idle");
+                }}
+                onConfirmDelete={() => void confirmDelete()}
+                deleteState={deleteState}
+                onSetPinStatus={(action) => void setPinStatus(action)}
+                statusState={statusState}
+                thread={
+                  selectedPinId && threadState && threadState.annotationId === selectedPinId
+                    ? {
+                        originalBody:
+                          activePins.find((pin) => pin.id === selectedPinId)?.body ?? "",
+                        status: threadState.status,
+                        entries: threadState.entries,
+                        replyBody,
+                        onReplyBodyChange: setReplyBody,
+                        onSendReply: () => void sendFollowUp(),
+                        sendState: replyState,
+                        composerLabel: "Follow up as Lucas",
+                        sendLabel: "Send follow-up",
+                      }
+                    : undefined
+                }
               />
-            ) : (
-              // Unavailable/empty states are non-annotatable: no canvas, no
-              // pin affordance, and a named next action (wait, or retry).
-              <div className="capture-stage" data-testid="capture-stage">
-                <p>
-                  No capture to show yet:{" "}
-                  {selectedAttempt ? STATE_LABELS[selectedAttempt.state] : "not captured"}.
-                </p>
-              </div>
-            )}
-            <CapturePanel
-              attempt={selectedAttempt}
-              pageUrl={active.page.normalizedUrl}
-              variant={active.device.variant}
-              ready={selectedReady !== null}
-              pinsStatus={
-                pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
-              }
-              pins={activePins}
-              selectedPinId={selectedPinId}
-              onSelectPin={setSelectedPinId}
-              moveError={moveError}
-              editing={editing}
-              editBody={editBody}
-              onEditBodyChange={setEditBody}
-              onStartEdit={() => {
-                const pin = activePins.find((candidate) => candidate.id === selectedPinId);
-                setEditBody(pin?.body ?? "");
-                setEditState("idle");
-                setEditing(true);
-              }}
-              onCancelEdit={() => {
-                setEditing(false);
-                setEditState("idle");
-              }}
-              onSaveEdit={() => void saveEdit()}
-              editState={editState}
-              confirmingDelete={confirmingDelete}
-              onRequestDelete={() => {
-                setDeleteState("idle");
-                setConfirmingDelete(true);
-              }}
-              onCancelDelete={() => {
-                setConfirmingDelete(false);
-                setDeleteState("idle");
-              }}
-              onConfirmDelete={() => void confirmDelete()}
-              deleteState={deleteState}
-              onSetPinStatus={(action) => void setPinStatus(action)}
-              statusState={statusState}
-              thread={
-                selectedPinId && threadState && threadState.annotationId === selectedPinId
-                  ? {
-                      originalBody:
-                        activePins.find((pin) => pin.id === selectedPinId)?.body ?? "",
-                      status: threadState.status,
-                      entries: threadState.entries,
-                      replyBody,
-                      onReplyBodyChange: setReplyBody,
-                      onSendReply: () => void sendFollowUp(),
-                      sendState: replyState,
-                      composerLabel: "Follow up as Lucas",
-                      sendLabel: "Send follow-up",
-                    }
-                  : undefined
+            </div>
+
+            {/* The page explains itself in one line (VAL-CANVAS-009, D074):
+                the three things a reader can do on the screenshot. */}
+            {selectedReady ? (
+              <p className="workspace-hint">
+                Click the page to drop a pin · drag a pin to move it · click a pin to read or
+                reply.
+              </p>
+            ) : null}
+
+            {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
+              <p role="alert" className="capture-error">
+                {outcomeMessages.get(active.device.latest.errorCode) ??
+                  "That capture did not complete."}
+              </p>
+            ) : null}
+            {active.device.latest?.state === "stale" ? (
+              <p role="alert" className="capture-error">
+                This attempt stopped responding. Retry to schedule a fresh one.
+              </p>
+            ) : null}
+            {retryError ? (
+              <p role="alert" className="capture-error">
+                {retryError}
+              </p>
+            ) : null}
+
+            {active.device.retryable ? (
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={() => void retry(active.page.id, active.device.variant)}
+              >
+                {retrying
+                  ? "Retrying…"
+                  : `Retry ${variantLabel(active.device.variant)} capture`}
+              </button>
+            ) : null}
+
+            {/* Every pin at once, below the canvas (D071) — the side panel can
+                only ever show the selected one. Filtered to this capture, or
+                widened to the whole project (D077). */}
+            {selectedReady ? (
+              <PinTable
+                rows={tableScope === "project" ? projectRows : captureRows}
+                status={
+                  tableScope === "project"
+                    ? projectPinsStatus
+                    : pinsState && pinsState.captureId === selectedCaptureId
+                      ? pinsState.status
+                      : null
+                }
+                heading={
+                  tableScope === "project" ? "All pins in this project" : "All pins on this capture"
+                }
+                markdown={tableScope === "project" ? projectMarkdown : captureMarkdown}
+                scope={{ value: tableScope, onChange: setTableScope }}
+                selectedPinId={selectedPinId}
+                onSelectPin={selectPinAnywhere}
+              />
+            ) : null}
+          </>
+        ) : (
+          <>
+            {/* The project overview (D077): every capture as a card, then
+                every pin in the project. */}
+            <ProjectOverview
+              project={activeProject}
+              adjustments={seenAdjust}
+              onOpenCapture={(pageId, variant) =>
+                openCapture(activeProject.projectId, pageId, variant)
               }
             />
-          </div>
-
-          {/* The page explains itself in one line (VAL-CANVAS-009, D074):
-              the three things a reader can do on the screenshot. */}
-          {selectedReady ? (
-            <p className="workspace-hint">
-              Click the page to drop a pin · drag a pin to move it · click a pin to read or
-              reply.
-            </p>
-          ) : null}
-
-          {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
-            <p role="alert" className="capture-error">
-              {outcomeMessages.get(active.device.latest.errorCode) ??
-                "That capture did not complete."}
-            </p>
-          ) : null}
-          {active.device.latest?.state === "stale" ? (
-            <p role="alert" className="capture-error">
-              This attempt stopped responding. Retry to schedule a fresh one.
-            </p>
-          ) : null}
-          {retryError ? (
-            <p role="alert" className="capture-error">
-              {retryError}
-            </p>
-          ) : null}
-
-          {active.device.retryable ? (
-            <button
-              type="button"
-              disabled={retrying}
-              onClick={() => void retry(active.page.id, active.device.variant)}
-            >
-              {retrying
-                ? "Retrying…"
-                : `Retry ${variantLabel(active.device.variant)} capture`}
-            </button>
-          ) : null}
-
-          {/* Every pin at once, below the canvas (D071) — the side panel can
-              only ever show the selected one. */}
-          {selectedReady ? (
             <PinTable
-              pins={activePins}
-              status={
-                pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
-              }
-              context={{
-                pageUrl: active.page.normalizedUrl,
-                variant: variantLabel(active.device.variant),
-                attempt: selectedAttempt?.attempt ?? null,
-              }}
-              selectedPinId={selectedPinId}
-              onSelectPin={setSelectedPinId}
+              rows={projectRows}
+              status={projectPinsStatus}
+              heading="All pins in this project"
+              markdown={projectMarkdown}
+              selectedPinId={null}
+              onSelectPin={selectPinAnywhere}
             />
-          ) : null}
-        </section>
-      ) : null}
+          </>
+        )}
+      </section>
     </div>
   );
 }

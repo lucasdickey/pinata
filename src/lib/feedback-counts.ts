@@ -53,6 +53,34 @@ export function captureFeedback(
   };
 }
 
+/**
+ * One page's counts (D077): the sum over its devices' selected captures,
+ * with local seen adjustments applied. The rail badges pages, not devices.
+ */
+export function pageFeedback(
+  project: FeedbackSource,
+  page: { devices: { selectedCaptureId: string | null }[] },
+  adjustments: SeenAdjustments = {},
+): FeedbackCounts {
+  const total = emptyFeedback();
+  for (const device of page.devices) {
+    const counts = captureFeedback(project, device.selectedCaptureId, adjustments);
+    total.pins += counts.pins;
+    total.open += counts.open;
+    total.resolved += counts.resolved;
+    total.unreadReplies += counts.unreadReplies;
+  }
+  return total;
+}
+
+/** The short "pins · open · unread" line an overview card shows (D077). */
+export function captureCountsLine(counts: FeedbackCounts): string {
+  if (counts.pins === 0) return "No pins";
+  const pins = `${counts.pins} pin${counts.pins === 1 ? "" : "s"}`;
+  const unread = `${counts.unreadReplies} unread`;
+  return `${pins} · ${counts.open} open · ${unread}`;
+}
+
 /** The project's counts, with the local seen adjustments of its captures applied. */
 export function projectFeedback(
   project: FeedbackSource,

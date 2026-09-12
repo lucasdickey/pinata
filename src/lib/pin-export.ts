@@ -17,6 +17,12 @@ export interface PinExportContext {
   variant: string;
   /** Capture attempt number, or null when unknown. */
   attempt: number | null;
+  /**
+   * Replaces the default top heading ("Pinata pins — <page>"). The project
+   * export (D077) uses it to head each capture's section with its page and
+   * device instead.
+   */
+  heading?: string;
 }
 
 /** The element path as a single readable trail, or null for "No element". */
@@ -54,7 +60,7 @@ export function formatPinsAsMarkdown(
 ): string {
   const version = context.attempt === null ? "" : ` · version ${context.attempt}`;
   const lines: string[] = [
-    `# Pinata pins — ${context.pageUrl}`,
+    `# ${context.heading ?? `Pinata pins — ${context.pageUrl}`}`,
     "",
     `${context.variant}${version} · ${pins.length} pin${pins.length === 1 ? "" : "s"}`,
     "",
@@ -84,6 +90,61 @@ export function formatPinsAsMarkdown(
   }
 
   // One trailing newline, never a run of blank lines at the end.
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines.join("\n");
+}
+
+// ---- project export (D077) --------------------------------------------------
+
+/** One capture's pins with the context its section is headed by. */
+export interface PinExportGroup {
+  context: PinExportContext;
+  pins: readonly PinAnnotationView[];
+}
+
+export interface ProjectExportContext {
+  title: string;
+  rootUrl: string;
+}
+
+/**
+ * A whole project as one Markdown block: a project heading, then one section
+ * per capture in page/device order (captures with no pins are left out),
+ * each rendered by the per-capture format with its headings moved down one
+ * level so the document has a single top heading. Pin numbers stay per
+ * capture; the section heading names the page and device that make them
+ * unambiguous.
+ */
+export function formatProjectPinsAsMarkdown(
+  groups: readonly PinExportGroup[],
+  project: ProjectExportContext,
+): string {
+  const withPins = groups.filter((group) => group.pins.length > 0);
+  const total = withPins.reduce((sum, group) => sum + group.pins.length, 0);
+  const lines: string[] = [
+    `# Pinata pins — ${project.title}`,
+    "",
+    `${project.rootUrl} · ${withPins.length} capture${withPins.length === 1 ? "" : "s"} · ${total} pin${
+      total === 1 ? "" : "s"
+    }`,
+    "",
+  ];
+  if (withPins.length === 0) {
+    lines.push("_No pins in this project._");
+    return lines.join("\n");
+  }
+  for (const group of withPins) {
+    const section = formatPinsAsMarkdown(group.pins, {
+      ...group.context,
+      heading: group.context.heading ?? `${group.context.pageUrl} — ${group.context.variant}`,
+    });
+    // Only heading lines start with "#": comment bodies are quoted and the
+    // detail lines are list items, so demoting is safe.
+    for (const line of section.split("\n")) {
+      lines.push(line.startsWith("#") ? `#${line}` : line);
+    }
+    lines.push("");
+  }
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
 }

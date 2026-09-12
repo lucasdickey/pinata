@@ -7,7 +7,7 @@
 // Pinning stays available on a ready capture while its siblings capture.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
@@ -298,26 +298,45 @@ describe("CaptureProgress", () => {
 });
 
 describe("in the workspace", () => {
+  const overview = () => screen.getByRole("region", { name: "Project overview" });
   const detail = () => screen.getByRole("region", { name: "Selected capture" });
+  /** Open the home page's Desktop capture from the rail (the workspace opens on the overview, D077). */
+  const openHome = () =>
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
+        name: "https://chickpea.co/",
+      }),
+    );
 
-  test("the line sits at the top of the selected project's detail area", () => {
+  test("the line sits at the top of the selected project's detail area, in both views", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    // On the overview: right after the project header, before the cards.
+    const overviewLine = within(overview()).getByTestId("capture-progress");
+    expect(overviewLine).toHaveTextContent("Capturing 2 of 4 · chickpea.co · about 2 minutes left");
+    const header = within(overview()).getByTestId("project-header");
+    expect(header.compareDocumentPosition(overviewLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const cards = within(overview()).getAllByTestId("overview-card");
+    expect(overviewLine.compareDocumentPosition(cards[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // In the canvas view: still right after the header, before the canvas
+    // and its one-line hint.
+    openHome();
     const line = within(detail()).getByTestId("capture-progress");
     expect(line).toHaveTextContent("Capturing 2 of 4 · chickpea.co · about 2 minutes left");
     expect(within(line).getByRole("status")).toBeInTheDocument();
-    // Before the canvas and its one-line hint: the first thing after the heading.
-    const heading = within(detail()).getByRole("heading", { level: 3 });
-    expect(heading.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const canvasHeader = within(detail()).getByTestId("project-header");
+    expect(canvasHeader.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const hint = within(detail()).getByText(/drop a pin/i);
     expect(line.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("pinning is available on the ready capture while its siblings still capture", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // The default selection is the first page's Desktop device, which is
-    // ready; its siblings are capturing or queued. The canvas is modeless
-    // (D074): an editable plane is the focusable region that takes clicks
-    // and keyboard shortcuts, so its presence is what "pinnable" means.
+    // The home page opens on its Desktop device, which is ready; its
+    // siblings are capturing or queued. The canvas is modeless (D074): an
+    // editable plane is the focusable region that takes clicks and keyboard
+    // shortcuts, so its presence is what "pinnable" means.
+    openHome();
     const canvas = within(detail()).getByRole("region", { name: /Screenshot of/ });
     expect(canvas).toHaveAttribute("tabindex", "0");
     expect(canvas).toHaveAttribute("aria-keyshortcuts");
@@ -331,6 +350,8 @@ describe("in the workspace", () => {
     const { progress: _omitted, ...withoutProgress } = project();
     void _omitted;
     render(<ProjectWorkspace projects={[withoutProgress]} onChanged={onChanged} />);
+    expect(within(overview()).queryByTestId("capture-progress")).not.toBeInTheDocument();
+    openHome();
     expect(within(detail()).queryByTestId("capture-progress")).not.toBeInTheDocument();
   });
 });

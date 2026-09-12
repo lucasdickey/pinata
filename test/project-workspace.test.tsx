@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 // The project/page/device navigation surface (VAL-PROJECT-003,
 // VAL-PROJECT-005): pages listed only under their owning project in submitted
-// order, Desktop and Mobile per page, exactly one active item, partial
-// statuses that keep successful siblings usable, retry offered only for a
-// terminal or stale attempt, deterministic newest-first version selection,
-// and a screenshot stage that cannot navigate.
+// order, Desktop and Mobile per page (a toggle above the canvas since D077),
+// exactly one active item, partial statuses that keep successful siblings
+// usable, retry offered only for a terminal or stale attempt, deterministic
+// newest-first version selection, and a screenshot stage that cannot
+// navigate. The workspace opens on the project overview (D077), so most
+// tests open the seeded home page first; the overview itself is covered in
+// test/project-navigation.test.tsx.
 
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -147,8 +150,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const tree = () => screen.getByRole("navigation", { name: "Projects, pages, and devices" });
+const tree = () => screen.getByRole("navigation", { name: "Projects and pages" });
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
+/** The rail's page button; opening a page shows its Desktop capture (D077). */
+const pageButton = (url: string) => within(tree()).getByRole("button", { name: url });
+/** Open the seeded home page's Desktop capture: the plane most tests start on. */
+const openHome = () => fireEvent.click(pageButton("https://chickpea.co/"));
+/** A button in the device toggle above the canvas; the names the rail entries had. */
+const deviceButton = (name: string) => within(detail()).getByRole("button", { name });
+/** Open the pricing page and switch it to Mobile (the failed capture). */
+const openPricingMobile = (user: ReturnType<typeof userEvent.setup>) => {
+  fireEvent.click(pageButton("https://chickpea.co/pricing"));
+  return user.click(deviceButton("Mobile capture of https://chickpea.co/pricing"));
+};
 // Two surfaces now list every pin: the side panel (one selection at a time)
 // and the all-pins table below the canvas (D071). Pin queries have to name
 // which one they mean, or every pin matches twice.
@@ -171,25 +185,40 @@ describe("hierarchy", () => {
     expect(within(lists[1]!).queryByText("https://example.com/")).toBeNull();
   });
 
-  test("every page exposes Desktop and Mobile", () => {
+  test("every page exposes Desktop and Mobile through the toggle above the canvas (D077)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    expect(within(tree()).getAllByRole("button", { name: /^Desktop capture of/ })).toHaveLength(2);
-    expect(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })).toHaveLength(2);
+    // The rail lists pages only; the device pair appears once a page is open.
+    expect(within(tree()).queryByRole("button", { name: /capture of/ })).toBeNull();
+    for (const url of ["https://chickpea.co/", "https://chickpea.co/pricing"]) {
+      fireEvent.click(pageButton(url));
+      const toggle = within(detail()).getByRole("group", { name: "Device" });
+      expect(within(toggle).getByRole("button", { name: `Desktop capture of ${url}` })).toBeInTheDocument();
+      expect(within(toggle).getByRole("button", { name: `Mobile capture of ${url}` })).toBeInTheDocument();
+    }
   });
 
   test("exactly one page/device is active, and selecting another moves it", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const current = () =>
       within(tree())
         .getAllByRole("button")
         .filter((button) => button.getAttribute("aria-current") === "true");
+    const pressed = () =>
+      within(detail())
+        .getByRole("group", { name: "Device" })
+        .querySelectorAll('button[aria-pressed="true"]');
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveAccessibleName(/^Desktop capture of/);
+    expect(current()[0]).toHaveTextContent("https://chickpea.co/");
+    expect(pressed()).toHaveLength(1);
+    expect(pressed()[0]).toHaveAccessibleName(/^Desktop capture of/);
 
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    await openPricingMobile(user);
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveAccessibleName(/^Mobile capture of/);
+    expect(current()[0]).toHaveTextContent("https://chickpea.co/pricing");
+    expect(pressed()).toHaveLength(1);
+    expect(pressed()[0]).toHaveAccessibleName(/^Mobile capture of/);
     expect(
       within(detail()).getByRole("heading", { name: "Mobile — https://chickpea.co/pricing" }),
     ).toBeInTheDocument();
@@ -199,16 +228,21 @@ describe("hierarchy", () => {
 describe("partial status", () => {
   test("a failed device is labelled while its successful siblings stay ready", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    const buttons = within(tree()).getAllByRole("button");
-    const labels = buttons.map((button) => button.textContent);
+    // The overview names every capture's state (D077).
+    const labels = screen.getAllByTestId("overview-meta").map((node) => node.textContent);
     expect(labels.filter((label) => label?.includes("Ready"))).toHaveLength(3);
     expect(labels.filter((label) => label?.includes("Failed"))).toHaveLength(1);
+    // So does the device toggle once the page is open.
+    fireEvent.click(pageButton("https://chickpea.co/pricing"));
+    expect(deviceButton("Desktop capture of https://chickpea.co/pricing")).toHaveTextContent("Ready");
+    expect(deviceButton("Mobile capture of https://chickpea.co/pricing")).toHaveTextContent("Failed");
   });
 
   test("the selected failed device shows its bounded outcome message", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    openHome();
+    await openPricingMobile(user);
     expect(within(detail()).getByRole("alert")).toHaveTextContent(
       "The capture exceeded its total time budget.",
     );
@@ -222,7 +256,8 @@ describe("partial status", () => {
       attempt({ id: "m2", variant: "mobile", attempt: 2, state: "pending" }),
     ]);
     render(<ProjectWorkspace projects={[withRetryInFlight]} onChanged={onChanged} />);
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    openHome();
+    await openPricingMobile(user);
 
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     expect(within(versions).getAllByRole("button").map((b) => b.textContent)).toEqual([
@@ -244,6 +279,7 @@ describe("partial status", () => {
       attempt({ id: "d2", attempt: 2, state: "ready" }),
     ]);
     render(<ProjectWorkspace projects={[recaptured]} onChanged={onChanged} />);
+    openHome();
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     const buttons = within(versions).getAllByRole("button");
     expect(buttons[0]).toHaveTextContent("Version 2 — Ready (default)");
@@ -260,6 +296,7 @@ describe("partial status", () => {
 describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
   test("a ready capture renders through the authorized same-origin asset route", async () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const stage = within(detail()).getByTestId("capture-stage");
     const image = await within(stage).findByRole("img");
     // The authorized editor-session route only: same-origin, never a public
@@ -271,12 +308,13 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
   test("the image's accessible name carries page URL, device, and attempt", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     expect(await within(detail()).findByRole("img")).toHaveAccessibleName(
       "Screenshot of https://chickpea.co/ (Desktop, version 1)",
     );
 
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     expect(await within(detail()).findByRole("img")).toHaveAccessibleName(
       "Screenshot of https://chickpea.co/ (Mobile, version 1)",
@@ -285,6 +323,7 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
 
   test("the image renders at natural document dimensions inside a named canvas region", async () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const stage = within(detail()).getByTestId("capture-stage");
     // The canvas region carries the capture's accessible name; pan/zoom
     // replaces the old scroll region.
@@ -316,15 +355,14 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
         }),
       ]);
       render(<ProjectWorkspace projects={[notReady]} onChanged={onChanged} />);
+      // The page opens on its usable Mobile capture (D077); pick Desktop.
+      openHome();
+      fireEvent.click(deviceButton("Desktop capture of https://chickpea.co/"));
       const stage = within(detail()).getByTestId("capture-stage");
       expect(within(stage).queryByRole("img")).toBeNull();
       expect(stage).toHaveTextContent("No capture to show yet:");
-      // The state is named on the device row itself.
-      expect(
-        within(tree()).getByRole("button", {
-          name: "Desktop capture of https://chickpea.co/",
-        }),
-      ).toHaveTextContent(label);
+      // The state is named on the device toggle itself.
+      expect(deviceButton("Desktop capture of https://chickpea.co/")).toHaveTextContent(label);
     },
   );
 
@@ -336,6 +374,7 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
       attempt({ id: "d2", attempt: 2, state: "failed", errorCode: "total-timeout" }),
     ]);
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
+    openHome();
     // The ready default renders its image.
     expect(await within(detail()).findByRole("img")).toHaveAttribute(
       "src",
@@ -353,6 +392,7 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
 describe("camera modes (VAL-CANVAS-002)", () => {
   test("the initial camera is the named entire-capture (contain) mode", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     // User-directed 2026-09-09: "it should be presented such that the entire
     // page is in view". Contain is the pressed default; width-fit and
     // natural-size remain reachable named modes.
@@ -373,6 +413,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
   test("each named mode is reachable and exactly one is pressed", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const entire = within(detail()).getByRole("button", { name: "Entire page" });
     const width = within(detail()).getByRole("button", { name: "Fit width" });
     const natural = within(detail()).getByRole("button", { name: "Natural size" });
@@ -394,13 +435,14 @@ describe("camera modes (VAL-CANVAS-002)", () => {
   test("changing the selected capture resets the camera to entire-in-view", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
     expect(
       within(detail()).getByRole("button", { name: "Natural size" }),
     ).toHaveAttribute("aria-pressed", "true");
 
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
       "aria-pressed",
@@ -419,6 +461,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     ]);
     cleanup();
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
+    openHome();
     await user.click(within(detail()).getByRole("button", { name: "Fit width" }));
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     await user.click(within(versions).getByRole("button", { name: /Version 1 — Ready/ }));
@@ -430,6 +473,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
 
   test("zoom controls and a live zoom readout sit with the mode buttons", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     expect(within(detail()).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
     expect(within(detail()).getByRole("button", { name: "Zoom out" })).toBeInTheDocument();
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
@@ -437,6 +481,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
 
   test("one short line under the canvas names the three verbs (VAL-CANVAS-009, D074)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     // Plain words, no modes, no jargon: the page teaches the whole workflow
     // in one line, and there is no toggle anywhere to find first.
     const hint = detail().querySelector(".workspace-hint") as HTMLElement;
@@ -458,13 +503,15 @@ describe("camera modes (VAL-CANVAS-002)", () => {
   test("the hint is not shown for a capture that cannot be pinned", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    openHome();
+    await openPricingMobile(user);
     expect(detail().querySelector(".workspace-hint")).toBeNull();
   });
 
   test("each plane keeps its own camera for the session", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
     expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
       "aria-pressed",
@@ -473,7 +520,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
 
     // An unvisited plane still opens in the entire-capture initial camera.
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() =>
       expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
@@ -484,7 +531,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
 
     // Returning to the first plane restores its own camera, not the other's.
     await user.click(
-      within(tree()).getByRole("button", { name: "Desktop capture of https://chickpea.co/" }),
+      deviceButton("Desktop capture of https://chickpea.co/"),
     );
     await waitFor(() =>
       expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
@@ -502,6 +549,7 @@ describe("screen-fixed selection and metadata panel", () => {
       attempt({ id: "root-d1", state: "ready", imageHash: "a3d087b2cafe".repeat(5).slice(0, 64) }),
     ]);
     render(<ProjectWorkspace projects={[identified]} onChanged={onChanged} />);
+    openHome();
     const panel = within(detail()).getByTestId("capture-panel");
     expect(within(panel).getByText("Nothing selected.")).toBeInTheDocument();
     expect(panel).toHaveTextContent("https://chickpea.co/");
@@ -514,12 +562,13 @@ describe("screen-fixed selection and metadata panel", () => {
   test("is not inside the transformed canvas and tracks the active capture", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const panel = within(detail()).getByTestId("capture-panel");
     // Screen-fixed: the panel is layout chrome, never canvas content.
     expect(panel.closest(".react-flow")).toBeNull();
 
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     expect(within(detail()).getByTestId("capture-panel")).toHaveTextContent("Mobile");
   });
@@ -527,13 +576,13 @@ describe("screen-fixed selection and metadata panel", () => {
   test("a non-ready capture keeps its named state and annotates nothing", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(
-      within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!,
-    );
+    openHome();
+    await openPricingMobile(user);
     const stage = within(detail()).getByTestId("capture-stage");
     // Unavailable captures are non-annotatable: no canvas, no pin affordance.
     expect(stage.querySelector(".react-flow")).toBeNull();
-    expect(within(detail()).queryByRole("button", { name: /pin|comment|note/i })).toBeNull();
+    expect(within(detail()).queryByRole("button", { name: /save pin|comment|note/i })).toBeNull();
+    expect(within(detail()).queryByRole("region", { name: /^Screenshot of/ })).toBeNull();
     const panel = within(detail()).getByTestId("capture-panel");
     expect(panel).toHaveTextContent("Failed");
     expect(panel).not.toHaveTextContent("Natural size");
@@ -542,6 +591,7 @@ describe("screen-fixed selection and metadata panel", () => {
   test("a click drops a draft whose composer opens beside it; Escape and switching close it", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const panel = () => within(detail()).getByTestId("capture-panel");
     const clickImage = () => {
       const image = document.querySelector(".capture-frame-image")!;
@@ -574,7 +624,7 @@ describe("screen-fixed selection and metadata panel", () => {
     clickImage();
     await within(detail()).findByRole("dialog", { name: "New pin" });
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() =>
       expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
@@ -587,6 +637,7 @@ describe("screen-fixed selection and metadata panel", () => {
 describe("static screenshot stage", () => {
   test("contains no iframe and no link that could reach the captured site", async () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     const stage = within(detail()).getByTestId("capture-stage");
     expect(stage.querySelector("iframe")).toBeNull();
     expect(stage.getAttribute("onclick")).toBeNull();
@@ -601,6 +652,7 @@ describe("static screenshot stage", () => {
   test("clicking the canvas issues no request and does not change location", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     // The per-plane annotations read settles at mount; after that the canvas
     // is inert — clicks neither navigate nor write.
     await settleAnnotations();
@@ -618,9 +670,12 @@ describe("scoped retry", () => {
     const mixed = project();
     mixed.pages[0]!.devices[0] = device("desktop", [attempt({ id: "d1", state: "capturing" })]);
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
+    // The page opens on its usable Mobile capture (D077); pick the in-flight Desktop.
+    openHome();
+    fireEvent.click(deviceButton("Desktop capture of https://chickpea.co/"));
     expect(within(detail()).queryByRole("button", { name: /^Retry/ })).toBeNull();
 
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    await openPricingMobile(user);
     expect(
       within(detail()).getByRole("button", { name: "Retry Mobile capture" }),
     ).toBeInTheDocument();
@@ -635,11 +690,13 @@ describe("scoped retry", () => {
       }),
     );
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // The default plane's annotations read settles at mount; the count this
-    // test asserts is the retry write alone.
+    openHome();
+    // The plane reads settle first (opening the pricing page reads its
+    // Desktop pins on the way to Mobile); the count this test asserts is the
+    // retry write alone.
+    await openPricingMobile(user);
     await settleAnnotations();
     fetchMock.mockClear();
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
     await user.click(within(detail()).getByRole("button", { name: "Retry Mobile capture" }));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -659,7 +716,8 @@ describe("scoped retry", () => {
       new Response(JSON.stringify({ error: "Request rejected." }), { status: 409 }),
     );
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    openHome();
+    await openPricingMobile(user);
     await user.click(within(detail()).getByRole("button", { name: "Retry Mobile capture" }));
 
     expect(
@@ -703,6 +761,22 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     elementSnapshot: typeof candidateElement | null;
   };
 
+  /** Where each seeded capture sits, for the project-scoped read (D077). */
+  const planeInfo: Record<string, { pageId: string; normalizedUrl: string; variant: string }> = {
+    "root-d1": { pageId: "page-root", normalizedUrl: "https://chickpea.co/", variant: "desktop" },
+    "root-m1": { pageId: "page-root", normalizedUrl: "https://chickpea.co/", variant: "mobile" },
+    "pricing-d1": {
+      pageId: "page-pricing",
+      normalizedUrl: "https://chickpea.co/pricing",
+      variant: "desktop",
+    },
+  };
+  const locate = (pin: StubPin) => ({
+    ...pin,
+    ...(planeInfo[pin.captureId] ?? planeInfo["root-d1"]!),
+    attempt: 1,
+  });
+
   /**
    * A stateful annotations + context endpoint: one in-memory pin list per
    * test, with revision-precondition PATCH/DELETE semantics mirroring the
@@ -724,6 +798,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       }
       if (target.endsWith("/share")) {
         return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        return Promise.resolve(json({ annotations: pins.map(locate) }));
       }
       if (!target.includes("/annotations")) {
         return Promise.reject(new Error(`unexpected fetch: ${target}`));
@@ -832,6 +909,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
 
     await placeDraft();
@@ -872,6 +950,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations([], [candidateElement]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
 
@@ -898,6 +977,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations([], [candidateElement]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
     await settleCandidates();
@@ -917,6 +997,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
 
@@ -935,6 +1016,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
     await settleCandidates();
@@ -956,6 +1038,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
     await user.type(within(composer()).getByLabelText("Comment"), "never saved");
@@ -968,6 +1051,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
   test("N drops a draft at the viewport center from the canvas region", async () => {
     stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     const region = within(detail()).getByRole("region", { name: /^Screenshot of/ });
     fireEvent.keyDown(region, { key: "n" });
@@ -984,6 +1068,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations([], [candidateElement]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
 
@@ -1031,7 +1116,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     fireEvent.mouseEnter(document.querySelector('.panel-candidate[data-element-id="cell-1"]')!);
     await waitFor(() => expect(preview()).not.toBeNull());
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() => expect(preview()).toBeNull());
     expect(writes).toHaveLength(0);
@@ -1041,6 +1126,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
     await user.type(within(composer()).getByLabelText("Comment"), "never saved");
@@ -1064,6 +1150,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       return Promise.resolve(json({ annotations: [] }));
     });
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await settleAnnotations();
     await placeDraft();
     await user.type(within(composer()).getByLabelText("Comment"), "keep me");
@@ -1085,6 +1172,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() =>
       expect(
         within(sidePanel()).getByRole("button", { name: /Pin 1 — at \(720, 4000\)/ }),
@@ -1108,6 +1196,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() =>
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
@@ -1116,7 +1205,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     // The mock serves the same list for any capture id; the workspace must
     // re-fetch on switch and never show the old plane's pins mid-flight.
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() =>
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
@@ -1142,10 +1231,11 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       return Promise.reject(new Error(`unexpected fetch: ${target}`));
     });
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() => expect(pending.has("/api/captures/root-d1/annotations")).toBe(true));
 
     await user.click(
-      within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
+      deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() => expect(pending.has("/api/captures/root-m1/annotations")).toBe(true));
 
@@ -1169,6 +1259,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() =>
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
@@ -1199,6 +1290,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const stalePin = { ...savedPin, revision: 1 };
     const { pins } = stubAnnotations([stalePin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() =>
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
@@ -1227,6 +1319,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations([savedPin]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
     await waitFor(() =>
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
     );
@@ -1268,17 +1361,17 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       return base;
     }
 
-    test("the rail badges each device and the project summary and header carry the counts", async () => {
+    test("the rail badges each page and the project summary and header carry the counts", async () => {
       render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+    openHome();
       await settleAnnotations();
       const badges = within(tree()).getAllByTestId("feedback-badge");
       expect(badges.map((badge) => badge.textContent)).toEqual(["2 new · 1 open", "1 open"]);
       expect(badges[0]).toHaveAttribute("data-unread", "true");
       expect(badges[1]).toHaveAttribute("data-unread", "false");
-      // The device button's accessible name is unchanged; the badge speaks for itself.
-      expect(
-        within(tree()).getByRole("button", { name: "Desktop capture of https://chickpea.co/" }),
-      ).toBeInTheDocument();
+      // The page button's accessible name is unchanged; the badge speaks for itself.
+      expect(pageButton("https://chickpea.co/")).toBeInTheDocument();
+      expect(badges[0]).toHaveAttribute("aria-label", "https://chickpea.co/: 2 new · 1 open");
       const summary = "3 pins · 2 open · 1 resolved · 2 unread replies";
       expect(within(tree()).getByTestId("project-feedback-summary")).toHaveTextContent(summary);
       expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent(summary);
@@ -1295,6 +1388,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
         return Promise.reject(new Error(`unexpected fetch: ${target}`));
       });
       render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
       const header = within(detail()).getByTestId("project-header");
       expect(within(header).getByTestId("project-title")).toHaveTextContent("chickpea.co");
       // The rail's hidden heading stays the only heading with the project's name.
@@ -1311,6 +1405,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       const user = userEvent.setup();
       const { feedback } = stubAnnotations([{ ...savedPin, status: "replied", unreadReplies: 2 }]);
       render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+    openHome();
       const pinButton = await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
       expect(pinButton).toHaveTextContent("2 new");
       expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent("2 new · 1 open");
@@ -1330,6 +1425,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       const user = userEvent.setup();
       const { feedback, writes } = stubAnnotations([savedPin]);
       render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+    openHome();
       await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
       expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Open");
 

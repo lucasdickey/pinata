@@ -14,7 +14,7 @@
 // state back — the same durability the real routes provide.
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   CAPTURE_POLL_INITIAL_INTERVAL_MS,
@@ -110,6 +110,10 @@ function serve(onDispatch: DispatchHandler): void {
       return onDispatch(captureId, (state) => {
         states[captureId] = state;
       });
+    }
+    // The workspace's project-scoped pin read (D077) is not a hierarchy read.
+    if (/^\/api\/projects\/[^/]+\/annotations$/.test(url)) {
+      return Promise.resolve(Response.json({ annotations: [] }));
     }
     return Promise.resolve(Response.json({ projects: hierarchy() }));
   });
@@ -240,7 +244,19 @@ describe("capture dispatch driver", () => {
     expect(dispatchCalls).toHaveLength(4);
     expect(Object.values(states).every((state) => state === "failed")).toBe(true);
 
-    // The catalog outcome is what the workspace surfaces.
+    // The catalog outcome is what the workspace surfaces: the overview names
+    // the failed state, and opening the page shows the outcome message.
+    expect(screen.getAllByTestId("overview-state").map((node) => node.textContent)).toEqual([
+      "Failed",
+      "Failed",
+      "Failed",
+      "Failed",
+    ]);
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
+        name: "https://safe.example/",
+      }),
+    );
     expect(
       screen.getByText("The address could not be resolved to a public host."),
     ).toBeInTheDocument();

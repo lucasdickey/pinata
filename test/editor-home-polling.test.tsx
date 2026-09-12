@@ -79,13 +79,15 @@ function queueStates(...states: AttemptView["state"][]): void {
     if ((init?.method ?? "GET") !== "GET") {
       return new Promise<Response>(() => {});
     }
-    // The project header's share status read (D075) is not a hierarchy
-    // read and must not consume a queued state.
+    // The project header's share status read (D075) and the project-scoped
+    // pin read (D077) are not hierarchy reads and must not consume a queued
+    // state.
     if (isShareStatusRead(url)) {
       return Promise.resolve(
         Response.json({ share: { state: "none", version: 0, revokedAt: null } }),
       );
     }
+    if (isProjectPinsRead(url)) return Promise.resolve(Response.json({ annotations: [] }));
     const state = states[Math.min(index, states.length - 1)]!;
     index += 1;
     return Promise.resolve(Response.json({ projects: [projectWith(state)] }));
@@ -105,9 +107,14 @@ function hierarchyReads(): number {
   ).length;
 }
 
-/** The one non-hierarchy read the workspace makes: the share status (D075). */
+/** A non-hierarchy read the workspace makes: the share status (D075). */
 function isShareStatusRead(url: unknown): boolean {
   return /^\/api\/projects\/[^/]+\/share$/.test(String(url));
+}
+
+/** The other non-hierarchy read: the shown project's pins (D077). */
+function isProjectPinsRead(url: unknown): boolean {
+  return /^\/api\/projects\/[^/]+\/annotations$/.test(String(url));
 }
 
 async function tick(ms: number): Promise<void> {
@@ -122,7 +129,7 @@ function expectReadOnlyPolling(): void {
   for (const call of fetchMock.mock.calls) {
     const method = (call[1] as RequestInit | undefined)?.method ?? "GET";
     if (method === "GET") {
-      if (isShareStatusRead(call[0])) continue;
+      if (isShareStatusRead(call[0]) || isProjectPinsRead(call[0])) continue;
       expect(call[0]).toBe("/api/projects");
     } else {
       expect(method).toBe("POST");

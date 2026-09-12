@@ -1498,3 +1498,134 @@ pre code {
   margin-top: 1.25rem;
   color: var(--ink-soft);
 }
+
+/* ---- project overview, device toggle, pin stepping (D077) ---- */
+
+/* The rail lists projects and pages only; a page is one button carrying its
+   URL, with the summed feedback badge beside it. */
+.workspace-tree .tree-pages {
+  padding-left: 0.75rem;
+}
+
+.workspace-tree .tree-pages > li {
+  margin: 0.25rem 0;
+}
+
+.workspace-tree button.page-url {
+  display: inline;
+  text-align: left;
+  word-break: break-all;
+  font-size: 0.9rem;
+}
+
+.workspace-tree .tree-overview {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+/* One card per capture, in page order, Desktop then Mobile. The thumbnail
+   is the same private asset the canvas renders, clipped to a fixed frame
+   and sized by CSS; no new storage. */
+.project-overview {
+  margin-top: 0.5rem;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.6rem;
+  text-align: left;
+  font: inherit;
+}
+
+.overview-thumb {
+  display: block;
+  width: 100%;
+  height: 10rem;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
+.overview-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.overview-url {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.overview-meta,
+.overview-counts {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.overview-counts[data-unread="true"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The canvas view's controls sit in one row directly above the stage, next
+   to the camera controls the canvas draws as its first row. */
+.canvas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.device-toggle,
+.pin-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.device-toggle button[aria-pressed="true"],
+.pin-table-scope button[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.pin-step-position {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pin-table-scope {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.pin-table-page {
+  overflow-wrap: anywhere;
+  font-size: 0.85em;
+}
+
+.pin-table-device {
+  white-space: nowrap;
+}

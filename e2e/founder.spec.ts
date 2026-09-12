@@ -238,7 +238,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     `Founder link active · v${first.version}`,
   );
   await expect(
-    page.getByRole("navigation", { name: "Projects, pages, and devices" }).getByRole("button", {
+    page.getByRole("navigation", { name: "Projects and pages" }).getByRole("button", {
       name: "Share with founder",
     }),
   ).toHaveCount(0);

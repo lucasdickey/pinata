@@ -127,3 +127,26 @@ export interface PinSeenResponse {
 export interface PinContextResponse {
   candidates: PinElementSnapshot[];
 }
+
+// ---- project-scoped read (D077) --------------------------------------------
+
+/**
+ * One live annotation as the project-scoped read returns it: the per-capture
+ * view plus where the capture sits in the project, so the workspace can
+ * order pins across planes (page, then device, then number) and the table
+ * can name the page and device beside a number that is only unique per
+ * capture.
+ */
+export interface ProjectPinAnnotationView extends PinAnnotationView {
+  pageId: string;
+  normalizedUrl: string;
+  /** The capture variant: "desktop" or "mobile". */
+  variant: string;
+  /** The capture attempt (version) the pin lives on. */
+  attempt: number;
+}
+
+/** GET /api/projects/[publicId]/annotations response. */
+export interface ProjectPinListResponse {
+  annotations: ProjectPinAnnotationView[];
+}
