@@ -566,6 +566,7 @@ clears the bucket.
 | `ANNOTATION_REQUEST_MAX_BYTES` | 16,384 bytes | Byte cap for annotation create and move requests. |
 | `CLIENT_REQUEST_TIMEOUT_MS` | 15,000 ms | Every client request reaches a terminal state within this budget. |
 | `MIN_HIT_TARGET_CSS_PX` | 24 px | Shared minimum pointer/touch hit target (WCAG 2.2 AA, 2.5.8). |
+| `PLACEMENT_SLOP_SCREEN_PX` | 6 px | Pointer travel at or below this between press and release is a click (drop a pin, select a pin); more is a drag (pan the camera, move a pin). |
 
 ### Performance protocol and budgets
 

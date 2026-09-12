@@ -89,6 +89,7 @@ import {
   PERF_PAN_ZOOM_CYCLES,
   PERF_RETAINED_HEAP_MAX_BYTES,
   PERF_SELECTION_CYCLES,
+  PLACEMENT_SLOP_SCREEN_PX,
   POLICY_VERSION,
   PROJECT_REQUEST_MAX_BYTES,
   PROJECT_TITLE_MAX_CHARS,
@@ -212,6 +213,7 @@ const FEEDBACK_ROWS: DocRow[] = [
 const INTERACTION_ROWS: DocRow[] = [
   { name: "CLIENT_REQUEST_TIMEOUT_MS", value: fmtMs(CLIENT_REQUEST_TIMEOUT_MS) },
   { name: "MIN_HIT_TARGET_CSS_PX", value: fmtPx(MIN_HIT_TARGET_CSS_PX) },
+  { name: "PLACEMENT_SLOP_SCREEN_PX", value: fmtPx(PLACEMENT_SLOP_SCREEN_PX) },
 ];
 
 const PERFORMANCE_ROWS: DocRow[] = [
@@ -373,6 +375,10 @@ describe("boundary catalog coverage and consistency", () => {
   test("hit targets and feedback bounds meet their floors", () => {
     // WCAG 2.2 AA target-size minimum.
     expect(MIN_HIT_TARGET_CSS_PX).toBeGreaterThanOrEqual(24);
+    // The click-versus-drag distance must be a fraction of the smallest hit
+    // target, or a press inside a badge could not end as a click.
+    expect(PLACEMENT_SLOP_SCREEN_PX).toBeGreaterThan(0);
+    expect(PLACEMENT_SLOP_SCREEN_PX).toBeLessThan(MIN_HIT_TARGET_CSS_PX / 2);
     expect(FEEDBACK_BODY_MAX_CHARS).toBeGreaterThan(0);
     expect(MAX_ANNOTATIONS_PER_CAPTURE).toBeGreaterThanOrEqual(NEARBY_CANDIDATES_MAX);
     expect(NEARBY_CANDIDATES_MAX).toBeGreaterThan(0);
