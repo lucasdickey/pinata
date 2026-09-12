@@ -3271,8 +3271,264 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D074",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "Drop a pin with one gesture: no interaction modes, a composer anchored at the pin, a pre-selected element with overrides, and keyboard equivalents",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Placing a pin took a mode switch (Navigate to Place pin), a click, a comment typed in the side panel far from the click, a mandatory choice between a nearby element and 'No element' before Save would enable, the save itself, and a switch back to Navigate to pan again. The on-page explanation of that ran to about 120 words. The milestone-1 live checkpoint (EVALS M1-LIVE-3, M1-LIVE-4) had already recorded the owner unable to discover the pin mechanism; adding the modes made it explainable, not discoverable.",
+      "decision": "One interaction model with no modes. A press on the screenshot that releases without moving past the placement slop drops a draft pin; a press that moves pans the camera; a saved pin drags by its badge in every state, committing one revisioned move at drag end as before. The comment composer opens in a popover anchored beside the draft badge, screen-fixed against the plane's transform so it never leaves the viewport; the side panel keeps the full detail view and the pins list. The nearby-element decision stays explicit in the data (the client still sends a candidate id or null and the server still derives the snapshot, D061) but the top-ranked candidate is pre-selected and shown as one chip with 'Change' and 'No element' controls, so the common case is type, then Enter. Keyboard: Enter saves a draft (Shift+Enter inserts a newline), Escape cancels, J/K or the arrow keys step through saved pins, N drops a draft at the viewport center. The two-mode toolbar and the long hint are removed; a short line under the canvas names the three verbs.",
+      "alternatives": [
+        {
+          "option": "Keep the modes but shorten the hint",
+          "why_not": "The hint was long because the interaction had that many steps; a shorter hint would describe the same steps less completely."
+        },
+        {
+          "option": "Keep the mandatory undecided state for the element choice",
+          "why_not": "An undecided state exists to prevent an accidental attachment. A visible pre-selected chip with a one-click 'No element' prevents the same accident without blocking every save behind a radio group."
+        },
+        {
+          "option": "Compose in the side panel as before, but auto-focus the textarea on drop",
+          "why_not": "Focus jumping across the screen is the problem in a smaller form: the editor's eyes are on the pin, and the comment belongs next to it."
+        }
+      ],
+      "rationale": "Proposed by the agent from the code review and the checkpoint evidence, approved by the human in the same message as the rest of the overhaul. The data contract does not change: drafts still write nothing, one create per save, one move per drag, the snapshot still derives server-side from the persisted manifest. Only the number of user actions between intent and a saved pin changes, from six to two.",
+      "consequences": [
+        "INTERACTION_MODES and the Place pin toolbar are removed from capture-canvas; specs that clicked 'Place pin' change to press-and-release on the frame.",
+        "The click-versus-drag distinction now carries product meaning, so PLACEMENT_SLOP_SCREEN_PX becomes a published interaction boundary and the drag threshold decision (D062) is re-examined against it.",
+        "Pins are draggable in the only mode there is; an accidental nudge is undone by dragging back, and the move is one revisioned write as before.",
+        "Keyboard shortcuts must not fire while focus is in a text field, and are listed in the details disclosure D078 introduces."
+      ],
+      "transcript": {
+        "proposal": "Make dropping a pin a one-gesture act, not a mode plus three decisions. Today the editor switches to Place pin mode, clicks, writes the comment in a panel on the far side of the screen, must pick a nearby element or explicitly choose 'No element' before Save enables, saves, then switches back to Navigate to pan again. The hint paragraph explaining this runs about 120 words, and the live checkpoint recorded the owner unable to find the mechanism at all. The fix: drop the mode switch (a click that doesn't move drops a draft; a drag pans; pins drag by their badge in every state); compose at the pin in a popover anchored to the draft; pre-select the top-ranked nearby element as a chip with 'change' and 'none' as overrides so Save becomes Enter after typing; keyboard: Escape cancels, Enter saves, arrows or J/K step between pins, N starts a new pin at the viewport center.",
+        "approval": "yep let's do them, prioritizing 1, 2 and 5 first. then find the feature set associated with doing a square bounding box with comments, too. draft the decision records, then spin up sub-agents to do the work where parallelization is doable"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The canvas, now modeless."
+        },
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "Detail panel; the composer moves to an anchored popover."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D075",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "Close the feedback loop: a pin lifecycle (open, replied, resolved), per-role last-seen with unread counts, a founder pin list, and sharing in the project header",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The product promises the founder's reply, but a reply was invisible until the editor selected each pin and opened its thread. No count said where new replies were. Neither role could mark a note done, so a reviewed project looked identical to an unreviewed one. The founder had no list of the notes waiting for them, only badges on a screenshot. And 'Share with founder', the action that starts the loop, was inside the collapsed project rail.",
+      "decision": "Pins gain a status: open on create, replied when the other role appends to the thread, resolved when either role resolves it. Resolving and reopening are reversible and each writes an append-only thread entry of a new system kind naming who did it, so the immutable chronology (REQUIREMENTS 6) records the state change rather than a mutable column alone. Each role's last-seen time is stored per project (editor) and per capability session (founder); a reply is unread for a role when it postdates that role's last view of the pin. The hierarchy read returns unread and open counts per capture and per project so the rail, the overview, and the header can show them without extra requests; viewing a pin's thread marks it seen. The founder view gains a pin list above the canvas with comment excerpts, status, and unread markers, in pin-number order, each entry focusing its pin. 'Share with founder' moves to the project header next to the title with its state (no link, active vN, revoked) always visible; its panel behavior is unchanged.",
+      "alternatives": [
+        {
+          "option": "Email or push notifications",
+          "why_not": "There is no email or identity for the founder by design; a notification channel is a separate product decision. Counts inside the product are the prerequisite either way."
+        },
+        {
+          "option": "Resolved as a mutable flag only, no thread entry",
+          "why_not": "A flag can flip silently. The thread is the record both roles trust, and a status change is a thing that happened in the conversation."
+        },
+        {
+          "option": "Let only the editor resolve",
+          "why_not": "The founder is the one who acts on a note; 'done' is their statement. The editor can reopen."
+        }
+      ],
+      "rationale": "Proposed by the agent, approved by the human. Status and last-seen are additive columns and one new thread-entry kind; the append-only triggers and the founder's read/reply-only boundary are untouched. Counts ride on the existing hierarchy read so the workspace's default traffic does not grow.",
+      "consequences": [
+        "Schema migration: annotations.status, a system entry kind in thread_entries, and per-role last-seen rows; migrations committed, D-tests updated.",
+        "New authorized routes: resolve/reopen per annotation (both roles), and mark-seen; the founder capability grants exactly these in addition to reply.",
+        "The pin table, the Markdown export, and the walkthrough copy learn about status.",
+        "D077's overview consumes the same counts; D078 renames the labels."
+      ],
+      "transcript": {
+        "proposal": "Close the feedback loop with pin state and unread signals. The reply is invisible until the editor selects each pin and opens its thread; nothing says '3 new replies on the pricing page'; neither side can mark anything done; the founder has no list of what they're expected to look at. Build: a pin lifecycle (open, replied, resolved; either role can resolve; reversible and logged as a thread entry so the append-only rule holds); unread reply counts on pins, on each capture in the rail, and on the project header, from a last-seen timestamp per role; a founder-side pin list with comment excerpts and status; move 'Share with founder' out of the collapsed rail into the project header with the link state visible.",
+        "approval": "yep let's do them, prioritizing 1, 2 and 5 first. then find the feature set associated with doing a square bounding box with comments, too. draft the decision records, then spin up sub-agents to do the work where parallelization is doable"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/founder-view.tsx",
+          "caption": "Founder pin list and resolve control."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/hierarchy.ts",
+          "caption": "Unread and open counts ride the hierarchy read."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D076",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "Drive capture from the server with progress and one automatic retry; the browser tab is no longer required for a project to finish",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Capture dispatch was driven only by the editor's browser tab (D049): the client POSTed each pending attempt to the dispatch route, polled the hierarchy, and stopped polling after ten minutes. Closing the tab after creating a project stalled the remaining captures; an attempt that stopped responding waited for a manual retry; and after creation the editor saw rows reading 'Queued' with no sense of how long the project would take.",
+      "decision": "The server continues capture work after it has answered. Project creation and retry schedule the first dispatches to run after the response is written (Next.js after()), each dispatch schedules the next pending attempt of the same project when it finalizes, and a secret-protected sweep route re-drives any pending or stale attempt for a scheduled job to call, so a chain that dies mid-way is picked up. The durable two-lease cap remains the only concurrency authority. A retryable failure or a stale attempt is retried once automatically, recorded as a new attempt exactly as a manual retry is; a second failure surfaces with its catalog reason and a retry control at project level. The hierarchy read reports progress per project: attempts done, remaining, the page currently capturing, and an estimate from the median duration of this project's finished attempts. The client keeps its driver as a fallback re-driver, so nothing regresses where after() cannot run. Pinning is available on any ready capture while the rest continue.",
+      "alternatives": [
+        {
+          "option": "A queue service (Upstash, Inngest)",
+          "why_not": "A new external dependency and account for a two-user product; after() plus a sweep route gives the same guarantee within the platform already in use."
+        },
+        {
+          "option": "A cron-only design",
+          "why_not": "Vercel cron granularity depends on plan (daily on Hobby); progress that waits a day is not progress. Cron is the backstop, not the driver."
+        },
+        {
+          "option": "Keep client-driven capture and simply extend polling",
+          "why_not": "The failure mode is the tab going away, which longer polling does not address."
+        }
+      ],
+      "rationale": "Proposed by the agent, approved by the human. The dispatch and execution modules already run a whole capture inside one request, so continuing that work after the response reuses the same code path with a different trigger. The one-retry policy mirrors what the owner did by hand in the checkpoint (M1-LIVE-5).",
+      "consequences": [
+        "Function duration limits on the deployment must cover one capture (TOTAL_CAPTURE_TIMEOUT_MS is 90 s); the implementing session verifies the configured maxDuration and records the finding.",
+        "A new sweep route with a shared secret; the secret's name joins the deployment's environment variable list in README.",
+        "Automatic retry consumes attempt budget (MAX_CAPTURE_ATTEMPTS_PER_PROJECT) and is bounded to one per attempt.",
+        "Progress fields are additive on the hierarchy response; the polling policy stays read-only and stops when nothing is in progress."
+      ],
+      "transcript": {
+        "proposal": "Take capture off the browser tab and show honest progress. The dispatch driver runs in the editor's tab: close it and capture stalls, polling gives up after ten minutes, and a stopped attempt waits for a manual retry. After creating a project the editor lands on rows that say 'Queued' with no expectation set. Change: drive capture server-side so a project finishes whether or not a tab is open; show progress per project (which page is capturing, how many remain, a rough time from observed durations); retry a stopped attempt once automatically, then surface the failure reason with a retry button at project level; let pinning start on the first ready capture while the rest continue.",
+        "approval": "yep let's do them, prioritizing 1, 2 and 5 first. then find the feature set associated with doing a square bounding box with comments, too. draft the decision records, then spin up sub-agents to do the work where parallelization is doable"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/captures/dispatch.ts",
+          "caption": "Dispatch, now continued server-side."
+        },
+        {
+          "type": "file",
+          "path": "src/components/editor-home.tsx",
+          "caption": "Client driver kept as fallback; progress shown."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D077",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Everything about pins was scoped to one capture: the list, the table, the Markdown export, the selection. A Chickpea project is four pages times two devices, so reviewing it meant visiting eight planes with no view of where the notes were or what was left to read.",
+      "decision": "The workspace opens on a project overview: one card per capture, in page order, Desktop then Mobile, showing a thumbnail, the page URL, capture state, and pin, open, and unread counts from D075; a card opens its capture in the canvas. Within a page, Desktop and Mobile become a toggle above the canvas instead of two rail entries, and the rail lists projects and pages only. Next pin and Previous pin controls (and J/K per D074) step through every pin in the project in page, device, number order, switching capture as needed and remembering each plane's camera. The pin table and 'Copy all as Markdown' move to project scope with page and device columns; the per-capture view filters the same table.",
+      "alternatives": [
+        {
+          "option": "Keep per-capture scope and add a project export button only",
+          "why_not": "Export is the last step; the missing thing is orientation while reviewing."
+        },
+        {
+          "option": "All captures on one canvas",
+          "why_not": "Explicitly a non-goal (REQUIREMENTS): independent planes keep coordinates and camera simple, and eight full-page captures on one surface is unreadable."
+        }
+      ],
+      "rationale": "Proposed by the agent, approved by the human, ordered after D074, D075, and D076 at the human's direction. The thumbnail is the existing private asset served through the authorizing route, sized by CSS; no new storage.",
+      "consequences": [
+        "The rail's two-level disclosure (D070) simplifies to projects and pages.",
+        "Pin numbering stays per capture; the project-scoped table shows page and device so numbers are unambiguous.",
+        "The Markdown export format (D071) gains a heading per capture."
+      ],
+      "transcript": {
+        "proposal": "Give the editor a project-level view instead of eight separate planes. Pins, the pin table, and Markdown export are all scoped to one capture, so reviewing a four-page project means visiting eight planes with no sense of where the notes are. Build: a project overview thumbnail grid with pin counts and unread badges; Desktop and Mobile as a toggle on the same page view, not separate tree entries; 'Next pin' and 'previous pin' that cross page and device boundaries; the pin table and 'Copy all as Markdown' at project scope with page and device columns.",
+        "approval": "yep let's do them, prioritizing 1, 2 and 5 first. then find the feature set associated with doing a square bounding box with comments, too. draft the decision records, then spin up sub-agents to do the work where parallelization is doable"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D078",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "Speak the user's language: pins named by their comment and element, internals behind a Details disclosure, and a reading-first founder view on phones",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Both views identified a pin as 'Pin 1 at natural pixel (462, 410)' and listed image hash, version, state, and natural size beside it. The founder, who is not a developer, saw the same. Two long instruction paragraphs explained interactions that D074 makes self-evident, and the founder view stacked a tall canvas above the panel, so on a phone the notes were a screen below the picture.",
+      "decision": "Pins are named by an excerpt of their comment and, when attached, the element's short label: 'Pin 3 · \"Annual (save 20%)\" toggle'. Coordinates, natural size, version, state, and image hash move behind one 'Details' disclosure in the editor panel and leave the founder view entirely. The instruction paragraphs are replaced by a one-line verb strip beside the controls (drop a pin: click the page · move: drag it · read: click a pin) and a keyboard list inside Details. The founder view on narrow widths puts the pin list (D075) first, the canvas second, and opens the canvas scrolled to the chosen pin when an entry is tapped.",
+      "alternatives": [
+        {
+          "option": "Tooltips over the technical labels",
+          "why_not": "Hover-only content is already excluded by the quality attributes under test, and the labels were noise, not underexplained."
+        },
+        {
+          "option": "Hide internals for the founder only",
+          "why_not": "The editor does not need coordinates while working either; a disclosure keeps them one click away for debugging."
+        }
+      ],
+      "rationale": "Proposed by the agent, approved by the human; sequenced last because it rewrites copy across the surfaces the other records change.",
+      "consequences": [
+        "Every test that matched 'at natural pixel' or the hint text is rewritten against the new labels.",
+        "Accessible names keep the pin number first so screen-reader order is stable.",
+        "The walkthrough's annotate and share slides are updated to the new labels."
+      ],
+      "transcript": {
+        "proposal": "Replace implementation vocabulary with the user's vocabulary, especially for the founder. Both views identify pins as 'Pin 1 at natural pixel (462, 410)' and show image hash, version, and state facts. Change: identify pins by comment excerpt and element; move coordinates, hash, version, and capture state behind a 'Details' disclosure in the editor and remove them from the founder view entirely; rewrite the two long instruction paragraphs into three short verbs beside the controls they describe; treat the founder view as a reading experience first, notes list on top on a phone, canvas as the way to see where a note points.",
+        "approval": "yep let's do them, prioritizing 1, 2 and 5 first. then find the feature set associated with doing a square bounding box with comments, too. draft the decision records, then spin up sub-agents to do the work where parallelization is doable"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D079",
+      "date": "2026-09-12",
+      "phase": "build",
+      "title": "Rectangle marks: drag to draw a box, comment and context like a pin, shared numbering, resizable, readable by the founder",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The human asked for a square bounding box with a comment. The requirements and schema already anticipated rich marks (REQUIREMENTS 4, annotations.kind allows rectangle, MIN_SHAPE_SIZE_PX is published) but nothing drew, stored, listed, or exported one.",
+      "decision": "A rectangle is a second annotation kind on the same canvas and in the same numbering sequence as pins. Drawing: with the modeless model of D074, a press that moves on empty screenshot pans; holding Shift while pressing, or choosing the Box tool, draws a rectangle from press to release in natural pixels, clamped to the frame and rejected under MIN_SHAPE_SIZE_PX. The draft opens the same anchored composer; nearby candidates are ranked by overlap with the box instead of distance to a point, with the largest-overlap element pre-selected. Saved rectangles render as a stroked box with the number badge at the top-left corner, are movable by dragging the box and resizable by eight handles, each committing one revisioned geometry write. Geometry is {x, y, width, height} at geometry_version 1. Rectangles carry threads, status, unread, and resolve exactly as pins do, appear in the pin table and Markdown export with their bounds, and render read-only for the founder with no handles.",
+      "alternatives": [
+        {
+          "option": "Free-form drawing or circles first",
+          "why_not": "The human asked for the box. Circles and arrows reuse the same resize and geometry path later."
+        },
+        {
+          "option": "A separate numbering sequence for boxes",
+          "why_not": "One sequence per capture keeps 'note 4' unambiguous in the thread, the table, and the export."
+        },
+        {
+          "option": "Draw by clicking two corners",
+          "why_not": "Press-drag-release is the gesture every design tool uses; two clicks would collide with pin placement."
+        }
+      ],
+      "rationale": "Directed by the human. The persistence rules from D059 and D061 (server numbering, idempotent create, revisioned mutation, tombstone delete, server-derived snapshot) apply unchanged; only the geometry shape and the candidate ranking are new.",
+      "consequences": [
+        "The annotation routes stop assuming kind is pin; list, create, update, and delete take a kind-aware geometry validator.",
+        "The canvas grows a rectangle node type with handles; the flow model gains a rectangle geometry helper with clamp and minimum-size rules.",
+        "The overlap ranking joins the context route beside the point ranking, with its own tests.",
+        "Circles and arrows remain unbuilt; NEXT.md says so."
+      ],
+      "transcript": {
+        "request": "then find the feature set associated with doing a square bounding box with comments, too."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/annotations/schemas.ts",
+          "caption": "Kind-aware geometry validation."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-10",
-  "source_hash": "507820aae504"
+  "as_of": "2026-09-12",
+  "source_hash": "29c7d281b15f"
 };
