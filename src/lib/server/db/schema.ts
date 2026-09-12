@@ -73,6 +73,15 @@ export type CaptureVariant = (typeof CAPTURE_VARIANTS)[number];
 export const CAPTURE_STATUSES = ["pending", "capturing", "ready", "failed"] as const;
 export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
 
+/**
+ * Who asked for an attempt: `manual` for the initial attempts a project
+ * submission commits and for a retry the editor pressed; `automatic` for the
+ * one retry the server creates on its own after a retryable failure or a
+ * stale attempt. An automatic attempt is never retried automatically again.
+ */
+export const CAPTURE_ORIGINS = ["manual", "automatic"] as const;
+export type CaptureOrigin = (typeof CAPTURE_ORIGINS)[number];
+
 export const captures = sqliteTable(
   "captures",
   {
@@ -109,6 +118,12 @@ export const captures = sqliteTable(
     errorCode: text("error_code"),
     errorMessage: text("error_message"),
     capturedAt: integer("captured_at"),
+    /** `manual` or `automatic` (see CAPTURE_ORIGINS). */
+    origin: text("origin").notNull().default("manual"),
+    /** When the attempt was claimed (pending → capturing); null before that. */
+    startedAt: integer("started_at"),
+    /** When the attempt reached ready or failed; null while it is open. */
+    finishedAt: integer("finished_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },

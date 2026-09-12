@@ -27,6 +27,7 @@ import type {
 import type { NaturalPoint } from "../lib/canvas/camera";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
+import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import {
   CapturePanel,
@@ -74,6 +75,8 @@ export interface WorkspaceProject {
   rootUrl: string;
   pages: WorkspacePage[];
   counts: { pages: number; attempts: number; ready: number; failed: number; inProgress: number };
+  /** Server-computed capture progress (D076); absent on older payloads. */
+  progress?: ProjectProgress;
 }
 
 interface Selection {
@@ -816,6 +819,9 @@ export function ProjectWorkspace({
           <h3>
             {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
           </h3>
+
+          {/* Project-level capture progress and retry (D076). */}
+          <CaptureProgress project={active.project} onChanged={onChanged} />
 
           {/* Self-documenting canvas (VAL-CANVAS-009): plain-language
               instructions for every interaction this build actually has —

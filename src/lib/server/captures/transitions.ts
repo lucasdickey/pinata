@@ -61,6 +61,10 @@ function patchFor(input: CaptureTransitionInput): Record<string, unknown> {
     if (value !== undefined) patch[key] = value;
   }
   if (input.to === "ready") patch.capturedAt = input.now;
+  // Started and finished instants make an attempt's duration readable
+  // later, which is what the per-project progress estimate is built from.
+  if (input.to === "capturing") patch.startedAt = input.now;
+  if (input.to === "ready" || input.to === "failed") patch.finishedAt = input.now;
   return patch;
 }
 

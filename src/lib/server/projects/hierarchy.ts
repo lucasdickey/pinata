@@ -39,11 +39,79 @@ export interface ProjectHierarchy {
   createdAt: number;
   pages: HierarchyPage[];
   counts: HierarchyCounts;
+  progress: ProjectProgress;
 }
 
 type CaptureRow = typeof schema.captures.$inferSelect;
 type PageRow = typeof schema.pages.$inferSelect;
 type ProjectRow = typeof schema.projects.$inferSelect;
+
+// ---- capture progress (D076) ------------------------------------------------
+// Per-project progress, computed from the same rows as the hierarchy: one
+// unit per page device, judged by its newest attempt, plus a time estimate
+// from what this project's finished attempts actually took.
+
+export interface ProjectProgress {
+  /** Page devices with at least one attempt. */
+  total: number;
+  /** Devices whose newest attempt is ready. */
+  done: number;
+  /** Devices whose newest attempt failed. */
+  failed: number;
+  /** Devices whose newest attempt is pending, capturing, or computed stale. */
+  inProgress: number;
+  /** The first page (in submitted order) with an attempt capturing right now. */
+  capturingPage: string | null;
+  /**
+   * Median duration of this project's finished attempts times the devices
+   * still in progress; null until at least one attempt has finished.
+   */
+  estimatedRemainingMs: number | null;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]!
+    : Math.round((sorted[middle - 1]! + sorted[middle]!) / 2);
+}
+
+/** Progress for one project from its built pages and its raw attempt rows. */
+export function computeProjectProgress(
+  pages: HierarchyPage[],
+  captureRows: CaptureRow[],
+): ProjectProgress {
+  const progress: ProjectProgress = {
+    total: 0,
+    done: 0,
+    failed: 0,
+    inProgress: 0,
+    capturingPage: null,
+    estimatedRemainingMs: null,
+  };
+  for (const page of pages) {
+    for (const device of page.devices) {
+      const latest = device.latest;
+      if (!latest) continue;
+      progress.total += 1;
+      if (latest.state === "ready") progress.done += 1;
+      else if (latest.state === "failed") progress.failed += 1;
+      else progress.inProgress += 1;
+      if (latest.state === "capturing" && progress.capturingPage === null) {
+        progress.capturingPage = page.normalizedUrl;
+      }
+    }
+  }
+  const durations = captureRows
+    .filter((row) => row.startedAt !== null && row.finishedAt !== null)
+    .map((row) => Math.max(0, row.finishedAt! - row.startedAt!));
+  if (durations.length > 0) {
+    progress.estimatedRemainingMs = median(durations) * progress.inProgress;
+  }
+  return progress;
+}
+// ---- end capture progress ---------------------------------------------------
 
 function buildPages(
   pageRows: PageRow[],
@@ -138,6 +206,12 @@ async function hydrate(
       captureRows,
       now,
     );
+    // Capture progress (D076): only this project's rows feed its estimate.
+    const pageIds = new Set(pages.map((page) => page.id));
+    const progress = computeProjectProgress(
+      pages,
+      captureRows.filter((row) => pageIds.has(row.pageId)),
+    );
     return {
       projectId: project.id,
       publicId: project.publicId,
@@ -146,6 +220,7 @@ async function hydrate(
       createdAt: project.createdAt,
       pages,
       counts,
+      progress,
     };
   });
 }

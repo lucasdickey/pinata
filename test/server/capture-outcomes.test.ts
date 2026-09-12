@@ -330,9 +330,28 @@ describe("every reachable outcome behaves as its catalog row", () => {
         blobPath: null,
         imageHash: null,
       });
-      // Retry availability follows the catalog, not the mood of the UI.
-      expect(summary.latest?.state).toBe("failed");
-      expect(summary.retryable).toBe(outcome.retryable);
+      // Retry availability follows the catalog, not the mood of the UI: the
+      // failed row on its own is retryable exactly when its catalog row says.
+      expect(summarizeVariant("desktop", [row], T0).retryable).toBe(outcome.retryable);
+      if (outcome.retryable) {
+        // The server spends the one automatic retry itself (D076): the
+        // variant's newest attempt is a pending automatic row keyed to the
+        // failed one, and there is exactly one of them.
+        expect(summary.attempts).toHaveLength(2);
+        expect(summary.latest).toMatchObject({ state: "pending", attempt: 2 });
+        const automatic = await testDb.db
+          .select()
+          .from(schema.captures)
+          .where(eq(schema.captures.id, summary.latest!.id));
+        expect(automatic[0]).toMatchObject({
+          origin: "automatic",
+          idempotencyKey: `retry:auto:${row.id}`,
+        });
+      } else {
+        expect(summary.attempts).toHaveLength(1);
+        expect(summary.latest?.state).toBe("failed");
+        expect(summary.retryable).toBe(false);
+      }
     });
   }
 

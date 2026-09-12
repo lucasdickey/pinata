@@ -17,7 +17,7 @@ import {
   MOBILE_VIEWPORT,
 } from "../../boundaries";
 import { schema, type Database } from "../db/client";
-import { CAPTURE_VARIANTS, type CaptureVariant } from "../db/schema";
+import { CAPTURE_VARIANTS, type CaptureOrigin, type CaptureVariant } from "../db/schema";
 import { summarizeVariant } from "./status";
 
 /** Idempotency scope for scoped capture retries. */
@@ -29,6 +29,11 @@ export interface RetryCaptureTarget {
   pageId: string;
   variant: string;
   idempotencyKey: string;
+  /**
+   * Who asked: the editor (`manual`, the default) or the server's one
+   * automatic retry after a retryable failure or a stale attempt.
+   */
+  origin?: CaptureOrigin;
 }
 
 export interface RetryAttempt {
@@ -158,6 +163,7 @@ export async function retryCapture(
         // Unique per (page, variant): a second row for the same client key or
         // attempt number is rejected by the database, not just by this code.
         idempotencyKey: `retry:${target.idempotencyKey}`,
+        origin: target.origin ?? "manual",
         requestedUrl: page.normalizedUrl,
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,

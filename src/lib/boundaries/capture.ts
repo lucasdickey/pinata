@@ -74,6 +74,13 @@ export const MAX_CAPTURE_ATTEMPTS_PER_PROJECT = 64;
 export const MAX_ACTIVE_CAPTURES = 2;
 
 /**
+ * Automatic retries the server creates in a row for one page variant after a
+ * retryable failure or a stale attempt, counted since the last attempt a
+ * person asked for. Once spent, the next failure waits for a manual retry.
+ */
+export const MAX_AUTOMATIC_CAPTURE_RETRIES = 1;
+
+/**
  * A `capturing` attempt older than this computes to stale (5 minutes). The
  * durable concurrency lease for an attempt expires at the same age, so an
  * abandoned claim frees its Browserless slot exactly when the attempt becomes

@@ -78,14 +78,41 @@ active captures at a time (the Browserless free-tier concurrency limit).
 Status is persisted before provider work starts, so partial failures are
 visible and retryable.
 
-The server schedules nothing itself: the editor client drives committed
-pending attempts through the scoped dispatch route — on load, after project
-creation or retry, and on every poll tick that still finds pending work
-(`D049`). The driver keeps at most `MAX_ACTIVE_CAPTURES` dispatches in
-flight; a quota-exceeded answer leaves the attempt pending and defers it for
-one re-drive delay, so the polling loop re-drives it as slots free, and a
-terminal catalog outcome is surfaced by the next hierarchy read and never
-re-driven.
+The server drives capture itself (`D076`). Project creation and the scoped
+retry commit pending attempts, answer, and then continue after the response
+is written (Next.js `after()`): `driveProject` hands the project's next
+pending attempts — at most `MAX_ACTIVE_CAPTURES` — to `driveCapture`, which
+runs the admit, claim, execute, finalize, release sequence below, and every
+finalization schedules the project's next pending attempt the same way, so a
+project chains to completion with no browser open. The durable lease table
+stays the only concurrency authority: a claim that finds every slot held
+leaves the attempt pending and stops.
+
+Two things follow a finalization. When the attempt failed with an outcome
+the catalog marks retryable, or the sweep found it stale, exactly one
+automatic retry is created through the same path a manual retry uses,
+recorded as a new attempt with `origin = automatic` and never retried
+automatically again (`MAX_AUTOMATIC_CAPTURE_RETRIES`, inside the project-wide
+attempt cap); a second failure surfaces its catalog reason and a
+project-level Retry control. And the hierarchy read reports per-project
+progress from the same rows — devices done, failed, and in progress, the page
+capturing now, and an estimate from the median duration of this project's
+finished attempts (`started_at`/`finished_at` on the attempt row) — which the
+workspace shows as one line above the selected capture.
+
+Two backstops cover a continuation that never ran or died mid-way. The
+editor client keeps its dispatch driver (`D049`) as a fallback re-driver: on
+load and on every poll tick it dispatches whatever is still pending through
+the scoped dispatch route, and when it races the server on the same attempt
+the fenced claim answers one of them 409, which the driver treats as a
+conflict (one re-read, one deferral, no retry storm). And
+`/api/captures/sweep`, protected by a shared secret (`CAPTURE_SWEEP_SECRET`
+header or the Vercel cron bearer `CRON_SECRET`; 404 when neither is set),
+re-drives every project with pending or stale attempts and creates the
+automatic retry for stale ones; `vercel.json` calls it once a day as a cron
+backstop. Function duration on the deployment must cover one capture plus
+its preflight and the continuation that follows: the dispatch, create, retry,
+and sweep routes export `maxDuration = 300`.
 
 1. Revalidate the normalized public HTTPS URL on the server: no credentials,
    no IP literals, no non-443 ports, no private, loopback, link-local,
@@ -113,23 +140,23 @@ re-driven.
 
 Every redirect hop is revalidated under the same rules before following it.
 
-Steps 1 through 9 all happen inside the dispatch request. An admitted attempt
-is claimed, captured, and finalized before the response is written, so no
-attempt is ever left as an open `capturing` claim waiting for a second call
-(`D035`).
+Steps 1 through 9 all happen inside one `driveCapture` run, whether a
+dispatch request or a server continuation started it. An admitted attempt is
+claimed, captured, and finalized before that run ends, so no attempt is ever
+left as an open `capturing` claim waiting for a second call (`D035`).
 
 ## Published runtime boundaries
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-09.2`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-12.1`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-09.2 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-12.1 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -153,6 +180,7 @@ minimums, quotas, interaction limits, and performance budgets.
 | `REDIRECT_PROBE_TIMEOUT_MS` | 5,000 ms | Per-hop budget for the redirect preflight. |
 | `MAX_CAPTURE_ATTEMPTS_PER_PROJECT` | 64 | Persisted attempts per project, initial plus retries. |
 | `MAX_ACTIVE_CAPTURES` | 2 | The Browserless free-tier concurrency limit, enforced by durable lease slots in Turso. |
+| `MAX_AUTOMATIC_CAPTURE_RETRIES` | 1 | Automatic retries in a row per page device after a retryable failure or a stale attempt; after that a person retries. |
 | `STALE_CAPTURE_AGE_MS` | 300,000 ms (5 minutes) | A `capturing` attempt older than this computes to stale; its concurrency lease expires at the same age. |
 | `CAPTURE_CLEANUP_WINDOW_MS` | 3,600,000 ms (1 hour) | Orphan-cleanup retry window; the obligation to delete never expires. |
 | `CAPTURE_REQUEST_MAX_BYTES` | 1,024 bytes | Hard cap on a capture mutation body, enforced before parsing. |
@@ -206,6 +234,8 @@ the annotation.
 
 Vercel project `pinata` on Node 24, with `BROWSERLESS_TOKEN`,
 `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `BLOB_READ_WRITE_TOKEN`,
-`EDITOR_PASSWORD`, and `SESSION_SECRET` set per environment. Local development
+`EDITOR_PASSWORD`, and `SESSION_SECRET` set per environment, plus
+`CRON_SECRET` (what Vercel cron sends the sweep) and optionally
+`CAPTURE_SWEEP_SECRET` (for any other scheduler). Local development
 always runs on `127.0.0.1:3100`; port 3000 is off-limits. GitHub Actions runs
 the same `npm run validate` gate.

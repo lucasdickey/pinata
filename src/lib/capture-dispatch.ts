@@ -1,9 +1,10 @@
 // The editor's capture-dispatch driver (client half of VAL-CAPTURE-007).
 //
-// Creating a project commits pending attempts but nothing on the server
-// schedules them — by design, capture dispatch is driven by an authorized
-// client through the scoped dispatch route, so the durable two-lease cap is
-// the only scheduling authority. This module is the driver policy, kept pure
+// Creating a project commits pending attempts; the server continues them
+// after its response (D076), and this client driver is the fallback that
+// re-drives whatever is still pending through the scoped dispatch route.
+// Both go through the same durable two-lease cap and the same fenced claim,
+// so it is safe for both to try. This module is the driver policy, kept pure
 // and clock-injected next to the polling policy it cooperates with:
 //
 // - every pending attempt in the hierarchy is a dispatch target, in

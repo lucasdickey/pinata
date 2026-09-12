@@ -195,12 +195,17 @@ Production lives at **https://pinata-lucasdickeys-projects.vercel.app**
 Node 24, Next.js preset. The first production deployment is recorded as
 [`D068`](docs/DECISIONS.md#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke).
 
-Six environment variable **names** must exist in the Vercel Production
+Seven environment variable **names** must exist in the Vercel Production
 environment (values are managed in Vercel and never committed):
 `BROWSERLESS_TOKEN`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`,
-`BLOB_READ_WRITE_TOKEN`, `EDITOR_PASSWORD`, and `SESSION_SECRET`.
-`PINATA_AUTH_DISABLED` must never be set in any Vercel environment; that
-bypass is local-only (`D052`).
+`BLOB_READ_WRITE_TOKEN`, `EDITOR_PASSWORD`, `SESSION_SECRET`, and
+`CRON_SECRET`. The last one protects the capture sweep (`D076`): the daily
+cron in `vercel.json` calls `/api/captures/sweep` with
+`Authorization: Bearer $CRON_SECRET`, and the route also accepts an optional
+`CAPTURE_SWEEP_SECRET` sent as the `x-pinata-sweep-secret` header for any
+other scheduler or a hand-run sweep. With neither variable set the sweep
+route answers 404. `PINATA_AUTH_DISABLED` must never be set in any Vercel
+environment; that bypass is local-only (`D052`).
 
 ### Runbook
 

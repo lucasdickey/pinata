@@ -55,6 +55,7 @@ import {
   MANIFEST_SCHEMA_VERSION,
   MAX_ACTIVE_CAPTURES,
   MAX_ANNOTATIONS_PER_CAPTURE,
+  MAX_AUTOMATIC_CAPTURE_RETRIES,
   MAX_CAPTURE_ATTEMPTS_PER_PROJECT,
   MAX_CNAME_HOPS,
   MAX_DOCUMENT_HEIGHT_PX,
@@ -158,6 +159,7 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "REDIRECT_PROBE_TIMEOUT_MS", value: fmtMs(REDIRECT_PROBE_TIMEOUT_MS) },
   { name: "MAX_CAPTURE_ATTEMPTS_PER_PROJECT", value: fmtNum(MAX_CAPTURE_ATTEMPTS_PER_PROJECT) },
   { name: "MAX_ACTIVE_CAPTURES", value: fmtNum(MAX_ACTIVE_CAPTURES) },
+  { name: "MAX_AUTOMATIC_CAPTURE_RETRIES", value: fmtNum(MAX_AUTOMATIC_CAPTURE_RETRIES) },
   { name: "STALE_CAPTURE_AGE_MS", value: fmtMs(STALE_CAPTURE_AGE_MS) },
   { name: "CAPTURE_CLEANUP_WINDOW_MS", value: fmtMs(CAPTURE_CLEANUP_WINDOW_MS) },
   { name: "CAPTURE_REQUEST_MAX_BYTES", value: fmtBytes(CAPTURE_REQUEST_MAX_BYTES) },
@@ -352,6 +354,8 @@ describe("boundary catalog coverage and consistency", () => {
 
   test("concurrency and manifest caps are the contract values", () => {
     expect(MAX_ACTIVE_CAPTURES).toBe(2);
+    // One automatic retry, then a person decides (D076).
+    expect(MAX_AUTOMATIC_CAPTURE_RETRIES).toBe(1);
     expect(MAX_MANIFEST_ELEMENTS).toBe(500);
     expect(MAX_MANIFEST_BYTES).toBe(256 * 1024);
   });

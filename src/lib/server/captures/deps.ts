@@ -7,7 +7,9 @@
 import { createVercelBlobStore, type ScreenshotStore } from "../providers/blob";
 import { createBrowserlessClient } from "../providers/browserless";
 import { createRedirectProbe, type AdmissionDeps } from "./admission";
+import { getContinuationScheduler } from "./continuation";
 import { createNodeDnsResolver } from "./dns";
+import type { CaptureDriveDeps } from "./drive";
 import type { CaptureExecutionDeps } from "./execute";
 
 let override: AdmissionDeps | null = null;
@@ -40,6 +42,19 @@ export function getCaptureExecutionDeps(): CaptureExecutionDeps {
 
 export function __setCaptureExecutionDepsForTests(deps: CaptureExecutionDeps | null): void {
   executionOverride = deps;
+}
+
+/**
+ * Everything the server-driven capture path needs: admission, execution, and
+ * the scheduler that continues work after a response. Each piece honours its
+ * own test seam, so a route test can inject fakes for all three.
+ */
+export function getCaptureDriveDeps(): CaptureDriveDeps {
+  return {
+    admission: getAdmissionDeps(),
+    execution: getCaptureExecutionDeps(),
+    after: getContinuationScheduler(),
+  };
 }
 
 /**
