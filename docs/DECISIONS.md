@@ -2961,10 +2961,11 @@ Proposed by the agent, approved by the human. The dispatch and execution modules
 
 **Consequences**
 
-- Function duration limits on the deployment must cover one capture (TOTAL_CAPTURE_TIMEOUT_MS is 90 s); the implementing session verifies the configured maxDuration and records the finding.
-- A new sweep route with a shared secret; the secret's name joins the deployment's environment variable list in README.
-- Automatic retry consumes attempt budget (MAX_CAPTURE_ATTEMPTS_PER_PROJECT) and is bounded to one per attempt.
+- Function duration limits on the deployment must cover one capture (TOTAL_CAPTURE_TIMEOUT_MS is 90 s): the four routes that may run a capture export maxDuration = 300, which is the Vercel Hobby ceiling with Fluid compute enabled and is rejected without it. Check the project setting at deploy time; a chain cut off at the limit leaves a stale attempt that the sweep or the client fallback picks up.
+- A new sweep route accepts either the Vercel cron bearer secret (CRON_SECRET) or a dedicated header secret (CAPTURE_SWEEP_SECRET); the names join the deployment's environment variable list in README, and vercel.json schedules a daily sweep as the backstop.
+- Automatic retry consumes attempt budget (MAX_CAPTURE_ATTEMPTS_PER_PROJECT) and is bounded by MAX_AUTOMATIC_CAPTURE_RETRIES, published as 1: an automatic attempt is never retried automatically again.
 - Progress fields are additive on the hierarchy response; the polling policy stays read-only and stops when nothing is in progress.
+- Server continuation would make every credentialed e2e run that creates a project spend real Browserless captures behind the tests' backs, so PINATA_SERVER_CAPTURE=off disables continuation and the sweep's re-drive; the Playwright server runs with it off, and it must never be set in a Vercel environment, like PINATA_AUTH_DISABLED.
 
 **Provenance evidence**
 
@@ -3102,4 +3103,4 @@ Human instruction:
 
 ---
 
-<sub>Generated from 79 record(s) as of 2026-09-12 · source `29c7d281b15f`</sub>
+<sub>Generated from 79 record(s) as of 2026-09-12 · source `50cc5d1bece8`</sub>
