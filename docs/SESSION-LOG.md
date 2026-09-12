@@ -2991,9 +2991,41 @@ way; D078 (vocabulary) goes last because it rewrites copy across all of it.
   edited them to the new interactions; only a local run with credentials
   proves those edits. The list is in the pull request.
 
+### What was attempted, wave two
+
+- **D077.** A project overview of capture cards with thumbnails and counts,
+  Desktop and Mobile as a toggle above the canvas, the rail reduced to
+  projects and pages, Next and Previous pin across every plane in the
+  project, and the pin table and Markdown export at project scope through a
+  new editor-only project annotations read.
+- **D079.** Rectangles: Shift-drag or an armed Box tool draws a box, the same
+  composer opens with the largest-overlap element pre-selected, boxes share
+  numbering, threads, and status with pins, move by their stroke and resize
+  by eight hand-rolled handles, and render read-only for the founder.
+- **D078** (in progress at the time of writing): names marks by their
+  comment and element, moves coordinates and hashes behind a Details
+  disclosure, removes them from the founder view, and puts the founder's
+  list first on phones.
+
+### What broke, wave two
+
+- **D077 and D079 collided in the workspace.** Both changed the draft and
+  save flow: D077 rebuilt selection and stepping around a pending-pin
+  reference and the device toggle, D079 turned the draft from a pin tip into
+  a kind-aware mark and reshaped the table's row type. A dry cherry-pick
+  showed seven hunks that were semantic rather than textual. Instead of
+  resolving them from the outside, the D079 agent rebased its commit onto
+  the D077 tree in its own worktree, layered its changes into D077's
+  structure, fixed the follow-ups the text merge could not see (the project
+  read and stepping order had to carry boxes; a move patched a `.tip` that a
+  box does not have), and reran the full gate before handing back one
+  rebased commit.
+- **Worktrees started one commit behind.** Each agent's worktree was created
+  at main rather than the branch tip and had to be reset to the intended
+  base first; every agent noticed and did so before working.
+
 ### Decisions
 
 - D074, D075, D076, D077, D078: agent-proposed, human-approved in one message.
 - D079: user-directed (the bounding box).
-- Consequences added to D074, D075, and D076 for the findings above.
-
+- Consequences added to D074 through D077 and D079 for the findings above.
