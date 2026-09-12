@@ -3516,10 +3516,11 @@ window.PINATA = {
       ],
       "rationale": "Directed by the human. The persistence rules from D059 and D061 (server numbering, idempotent create, revisioned mutation, tombstone delete, server-derived snapshot) apply unchanged; only the geometry shape and the candidate ranking are new.",
       "consequences": [
-        "The annotation routes stop assuming kind is pin; list, create, update, and delete take a kind-aware geometry validator.",
-        "The canvas grows a rectangle node type with handles; the flow model gains a rectangle geometry helper with clamp and minimum-size rules.",
-        "The overlap ranking joins the context route beside the point ranking, with its own tests.",
-        "Circles and arrows remain unbuilt; NEXT.md says so."
+        "The annotation routes stop assuming kind is pin: the create body names the kind by its geometry key (tip or rect), PATCH accepts rect beside tip and body, geometry must match the row's kind, and list, resolve, reopen, seen, threads, and hierarchy counts cover both kinds. Pin idempotency digests keep their earlier shape so old keys replay; geometry_version stays 1 for both kinds.",
+        "Overlap ranking is share-first, not raw area: the fraction of the element inside the box, then overlap area, then distance, then the existing tie-breakers. Raw area alone would hand every box to the largest enclosing landmark.",
+        "Resize handles are hand-rolled rather than React Flow's NodeResizer so one clamping authority governs draw, move, and resize and the gesture is testable in jsdom. Drawing wins over panning through a capture-phase pointer listener while Shift is held or the Box toggle is armed; React Flow's selection key is disabled so Shift never means multi-select.",
+        "Box interiors are pointer-transparent: clicking inside a box still drops a pin; a box is selected and moved by its stroke or its badge, and handles keep the 24 px hit target.",
+        "Circles and arrows remain unbuilt; NEXT.md says so. A keyboard key to arm the box tool and touch drawing without the toggle are also left for later."
       ],
       "transcript": {
         "request": "then find the feature set associated with doing a square bounding box with comments, too."
@@ -3536,5 +3537,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-09-12",
-  "source_hash": "4ceb88689dd2"
+  "source_hash": "7fb530734b00"
 };
