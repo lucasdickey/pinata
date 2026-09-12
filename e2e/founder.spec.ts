@@ -6,7 +6,10 @@
 // the editor sees that reply under the pin and follows up as `Lucas`; the
 // founder sees the follow-up; and rotating the link ends the old founder
 // session while the new link keeps working. The founder page sends no
-// referrer and permits no indexing.
+// referrer and permits no indexing. With D075 the same run also covers the
+// feedback loop: the share control with its state in the project header,
+// the founder's pin list above the canvas, the founder resolving the pin,
+// and the editor reopening it, each recorded as a status line in the thread.
 //
 // Runs against the seeded local store like the pin specs and skips without
 // local configuration. The spec appends replies to one fixture pin on the
@@ -43,6 +46,8 @@ interface PinRecord {
   number: number;
   tip: { x: number; y: number };
   body: string;
+  status: "open" | "replied" | "resolved";
+  unreadReplies: number;
 }
 
 interface ThreadEntry {
@@ -111,6 +116,26 @@ async function fixturePin(page: Page, target: ReadyTarget): Promise<PinRecord> {
       body: `${FIXTURE_BODY_PREFIX} — reply target on ${target.pageUrl}`,
       csrf: proof,
     },
+  );
+}
+
+/**
+ * The fixture pin is reused across runs and each run resolves then reopens
+ * it (D075). A run that stopped in between leaves it resolved, so start
+ * every run from an unresolved pin through the editor's reopen route.
+ */
+async function ensureUnresolved(page: Page, captureId: string, pin: PinRecord): Promise<void> {
+  if (pin.status !== "resolved") return;
+  const proof = await csrfProof(page);
+  await page.evaluate(
+    async ({ id, annotationId, csrf }) => {
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annotationId)}/reopen`,
+        { method: "POST", headers: { "x-pinata-csrf": csrf } },
+      );
+      if (!response.ok) throw new Error(`fixture reopen failed: ${response.status}`);
+    },
+    { id: captureId, annotationId: pin.id, csrf: proof },
   );
 }
 
@@ -192,6 +217,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await openPlane(page, target!);
   const publicId = await publicIdFor(page, target!);
   const pin = await fixturePin(page, target!);
+  await ensureUnresolved(page, target!.captureId, pin);
   const runTag = `${Date.now().toString(36)}`;
 
   // The editor issues the link: the token is in the fragment, nowhere else.
@@ -200,12 +226,23 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   expect(first.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const firstLink = `http://127.0.0.1:3100${first.path}#${first.token}`;
 
-  // The share control in the workspace reports the active link.
-  const shareToggle = page
-    .getByRole("listitem")
-    .filter({ has: page.getByRole("heading", { name: target!.projectTitle!, exact: true }) })
-    .getByRole("button", { name: "Share with founder" })
-    .first();
+  // The share control sits in the selected project's header (D075), not in
+  // the rail, and shows the link state without being opened. The status was
+  // read when the header mounted, so reload the workspace to see the link
+  // issued above.
+  await page.reload();
+  await openPlane(page, target!);
+  const projectHeader = page.getByTestId("project-header");
+  await expect(projectHeader.getByTestId("project-title")).toHaveText(target!.projectTitle!);
+  await expect(projectHeader.getByTestId("founder-share-state")).toHaveText(
+    `Founder link active · v${first.version}`,
+  );
+  await expect(
+    page.getByRole("navigation", { name: "Projects, pages, and devices" }).getByRole("button", {
+      name: "Share with founder",
+    }),
+  ).toHaveCount(0);
+  const shareToggle = projectHeader.getByRole("button", { name: "Share with founder" });
   await shareToggle.click();
   await expect(page.getByText(`Founder link active (version ${first.version}).`)).toBeVisible();
   await shareToggle.click();
@@ -250,8 +287,23 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     return img !== null && img.complete && img.naturalWidth > 0;
   });
 
+  // The pin list above the canvas (D075) names every pin with its comment
+  // excerpt and status; the fixture pin's entry opens it.
+  const founderPinList = founder.getByTestId("founder-pin-list");
+  await expect(founderPinList).toBeVisible();
+  const fixtureEntry = founderPinList.getByRole("button", {
+    name: new RegExp(`^Pin ${pin.number} —`),
+  });
+  await expect(fixtureEntry).toContainText(FIXTURE_BODY_PREFIX);
+  await expect(fixtureEntry).toContainText(/Open|Replied/);
+  // The list sits above the canvas.
+  const listBox = (await founderPinList.boundingBox())!;
+  const canvasBox = (await founder.locator(".capture-canvas").boundingBox())!;
+  expect(listBox.y + listBox.height).toBeLessThanOrEqual(canvasBox.y + 1);
+
   // The founder opens the fixture pin and replies.
-  await founder.getByRole("button", { name: new RegExp(`^Pin ${pin.number} —`) }).click();
+  await fixtureEntry.click();
+  await expect(fixtureEntry).toHaveAttribute("aria-current", "true");
   const founderPanel = founder.getByTestId("founder-panel");
   await expect(founderPanel).toContainText(FIXTURE_BODY_PREFIX);
   const founderReply = `founder reply ${runTag}`;
@@ -261,6 +313,14 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     founderReply,
   );
 
+  // The founder resolves the pin (D075): the status changes, the thread
+  // records a server-written status line, and the list entry follows.
+  await founderPanel.getByRole("button", { name: "Resolve pin" }).click();
+  await expect(founderPanel.getByTestId("panel-status")).toHaveText("Status: Resolved");
+  await expect(founderPanel.locator(".thread-status").last()).toContainText("Resolved by founder");
+  await expect(founderPanel.getByRole("button", { name: "Reopen pin" })).toBeVisible();
+  await expect(fixtureEntry).toContainText("Resolved");
+
   // The editor sees the founder's reply under the pin and follows up.
   await page.getByRole("button", { name: new RegExp(`^Pin ${pin.number} —`) }).click();
   const editorPanel = page.getByTestId("capture-panel");
@@ -268,12 +328,21 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await expect(editorPanel.locator(".thread-entry[data-author='founder']").last()).toContainText(
     founderReply,
   );
+  // The editor sees the founder's resolve as status and as a thread line.
+  await expect(editorPanel.getByTestId("panel-status")).toHaveText("Status: Resolved");
+  await expect(editorPanel.locator(".thread-status").last()).toContainText("Resolved by founder");
   const editorFollowUp = `editor follow-up ${runTag}`;
   await editorPanel.getByLabel("Follow up as Lucas").fill(editorFollowUp);
   await editorPanel.getByRole("button", { name: "Send follow-up" }).click();
   await expect(editorPanel.locator(".thread-entry[data-author='Lucas']").last()).toContainText(
     editorFollowUp,
   );
+  // The editor reopens it: the founder has replied, so the pin is "replied",
+  // and the change is one more immutable status line.
+  await editorPanel.getByRole("button", { name: "Reopen pin" }).click();
+  await expect(editorPanel.getByTestId("panel-status")).toHaveText("Status: Replied");
+  await expect(editorPanel.locator(".thread-status").last()).toContainText("Reopened by editor");
+  await expect(editorPanel.getByRole("button", { name: "Resolve pin" })).toBeVisible();
 
   // The durable thread carries both, in order, with server labels.
   const entries = await listThread(page, target!.captureId, pin.id);
@@ -293,6 +362,10 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await expect(
     founder.getByTestId("founder-panel").locator(".thread-entry[data-author='Lucas']").last(),
   ).toContainText(editorFollowUp);
+  // The editor's reopen is visible to the founder as the pin's status.
+  await expect(founder.getByTestId("founder-panel").getByTestId("panel-status")).toHaveText(
+    "Status: Replied",
+  );
 
   // Rotation: the old session and the old link both die; the new link works.
   const second = await issueLink(page, publicId);

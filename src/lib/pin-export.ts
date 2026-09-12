@@ -9,6 +9,7 @@
 // pin is saved (VAL-PIN-003, VAL-PIN-008).
 
 import type { PinAnnotationView, PinElementSnapshot } from "./annotations";
+import { PIN_STATUS_LABELS } from "./feedback-counts";
 
 export interface PinExportContext {
   pageUrl: string;
@@ -67,6 +68,9 @@ export function formatPinsAsMarkdown(
   for (const pin of pins) {
     lines.push(`## Pin ${pin.number} — at (${pinPosition(pin)})`);
     lines.push("");
+    // The lifecycle status (D075) travels with the note so an agent reading
+    // the paste can skip what is already done.
+    lines.push(`- Status: ${PIN_STATUS_LABELS[pin.status] ?? pin.status}`);
     lines.push(`- Element: ${snapshotSummary(pin.elementSnapshot)}`);
     const path = snapshotPath(pin.elementSnapshot);
     if (path) lines.push(`- Path: \`${path}\``);

@@ -999,6 +999,110 @@ pre code {
   border-left-color: var(--accent);
 }
 
+/* A resolve or reopen in the thread (D075): a quiet system line, visibly
+   not a message. */
+.thread-status {
+  border-left: 3px dashed var(--line);
+  padding-left: 0.6rem;
+}
+
+.thread-status .thread-meta {
+  font-style: italic;
+}
+
+/* ---- feedback loop (D075): status, unread markers, badges, header ---- */
+
+.pin-unread {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pin-status,
+.panel-status {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.panel-status {
+  margin: 0 0 0.5rem;
+}
+
+.pin-table-status {
+  white-space: nowrap;
+}
+
+/* Rail badges: the existing count pill, placed beside the device button. */
+.feedback-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.feedback-badge[data-unread="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* The selected project's header: title, feedback summary, share control. */
+.project-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.project-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.project-feedback {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.project-header .founder-share {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.founder-share-state {
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.founder-share-state[data-state="active"] {
+  color: var(--ink);
+}
+
+/* The founder's pin list above the canvas. */
+.founder-pin-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.founder-pin-list button {
+  text-align: left;
+  width: 100%;
+}
+
+.founder-pin-list button[aria-current="true"] {
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.founder-pin-excerpt {
+  color: var(--ink-soft);
+}
+
 .thread-meta {
   margin: 0;
   font-size: 0.8rem;

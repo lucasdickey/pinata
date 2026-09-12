@@ -19,7 +19,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
-import type { PinAnnotationView, PinListResponse } from "../lib/annotations";
+import type {
+  PinAnnotationView,
+  PinListResponse,
+  PinStatusResponse,
+} from "../lib/annotations";
+import { PIN_STATUS_LABELS, pinExcerpt, pinFeedbackPath } from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
@@ -78,6 +83,8 @@ export function FounderView({ publicId }: { publicId: string }) {
   const [replyBody, setReplyBody] = useState("");
   const [replyKey, setReplyKey] = useState<string | null>(null);
   const [replyState, setReplyState] = useState<ReplySendState>("idle");
+  // Resolve / reopen in flight (D075).
+  const [statusState, setStatusState] = useState<"idle" | "saving" | "failed">("idle");
   const cameras = useRef(new Map<string, CaptureCameraState>());
 
   const loadProject = useCallback(async () => {
@@ -203,6 +210,28 @@ export function FounderView({ publicId }: { publicId: string }) {
         status: "ready",
         entries: Array.isArray(payload.entries) ? payload.entries : [],
       });
+      // Reading the thread marks the pin seen for this founder (D075); the
+      // list's unread marker clears locally once the server has recorded it.
+      try {
+        const seen = await fetch(pinFeedbackPath(id, annotationId, "seen"), {
+          method: "POST",
+          headers: { [EDITOR_CSRF_HEADER]: readFounderCsrfProof() },
+        });
+        if (seen.ok) {
+          setPinsState((current) =>
+            current && current.captureId === id
+              ? {
+                  ...current,
+                  pins: current.pins.map((pin) =>
+                    pin.id === annotationId ? { ...pin, unreadReplies: 0 } : pin,
+                  ),
+                }
+              : current,
+          );
+        }
+      } catch {
+        // Best effort: the marker stays until the next successful read.
+      }
     } catch {
       if (threadRequestRef.current !== annotationId) return;
       setThreadState({ annotationId, status: "failed", entries: [] });
@@ -270,6 +299,55 @@ export function FounderView({ publicId }: { publicId: string }) {
       setReplyState("failed");
     }
   }, [captureId, selectedPinId, replyState, replyBody, replyKey]);
+
+  // Resolve or reopen the selected pin as the founder (D075). The returned
+  // record replaces the listed pin and the status entry joins the thread;
+  // a lost capability is named as such, like a denied reply.
+  const setPinStatus = useCallback(
+    async (action: "resolve" | "reopen") => {
+      if (!captureId || !selectedPinId || statusState === "saving") return;
+      setStatusState("saving");
+      try {
+        const response = await fetch(pinFeedbackPath(captureId, selectedPinId, action), {
+          method: "POST",
+          headers: { [EDITOR_CSRF_HEADER]: readFounderCsrfProof() },
+        });
+        if (!response.ok) {
+          setStatusState("failed");
+          if (response.status === 401 || response.status === 403) setReplyState("denied");
+          return;
+        }
+        const payload = (await response.json()) as PinStatusResponse;
+        setPinsState((current) =>
+          current && current.captureId === captureId
+            ? {
+                ...current,
+                pins: current.pins.map((pin) =>
+                  pin.id === payload.annotation.id ? payload.annotation : pin,
+                ),
+              }
+            : current,
+        );
+        const entry = payload.entry;
+        if (entry) {
+          setThreadState((current) =>
+            current && current.annotationId === selectedPinId
+              ? {
+                  ...current,
+                  entries: current.entries.some((existing) => existing.id === entry.id)
+                    ? current.entries
+                    : [...current.entries, entry],
+                }
+              : current,
+          );
+        }
+        setStatusState("idle");
+      } catch {
+        setStatusState("failed");
+      }
+    },
+    [captureId, selectedPinId, statusState],
+  );
 
   const activePins = useMemo(
     () =>
@@ -366,6 +444,47 @@ export function FounderView({ publicId }: { publicId: string }) {
               <h2>
                 {variantLabel(attempt.variant)} — {activePage.normalizedUrl}
               </h2>
+              {/* Every pin on this capture, in number order, above the canvas
+                  (D075): the founder's list of what is waiting for them, with
+                  the comment excerpt, the status, and an unread marker.
+                  Choosing an entry selects the pin everywhere. */}
+              <section className="founder-pins" aria-label="Pins on this capture">
+                <h3 className="visually-hidden">Pins on this capture</h3>
+                {pinsState?.status === "loading" ? (
+                  <p className="panel-note">Loading pins…</p>
+                ) : null}
+                {pinsState?.status === "failed" ? (
+                  <p className="panel-note">Pins could not be loaded. Reload to try again.</p>
+                ) : null}
+                {pinsState?.status === "ready" && activePins.length === 0 ? (
+                  <p className="panel-note">No pins on this capture yet.</p>
+                ) : null}
+                {activePins.length > 0 ? (
+                  <ol className="founder-pin-list" data-testid="founder-pin-list">
+                    {activePins.map((pin) => (
+                      <li key={pin.id}>
+                        <button
+                          type="button"
+                          aria-current={pin.id === selectedPinId ? "true" : undefined}
+                          data-status={pin.status}
+                          onClick={() =>
+                            setSelectedPinId(pin.id === selectedPinId ? null : pin.id)
+                          }
+                        >
+                          Pin {pin.number} —{" "}
+                          <span className="founder-pin-excerpt">“{pinExcerpt(pin.body)}”</span>{" "}
+                          <span className="pin-status">
+                            · {PIN_STATUS_LABELS[pin.status] ?? pin.status}
+                          </span>
+                          {pin.unreadReplies > 0 ? (
+                            <span className="pin-unread"> · {pin.unreadReplies} new</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+              </section>
               <div className="workspace-body">
                 <CaptureCanvas
                   key={attempt.id}
@@ -394,6 +513,13 @@ export function FounderView({ publicId }: { publicId: string }) {
                         <strong>Pin {selectedPin.number}</strong> at natural pixel (
                         {Math.round(selectedPin.tip.x)}, {Math.round(selectedPin.tip.y)})
                       </p>
+                      <p
+                        className="panel-status"
+                        data-testid="panel-status"
+                        data-status={selectedPin.status}
+                      >
+                        Status: {PIN_STATUS_LABELS[selectedPin.status] ?? selectedPin.status}
+                      </p>
                       <p className="panel-snapshot" data-testid="panel-snapshot">
                         {selectedPin.elementSnapshot
                           ? `Element: ${selectedPin.elementSnapshot.kind} <${
@@ -405,6 +531,31 @@ export function FounderView({ publicId }: { publicId: string }) {
                             ).slice(0, 80)}”`
                           : "Element: No element"}
                       </p>
+                      {/* The founder's one lifecycle control (D075): "done" is
+                          their statement; the editor can reopen, and so can
+                          they. Nothing else about the pin is editable here. */}
+                      <p className="panel-actions">
+                        <button
+                          type="button"
+                          disabled={statusState === "saving"}
+                          onClick={() =>
+                            void setPinStatus(
+                              selectedPin.status === "resolved" ? "reopen" : "resolve",
+                            )
+                          }
+                        >
+                          {statusState === "saving"
+                            ? "Saving…"
+                            : selectedPin.status === "resolved"
+                              ? "Reopen pin"
+                              : "Resolve pin"}
+                        </button>
+                      </p>
+                      {statusState === "failed" ? (
+                        <p role="alert" className="capture-error">
+                          That status change could not be saved. Try again.
+                        </p>
+                      ) : null}
                       {threadState && threadState.annotationId === selectedPin.id ? (
                         <ThreadView
                           originalBody={selectedPin.body}
@@ -420,37 +571,11 @@ export function FounderView({ publicId }: { publicId: string }) {
                       ) : null}
                     </div>
                   ) : (
-                    <p className="panel-empty">Nothing selected.</p>
+                    <p className="panel-empty">
+                      Nothing selected. Choose a pin from the list above the screenshot or
+                      click a numbered badge on it.
+                    </p>
                   )}
-
-                  <h4>Pins on this capture</h4>
-                  {pinsState?.status === "loading" ? (
-                    <p className="panel-note">Loading pins…</p>
-                  ) : null}
-                  {pinsState?.status === "failed" ? (
-                    <p className="panel-note">Pins could not be loaded. Reload to try again.</p>
-                  ) : null}
-                  {pinsState?.status === "ready" && activePins.length === 0 ? (
-                    <p className="panel-note">No pins on this capture yet.</p>
-                  ) : null}
-                  {activePins.length > 0 ? (
-                    <ol className="pin-list" aria-label="Saved pins">
-                      {activePins.map((pin) => (
-                        <li key={pin.id}>
-                          <button
-                            type="button"
-                            aria-current={pin.id === selectedPinId ? "true" : undefined}
-                            onClick={() =>
-                              setSelectedPinId(pin.id === selectedPinId ? null : pin.id)
-                            }
-                          >
-                            Pin {pin.number} — at ({Math.round(pin.tip.x)},{" "}
-                            {Math.round(pin.tip.y)})
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : null}
                 </aside>
               </div>
             </>

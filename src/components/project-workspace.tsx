@@ -18,13 +18,23 @@ import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import type {
+  FeedbackCounts,
   PinAnnotationView,
   PinContextResponse,
   PinElementSnapshot,
   PinListResponse,
   PinMutationResponse,
+  PinStatusResponse,
 } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
+import {
+  captureFeedback,
+  feedbackBadge,
+  feedbackSummary,
+  pinFeedbackPath,
+  projectFeedback,
+  type SeenAdjustments,
+} from "../lib/feedback-counts";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { CaptureProgress, type ProjectProgress } from "./capture-progress";
@@ -73,6 +83,13 @@ export interface WorkspaceProject {
   counts: { pages: number; attempts: number; ready: number; failed: number; inProgress: number };
   /** Server-computed capture progress (D076); absent on older payloads. */
   progress?: ProjectProgress;
+  /**
+   * Feedback counts for the requesting role (D075): the project total and
+   * per capture attempt for captures with live pins. Optional so a hierarchy
+   * read from an older server still renders, with no badges.
+   */
+  feedback?: FeedbackCounts;
+  captureFeedback?: Record<string, FeedbackCounts>;
 }
 
 interface Selection {
@@ -189,6 +206,16 @@ export function ProjectWorkspace({
   const [replyBody, setReplyBody] = useState("");
   const [replyKey, setReplyKey] = useState<string | null>(null);
   const [replyState, setReplyState] = useState<ReplySendState>("idle");
+  // Feedback loop (D075). Opening a thread marks the pin seen on the server
+  // and lowers the local unread counts by that pin's unread replies until
+  // the next hierarchy read (which resets these adjustments) confirms them.
+  const [seenAdjust, setSeenAdjust] = useState<SeenAdjustments>({});
+  const [statusState, setStatusState] = useState<"idle" | "saving" | "failed">("idle");
+  const pinsStateRef = useRef(pinsState);
+  pinsStateRef.current = pinsState;
+  useEffect(() => {
+    setSeenAdjust({});
+  }, [projects]);
   // One idempotency key per retry intent: it is refreshed only after the
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
@@ -346,35 +373,72 @@ export function ProjectWorkspace({
     setDeleteState("idle");
   }, [selectedPinId, selectedCaptureId]);
 
+  // Reading a thread marks the pin seen for the editor (D075). On success
+  // the pin's own unread count drops to zero locally and the capture's
+  // count is lowered by the same amount; a failure changes nothing and the
+  // next hierarchy read tells the truth.
+  const markThreadSeen = useCallback(async (captureId: string, annotationId: string) => {
+    const pin = pinsStateRef.current?.pins.find((candidate) => candidate.id === annotationId);
+    const unread =
+      pinsStateRef.current?.captureId === captureId ? (pin?.unreadReplies ?? 0) : 0;
+    try {
+      const response = await fetch(pinFeedbackPath(captureId, annotationId, "seen"), {
+        method: "POST",
+        headers: { [EDITOR_CSRF_HEADER]: readCsrfProof() },
+      });
+      if (!response.ok || unread === 0) return;
+      setPinsState((current) =>
+        current && current.captureId === captureId
+          ? {
+              ...current,
+              pins: current.pins.map((candidate) =>
+                candidate.id === annotationId ? { ...candidate, unreadReplies: 0 } : candidate,
+              ),
+            }
+          : current,
+      );
+      setSeenAdjust((current) => ({
+        ...current,
+        [captureId]: (current[captureId] ?? 0) + unread,
+      }));
+    } catch {
+      // Marking seen is best effort; the counts stay as the server last said.
+    }
+  }, []);
+
   // The thread follows the selected pin: a fresh read per selection, scoped
   // to that pin so a late answer for a previous selection can never render
   // under the current one, and the follow-up draft resets with it.
   const threadRequestRef = useRef<string | null>(null);
-  const loadThread = useCallback(async (captureId: string, annotationId: string) => {
-    threadRequestRef.current = annotationId;
-    setThreadState({ annotationId, status: "loading", entries: [] });
-    try {
-      const response = await fetch(
-        `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}/thread`,
-        { cache: "no-store" },
-      );
-      if (threadRequestRef.current !== annotationId) return;
-      if (!response.ok) {
+  const loadThread = useCallback(
+    async (captureId: string, annotationId: string) => {
+      threadRequestRef.current = annotationId;
+      setThreadState({ annotationId, status: "loading", entries: [] });
+      try {
+        const response = await fetch(
+          `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}/thread`,
+          { cache: "no-store" },
+        );
+        if (threadRequestRef.current !== annotationId) return;
+        if (!response.ok) {
+          setThreadState({ annotationId, status: "failed", entries: [] });
+          return;
+        }
+        const payload = (await response.json()) as ThreadListResponse;
+        if (threadRequestRef.current !== annotationId) return;
+        setThreadState({
+          annotationId,
+          status: "ready",
+          entries: Array.isArray(payload.entries) ? payload.entries : [],
+        });
+        void markThreadSeen(captureId, annotationId);
+      } catch {
+        if (threadRequestRef.current !== annotationId) return;
         setThreadState({ annotationId, status: "failed", entries: [] });
-        return;
       }
-      const payload = (await response.json()) as ThreadListResponse;
-      if (threadRequestRef.current !== annotationId) return;
-      setThreadState({
-        annotationId,
-        status: "ready",
-        entries: Array.isArray(payload.entries) ? payload.entries : [],
-      });
-    } catch {
-      if (threadRequestRef.current !== annotationId) return;
-      setThreadState({ annotationId, status: "failed", entries: [] });
-    }
-  }, []);
+    },
+    [markThreadSeen],
+  );
 
   useEffect(() => {
     setReplyBody("");
@@ -432,6 +496,56 @@ export function ProjectWorkspace({
       setReplyState("failed");
     }
   }, [selectedReady, selectedPinId, replyState, replyBody, replyKey]);
+
+  // Resolve or reopen the selected pin (D075): one POST, then the returned
+  // record replaces the listed pin, the status entry joins the thread, and
+  // the hierarchy is re-read so the rail's open counts follow.
+  const setPinStatus = useCallback(
+    async (action: "resolve" | "reopen") => {
+      const captureId = selectedReady?.id;
+      if (!captureId || !selectedPinId || statusState === "saving") return;
+      setStatusState("saving");
+      try {
+        const response = await fetch(pinFeedbackPath(captureId, selectedPinId, action), {
+          method: "POST",
+          headers: { [EDITOR_CSRF_HEADER]: readCsrfProof() },
+        });
+        if (!response.ok) {
+          setStatusState("failed");
+          return;
+        }
+        const payload = (await response.json()) as PinStatusResponse;
+        setPinsState((current) =>
+          current && current.captureId === captureId
+            ? {
+                ...current,
+                pins: current.pins.map((pin) =>
+                  pin.id === payload.annotation.id ? payload.annotation : pin,
+                ),
+              }
+            : current,
+        );
+        const entry = payload.entry;
+        if (entry) {
+          setThreadState((current) =>
+            current && current.annotationId === selectedPinId
+              ? {
+                  ...current,
+                  entries: current.entries.some((existing) => existing.id === entry.id)
+                    ? current.entries
+                    : [...current.entries, entry],
+                }
+              : current,
+          );
+        }
+        setStatusState("idle");
+        onChanged();
+      } catch {
+        setStatusState("failed");
+      }
+    },
+    [selectedReady, selectedPinId, statusState, onChanged],
+  );
 
   // Nearby context for the draft, fetched once per settled position. The
   // response is scoped to the capture it was fetched for; a stale response
@@ -774,10 +888,11 @@ export function ProjectWorkspace({
                       {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
                       {project.counts.failed} failed · {project.counts.inProgress} in progress
                     </p>
-                    <FounderShareControl
-                      publicId={project.publicId}
-                      projectTitle={project.title}
-                    />
+                    {/* Feedback counts for the editor (D075); the share
+                        control now lives in the selected project's header. */}
+                    <p className="project-counts" data-testid="project-feedback-summary">
+                      {feedbackSummary(projectFeedback(project, seenAdjust))}
+                    </p>
                     <ol>
                       {project.pages.map((page) => (
                         <li key={page.id}>
@@ -787,6 +902,15 @@ export function ProjectWorkspace({
                               const isActive =
                                 active?.page.id === page.id &&
                                 active.device.variant === device.variant;
+                              // Unread and open counts of the device's selected
+                              // capture (D075), beside the button so its
+                              // accessible name stays the stable device label.
+                              const feedback = captureFeedback(
+                                project,
+                                device.selectedCaptureId,
+                                seenAdjust,
+                              );
+                              const badge = feedbackBadge(feedback);
                               return (
                                 <li key={device.variant}>
                                   <button
@@ -811,6 +935,16 @@ export function ProjectWorkspace({
                                       — {deviceStatus(device)}
                                     </span>
                                   </button>
+                                  {badge ? (
+                                    <span
+                                      className="tree-count feedback-badge"
+                                      data-testid="feedback-badge"
+                                      data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
+                                      aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}: ${badge}`}
+                                    >
+                                      {badge}
+                                    </span>
+                                  ) : null}
                                 </li>
                               );
                             })}
@@ -828,6 +962,24 @@ export function ProjectWorkspace({
 
       {active ? (
         <section className="workspace-detail" aria-label="Selected capture">
+          {/* The selected project's header (D075): its title, the feedback
+              counts for the editor, and the share control that used to sit
+              inside the collapsed rail entry. */}
+          <div className="project-header" data-testid="project-header">
+            {/* Not a heading: the rail already carries the one heading with
+                this project's name, and the specs address it by that role. */}
+            <p className="project-title" data-testid="project-title">
+              {active.project.title}
+            </p>
+            <p className="project-feedback" data-testid="project-feedback">
+              {feedbackSummary(projectFeedback(active.project, seenAdjust))}
+            </p>
+            <FounderShareControl
+              key={active.project.publicId}
+              publicId={active.project.publicId}
+              projectTitle={active.project.title}
+            />
+          </div>
           <h3>
             {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
           </h3>
@@ -945,6 +1097,8 @@ export function ProjectWorkspace({
               }}
               onConfirmDelete={() => void confirmDelete()}
               deleteState={deleteState}
+              onSetPinStatus={(action) => void setPinStatus(action)}
+              statusState={statusState}
               thread={
                 selectedPinId && threadState && threadState.annotationId === selectedPinId
                   ? {

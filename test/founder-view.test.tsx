@@ -86,7 +86,24 @@ const pin = {
   body: "The hero headline duplicates the nav wordmark.",
   elementSnapshot: null,
   revision: 1,
+  status: "replied",
+  unreadReplies: 1,
   createdAt: 1_800_000_000_000,
+};
+
+const secondPin = {
+  id: "ann-2",
+  captureId: "root-d1",
+  kind: "pin",
+  number: 2,
+  tip: { x: 100, y: 200 },
+  body:
+    "This paragraph runs on far longer than any reasonable excerpt should, so the list has to cut it short somewhere sensible.",
+  elementSnapshot: null,
+  revision: 1,
+  status: "resolved",
+  unreadReplies: 0,
+  createdAt: 1_800_000_000_100,
 };
 
 const entries = [
@@ -95,6 +112,7 @@ const entries = [
     annotationId: "ann-1",
     actorRole: "founder",
     authorLabel: "founder",
+    kind: "message",
     body: "Good catch, will trim it.",
     createdAt: 1_800_000_000_500,
   },
@@ -103,6 +121,7 @@ const entries = [
     annotationId: "ann-1",
     actorRole: "editor",
     authorLabel: "Lucas",
+    kind: "message",
     body: "Thanks!",
     createdAt: 1_800_000_001_000,
   },
@@ -150,7 +169,27 @@ function installFetch() {
       );
     }
     if (target.endsWith("/annotations")) {
-      return Promise.resolve(json({ annotations: [pin] }));
+      return Promise.resolve(json({ annotations: [pin, secondPin] }));
+    }
+    if (target.endsWith("/seen") && method === "POST") {
+      return Promise.resolve(json({ seen: true }));
+    }
+    if ((target.endsWith("/resolve") || target.endsWith("/reopen")) && method === "POST") {
+      const resolved = target.endsWith("/resolve");
+      return Promise.resolve(
+        json({
+          annotation: { ...pin, status: resolved ? "resolved" : "replied", unreadReplies: 0 },
+          entry: {
+            id: resolved ? "thr-resolved" : "thr-reopened",
+            annotationId: "ann-1",
+            actorRole: "founder",
+            authorLabel: "founder",
+            kind: "status",
+            body: resolved ? "Resolved by founder" : "Reopened by founder",
+            createdAt: 1_800_000_003_000,
+          },
+        }),
+      );
     }
     if (target.endsWith("/thread") && method === "GET") {
       return Promise.resolve(json({ entries }));
@@ -285,7 +324,7 @@ describe("read/reply-only surface", () => {
   test("selecting a pin shows the original comment, the thread with server labels, and a reply composer", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 — at/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
     expect(panel).toHaveTextContent("Pin 1");
@@ -311,7 +350,7 @@ describe("read/reply-only surface", () => {
   test("a reply posts one idempotent append with the founder CSRF proof and appears in the thread", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 — at/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
     await user.type(within(panel).getByLabelText("Reply as founder"), "Will do this week.");
@@ -340,13 +379,100 @@ describe("read/reply-only surface", () => {
   test("a reply denied by a lost capability says so and keeps the text", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 — at/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
+    // The thread read is followed by the seen mark; wait for it so the
+    // one-off denial below lands on the reply and nothing else.
+    await waitFor(() => expect(calls.some((call) => call.url.endsWith("/seen"))).toBe(true));
     fetchMock.mockImplementationOnce(() => Promise.resolve(json({ error: "Authentication required." }, 401)));
     await user.type(within(panel).getByLabelText("Reply as founder"), "Stale");
     await user.click(within(panel).getByRole("button", { name: "Send reply" }));
     expect(await within(panel).findByRole("alert")).toHaveTextContent(/no longer valid/);
     expect(within(panel).getByLabelText("Reply as founder")).toHaveValue("Stale");
+  });
+});
+
+// The feedback loop (D075): a pin list above the canvas, seen marks, and the
+// founder's resolve/reopen control. Everything else stays read-only.
+describe("pin list and lifecycle (D075)", () => {
+  test("lists every pin above the canvas with an excerpt, status, and unread marker; choosing one selects it", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const items = within(list).getAllByRole("button");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent(
+      "Pin 1 — “The hero headline duplicates the nav wordmark.” · Replied · 1 new",
+    );
+    expect(items[1]).toHaveTextContent(/^Pin 2 — “This paragraph runs on far longer/);
+    // A long comment is cut to about 80 characters.
+    expect(items[1]!.textContent).toContain("…");
+    expect(items[1]!.textContent).not.toContain("somewhere sensible");
+    expect(items[1]).toHaveTextContent("Resolved");
+    expect(items[1]).not.toHaveTextContent("new");
+    // The list comes before the canvas in reading order.
+    const canvas = screen.getByRole("region", { name: /Screenshot of/ });
+    expect(list.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(items[1]!);
+    expect(items[1]).toHaveAttribute("aria-current", "true");
+    const panel = screen.getByTestId("founder-panel");
+    expect(panel).toHaveTextContent("Pin 2");
+    expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Resolved");
+    expect(within(panel).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+    // Still no editing control anywhere.
+    expect(screen.queryByRole("button", { name: /edit|delete|move|place/i })).toBeNull();
+  });
+
+  test("opening a thread marks the pin seen for the founder and clears its unread marker", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    await user.click(within(list).getAllByRole("button")[0]!);
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.method === "POST" && call.url === "/api/captures/root-d1/annotations/ann-1/seen",
+        ),
+      ).toBe(true),
+    );
+    const seen = calls.find((call) => call.url.endsWith("/seen"))!;
+    expect(seen.headers[EDITOR_CSRF_HEADER]).toBe("founder-proof-sentinel");
+    // The seen mark follows the thread read, never precedes it.
+    expect(calls.findIndex((call) => call.url.endsWith("/thread"))).toBeLessThan(
+      calls.findIndex((call) => call.url.endsWith("/seen")),
+    );
+    await waitFor(() =>
+      expect(within(list).getAllByRole("button")[0]).not.toHaveTextContent("new"),
+    );
+  });
+
+  test("Resolve pin posts to the resolve route with the founder proof; the thread records it and the list follows", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    await user.click(within(list).getAllByRole("button")[0]!);
+    const panel = screen.getByTestId("founder-panel");
+    await within(panel).findByTestId("thread");
+    expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Replied");
+
+    await user.click(within(panel).getByRole("button", { name: "Resolve pin" }));
+    await waitFor(() =>
+      expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Resolved"),
+    );
+    const post = calls.find((call) => call.url.endsWith("/resolve"))!;
+    expect(post.method).toBe("POST");
+    expect(post.url).toBe("/api/captures/root-d1/annotations/ann-1/resolve");
+    expect(post.headers[EDITOR_CSRF_HEADER]).toBe("founder-proof-sentinel");
+    expect(post.body).toBeNull();
+    expect(within(panel).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+    const thread = within(panel).getByTestId("thread");
+    expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by founder");
+    // The system line is not a message entry.
+    expect(thread.querySelectorAll(".thread-entry")).toHaveLength(3);
+    expect(within(list).getAllByRole("button")[0]).toHaveTextContent("Resolved");
+    expect(within(panel).queryByRole("button", { name: /edit|delete/i })).toBeNull();
   });
 });

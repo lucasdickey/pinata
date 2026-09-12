@@ -75,9 +75,16 @@ function projectWith(state: AttemptView["state"]): WorkspaceProject {
  */
 function queueStates(...states: AttemptView["state"][]): void {
   let index = 0;
-  fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+  fetchMock.mockImplementation((url: string, init?: RequestInit) => {
     if ((init?.method ?? "GET") !== "GET") {
       return new Promise<Response>(() => {});
+    }
+    // The project header's share status read (D075) is not a hierarchy
+    // read and must not consume a queued state.
+    if (isShareStatusRead(url)) {
+      return Promise.resolve(
+        Response.json({ share: { state: "none", version: 0, revokedAt: null } }),
+      );
     }
     const state = states[Math.min(index, states.length - 1)]!;
     index += 1;
@@ -85,11 +92,22 @@ function queueStates(...states: AttemptView["state"][]): void {
   });
 }
 
-/** The polling schedule is about hierarchy reads; count only those. */
+/**
+ * The polling schedule is about hierarchy reads; count only those. The
+ * selected project's header also reads its founder link status once on
+ * mount (D075); that read is not polling and is not counted.
+ */
 function hierarchyReads(): number {
   return fetchMock.mock.calls.filter(
-    (call) => ((call[1] as RequestInit | undefined)?.method ?? "GET") === "GET",
+    (call) =>
+      ((call[1] as RequestInit | undefined)?.method ?? "GET") === "GET" &&
+      call[0] === "/api/projects",
   ).length;
+}
+
+/** The one non-hierarchy read the workspace makes: the share status (D075). */
+function isShareStatusRead(url: unknown): boolean {
+  return /^\/api\/projects\/[^/]+\/share$/.test(String(url));
 }
 
 async function tick(ms: number): Promise<void> {
@@ -104,6 +122,7 @@ function expectReadOnlyPolling(): void {
   for (const call of fetchMock.mock.calls) {
     const method = (call[1] as RequestInit | undefined)?.method ?? "GET";
     if (method === "GET") {
+      if (isShareStatusRead(call[0])) continue;
       expect(call[0]).toBe("/api/projects");
     } else {
       expect(method).toBe("POST");

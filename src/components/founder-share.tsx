@@ -2,14 +2,15 @@
 
 // The editor's per-project "Share with founder" control (REQUIREMENTS 7).
 //
-// Closed by default and reading nothing until opened, so the workspace's
-// default traffic is unchanged. Open, it reads the capability status (no
-// link / active / revoked, with the version), and offers Create or Rotate
-// plus Revoke. Issuing shows the complete link exactly once — the server
-// persists only a digest and can never show the token again — with the
-// token in the URL fragment so it never reaches a server log or referrer.
+// It sits in the selected project's header (D075) and reads the capability
+// status once on mount so the current state — no link, active with its
+// version, or revoked — is visible next to the toggle without opening the
+// panel. Open, the panel offers Create or Rotate plus Revoke. Issuing shows
+// the complete link exactly once — the server persists only a digest and
+// can never show the token again — with the token in the URL fragment so it
+// never reaches a server log or referrer.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import type {
@@ -55,19 +56,29 @@ export function FounderShareControl({
         setState({ status: "failed" });
         return;
       }
-      const payload = (await response.json()) as FounderShareStatusResponse;
+      const payload = (await response.json()) as Partial<FounderShareStatusResponse>;
+      if (!payload.share || typeof payload.share.state !== "string") {
+        setState({ status: "failed" });
+        return;
+      }
       setState({ status: "ready", share: payload.share });
     } catch {
       setState({ status: "failed" });
     }
   }, [publicId]);
 
+  // The status is read once on mount so the inline state is always shown;
+  // opening the panel re-reads only when that first read failed.
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const toggle = () => {
     const next = !open;
     setOpen(next);
     setError(null);
     if (next) {
-      void load();
+      if (state.status === "failed") void load();
     } else {
       // Closing forgets the one-time link; the server cannot re-show it.
       setFreshLink(null);
@@ -142,6 +153,17 @@ export function FounderShareControl({
         : share.state === "active"
           ? `Founder link active (version ${share.version}).`
           : `Founder link revoked (was version ${share.version}).`;
+  // The always-visible short form of the same state (D075).
+  const inlineState =
+    share === null
+      ? state.status === "failed"
+        ? "Link status unavailable"
+        : "Checking link…"
+      : share.state === "none"
+        ? "No founder link"
+        : share.state === "active"
+          ? `Founder link active · v${share.version}`
+          : "Founder link revoked";
 
   return (
     <div className="founder-share" data-testid="founder-share">
@@ -153,6 +175,13 @@ export function FounderShareControl({
       >
         Share with founder
       </button>
+      <span
+        className="founder-share-state"
+        data-testid="founder-share-state"
+        data-state={share?.state ?? state.status}
+      >
+        {inlineState}
+      </span>
       {open ? (
         <div
           id={`founder-share-${publicId}`}

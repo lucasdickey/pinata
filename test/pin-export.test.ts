@@ -35,6 +35,8 @@ function pin(overrides: Partial<PinAnnotationView> = {}): PinAnnotationView {
     body: "This billing toggle reads the same in both states.",
     elementSnapshot: element,
     revision: 1,
+    status: "open",
+    unreadReplies: 0,
     createdAt: 0,
     ...overrides,
   };
@@ -87,6 +89,17 @@ describe("formatPinsAsMarkdown", () => {
     expect(markdown).toContain("- Element: <button> role=switch “Annual (save 20%)”");
     expect(markdown).toContain("- Path: `main > section.pricing > div.billing-toggle`");
     expect(markdown).toContain("- Bounds: 176 × 44 px natural");
+  });
+
+  test("every pin carries its lifecycle status (D075)", () => {
+    expect(formatPinsAsMarkdown([pin()], context)).toContain("- Status: Open");
+    expect(formatPinsAsMarkdown([pin({ status: "replied" })], context)).toContain(
+      "- Status: Replied",
+    );
+    const resolved = formatPinsAsMarkdown([pin({ status: "resolved" })], context);
+    expect(resolved).toContain("- Status: Resolved");
+    // The status line sits between the heading and the element context.
+    expect(resolved.indexOf("- Status:")).toBeLessThan(resolved.indexOf("- Element:"));
   });
 
   test("a no-element pin says so and emits no path or bounds line", () => {

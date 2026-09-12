@@ -681,6 +681,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     body: "The hero headline duplicates the nav wordmark.",
     elementSnapshot: null,
     revision: 1,
+    status: "open",
+    unreadReplies: 0,
     createdAt: 1_800_000_000_000,
   };
 
@@ -712,13 +714,47 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
   ) {
     const pins: StubPin[] = [...initial];
     const writes: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    // The feedback routes (D075): seen marks and resolve/reopen, recorded
+    // apart from the pin writes the existing assertions count.
+    const feedback: { action: string; url: string }[] = [];
     fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
       const target = String(url);
       if (target.includes("/context")) {
         return Promise.resolve(json({ candidates: contextItems }));
       }
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
       if (!target.includes("/annotations")) {
         return Promise.reject(new Error(`unexpected fetch: ${target}`));
+      }
+      const feedbackAction = /\/(seen|resolve|reopen)$/.exec(target)?.[1];
+      if (feedbackAction && init?.method === "POST") {
+        feedback.push({ action: feedbackAction, url: target });
+        if (feedbackAction === "seen") return Promise.resolve(json({ seen: true }));
+        const id = decodeURIComponent(target.split("/annotations/")[1]!.split("/")[0]!);
+        const pin = pins.find((candidate) => candidate.id === id);
+        if (!pin) return Promise.resolve(json({ error: "Request rejected." }, 404));
+        const status = feedbackAction === "resolve" ? "resolved" : "open";
+        const updated = { ...pin, status, unreadReplies: 0 };
+        pins[pins.indexOf(pin)] = updated;
+        return Promise.resolve(
+          json({
+            annotation: updated,
+            entry: {
+              id: `status-${feedback.length}`,
+              annotationId: pin.id,
+              actorRole: "editor",
+              authorLabel: "Lucas",
+              kind: "status",
+              body: feedbackAction === "resolve" ? "Resolved by editor" : "Reopened by editor",
+              createdAt: 1_800_000_005_000,
+            },
+          }),
+        );
+      }
+      if (target.endsWith("/thread")) {
+        return Promise.resolve(json({ entries: [] }));
       }
       const body =
         init?.body !== undefined
@@ -763,7 +799,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       }
       return Promise.resolve(json({ annotations: pins }));
     });
-    return { pins, writes };
+    return { pins, writes, feedback };
   }
 
   /** Drop one draft pin with a click at a fixed pane point; the composer opens. */
@@ -1216,5 +1252,110 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(document.querySelectorAll(".react-flow__node-pin")).toHaveLength(0),
     );
     expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+  });
+
+  // The feedback loop (D075): counts in the rail and the project header, the
+  // share control moved into that header, seen marks when a thread opens,
+  // and the resolve/reopen control on the selected pin.
+  describe("feedback loop (D075)", () => {
+    function withFeedback(): WorkspaceProject {
+      const base = project();
+      base.feedback = { pins: 3, open: 2, resolved: 1, unreadReplies: 2 };
+      base.captureFeedback = {
+        "root-d1": { pins: 2, open: 1, resolved: 1, unreadReplies: 2 },
+        "pricing-d1": { pins: 1, open: 1, resolved: 0, unreadReplies: 0 },
+      };
+      return base;
+    }
+
+    test("the rail badges each device and the project summary and header carry the counts", async () => {
+      render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+      await settleAnnotations();
+      const badges = within(tree()).getAllByTestId("feedback-badge");
+      expect(badges.map((badge) => badge.textContent)).toEqual(["2 new · 1 open", "1 open"]);
+      expect(badges[0]).toHaveAttribute("data-unread", "true");
+      expect(badges[1]).toHaveAttribute("data-unread", "false");
+      // The device button's accessible name is unchanged; the badge speaks for itself.
+      expect(
+        within(tree()).getByRole("button", { name: "Desktop capture of https://chickpea.co/" }),
+      ).toBeInTheDocument();
+      const summary = "3 pins · 2 open · 1 resolved · 2 unread replies";
+      expect(within(tree()).getByTestId("project-feedback-summary")).toHaveTextContent(summary);
+      expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent(summary);
+    });
+
+    test("the share control lives in the project header with its state visible, not in the rail", async () => {
+      fetchMock.mockImplementation((url: unknown) => {
+        const target = String(url);
+        if (target.endsWith("/share")) {
+          return Promise.resolve(json({ share: { state: "active", version: 2, revokedAt: null } }));
+        }
+        if (target.includes("/context")) return Promise.resolve(json({ candidates: [] }));
+        if (target.includes("/annotations")) return Promise.resolve(json({ annotations: [] }));
+        return Promise.reject(new Error(`unexpected fetch: ${target}`));
+      });
+      render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+      const header = within(detail()).getByTestId("project-header");
+      expect(within(header).getByTestId("project-title")).toHaveTextContent("chickpea.co");
+      // The rail's hidden heading stays the only heading with the project's name.
+      expect(screen.getAllByRole("heading", { name: "chickpea.co" })).toHaveLength(1);
+      expect(within(header).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
+      expect(within(tree()).queryByRole("button", { name: "Share with founder" })).toBeNull();
+      expect(await within(header).findByTestId("founder-share-state")).toHaveTextContent(
+        "Founder link active · v2",
+      );
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/share"))).toHaveLength(1);
+    });
+
+    test("opening a pin's thread marks it seen and lowers the local counts until the next read", async () => {
+      const user = userEvent.setup();
+      const { feedback } = stubAnnotations([{ ...savedPin, status: "replied", unreadReplies: 2 }]);
+      render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+      const pinButton = await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
+      expect(pinButton).toHaveTextContent("2 new");
+      expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent("2 new · 1 open");
+
+      await user.click(pinButton);
+      await waitFor(() => expect(feedback.map((call) => call.action)).toEqual(["seen"]));
+      expect(feedback[0]!.url).toBe("/api/captures/root-d1/annotations/ann-saved-1/seen");
+      await waitFor(() =>
+        expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent(/^1 open$/),
+      );
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).not.toHaveTextContent("new");
+      expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent("0 unread replies");
+      expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Replied");
+    });
+
+    test("Resolve pin posts to the resolve route, shows the new status and the thread's system line, and re-reads the hierarchy", async () => {
+      const user = userEvent.setup();
+      const { feedback, writes } = stubAnnotations([savedPin]);
+      render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
+      await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
+      expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Open");
+
+      await user.click(within(detail()).getByRole("button", { name: "Resolve pin" }));
+      await waitFor(() => expect(feedback.some((call) => call.action === "resolve")).toBe(true));
+      expect(feedback.find((call) => call.action === "resolve")!.url).toBe(
+        "/api/captures/root-d1/annotations/ann-saved-1/resolve",
+      );
+      await waitFor(() =>
+        expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Resolved"),
+      );
+      expect(within(detail()).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+      const thread = within(detail()).getByTestId("thread");
+      expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by editor");
+      // A status line is not a message: no author, no message styling.
+      expect(thread.querySelectorAll(".thread-entry[data-author='Lucas']")).toHaveLength(1);
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toHaveTextContent("Resolved");
+      // No pin write went out, and the hierarchy is re-read for the counts.
+      expect(writes).toHaveLength(0);
+      expect(onChanged).toHaveBeenCalledTimes(1);
+
+      await user.click(within(detail()).getByRole("button", { name: "Reopen pin" }));
+      await waitFor(() =>
+        expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Open"),
+      );
+      expect(within(detail()).getByRole("button", { name: "Resolve pin" })).toBeInTheDocument();
+    });
   });
 });

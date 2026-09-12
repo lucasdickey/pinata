@@ -35,6 +35,8 @@ const pins: PinAnnotationView[] = [
     body: "This billing toggle reads the same in both states.",
     elementSnapshot: element,
     revision: 1,
+    status: "replied",
+    unreadReplies: 2,
     createdAt: 0,
   },
   {
@@ -46,6 +48,8 @@ const pins: PinAnnotationView[] = [
     body: "The CTA disappears below the fold.",
     elementSnapshot: null,
     revision: 1,
+    status: "resolved",
+    unreadReplies: 0,
     createdAt: 1,
   },
 ];
@@ -101,6 +105,17 @@ describe("the all-pins table", () => {
 
     // A pin saved against no element says so rather than showing a blank cell.
     expect(rows[1]!).toHaveTextContent("No element");
+  });
+
+  test("carries a Status column with the lifecycle state and the unread marker (D075)", () => {
+    renderTable();
+    expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+    const rows = screen.getAllByRole("row").slice(1);
+    const status = (row: HTMLElement) => row.querySelector(".pin-table-status")!;
+    expect(status(rows[0]!)).toHaveTextContent("Replied · 2 new");
+    expect(status(rows[0]!)).toHaveAttribute("data-status", "replied");
+    expect(status(rows[1]!)).toHaveTextContent("Resolved");
+    expect(status(rows[1]!)).not.toHaveTextContent("new");
   });
 
   test("selecting a row reports the pin, and selecting it again clears it", async () => {

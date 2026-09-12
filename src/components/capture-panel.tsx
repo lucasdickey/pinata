@@ -18,7 +18,9 @@
 // while a draft is open.
 
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
-import type { PinAnnotationView } from "../lib/annotations";
+import type { PinAnnotationView, PinElementSnapshot } from "../lib/annotations";
+import type { NaturalPoint } from "../lib/canvas/camera";
+import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
 import { snapshotLabel } from "./pin-composer";
 import { ThreadView, type ThreadViewProps } from "./thread-view";
@@ -59,6 +61,8 @@ export function CapturePanel({
   onCancelDelete,
   onConfirmDelete,
   deleteState,
+  onSetPinStatus,
+  statusState = "idle",
   thread,
 }: {
   attempt: AttemptView | null;
@@ -84,6 +88,12 @@ export function CapturePanel({
   onConfirmDelete: () => void;
   deleteState: "idle" | "deleting" | "failed" | "conflict";
   /**
+   * Resolve or reopen the selected pin (D075). Optional so the panel's
+   * existing surface is unchanged when the workspace supplies no handler.
+   */
+  onSetPinStatus?: (action: "resolve" | "reopen") => void;
+  statusState?: "idle" | "saving" | "failed";
+  /**
    * The selected pin's append-only thread plus the editor's follow-up
    * composer (REQUIREMENTS 6). Optional so the panel's existing surface is
    * unchanged when no thread state is supplied.
@@ -103,6 +113,14 @@ export function CapturePanel({
           <p>
             <strong>Pin {selectedPin.number}</strong> at natural pixel (
             {Math.round(selectedPin.tip.x)}, {Math.round(selectedPin.tip.y)})
+          </p>
+          {/* The pin lifecycle (D075): its status, and one control that
+              resolves an open or replied pin or reopens a resolved one. */}
+          <p className="panel-status" data-testid="panel-status" data-status={selectedPin.status}>
+            Status: {PIN_STATUS_LABELS[selectedPin.status] ?? selectedPin.status}
+            {selectedPin.unreadReplies > 0 ? (
+              <span className="pin-unread"> · {selectedPin.unreadReplies} new</span>
+            ) : null}
           </p>
           {editing ? (
             <label className="panel-field">
@@ -160,8 +178,28 @@ export function CapturePanel({
               <button type="button" onClick={onRequestDelete}>
                 Delete pin
               </button>
+              {onSetPinStatus ? (
+                <button
+                  type="button"
+                  disabled={statusState === "saving"}
+                  onClick={() =>
+                    onSetPinStatus(selectedPin.status === "resolved" ? "reopen" : "resolve")
+                  }
+                >
+                  {statusState === "saving"
+                    ? "Saving…"
+                    : selectedPin.status === "resolved"
+                      ? "Reopen pin"
+                      : "Resolve pin"}
+                </button>
+              ) : null}
             </p>
           )}
+          {statusState === "failed" ? (
+            <p role="alert" className="capture-error">
+              That status change could not be saved. Try again.
+            </p>
+          ) : null}
           {editState === "failed" ? (
             <p role="alert" className="capture-error">
               That edit could not be saved. Your text is still here — try again.
@@ -219,6 +257,12 @@ export function CapturePanel({
                     onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                   >
                     Pin {pin.number} — at ({Math.round(pin.tip.x)}, {Math.round(pin.tip.y)})
+                    {pin.status === "resolved" ? (
+                      <span className="pin-status"> · Resolved</span>
+                    ) : null}
+                    {pin.unreadReplies > 0 ? (
+                      <span className="pin-unread"> · {pin.unreadReplies} new</span>
+                    ) : null}
                   </button>
                 </li>
               ))}

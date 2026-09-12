@@ -62,7 +62,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 
   let result;
   try {
-    result = await listPins(db, captureId);
+    // Unread counts are computed for whoever is asking (D075).
+    result = await listPins(db, captureId, auth.actor.viewer);
   } catch {
     return finish(jsonError(503, ERRORS.unavailable));
   }

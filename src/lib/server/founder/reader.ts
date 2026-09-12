@@ -8,6 +8,7 @@
 // rotated, and revoked callers are indistinguishable from each other and
 // from what these routes always answered.
 
+import { EDITOR_VIEWER, founderViewer, type Viewer } from "../annotations/seen";
 import { sessionCookie } from "../auth/cookies";
 import { requireEditor, requireEditorMutation } from "../auth/guard";
 import type { Database } from "../db/client";
@@ -25,6 +26,8 @@ export interface CaptureActor {
   role: ThreadActorRole;
   /** The founder's project id (the reply-quota scope); null for the editor. */
   projectId: string | null;
+  /** The identity unread counts and last-seen marks are kept under (D075). */
+  viewer: Viewer;
   /** A renewed session Set-Cookie value when inside the renewal threshold. */
   renewCookie: string | null;
 }
@@ -47,6 +50,7 @@ export async function authorizeCaptureReader(
       actor: {
         role: "editor",
         projectId: null,
+        viewer: EDITOR_VIEWER,
         renewCookie: editor.renewedToken ? sessionCookie(editor.renewedToken, secure) : null,
       },
     };
@@ -61,6 +65,7 @@ export async function authorizeCaptureReader(
     actor: {
       role: "founder",
       projectId: founder.session.pid,
+      viewer: founderViewer(founder.session.ver),
       renewCookie: founder.renewedToken
         ? founderSessionCookie(founder.renewedToken, secure)
         : null,
@@ -82,6 +87,7 @@ export async function authorizeCaptureReplier(
       actor: {
         role: "editor",
         projectId: null,
+        viewer: EDITOR_VIEWER,
         renewCookie: editor.renewedToken ? sessionCookie(editor.renewedToken, secure) : null,
       },
     };
@@ -97,6 +103,7 @@ export async function authorizeCaptureReplier(
     actor: {
       role: "founder",
       projectId: founder.session.pid,
+      viewer: founderViewer(founder.session.ver),
       renewCookie: founder.renewedToken
         ? founderSessionCookie(founder.renewedToken, secure)
         : null,

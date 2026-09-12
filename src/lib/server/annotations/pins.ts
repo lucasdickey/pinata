@@ -33,11 +33,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, eq, isNull, max } from "drizzle-orm";
 import { FEEDBACK_BODY_MAX_CHARS, MAX_ANNOTATIONS_PER_CAPTURE } from "../../boundaries";
 import { schema, type Database } from "../db/client";
+import type { AnnotationStatus } from "../db/schema";
 import {
   deriveSnapshot,
   parseManifestElements,
   type ContextElement,
 } from "./context";
+import { EDITOR_VIEWER, unreadRepliesByPin, type Viewer } from "./seen";
 
 /** Idempotency scope for editor pin creation. */
 export const ANNOTATION_CREATE_SCOPE = "annotation-create";
@@ -65,6 +67,10 @@ export interface AnnotationRecord {
   /** Inert capture-time DOM context snapshot, or the explicit null. */
   elementSnapshot: ContextElement | null;
   revision: number;
+  /** Lifecycle status (D075): open, replied, or resolved. */
+  status: AnnotationStatus;
+  /** Unread replies for the viewer the record was read for (D075). */
+  unreadReplies: number;
   createdAt: number;
 }
 
@@ -130,7 +136,8 @@ function annotatable(capture: CaptureRow | undefined): capture is CaptureRow {
   );
 }
 
-function toRecord(row: AnnotationRow): AnnotationRecord {
+/** The domain record for one annotation row, with the viewer's unread count. */
+export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): AnnotationRecord {
   const tip = JSON.parse(row.geometryJson) as PinTip;
   return {
     id: row.id,
@@ -143,9 +150,13 @@ function toRecord(row: AnnotationRow): AnnotationRecord {
       ? (JSON.parse(row.elementSnapshotJson) as ContextElement)
       : null,
     revision: row.revision,
+    status: row.status as AnnotationStatus,
+    unreadReplies,
     createdAt: row.createdAt,
   };
 }
+
+const toRecord = annotationRecordFromRow;
 
 async function loadCapture(db: Database, captureId: string): Promise<CaptureRow | undefined> {
   const rows = await db
@@ -181,8 +192,15 @@ function bodyValid(body: string): boolean {
   return body.trim().length > 0 && body.length <= FEEDBACK_BODY_MAX_CHARS;
 }
 
-/** List the live pins of one ready capture, ordered by their stable numbers. */
-export async function listPins(db: Database, captureId: string): Promise<ListPinsResult> {
+/**
+ * List the live pins of one ready capture, ordered by their stable numbers,
+ * each carrying the unread-reply count for the requesting viewer (D075).
+ */
+export async function listPins(
+  db: Database,
+  captureId: string,
+  viewer: Viewer = EDITOR_VIEWER,
+): Promise<ListPinsResult> {
   const capture = await loadCapture(db, captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
   const rows = await db
@@ -196,7 +214,8 @@ export async function listPins(db: Database, captureId: string): Promise<ListPin
       ),
     )
     .orderBy(asc(schema.annotations.number));
-  return { ok: true, annotations: rows.map(toRecord) };
+  const unread = await unreadRepliesByPin(db, captureId, viewer);
+  return { ok: true, annotations: rows.map((row) => toRecord(row, unread.get(row.id) ?? 0)) };
 }
 
 /** Binds an idempotency key to the whole normalized create intent. */
@@ -236,10 +255,13 @@ function replay(
   if (record.payloadDigest !== digest || record.resultJson === null) {
     return { ok: false, error: "conflict" };
   }
+  // Records committed before the lifecycle columns existed carry no status;
+  // a replayed create is always a fresh open pin with nothing unread.
+  const stored = JSON.parse(record.resultJson) as Partial<AnnotationRecord> & AnnotationRecord;
   return {
     ok: true,
     created: false,
-    annotation: JSON.parse(record.resultJson) as AnnotationRecord,
+    annotation: { ...stored, status: stored.status ?? "open", unreadReplies: 0 },
   };
 }
 
@@ -317,6 +339,8 @@ export async function createPinAtomically(
       body: input.body,
       elementSnapshot: snapshot,
       revision: 1,
+      status: "open",
+      unreadReplies: 0,
       createdAt: now,
     };
     try {
@@ -462,7 +486,10 @@ export async function updatePin(
     return current ? { ok: false, error: "conflict" } : { ok: false, error: "not-found" };
   }
 
-  const record = toRecord(pin);
+  // Move and edit are editor-only, so the returned record carries the
+  // editor's unread count and can replace the listed pin one for one.
+  const unread = await unreadRepliesByPin(db, pin.captureId, EDITOR_VIEWER);
+  const record = toRecord(pin, unread.get(pin.id) ?? 0);
   return {
     ok: true,
     annotation: {

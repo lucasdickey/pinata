@@ -24,6 +24,8 @@ const savedPin = {
   body: "Tighten the pricing table.",
   elementSnapshot: null,
   revision: 2,
+  status: "open" as const,
+  unreadReplies: 0,
   createdAt: 1_800_000_000_000,
 };
 
@@ -33,6 +35,7 @@ const entries = [
     annotationId: "ann-1",
     actorRole: "founder" as const,
     authorLabel: "founder" as const,
+    kind: "message" as const,
     body: "On it.",
     createdAt: 1_800_000_000_500,
   },
@@ -41,6 +44,7 @@ const entries = [
     annotationId: "ann-1",
     actorRole: "editor" as const,
     authorLabel: "Lucas" as const,
+    kind: "message" as const,
     body: "<img src=x onerror=alert(1)> thanks",
     createdAt: 1_800_000_001_000,
   },

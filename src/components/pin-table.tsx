@@ -15,6 +15,7 @@
 
 import { useEffect, useState } from "react";
 import type { PinAnnotationView } from "../lib/annotations";
+import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import {
   formatPinsAsMarkdown,
   pinPosition,
@@ -94,11 +95,12 @@ export function PinTable({
         <div className="table-scroll">
           <table>
             <caption className="visually-hidden">
-              Every pin on this capture, with its position, element context, and comment.
+              Every pin on this capture, with its status, position, element context, and comment.
             </caption>
             <thead>
               <tr>
                 <th scope="col">Pin</th>
+                <th scope="col">Status</th>
                 <th scope="col">Position</th>
                 <th scope="col">Element</th>
                 <th scope="col">Comment</th>
@@ -121,6 +123,12 @@ export function PinTable({
                         Pin {pin.number}
                       </button>
                     </th>
+                    <td className="pin-table-status" data-status={pin.status}>
+                      {PIN_STATUS_LABELS[pin.status] ?? pin.status}
+                      {pin.unreadReplies > 0 ? (
+                        <span className="pin-unread"> · {pin.unreadReplies} new</span>
+                      ) : null}
+                    </td>
                     <td className="pin-table-position">{pinPosition(pin)}</td>
                     <td>
                       <span className="pin-table-element">
