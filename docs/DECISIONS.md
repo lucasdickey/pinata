@@ -3010,9 +3010,11 @@ Proposed by the agent, approved by the human, ordered after D074, D075, and D076
 
 **Consequences**
 
-- The rail's two-level disclosure (D070) simplifies to projects and pages.
-- Pin numbering stays per capture; the project-scoped table shows page and device so numbers are unambiguous.
-- The Markdown export format (D071) gains a heading per capture.
+- The rail lists projects and pages only (the two-level disclosure from D070 stays for projects) plus one 'Overview of <project>' entry per project, because a native details toggle cannot double as a selection without feedback loops. A page entry opens its Desktop capture, or Mobile when Desktop is not usable.
+- The device toggle sits in a toolbar row above the stage with Back to overview and Next / Previous pin, not inside the canvas's camera row, because it has to exist when the capture is not ready and the canvas is not mounted.
+- A new editor-only read, GET /api/projects/<publicId>/annotations, returns every live annotation across the project's ready captures in page, device, version, number order; stepping and the project-scoped table read it, while the canvas and panel keep the per-capture list.
+- Pin numbering stays per capture; the project-scoped table shows page and device so numbers are unambiguous, and the table's scope choice persists while a project stays selected.
+- The Markdown export format (D071) gains a heading per capture, skipping captures with no pins; the single-capture format is unchanged.
 
 **Provenance evidence**
 
@@ -3106,4 +3108,4 @@ Human instruction:
 
 ---
 
-<sub>Generated from 79 record(s) as of 2026-09-12 · source `f625fb261f02`</sub>
+<sub>Generated from 79 record(s) as of 2026-09-12 · source `4ceb88689dd2`</sub>

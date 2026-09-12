@@ -3444,9 +3444,11 @@ window.PINATA = {
       ],
       "rationale": "Proposed by the agent, approved by the human, ordered after D074, D075, and D076 at the human's direction. The thumbnail is the existing private asset served through the authorizing route, sized by CSS; no new storage.",
       "consequences": [
-        "The rail's two-level disclosure (D070) simplifies to projects and pages.",
-        "Pin numbering stays per capture; the project-scoped table shows page and device so numbers are unambiguous.",
-        "The Markdown export format (D071) gains a heading per capture."
+        "The rail lists projects and pages only (the two-level disclosure from D070 stays for projects) plus one 'Overview of <project>' entry per project, because a native details toggle cannot double as a selection without feedback loops. A page entry opens its Desktop capture, or Mobile when Desktop is not usable.",
+        "The device toggle sits in a toolbar row above the stage with Back to overview and Next / Previous pin, not inside the canvas's camera row, because it has to exist when the capture is not ready and the canvas is not mounted.",
+        "A new editor-only read, GET /api/projects/<publicId>/annotations, returns every live annotation across the project's ready captures in page, device, version, number order; stepping and the project-scoped table read it, while the canvas and panel keep the per-capture list.",
+        "Pin numbering stays per capture; the project-scoped table shows page and device so numbers are unambiguous, and the table's scope choice persists while a project stays selected.",
+        "The Markdown export format (D071) gains a heading per capture, skipping captures with no pins; the single-capture format is unchanged."
       ],
       "transcript": {
         "proposal": "Give the editor a project-level view instead of eight separate planes. Pins, the pin table, and Markdown export are all scoped to one capture, so reviewing a four-page project means visiting eight planes with no sense of where the notes are. Build: a project overview thumbnail grid with pin counts and unread badges; Desktop and Mobile as a toggle on the same page view, not separate tree entries; 'Next pin' and 'previous pin' that cross page and device boundaries; the pin table and 'Copy all as Markdown' at project scope with page and device columns.",
@@ -3534,5 +3536,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-09-12",
-  "source_hash": "f625fb261f02"
+  "source_hash": "4ceb88689dd2"
 };
