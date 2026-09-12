@@ -2930,7 +2930,7 @@ imagery that exists in the repository"
 
 ## Session: the UX overhaul, waves one and two (2026-09-12)
 
-Elapsed: about 3 hours of coordinator time so far against no fixed timebox;
+Elapsed: about 5 hours of coordinator time against no fixed timebox, with six agent runs of 25 to 50 minutes each;
 wrap-phase work on the branch `ux-overhaul/pins-loop-capture`, opened as a
 pull request when done, in the same shape as the walkthrough.
 
@@ -3002,10 +3002,10 @@ way; D078 (vocabulary) goes last because it rewrites copy across all of it.
   composer opens with the largest-overlap element pre-selected, boxes share
   numbering, threads, and status with pins, move by their stroke and resize
   by eight hand-rolled handles, and render read-only for the founder.
-- **D078** (in progress at the time of writing): names marks by their
-  comment and element, moves coordinates and hashes behind a Details
-  disclosure, removes them from the founder view, and puts the founder's
-  list first on phones.
+- **D078.** Marks are named by their comment and element through one
+  helper, coordinates and hashes sit behind a Details disclosure and leave
+  the founder view entirely, the founder's list comes first on phones and
+  tapping it centers the mark, and the walkthrough and README follow.
 
 ### What broke, wave two
 
@@ -3028,4 +3028,6 @@ way; D078 (vocabulary) goes last because it rewrites copy across all of it.
 
 - D074, D075, D076, D077, D078: agent-proposed, human-approved in one message.
 - D079: user-directed (the bounding box).
-- Consequences added to D074 through D077 and D079 for the findings above.
+- Consequences added to D074 through D079 for the findings above.
+- The final tree passed the whole gate: 1482 Vitest tests, build, and the
+  20 uncredentialed Playwright tests; 43 credentialed specs skipped here.

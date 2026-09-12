@@ -3051,9 +3051,12 @@ Proposed by the agent, approved by the human; sequenced last because it rewrites
 
 **Consequences**
 
-- Every test that matched 'at natural pixel' or the hint text is rewritten against the new labels.
-- Accessible names keep the pin number first so screen-reader order is stable.
-- The walkthrough's annotate and share slides are updated to the new labels.
+- One helper (markLabel in src/lib/canvas/marks.ts) produces every mark name: kind and number first, then a comment excerpt of at most 60 characters, then the element's short label (text, accessible name, or tag, at most 40 characters), joined with a middle dot. Every surface uses it, so the wording cannot drift, and coordinates never appear in a name.
+- Coordinates, box bounds, version, capture state, screenshot size, image hash, and the keyboard list live inside one closed Details disclosure in the editor panel and nowhere in the founder view. 'Natural size' stays as the camera button's name and 'px natural' stays in the Markdown export, which is written for an agent, not a founder.
+- Every test that matched 'at natural pixel' or the hint text was rewritten against the new labels; accessible names keep the pin or box number first so screen-reader order is stable.
+- Tapping a founder list entry centers that mark on the canvas at any width and scrolls the canvas into view only below 48rem, honoring reduced motion. The founder's comment is read from the thread's first entry rather than shown twice.
+- The walkthrough's annotate and share slides now show a drawn box, the label pattern, and a resolved status; the anonymous landing joined the axe sweep at both widths.
+- The pin table's first column now repeats the comment and element; whether the separate Comment column should go is left open.
 
 **Provenance evidence**
 
@@ -3109,4 +3112,4 @@ Human instruction:
 
 ---
 
-<sub>Generated from 79 record(s) as of 2026-09-12 · source `7fb530734b00`</sub>
+<sub>Generated from 79 record(s) as of 2026-09-12 · source `07d43a6b1ee1`</sub>
