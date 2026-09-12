@@ -18,12 +18,13 @@
 // side panel follow, so the table is a second route to the same state, never
 // a second copy of it.
 //
-// Rectangles (D079) are rows too: the first column names the kind ("Box 4")
-// and the position column shows the box's corner and size.
+// Rectangles (D079) are rows too: the first column names the mark the way
+// every surface does (D078: kind, number, comment excerpt, element) and the
+// position column shows the box's corner and size.
 
 import { useEffect, useState } from "react";
 import type { AnnotationView } from "../lib/annotations";
-import { markTitle } from "../lib/canvas/marks";
+import { markLabel } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import { pinPosition, snapshotPath, snapshotSummary } from "../lib/pin-export";
 
@@ -176,7 +177,7 @@ export function PinTable({
                         aria-current={pin.id === selectedPinId ? "true" : undefined}
                         onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                       >
-                        {markTitle(pin)}
+                        {markLabel(pin)}
                       </button>
                     </th>
                     <td className="pin-table-status" data-status={pin.status}>

@@ -108,7 +108,13 @@ describe("the all-pins table", () => {
     const tableRows = screen.getAllByRole("row").slice(1); // drop the header row
     expect(tableRows).toHaveLength(2);
 
-    expect(within(tableRows[0]!).getByRole("button", { name: "Pin 1" })).toBeInTheDocument();
+    // The first column is the mark's name (D078): kind and number, then the
+    // comment excerpt, then the attached element.
+    expect(
+      within(tableRows[0]!).getByRole("button", {
+        name: "Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+      }),
+    ).toBeInTheDocument();
     expect(tableRows[0]!).toHaveTextContent("https://chickpea.co/pricing");
     expect(tableRows[0]!).toHaveTextContent("Desktop v2");
     expect(tableRows[0]!).toHaveTextContent("392, 386");
@@ -117,7 +123,11 @@ describe("the all-pins table", () => {
 
     // Two pins can share a number across captures (D077); the Device
     // column is what tells them apart.
-    expect(within(tableRows[1]!).getByRole("button", { name: "Pin 1" })).toBeInTheDocument();
+    expect(
+      within(tableRows[1]!).getByRole("button", {
+        name: "Pin 1 · “The CTA disappears below the fold.”",
+      }),
+    ).toBeInTheDocument();
     expect(tableRows[1]!).toHaveTextContent("Mobile v1");
     // A pin saved against no element says so rather than showing a blank cell.
     expect(tableRows[1]!).toHaveTextContent("No element");
@@ -143,18 +153,18 @@ describe("the all-pins table", () => {
   test("selecting a row reports the pin, and selecting it again clears it", async () => {
     const user = userEvent.setup();
     const { onSelectPin } = renderTable();
-    await user.click(screen.getAllByRole("button", { name: "Pin 1" })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /^Pin 1 ·/ })[0]!);
     expect(onSelectPin).toHaveBeenCalledWith("a1");
 
     cleanup();
     const second = renderTable({ selectedPinId: "a1" });
-    await user.click(screen.getAllByRole("button", { name: "Pin 1" })[0]!);
+    await user.click(screen.getAllByRole("button", { name: /^Pin 1 ·/ })[0]!);
     expect(second.onSelectPin).toHaveBeenCalledWith(null);
   });
 
   test("the selected row is marked, not merely colored", () => {
     renderTable({ selectedPinId: "a2" });
-    const buttons = screen.getAllByRole("button", { name: "Pin 1" });
+    const buttons = screen.getAllByRole("button", { name: /^Pin 1 ·/ });
     expect(buttons[1]).toHaveAttribute("aria-current", "true");
     expect(buttons[0]).not.toHaveAttribute("aria-current");
   });
@@ -250,7 +260,9 @@ describe("rectangles in the table (D079)", () => {
     const tableRows = screen.getAllByRole("row").slice(1);
     expect(tableRows).toHaveLength(3);
     const row = tableRows[2]!;
-    expect(within(row).getByRole("button", { name: "Box 3" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", {
+        name: "Box 3 · “This whole card needs more air.” · Annual (save 20%)",
+      })).toBeInTheDocument();
     expect(row).toHaveTextContent("https://chickpea.co/");
     expect(row).toHaveTextContent("Mobile v3");
     const position = row.querySelector(".pin-table-position")!;
@@ -260,7 +272,9 @@ describe("rectangles in the table (D079)", () => {
     // Pin rows are unchanged beside it.
     expect(tableRows[0]!.querySelector(".pin-table-position")).toHaveTextContent("392, 386");
     expect(tableRows[0]!.querySelector(".pin-table-position")).toHaveAttribute("data-kind", "pin");
-    await user.click(within(row).getByRole("button", { name: "Box 3" }));
+    await user.click(within(row).getByRole("button", {
+        name: "Box 3 · “This whole card needs more air.” · Annual (save 20%)",
+      }));
     expect(onSelectPin).toHaveBeenCalledWith("a3");
   });
 

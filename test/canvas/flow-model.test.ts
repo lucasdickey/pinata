@@ -213,6 +213,8 @@ describe("persisted pin nodes", () => {
     expect(node.data.selected).toBe(true);
     expect(node.data.label).toContain("Pin 1");
     expect(node.ariaLabel).toBe(node.data.label);
+    // The name never carries coordinates (D078).
+    expect(node.data.label).not.toMatch(/\d+, \d+/);
     expect(node.draggable).toBe(true);
     expect(node.selectable).toBe(false);
     expect(node.connectable).toBe(false);
@@ -334,6 +336,27 @@ describe("rectangle nodes (D079)", () => {
       expect(node.data.strokeWidth * zoom).toBeCloseTo(2, 9);
       expect(node.data.handleSize * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
     }
+  });
+
+  test("nodes are named by comment and element, never by coordinates (D078)", () => {
+    const element = { text: "Annual (save 20%)", accessibleName: "", tag: "button" };
+    const named = rectangleNode(
+      domain,
+      { ...rectangle, body: "More air around these cards", elementSnapshot: element },
+      1,
+    );
+    expect(named.ariaLabel).toBe("Box 2 · “More air around these cards” · Annual (save 20%)");
+    const namedPin = pinNode(
+      domain,
+      { ...pins[0]!, body: "This toggle reads the same", elementSnapshot: null },
+      1,
+    );
+    expect(namedPin.ariaLabel).toBe("Pin 1 · “This toggle reads the same”");
+    // Without a comment the name is the kind and number alone.
+    expect(rectangleNode(domain, rectangle, 1).ariaLabel).toBe("Box 2");
+    // Drafts are named as unsaved, with no coordinates either.
+    expect(draftPinNode(domain, { x: 9, y: 9 }, 1).ariaLabel).toBe("New pin, not saved yet");
+    expect(draftRectangleNode(domain, rectangle.rect, 1).ariaLabel).toBe("New box, not saved yet");
   });
 
   test("is draggable with handles on an editable plane, neither on a read-only one", () => {

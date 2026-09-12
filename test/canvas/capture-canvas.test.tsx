@@ -26,6 +26,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { CaptureCanvas, type CaptureCameraState } from "../../src/components/capture-canvas";
 import type { PinComposerProps } from "../../src/components/pin-composer";
 import { MIN_SHAPE_SIZE_PX } from "../../src/lib/boundaries";
+import { flowToScreen } from "../../src/lib/canvas/camera";
 import { PLACEMENT_SLOP_SCREEN_PX } from "../../src/lib/canvas/geometry";
 import { installReactFlowMocks, triggerObservedResize } from "../helpers/react-flow";
 
@@ -1056,5 +1057,106 @@ describe("rectangles (D079)", () => {
     // Shift-drag draws nothing here.
     drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 }, { shiftKey: true });
     expect(draftRectangleNodes()).toHaveLength(0);
+  });
+});
+
+// Bringing the selected mark into view (D078): the founder's list bumps
+// revealSelected on a tap, and the plane centers the mark. jsdom's mocked
+// stage is 800 × 600, so the expected screen point is its middle.
+describe("revealing the selected mark (D078)", () => {
+  const pins = [{ id: "ann-1", number: 1, tip: { x: 720, y: 4000 } }];
+  const saved: CaptureCameraState = {
+    camera: { x: -1000, y: -20_000, zoom: 4 },
+    mode: "natural",
+    follow: false,
+  };
+
+  test("an increment centers the selected pin at the zoom the reader has, and ends mode follow", async () => {
+    const onCameraChange = vi.fn();
+    const { rerender } = render(
+      <CaptureCanvas
+        {...props}
+        readOnly
+        pins={pins}
+        selectedPinId="ann-1"
+        savedCamera={saved}
+        onCameraChange={onCameraChange}
+        revealSelected={0}
+      />,
+    );
+    // Mounting with a signal is not a tap: nothing moves until it changes.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const reportsBefore = onCameraChange.mock.calls.length;
+    rerender(
+      <CaptureCanvas
+        {...props}
+        readOnly
+        pins={pins}
+        selectedPinId="ann-1"
+        savedCamera={saved}
+        onCameraChange={onCameraChange}
+        revealSelected={1}
+      />,
+    );
+    await waitFor(() => expect(onCameraChange.mock.calls.length).toBeGreaterThan(reportsBefore));
+    const report = onCameraChange.mock.calls.at(-1)![0] as CaptureCameraState;
+    expect(report.follow).toBe(false);
+    expect(report.camera.zoom).toBe(4);
+    const screenPoint = flowToScreen({ x: 720, y: 4000 }, report.camera);
+    expect(screenPoint.x).toBeCloseTo(400, 6);
+    expect(screenPoint.y).toBeCloseTo(300, 6);
+  });
+
+  test("a box that would not fit the frame zooms out until it does, centered on its middle", async () => {
+    const onCameraChange = vi.fn();
+    const rectangles = [{ id: "box-1", number: 2, rect: { x: 100, y: 1000, width: 1200, height: 3000 } }];
+    const { rerender } = render(
+      <CaptureCanvas
+        {...props}
+        readOnly
+        rectangles={rectangles}
+        selectedPinId="box-1"
+        savedCamera={saved}
+        onCameraChange={onCameraChange}
+        revealSelected={0}
+      />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const reportsBefore = onCameraChange.mock.calls.length;
+    rerender(
+      <CaptureCanvas
+        {...props}
+        readOnly
+        rectangles={rectangles}
+        selectedPinId="box-1"
+        savedCamera={saved}
+        onCameraChange={onCameraChange}
+        revealSelected={1}
+      />,
+    );
+    await waitFor(() => expect(onCameraChange.mock.calls.length).toBeGreaterThan(reportsBefore));
+    const report = onCameraChange.mock.calls.at(-1)![0] as CaptureCameraState;
+    // 3000 natural px tall must fit 600 screen px minus the padding.
+    expect(report.camera.zoom).toBeLessThan(4);
+    expect(3000 * report.camera.zoom).toBeLessThanOrEqual(600);
+    const middle = flowToScreen({ x: 700, y: 2500 }, report.camera);
+    expect(middle.x).toBeCloseTo(400, 6);
+    expect(middle.y).toBeCloseTo(300, 6);
+  });
+
+  test("with nothing selected an increment moves nothing", async () => {
+    const onCameraChange = vi.fn();
+    const { rerender } = render(
+      <CaptureCanvas {...props} pins={pins} onCameraChange={onCameraChange} revealSelected={0} />,
+    );
+    // Let the initial entire-capture camera land and settle first.
+    await waitFor(() => expect(onCameraChange).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const reportsBefore = onCameraChange.mock.calls.length;
+    rerender(
+      <CaptureCanvas {...props} pins={pins} onCameraChange={onCameraChange} revealSelected={1} />,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(onCameraChange.mock.calls.length).toBe(reportsBefore);
   });
 });

@@ -14,7 +14,7 @@ import type { Node } from "@xyflow/react";
 import { MIN_HIT_TARGET_CSS_PX } from "../boundaries";
 import { pinHitBox, type PinBox } from "./geometry";
 import type { NaturalPoint } from "./camera";
-import type { DraftMark } from "./marks";
+import { markLabel, type DraftMark, type MarkElementSource } from "./marks";
 import { isFiniteRect, type NaturalRect } from "./rectangle";
 
 /** Custom node type for the one immutable screenshot frame. */
@@ -179,6 +179,9 @@ export interface CanvasPin {
   tip: NaturalPoint;
   /** Whether the workspace panel currently shows this pin. */
   selected: boolean;
+  /** The comment and attached element, when known: they name the node (D078). */
+  body?: string;
+  elementSnapshot?: MarkElementSource | null;
 }
 
 export interface PinData extends Record<string, unknown> {
@@ -208,9 +211,14 @@ export type PinNode = Node<PinData, typeof PIN_TYPE>;
  */
 export function pinNode(domain: CaptureFrameDomain, pin: CanvasPin, zoom: number): PinNode {
   const box: PinBox = pinHitBox(pin.tip, { width: domain.width, height: domain.height }, zoom);
-  const label = `Pin ${pin.number} at natural pixel (${Math.round(pin.tip.x)}, ${Math.round(
-    pin.tip.y,
-  )})`;
+  // The node is named the way every list names the mark: by its comment
+  // and element, never by its coordinates (D078).
+  const label = markLabel({
+    kind: "pin",
+    number: pin.number,
+    body: pin.body ?? "",
+    elementSnapshot: pin.elementSnapshot ?? null,
+  });
   return {
     id: pin.id,
     type: PIN_TYPE,
@@ -374,7 +382,7 @@ export function draftPinNode(
   zoom: number,
 ): DraftPinNode {
   const box: PinBox = pinHitBox(tip, { width: domain.width, height: domain.height }, zoom);
-  const label = `Draft pin at natural pixel (${Math.round(tip.x)}, ${Math.round(tip.y)}) — not saved yet`;
+  const label = "New pin, not saved yet";
   return {
     id: draftPinNodeId(domain.captureId),
     type: DRAFT_PIN_TYPE,
@@ -408,6 +416,9 @@ export interface CanvasRectangle {
   rect: NaturalRect;
   /** Whether the workspace panel currently shows this rectangle. */
   selected: boolean;
+  /** The comment and attached element, when known: they name the node (D078). */
+  body?: string;
+  elementSnapshot?: MarkElementSource | null;
 }
 
 /** On-screen sizes the rectangle chrome keeps constant across zoom. */
@@ -466,12 +477,6 @@ function rectangleChrome(doc: { width: number; height: number }, zoom: number) {
   };
 }
 
-function rectLabel(prefix: string, rect: NaturalRect): string {
-  return `${prefix} at natural pixels (${Math.round(rect.x)}, ${Math.round(rect.y)}), ${Math.round(
-    rect.width,
-  )} by ${Math.round(rect.height)}`;
-}
-
 /**
  * One persisted numbered rectangle as a child of the screenshot frame
  * (D079). Its position and size ARE the persisted natural-pixel box: no
@@ -494,7 +499,12 @@ export function rectangleNode(
 ): RectangleNode {
   requireRect(rectangle.rect, "rect");
   const chrome = rectangleChrome(domain, zoom);
-  const label = rectLabel(`Box ${rectangle.number}`, rectangle.rect);
+  const label = markLabel({
+    kind: "rectangle",
+    number: rectangle.number,
+    body: rectangle.body ?? "",
+    elementSnapshot: rectangle.elementSnapshot ?? null,
+  });
   const readOnly = options.readOnly ?? false;
   return {
     id: rectangle.id,
@@ -552,7 +562,7 @@ export function draftRectangleNode(
   requireRect(rect, "rect");
   const chrome = rectangleChrome(domain, zoom);
   const drawing = options.drawing ?? false;
-  const label = rectLabel("Draft box", rect) + " — not saved yet";
+  const label = "New box, not saved yet";
   return {
     id: draftRectangleNodeId(domain.captureId),
     type: DRAFT_RECTANGLE_TYPE,

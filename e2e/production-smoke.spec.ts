@@ -71,7 +71,7 @@ async function listPins(page: Page, captureId: string): Promise<PinRecord[]> {
 }
 
 async function waitPinsLoaded(page: Page): Promise<void> {
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|Pin \d+ — at \(/);
+  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ · “/);
 }
 
 /** Probe the context route for a declared dense pricing cell (td/th). */

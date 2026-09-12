@@ -333,7 +333,7 @@ describe("the workspace opens on the overview", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await waitFor(() => expect(within(overview()).getAllByRole("row")).toHaveLength(5));
     const rows = within(overview()).getAllByRole("row").slice(1);
-    await user.click(within(rows[3]!).getByRole("button", { name: "Pin 1" }));
+    await user.click(within(rows[3]!).getByRole("button", { name: /^Pin 1 · “Note pd-1.”/ }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/pricing-d1/asset");
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note pd-1."));
   });
@@ -441,19 +441,20 @@ describe("cross-capture pin stepping", () => {
 
     await next();
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-1."));
-    expect(stepPosition()).toHaveTextContent("1 of 4 pins");
+    // The position line names the mark (D078), then its place in the order.
+    expect(stepPosition()).toHaveTextContent("Pin 1 · “Note rd-1.” · 1 of 4");
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-d1/asset");
 
     await next();
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-2."));
-    expect(stepPosition()).toHaveTextContent("2 of 4 pins");
+    expect(stepPosition()).toHaveTextContent("Pin 2 · “Note rd-2.” · 2 of 4");
 
     // The last pin of the plane continues onto the next plane, not back to
     // the first pin of this one.
     await next();
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rm-1."));
-    expect(stepPosition()).toHaveTextContent("3 of 4 pins");
+    expect(stepPosition()).toHaveTextContent("3 of 4");
     expect(within(deviceToggle()).getByRole("button", { name: /^Mobile/ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -564,7 +565,7 @@ describe("the table scope toggle", () => {
     // A row on another plane switches to it with the pin selected.
     const rows = within(table()).getAllByRole("row").slice(1);
     expect(rows[2]).toHaveTextContent("Mobile v1");
-    await user.click(within(rows[2]!).getByRole("button", { name: "Pin 1" }));
+    await user.click(within(rows[2]!).getByRole("button", { name: /^Pin 1 · “Note rm-1.”/ }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rm-1."));
     // The scope is a view preference: it survives a page switch inside the
@@ -594,7 +595,8 @@ describe("the table scope toggle", () => {
       "## https://chickpea.co/ — Mobile",
       "## https://chickpea.co/pricing — Desktop",
     ]);
-    expect(markdown).toContain("### Pin 2 — at (200, 400)");
+    expect(markdown).toContain("### Pin 2 · “Note rd-2.”");
+    expect(markdown).toContain("- Position: 200, 400 px natural");
     // The zoom readout is an <output> (also a status), so address the table's own.
     expect(detail().querySelector(".pin-table-actions [role='status']")).toHaveTextContent(
       "Copied 4 pins as Markdown.",

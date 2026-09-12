@@ -480,33 +480,34 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("one short line under the canvas names the three verbs (VAL-CANVAS-009, D074)", () => {
+  test("a short verb strip beside the controls names the four verbs (VAL-CANVAS-009, D074, D078)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
     // Plain words, no modes, no jargon: the page teaches the whole workflow
-    // in one line, and there is no toggle anywhere to find first.
-    const hint = detail().querySelector(".workspace-hint") as HTMLElement;
-    expect(hint).not.toBeNull();
-    expect(hint).toHaveTextContent(/click the page to drop a pin/i);
-    expect(hint).toHaveTextContent(/drag a pin to move it/i);
-    expect(hint).toHaveTextContent(/click a pin to read or reply/i);
-    expect(hint.textContent!.length).toBeLessThan(120);
-    const lower = hint.textContent!.toLowerCase();
-    for (const jargon of ["mode", "navigate", "canvas update", "natural pixel"]) {
+    // in a handful of words, and there is no toggle anywhere to find first.
+    const strip = within(detail()).getByTestId("workspace-verbs");
+    expect(strip.tagName.toLowerCase()).toBe("p");
+    expect(strip).toHaveTextContent(
+      "drop a pin: click the page · draw a box: shift-drag · move: drag it · read or reply: click a mark",
+    );
+    expect(strip.textContent!.length).toBeLessThan(120);
+    const lower = strip.textContent!.toLowerCase();
+    for (const jargon of ["mode", "navigate", "canvas update", "natural pixel", "plane"]) {
       expect(lower).not.toContain(jargon);
     }
     expect(within(detail()).queryByRole("button", { name: /place pin|navigate/i })).toBeNull();
-    // Under the canvas, not above it.
-    const stage = within(detail()).getByTestId("capture-stage");
-    expect(stage.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Beside the canvas controls, in their toolbar, not a paragraph below the stage.
+    expect(strip.closest('[data-testid="canvas-toolbar"]')).not.toBeNull();
+    expect(detail().querySelector(".workspace-hint")).toBeNull();
+    expect(within(detail()).queryByRole("heading", { name: /drop a pin/i })).toBeNull();
   });
 
-  test("the hint is not shown for a capture that cannot be pinned", async () => {
+  test("the verb strip is not shown for a capture that cannot be pinned", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
     await openPricingMobile(user);
-    expect(detail().querySelector(".workspace-hint")).toBeNull();
+    expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
   });
 
   test("each plane keeps its own camera for the session", async () => {
@@ -1179,7 +1180,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
     await waitFor(() =>
       expect(
-        within(sidePanel()).getByRole("button", { name: /Pin 1 — at \(720, 4000\)/ }),
+        within(sidePanel()).getByRole("button", {
+          name: /^Pin 1 · “The hero headline duplicates the nav wordmark.”$/,
+        }),
       ).toBeInTheDocument(),
     );
 
@@ -1341,7 +1344,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(writes[0]!.body.expectedRevision).toBe(1);
     await waitFor(() =>
       expect(
-        within(sidePanel()).queryByRole("button", { name: /Pin 1 — at/ }),
+        within(sidePanel()).queryByRole("button", { name: /^Pin 1 ·/ }),
       ).toBeNull(),
     );
     expect(pins).toHaveLength(0);
@@ -1581,9 +1584,13 @@ describe("rectangle drafts (D079)", () => {
       expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
     );
     const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
-    expect(within(list).getByRole("button", { name: /^Box 1 — at \(/ })).toBeInTheDocument();
-    expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1");
-    // The hint names the gesture.
-    expect(within(detail()).getByText(/shift-drag to draw a box/)).toBeInTheDocument();
+    expect(
+      within(list).getByRole("button", { name: /^Box 1 · “This whole card needs more air.”/ }),
+    ).toBeInTheDocument();
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1 · “This whole card");
+    // The verb strip names the gesture.
+    expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
+      "draw a box: shift-drag",
+    );
   });
 });

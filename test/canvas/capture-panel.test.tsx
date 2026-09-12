@@ -3,7 +3,9 @@
 // draft composer moved beside the pin (D074, see pin-composer.test.tsx), so
 // the panel's job is the selected saved pin, the pins list, and the capture
 // facts. Hostile captured text in a saved snapshot renders as inert escaped
-// text, and the panel copy names the one gesture that drops a pin.
+// text, the panel copy names the one gesture that drops a pin, marks are
+// named by comment and element (D078), and the internals sit behind one
+// Details disclosure.
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
@@ -135,31 +137,104 @@ describe("rectangles in the panel (D079)", () => {
     createdAt: 1,
   };
 
-  test("the selected box shows its bounds and box-specific controls", () => {
+  test("the selected box is named by its comment, keeps its bounds behind Details, and has box controls", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "box-4" })} />);
-    const position = document.querySelector('[data-testid="panel-position"]')!;
+    const name = screen.getByTestId("panel-mark-name");
+    expect(name).toHaveAttribute("data-kind", "rectangle");
+    expect(name).toHaveTextContent("Box 4 · “This whole card needs more air.”");
+    const position = within(screen.getByTestId("panel-details")).getByTestId("panel-position");
     expect(position).toHaveAttribute("data-kind", "rectangle");
-    expect(position).toHaveTextContent("Box 4 at natural pixels (100, 201 · 300 × 151)");
+    expect(position).toHaveTextContent("100, 201 · 300 × 151 px");
     expect(screen.getByRole("button", { name: "Delete box" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete pin" })).toBeNull();
     expect(screen.getByText(/Drag the box's edge or badge/)).toBeInTheDocument();
   });
 
-  test("the list names both kinds in number order with their positions", () => {
+  test("the list names both kinds in number order by comment, never by position", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box] })} />);
     const list = screen.getByRole("list", { name: "Saved pins" });
     const buttons = within(list).getAllByRole("button");
     expect(buttons.map((button) => button.textContent)).toEqual([
-      "Pin 1 — at (10, 10)",
-      "Box 4 — at (100, 201 · 300 × 151)",
+      "Pin 1 · “the comment”",
+      "Box 4 · “This whole card needs more air.”",
     ]);
   });
 
-  test("a selected pin still reads as before", () => {
+  test("a selected pin is named the same way", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "ann-1" })} />);
-    expect(document.querySelector('[data-testid="panel-position"]')).toHaveTextContent(
-      "Pin 1 at natural pixel (10, 10)",
+    expect(screen.getByTestId("panel-mark-name")).toHaveTextContent("Pin 1 · “the comment”");
+    expect(within(screen.getByTestId("panel-details")).getByTestId("panel-position")).toHaveTextContent(
+      "10, 10 px",
     );
     expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
+  });
+});
+
+// The internals behind one disclosure (D078): closed by default, a real
+// <summary>, the capture facts and coordinates inside, and the keyboard list.
+describe("Details disclosure (D078)", () => {
+  const pin = {
+    id: "ann-1",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 1,
+    tip: { x: 10.4, y: 10.6 },
+    body: "the comment",
+    elementSnapshot: candidate("el-1", { text: "Starter plan" }),
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+
+  test("is a native details element, closed by default, with a summary that says Details", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin], selectedPinId: "ann-1" })} />);
+    const details = screen.getByTestId("panel-details") as HTMLDetailsElement;
+    expect(details.tagName.toLowerCase()).toBe("details");
+    expect(details.open).toBe(false);
+    const summary = details.querySelector(":scope > summary")!;
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent("Details");
+    // Not a heading: the panel's heading order is the h4s alone.
+    expect(within(details).queryByRole("heading")).toBeNull();
+  });
+
+  test("holds the coordinates, version, state, size, and hash, and nothing outside it prints them", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin], selectedPinId: "ann-1" })} />);
+    const details = screen.getByTestId("panel-details");
+    expect(details).toHaveTextContent("Position");
+    expect(within(details).getByTestId("panel-position")).toHaveTextContent("10, 11 px");
+    expect(details).toHaveTextContent("v1");
+    expect(details).toHaveTextContent("Ready");
+    expect(details).toHaveTextContent("1440 × 8966 px");
+    expect(details).toHaveTextContent("hash");
+    // The selection block itself names the pin without coordinates.
+    const selection = screen.getByTestId("panel-pin");
+    expect(selection).toHaveTextContent("Pin 1 · “the comment” · Starter plan");
+    expect(selection.textContent).not.toMatch(/\d+, \d+/);
+    expect(selection.textContent).not.toMatch(/natural pixel/i);
+    // Page and device stay in plain view under Capture.
+    const panel = screen.getByTestId("capture-panel");
+    const visible = panel.textContent!.replace(details.textContent!, "");
+    expect(visible).toContain("https://chickpea.co/pricing");
+    expect(visible).toContain("Desktop");
+    expect(visible).not.toContain("Image hash");
+    expect(visible).not.toContain("Version");
+  });
+
+  test("lists the keyboard shortcuts", () => {
+    render(<CapturePanel {...panelProps()} />);
+    const details = screen.getByTestId("panel-details");
+    const keys = within(details).getByTestId("panel-keys");
+    const items = within(keys).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items).toEqual([
+      "Enter saves a comment; Shift+Enter starts a new line",
+      "Escape cancels",
+      "J and K, or the arrow keys, step through the marks",
+      "N drops a pin at the center of the view",
+      "Shift-drag, or the Box tool, draws a box",
+    ]);
+    // With nothing selected there is no position row.
+    expect(within(details).queryByTestId("panel-position")).toBeNull();
   });
 });

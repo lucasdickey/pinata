@@ -121,7 +121,7 @@ async function mutatePin(
 /** Wait until the workspace has finished loading this plane's pins. */
 async function waitPinsLoaded(page: Page): Promise<void> {
   await expect(page.getByTestId("capture-panel")).toContainText(
-    /No pins yet\.|(Pin|Box) \d+ — at \(/,
+    /No pins yet\.|(Pin|Box) \d+ · “/,
   );
 }
 
@@ -722,9 +722,14 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
   expect(moved.body).toBe(saved.body);
   expect(moved.elementSnapshot).toEqual(saved.elementSnapshot);
 
-  // The panel shows the bounds; delete is the same two-step revisioned write.
-  await page.getByRole("button", { name: new RegExp(`^Box ${number} — at \\(`) }).click();
-  await expect(page.getByTestId("panel-position")).toContainText(`Box ${number} at natural pixels (`);
+  // The panel names the box by its comment (D078) and keeps the bounds
+  // behind Details; delete is the same two-step revisioned write.
+  await page.getByRole("button", { name: new RegExp(`^Box ${number} · “`) }).click();
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Box ${number} · “`);
+  const details = page.getByTestId("panel-details");
+  await expect(details).not.toHaveAttribute("open", /.*/);
+  await details.locator("summary").click();
+  await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "rectangle");
   await expect(page.getByTestId("panel-position")).toContainText("×");
   await page.getByRole("button", { name: "Delete box" }).click();
   await page.getByRole("button", { name: "Confirm delete" }).click();

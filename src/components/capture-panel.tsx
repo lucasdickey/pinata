@@ -5,15 +5,19 @@
 // panning and zooming never move it. Exactly one saved pin can be selected
 // at a time:
 //
-// - A saved mark (a pin, or a rectangle since D079, which shows its bounds)
-//   shows its number, comment, and immutable context snapshot (or the
-//   explicit "No element"), and offers Edit comment and Delete. Both carry
-//   the mark's current revision; a conflict means another session wrote
-//   first, and the panel says so while the workspace reloads the
-//   authoritative list.
+// - A saved mark (a pin, or a rectangle since D079) is named by what it says
+//   and what it points at (markLabel, D078), shows its status, comment, and
+//   immutable context snapshot (or the explicit "No element"), and offers
+//   Edit comment and Delete. Both carry the mark's current revision; a
+//   conflict means another session wrote first, and the panel says so while
+//   the workspace reloads the authoritative list.
 // - The pins list keeps every mark, pin and box alike, reachable by
 //   keyboard in number order, and the capture identity facts follow the
 //   active plane.
+// - Natural-pixel coordinates, box bounds, the capture's version, state,
+//   natural size, and image hash, and the keyboard shortcuts sit behind one
+//   native "Details" disclosure, closed by default (D078): one click away
+//   for debugging, out of the way while working.
 //
 // A draft pin is composed beside its badge, not here (D074): see
 // pin-composer.tsx. The panel keeps showing the selected saved pin, if any,
@@ -22,7 +26,7 @@
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
-import { markKindNoun, markPosition, markTitle } from "../lib/canvas/marks";
+import { markKindNoun, markLabel, markPosition } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
 import { snapshotLabel } from "./pin-composer";
@@ -115,11 +119,10 @@ export function CapturePanel({
       <h4>Selection</h4>
       {selectedPin ? (
         <div className="panel-pin" data-testid="panel-pin">
-          <p data-testid="panel-position" data-kind={selectedPin.kind}>
-            <strong>{markTitle(selectedPin)}</strong>{" "}
-            {selectedPin.kind === "rectangle"
-              ? `at natural pixels (${markPosition(selectedPin)})`
-              : `at natural pixel (${markPosition(selectedPin)})`}
+          {/* The mark's name (D078): kind and number, then what it says and
+              what it points at. Never its coordinates; those are in Details. */}
+          <p className="panel-mark-name" data-testid="panel-mark-name" data-kind={selectedPin.kind}>
+            <strong>{markLabel(selectedPin)}</strong>
           </p>
           {/* The pin lifecycle (D075): its status, and one control that
               resolves an open or replied pin or reopens a resolved one. */}
@@ -264,7 +267,7 @@ export function CapturePanel({
                     aria-current={pin.id === selectedPinId ? "true" : undefined}
                     onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                   >
-                    {markTitle(pin)} — at ({markPosition(pin)})
+                    {markLabel(pin)}
                     {pin.status === "resolved" ? (
                       <span className="pin-status"> · Resolved</span>
                     ) : null}
@@ -285,29 +288,55 @@ export function CapturePanel({
         <dd className="panel-url">{pageUrl}</dd>
         <dt>Device</dt>
         <dd>{variantLabel(variant)}</dd>
-        <dt>Version</dt>
-        <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
-        <dt>State</dt>
-        <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
-        {attempt?.state === "ready" &&
-        attempt.documentWidth !== null &&
-        attempt.documentHeight !== null ? (
-          <>
-            <dt>Natural size</dt>
-            <dd>
-              {attempt.documentWidth} × {attempt.documentHeight} px
-            </dd>
-          </>
-        ) : null}
-        {attempt?.imageHash ? (
-          <>
-            <dt>Image hash</dt>
-            <dd>
-              <code>{attempt.imageHash.slice(0, 12)}…</code>
-            </dd>
-          </>
-        ) : null}
       </dl>
+
+      {/* The internals (D078), one click away and closed by default: where
+          the selected mark sits in screenshot pixels, the capture's version,
+          state, size, and image hash, and the keyboard shortcuts. A native
+          <details> so the browser supplies the toggle and its announcement. */}
+      <details className="panel-details" data-testid="panel-details">
+        <summary>Details</summary>
+        <dl className="panel-facts">
+          {selectedPin ? (
+            <>
+              <dt>{selectedPin.kind === "rectangle" ? "Box" : "Position"}</dt>
+              <dd data-testid="panel-position" data-kind={selectedPin.kind}>
+                {markPosition(selectedPin)} px
+              </dd>
+            </>
+          ) : null}
+          <dt>Version</dt>
+          <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
+          <dt>State</dt>
+          <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
+          {attempt?.state === "ready" &&
+          attempt.documentWidth !== null &&
+          attempt.documentHeight !== null ? (
+            <>
+              <dt>Screenshot size</dt>
+              <dd>
+                {attempt.documentWidth} × {attempt.documentHeight} px
+              </dd>
+            </>
+          ) : null}
+          {attempt?.imageHash ? (
+            <>
+              <dt>Image hash</dt>
+              <dd>
+                <code>{attempt.imageHash.slice(0, 12)}…</code>
+              </dd>
+            </>
+          ) : null}
+        </dl>
+        <p className="panel-facts-label">Keyboard</p>
+        <ul className="panel-keys" data-testid="panel-keys">
+          <li>Enter saves a comment; Shift+Enter starts a new line</li>
+          <li>Escape cancels</li>
+          <li>J and K, or the arrow keys, step through the marks</li>
+          <li>N drops a pin at the center of the view</li>
+          <li>Shift-drag, or the Box tool, draws a box</li>
+        </ul>
+      </details>
     </aside>
   );
 }

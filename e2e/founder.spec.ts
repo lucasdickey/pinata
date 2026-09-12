@@ -342,12 +342,16 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     return img !== null && img.complete && img.naturalWidth > 0;
   });
 
-  // The pin list above the canvas (D075) names every pin with its comment
-  // excerpt and status; the fixture pin's entry opens it.
+  // The pin list above the canvas (D075) names every mark by its comment and
+  // element (D078) with its status; the fixture pin's entry opens it. The
+  // one sentence of guidance replaced the old instruction paragraph.
+  await expect(founder.locator(".workspace-hint")).toHaveText(
+    "Click a mark, or its entry in the list, to read the note and reply.",
+  );
   const founderPinList = founder.getByTestId("founder-pin-list");
   await expect(founderPinList).toBeVisible();
   const fixtureEntry = founderPinList.getByRole("button", {
-    name: new RegExp(`^Pin ${pin.number} —`),
+    name: new RegExp(`^Pin ${pin.number} · “`),
   });
   await expect(fixtureEntry).toContainText(FIXTURE_BODY_PREFIX);
   await expect(fixtureEntry).toContainText(/Open|Replied/);
@@ -359,7 +363,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   // The fixture box (D079) is listed as a box, drawn on the read-only plane
   // with no handles and no drag, and readable with its bounds.
   const boxEntry = founderPinList.getByRole("button", {
-    name: new RegExp(`^Box ${box.number} —`),
+    name: new RegExp(`^Box ${box.number} · “`),
   });
   await expect(boxEntry).toContainText(BOX_FIXTURE_BODY_PREFIX);
   const boxNode = founder.locator(".react-flow__node-rectangle", {
@@ -369,10 +373,14 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await expect(founder.locator('[data-testid="rectangle-handle"]')).toHaveCount(0);
   expect(await boxNode.getAttribute("class")).not.toMatch(/\bdraggable\b/);
   await boxEntry.click();
-  await expect(founder.getByTestId("founder-panel").getByTestId("panel-position")).toContainText(
-    `Box ${box.number} at natural pixels (`,
+  await expect(founder.getByTestId("founder-panel").getByTestId("panel-mark-name")).toContainText(
+    `Box ${box.number} · “`,
   );
   await expect(founder.getByTestId("founder-panel")).toContainText(BOX_FIXTURE_BODY_PREFIX);
+  // The founder sees no coordinates, hash, or version facts anywhere (D078).
+  await expect(founder.getByTestId("panel-position")).toHaveCount(0);
+  await expect(founder.getByTestId("panel-details")).toHaveCount(0);
+  await expect(founder.getByTestId("founder-view")).not.toContainText(/natural pixel|Image hash/);
   // A Shift-drag on the founder's plane draws nothing.
   const founderCanvas = (await founder.locator(".capture-canvas").boundingBox())!;
   await founder.keyboard.down("Shift");

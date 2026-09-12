@@ -37,6 +37,8 @@ import type {
 } from "../lib/annotations";
 import {
   contextQuery,
+  markKindNoun,
+  markLabel,
   markOf,
   markPayload,
   pinsOf,
@@ -877,6 +879,9 @@ export function ProjectWorkspace({
       // from; without it there is no safe write to make.
       const pin = pinsState?.pins.find((candidate) => candidate.id === annotationId);
       if (!pin) return;
+      // The messages name the kind that moved (D078): a box is not a pin.
+      const noun = markKindNoun(mark.kind);
+      const restored = `That ${noun} move could not be saved. The saved position was restored.`;
       // Optimistic local update: the pin stays where it was dropped while
       // the one revisioned write commits. A failure re-reads the
       // authoritative list, so a rejected move snaps back — never a false
@@ -911,8 +916,8 @@ export function ProjectWorkspace({
           // notice — one conflict message at a time.
           setMoveError(
             response.status === 409
-              ? "This pin changed in another session. The latest version is now shown."
-              : "That pin move could not be saved. The saved position was restored.",
+              ? `This ${noun} changed in another session. The latest version is now shown.`
+              : restored,
           );
           setEditState("idle");
           setDeleteState("idle");
@@ -936,7 +941,7 @@ export function ProjectWorkspace({
           markOf(payload.annotation),
         );
       } catch {
-        setMoveError("That pin move could not be saved. The saved position was restored.");
+        setMoveError(restored);
         setEditState("idle");
         setDeleteState("idle");
         await loadPins(captureId);
@@ -1083,12 +1088,16 @@ export function ProjectWorkspace({
   const selectedStepIndex = selectedPinId
     ? orderedPins.findIndex((pin) => pin.id === selectedPinId)
     : -1;
+  // The position line names the selected mark the way every list does
+  // (D078), then says where it falls in the project's order.
   const stepPosition =
     orderedPins.length === 0
       ? "No pins in this project"
       : selectedStepIndex === -1
         ? `${orderedPins.length} pin${orderedPins.length === 1 ? "" : "s"} in this project`
-        : `${selectedStepIndex + 1} of ${orderedPins.length} pins`;
+        : `${markLabel(orderedPins[selectedStepIndex]!)} · ${selectedStepIndex + 1} of ${
+            orderedPins.length
+          }`;
 
   // Table rows: the open capture's pins from the per-capture list (always
   // current after a write), or the whole project's from the project read.
@@ -1324,6 +1333,15 @@ export function ProjectWorkspace({
                   {stepPosition}
                 </span>
               </p>
+              {/* The verb strip (VAL-CANVAS-009, D078): what a click, a
+                  shift-drag, and a drag do, beside the controls they sit
+                  with. A paragraph, never a heading. */}
+              {selectedReady ? (
+                <p className="workspace-verbs" data-testid="workspace-verbs">
+                  drop a pin: click the page · draw a box: shift-drag · move: drag it · read or
+                  reply: click a mark
+                </p>
+              ) : null}
             </div>
             <h3>
               {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
@@ -1469,15 +1487,6 @@ export function ProjectWorkspace({
               />
             </div>
 
-            {/* The page explains itself in one line (VAL-CANVAS-009, D074,
-                D079): the four things a reader can do on the screenshot. */}
-            {selectedReady ? (
-              <p className="workspace-hint">
-                Click the page to drop a pin · shift-drag to draw a box · drag a pin to move it ·
-                click a pin to read or reply.
-              </p>
-            ) : null}
-
             {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
               <p role="alert" className="capture-error">
                 {outcomeMessages.get(active.device.latest.errorCode) ??
@@ -1486,7 +1495,7 @@ export function ProjectWorkspace({
             ) : null}
             {active.device.latest?.state === "stale" ? (
               <p role="alert" className="capture-error">
-                This attempt stopped responding. Retry to schedule a fresh one.
+                This capture stopped responding. Retry to start a fresh one.
               </p>
             ) : null}
             {retryError ? (

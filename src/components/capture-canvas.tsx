@@ -84,6 +84,8 @@ import { MIN_HIT_TARGET_CSS_PX } from "../lib/boundaries";
 import {
   CANVAS_MAX_ZOOM,
   CANVAS_MIN_ZOOM,
+  CANVAS_PADDING_PX,
+  centerCamera,
   clampCanvasZoom,
   containCamera,
   naturalCamera,
@@ -120,7 +122,7 @@ import {
   type PinNode,
   type RectangleNode,
 } from "../lib/canvas/flow-model";
-import { markKindNoun, type DraftMark } from "../lib/canvas/marks";
+import { markCenter, markKindNoun, type DraftMark } from "../lib/canvas/marks";
 import { placePopover, popoverBounds, type ScreenSize } from "../lib/canvas/popover";
 import {
   handleAnchor,
@@ -525,6 +527,7 @@ function CaptureCanvasInner({
   composer,
   onStepPin,
   autoFocus,
+  revealSelected,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
@@ -580,6 +583,13 @@ function CaptureCanvasInner({
    * landed on another plane keeps the keyboard in the new plane (D077).
    */
   autoFocus?: boolean;
+  /**
+   * Increments to bring the selected mark into the middle of the frame
+   * (D078): the founder's list does this on a tap, so on a phone the
+   * screenshot opens on the note that was chosen. The zoom is kept, except
+   * that a box wider or taller than the frame zooms out just enough to fit.
+   */
+  revealSelected?: number;
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -681,9 +691,13 @@ function CaptureCanvasInner({
   // This plane's remembered camera, captured once at mount (the parent keys
   // the canvas by capture id, so a mount is always one plane).
   const restored = useRef(savedCamera ?? null);
+  // The last camera this plane set or was told about: what a reveal below
+  // keeps the zoom of.
+  const cameraRef = useRef<CanvasCamera | null>(savedCamera?.camera ?? null);
 
   const reportCamera = useCallback(
     (camera: CanvasCamera) => {
+      cameraRef.current = { x: camera.x, y: camera.y, zoom: camera.zoom };
       onCameraChange?.({ camera, mode: modeRef.current, follow: autoFollow.current });
     },
     [onCameraChange],
@@ -775,6 +789,55 @@ function CaptureCanvasInner({
     liveZoomRef.current = zoom;
     setLiveZoom(zoom);
   }, [instance]);
+
+  /**
+   * Bring the selected mark into the middle of the frame (D078): a pin's
+   * tip or a box's middle, at the zoom the reader already has, except that
+   * a box that would not fit zooms out until it does. A deliberate camera
+   * move like a gesture, so it ends any named mode's resize-follow.
+   */
+  const revealSelection = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper || wrapper.clientWidth <= 0 || wrapper.clientHeight <= 0) return;
+    const pin = pins.find((candidate) => candidate.id === selectedPinId);
+    const rectangle = pin ? null : rectangles.find((candidate) => candidate.id === selectedPinId);
+    const mark: DraftMark | null = pin
+      ? { kind: "pin", tip: pin.tip }
+      : rectangle
+        ? { kind: "rectangle", rect: rectangle.rect }
+        : null;
+    if (!mark) return;
+    const viewport = { width: wrapper.clientWidth, height: wrapper.clientHeight };
+    let zoom = cameraRef.current?.zoom ?? instance.getViewport().zoom;
+    if (mark.kind === "rectangle") {
+      const fit = Math.min(
+        (viewport.width - 2 * CANVAS_PADDING_PX) / mark.rect.width,
+        (viewport.height - 2 * CANVAS_PADDING_PX) / mark.rect.height,
+      );
+      if (Number.isFinite(fit) && fit > 0) zoom = Math.min(zoom, fit);
+    }
+    const camera = centerCamera(viewport, markCenter(mark), zoom);
+    autoFollow.current = false;
+    void instance.setViewport(camera);
+    liveZoomRef.current = camera.zoom;
+    setLiveZoom(camera.zoom);
+    reportCamera(camera);
+  }, [instance, pins, rectangles, selectedPinId, reportCamera]);
+
+  // Each increment of the signal reveals the selection once; a signal that
+  // arrives before React Flow's pane is ready waits for onInit.
+  const lastReveal = useRef(revealSelected ?? 0);
+  const pendingReveal = useRef(false);
+  useEffect(() => {
+    const signal = revealSelected ?? 0;
+    if (signal === lastReveal.current) return;
+    lastReveal.current = signal;
+    if (!initialized.current) {
+      pendingReveal.current = true;
+      return;
+    }
+    revealSelection();
+  }, [revealSelected, revealSelection]);
 
   /** Abandon the gesture in flight without writing or drafting anything. */
   const cancelGesture = useCallback(() => {
@@ -1207,13 +1270,19 @@ function CaptureCanvasInner({
               if (saved) {
                 autoFollow.current = saved.follow;
                 setMode(saved.mode);
-                void instance.setViewport({
+                const camera = {
                   x: saved.camera.x,
                   y: saved.camera.y,
                   zoom: clampCanvasZoom(saved.camera.zoom),
-                });
+                };
+                cameraRef.current = camera;
+                void instance.setViewport(camera);
               } else {
                 applyMode(modeRef.current);
+              }
+              if (pendingReveal.current) {
+                pendingReveal.current = false;
+                revealSelection();
               }
             }}
             onNodesChange={handleNodesChange}
@@ -1355,6 +1424,7 @@ export function CaptureCanvas({
   composer,
   onStepPin,
   autoFocus = false,
+  revealSelected,
 }: {
   captureId: string;
   pageUrl: string;
@@ -1389,6 +1459,8 @@ export function CaptureCanvas({
   onStepPin?: (direction: 1 | -1) => void;
   /** Focus the canvas region on mount (D077); see CaptureCanvasInner. */
   autoFocus?: boolean;
+  /** Increments to center the selected mark (D078); see CaptureCanvasInner. */
+  revealSelected?: number;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -1422,6 +1494,7 @@ export function CaptureCanvas({
         composer={composer}
         onStepPin={onStepPin}
         autoFocus={autoFocus}
+        revealSelected={revealSelected}
       />
     </ReactFlowProvider>
   );

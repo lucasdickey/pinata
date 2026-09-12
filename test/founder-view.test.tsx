@@ -296,11 +296,11 @@ describe("read/reply-only surface", () => {
     // The screenshot comes through the same-origin authorized asset route.
     expect(screen.getByRole("img")).toHaveAttribute("src", "/api/captures/root-d1/asset");
 
-    // No editing affordance anywhere: not a mode, not a button, not a form.
+    // No editing affordance anywhere: not a tool, not a button, not a form.
     for (const name of [
-      "Place pin",
-      "Navigate",
+      "Draw a box",
       "Save pin",
+      "Save box",
       "Edit comment",
       "Delete pin",
       "Confirm delete",
@@ -328,7 +328,7 @@ describe("read/reply-only surface", () => {
   test("selecting a pin shows the original comment, the thread with server labels, and a reply composer", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 ·/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
     expect(panel).toHaveTextContent("Pin 1");
@@ -354,7 +354,7 @@ describe("read/reply-only surface", () => {
   test("a reply posts one idempotent append with the founder CSRF proof and appears in the thread", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 ·/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
     await user.type(within(panel).getByLabelText("Reply as founder"), "Will do this week.");
@@ -383,7 +383,7 @@ describe("read/reply-only surface", () => {
   test("a reply denied by a lost capability says so and keeps the text", async () => {
     const user = userEvent.setup();
     await renderReady();
-    await user.click(await screen.findByRole("button", { name: /^Pin 1 —/ }));
+    await user.click(await screen.findByRole("button", { name: /^Pin 1 ·/ }));
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
     // The thread read is followed by the seen mark; wait for it so the
@@ -407,10 +407,10 @@ describe("pin list and lifecycle (D075)", () => {
     const items = within(list).getAllByRole("button");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent(
-      "Pin 1 — “The hero headline duplicates the nav wordmark.” · Replied · 1 new",
+      "Pin 1 · “The hero headline duplicates the nav wordmark.” · Replied · 1 new",
     );
-    expect(items[1]).toHaveTextContent(/^Pin 2 — “This paragraph runs on far longer/);
-    // A long comment is cut to about 80 characters.
+    expect(items[1]).toHaveTextContent(/^Pin 2 · “This paragraph runs on far longer/);
+    // A long comment is cut to about 60 characters.
     expect(items[1]!.textContent).toContain("…");
     expect(items[1]!.textContent).not.toContain("somewhere sensible");
     expect(items[1]).toHaveTextContent("Resolved");
@@ -505,7 +505,7 @@ describe("rectangles for the founder (D079)", () => {
     const list = await screen.findByTestId("founder-pin-list");
     const items = within(list).getAllByRole("button");
     expect(items).toHaveLength(3);
-    expect(items[2]).toHaveTextContent(/^Box 3 — “This whole card needs more air.” · Open/);
+    expect(items[2]).toHaveTextContent(/^Box 3 · “This whole card needs more air.” · Open/);
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
     );
@@ -514,10 +514,132 @@ describe("rectangles for the founder (D079)", () => {
 
     await user.click(items[2]!);
     const panel = screen.getByTestId("founder-panel");
-    expect(within(panel).getByTestId("panel-position")).toHaveTextContent(
-      "Box 3 at natural pixels (100, 201 · 300 × 151)",
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
+      "Box 3 · “This whole card needs more air.”",
     );
+    // The founder never sees the box's coordinates (D078).
+    expect(within(panel).queryByTestId("panel-position")).toBeNull();
+    expect(panel.textContent).not.toMatch(/\d+, \d+/);
     expect(within(panel).getByRole("button", { name: "Resolve box" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
+  });
+});
+
+// Reading first (D078): marks are named by what they say and point at, no
+// internals reach the founder, the list precedes the canvas, and a tap on
+// an entry brings the screenshot to the mark.
+describe("reading-first founder view (D078)", () => {
+  const attached = {
+    ...pin,
+    id: "ann-9",
+    number: 9,
+    body: "Say what the plan includes before the price.",
+    elementSnapshot: {
+      id: "el-9",
+      kind: "heading",
+      tag: "h3",
+      role: "heading",
+      text: "Starter plan",
+      accessibleName: "Starter plan",
+      hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+      path: ["main", "section.pricing", "h3"],
+      rect: { x: 168, y: 512, width: 130, height: 20 },
+    },
+    status: "open",
+    unreadReplies: 0,
+  };
+
+  test("names a mark by its comment and element in the list and the panel, with no internals anywhere", async () => {
+    const user = userEvent.setup();
+    extraAnnotations = [attached];
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const entry = within(list).getByRole("button", { name: /^Pin 9 ·/ });
+    expect(entry).toHaveTextContent(
+      "Pin 9 · “Say what the plan includes before the price.” · Starter plan · Open",
+    );
+    await user.click(entry);
+    const panel = screen.getByTestId("founder-panel");
+    await within(panel).findByTestId("thread");
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
+      "Pin 9 · “Say what the plan includes before the price.” · Starter plan",
+    );
+    // The whole view: no coordinates, no hash, no version or state facts,
+    // no element internals, and no long instructions. ("Natural size" the
+    // camera button stays: it names a zoom level, not an internal.)
+    const view = screen.getByTestId("founder-view").textContent!;
+    for (const internal of [
+      "natural pixel",
+      "Image hash",
+      "Version",
+      "Screenshot size",
+      "Element:",
+      "<h3>",
+      "Details",
+      "Drag to pan",
+      "cannot be added",
+    ]) {
+      expect(view, internal).not.toContain(internal);
+    }
+    expect(view).not.toMatch(/\d+, \d+ px/);
+    expect(view).not.toMatch(/\(\d+, \d+\)/);
+    expect(screen.queryByTestId("panel-position")).toBeNull();
+    expect(screen.queryByTestId("panel-snapshot")).toBeNull();
+    expect(document.querySelector("details")).toBeNull();
+    // One sentence of guidance, as a paragraph.
+    const hint = document.querySelector(".workspace-hint")!;
+    expect(hint.tagName.toLowerCase()).toBe("p");
+    expect(hint).toHaveTextContent(
+      "Click a mark, or its entry in the list, to read the note and reply.",
+    );
+  });
+
+  test("the list precedes the canvas, which precedes the panel, in DOM order", async () => {
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const canvas = screen.getByRole("region", { name: /Screenshot of/ });
+    const panel = screen.getByTestId("founder-panel");
+    expect(list.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(canvas.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("on a narrow screen a tap on an entry scrolls the screenshot into view, smoothly unless motion is reduced", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    let reduced = false;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width") ? true : query.includes("reduced-motion") ? reduced : false,
+      media: query,
+    }));
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const canvas = screen.getByRole("region", { name: /Screenshot of/ });
+    await user.click(within(list).getAllByRole("button")[0]!);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    // The element scrolled to holds the canvas, and the scroll is smooth.
+    const target = scrollIntoView.mock.instances[0] as unknown as Element;
+    expect(target.contains(canvas)).toBe(true);
+    expect(scrollIntoView.mock.calls[0]![0]).toEqual({ behavior: "smooth", block: "start" });
+    // Tapping the same entry again only clears the selection: no scroll.
+    await user.click(within(list).getAllByRole("button")[0]!);
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    // Reduced motion asks for an instant scroll.
+    reduced = true;
+    await user.click(within(list).getAllByRole("button")[1]!);
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    expect(scrollIntoView.mock.calls[1]![0]).toEqual({ behavior: "auto", block: "start" });
+  });
+
+  test("at desktop widths a tap selects without scrolling the page", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: false, media: query }));
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    await user.click(within(list).getAllByRole("button")[0]!);
+    expect(within(list).getAllByRole("button")[0]).toHaveAttribute("aria-current", "true");
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 });

@@ -499,12 +499,22 @@ pre code {
   padding-left: 0;
 }
 
-/* Self-documenting capabilities line above the stage (VAL-CAPTURE-015
-   feedback, 2026-09-09): quiet supporting text, existing tokens only. */
+/* The one sentence the founder view opens with (D078): quiet supporting
+   text, existing tokens only. */
 .workspace-hint {
   color: var(--ink-soft);
   font-size: 0.9rem;
   max-width: var(--max);
+}
+
+/* The verb strip beside the canvas controls (D078): what a click, a
+   shift-drag, and a drag do, in a handful of words. A paragraph, not a
+   heading; it wraps under the controls when the row is full. */
+.workspace-verbs {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 /* The stage and its screen-fixed panel sit side by side; the panel never
@@ -626,6 +636,46 @@ pre code {
   word-break: break-all;
 }
 
+/* The mark's name in the panel (D078) can run long; wrap, never clip. */
+.panel-mark-name {
+  margin: 0 0 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+/* The internals behind one native disclosure (D078). */
+.panel-details {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.panel-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.2rem 0;
+}
+
+.panel-details > dl {
+  margin-top: 0.5rem;
+}
+
+.panel-facts-label {
+  margin: 0.5rem 0 0.15rem;
+  color: var(--ink-soft);
+}
+
+.panel-keys {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.panel-keys li {
+  margin: 0.1rem 0;
+}
+
 /* ---- all-pins table (D071) ---- */
 
 .pin-table {
@@ -676,9 +726,19 @@ pre code {
   background: var(--code-bg);
 }
 
+/* The row header is the mark's name (D078): it can run to the comment
+   excerpt and the element, so it wraps inside a bounded column instead of
+   stretching the table. */
 .pin-table tbody th {
-  white-space: nowrap;
+  min-width: 12rem;
+  max-width: 22rem;
   font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.pin-table tbody th button {
+  text-align: left;
+  white-space: normal;
 }
 
 .pin-table tr[data-selected="true"] > * {

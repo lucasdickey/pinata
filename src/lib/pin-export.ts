@@ -9,7 +9,7 @@
 // pin is saved (VAL-PIN-003, VAL-PIN-008).
 
 import type { AnnotationView, PinElementSnapshot } from "./annotations";
-import { markPosition, markTitle, rectanglePosition } from "./canvas/marks";
+import { markLabel, markPosition, rectanglePosition } from "./canvas/marks";
 import { PIN_STATUS_LABELS } from "./feedback-counts";
 
 export interface PinExportContext {
@@ -51,9 +51,19 @@ export function pinPosition(pin: AnnotationView): string {
   return markPosition(pin);
 }
 
-/** The heading line for one mark: "## Pin 3 — at (x, y)" or "## Box 4 — at (x, y · w × h)". */
+/**
+ * The heading line for one mark: its name (D078), "## Pin 3 · “comment” ·
+ * element". The coordinates follow on their own detail line, because the
+ * agent reading the paste needs them and the heading is for people.
+ */
 export function markHeading(annotation: AnnotationView): string {
-  return `## ${markTitle(annotation)} — at (${markPosition(annotation)})`;
+  return `## ${markLabel(annotation)}`;
+}
+
+/** The detail line a pin carries: its tip in natural pixels. */
+export function pinPositionLine(annotation: AnnotationView): string | null {
+  if (annotation.kind !== "pin") return null;
+  return `- Position: ${markPosition(annotation)} px natural`;
 }
 
 /** The extra detail line a rectangle carries: its box in natural pixels. */
@@ -92,6 +102,10 @@ export function formatPinsAsMarkdown(
     // The lifecycle status (D075) travels with the note so an agent reading
     // the paste can skip what is already done.
     lines.push(`- Status: ${PIN_STATUS_LABELS[pin.status] ?? pin.status}`);
+    // Where the mark sits, as data rather than in its name (D078): a pin's
+    // tip or a box's corner and size, in the screenshot's own pixels.
+    const position = pinPositionLine(pin);
+    if (position) lines.push(position);
     const bounds = rectangleBoundsLine(pin);
     if (bounds) lines.push(bounds);
     lines.push(`- Element: ${snapshotSummary(pin.elementSnapshot)}`);

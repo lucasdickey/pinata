@@ -1,13 +1,17 @@
 // Client-safe helpers for the two mark kinds (D079): the draft shape the
 // canvas reports to the workspace, the request shapes each kind sends, and
-// the labels the panel, table, and export print. Pure functions only, so the
-// exact text and payloads are unit-testable without a DOM.
+// the labels the panel, table, and export print. Since D078 the one name a
+// mark goes by everywhere (markLabel) lives here too, so the wording cannot
+// drift between surfaces. Pure functions only, so the exact text and
+// payloads are unit-testable without a DOM.
 
 import type {
   AnnotationView,
   PinAnnotationView,
+  PinElementSnapshot,
   RectangleAnnotationView,
 } from "../annotations";
+import { pinExcerpt } from "../feedback-counts";
 import type { NaturalPoint } from "./camera";
 import type { NaturalRect } from "./rectangle";
 
@@ -99,9 +103,68 @@ export function markKindNoun(kind: MarkKind): "pin" | "box" {
   return kind === "rectangle" ? "box" : "pin";
 }
 
-/** "Pin 3" or "Box 4": how every list, table, and export names a mark. */
+/** "Pin 3" or "Box 4": the kind and number that open every mark's name. */
 export function markTitle(annotation: Pick<AnnotationView, "kind" | "number">): string {
   return `${markKindLabel(annotation.kind)} ${annotation.number}`;
+}
+
+/** How much of the comment a mark's name quotes before it is cut. */
+export const MARK_EXCERPT_MAX_CHARS = 60;
+
+/** How much of the attached element's text a mark's name carries. */
+export const MARK_ELEMENT_LABEL_MAX_CHARS = 40;
+
+/** The fields of a snapshot a mark's name reads. */
+export type MarkElementSource = Pick<PinElementSnapshot, "text" | "accessibleName" | "tag">;
+
+/** The fields of an annotation a mark's name reads. */
+export interface MarkLabelSource {
+  kind: MarkKind;
+  number: number;
+  body: string;
+  elementSnapshot: MarkElementSource | null;
+}
+
+/**
+ * The attached element's short label (D078): its visible text, else its
+ * accessible name, else its tag, collapsed to one line and cut with an
+ * ellipsis. Null when nothing is attached or the snapshot has no words.
+ */
+export function elementShortLabel(element: MarkElementSource | null | undefined): string | null {
+  if (!element) return null;
+  const source = [element.text, element.accessibleName, element.tag].find(
+    (candidate) => typeof candidate === "string" && candidate.trim() !== "",
+  );
+  if (!source) return null;
+  const label = pinExcerpt(source, MARK_ELEMENT_LABEL_MAX_CHARS);
+  return label === "" ? null : label;
+}
+
+/**
+ * A mark's name (D078): what it says and what it points at, never where it
+ * sits. "Pin 3 · “This toggle reads the same in both states” · Annual
+ * (save 20%)" or "Box 2 · “More air around these” · pricing cards". The
+ * kind and number come first so screen-reader order and number-based
+ * queries stay stable; then the comment, cut to MARK_EXCERPT_MAX_CHARS
+ * with an ellipsis; then, when an element is attached, its short label.
+ * Coordinates never appear here; markPosition prints those, behind the
+ * panel's Details.
+ */
+export function markLabel(mark: MarkLabelSource): string {
+  const parts = [markTitle(mark)];
+  const excerpt = pinExcerpt(mark.body ?? "", MARK_EXCERPT_MAX_CHARS);
+  if (excerpt !== "") parts.push(`“${excerpt}”`);
+  const element = elementShortLabel(mark.elementSnapshot);
+  if (element) parts.push(element);
+  return parts.join(" · ");
+}
+
+/** The point a camera centers on to show a mark: a pin's tip, a box's middle. */
+export function markCenter(mark: DraftMark): NaturalPoint {
+  if (mark.kind === "rectangle") {
+    return { x: mark.rect.x + mark.rect.width / 2, y: mark.rect.y + mark.rect.height / 2 };
+  }
+  return { x: mark.tip.x, y: mark.tip.y };
 }
 
 /** A rectangle's position and size, rounded for reading: "x, y · w × h". */

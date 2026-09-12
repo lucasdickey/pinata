@@ -343,8 +343,10 @@ test("pins and metadata choices stay isolated across Desktop, Mobile, old captur
   ).toBe(false);
   // UI parity: the old plane's list shows its pin and opening it shows its
   // comment (re-anchored to the panel after the version switch settles).
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ — at \(/);
-  await page.getByRole("button", { name: `Pin ${v1AfterSwitch[0]!.number} — at (` }).click();
+  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ · “/);
+  await page
+    .getByRole("button", { name: new RegExp(`^Pin ${v1AfterSwitch[0]!.number} · “`) })
+    .click();
   await expect(page.getByTestId("panel-pin")).toContainText(`${BODY_PREFIX} desktop-v1`);
 
   // --- After a full reload, every plane still shows only its own marks.

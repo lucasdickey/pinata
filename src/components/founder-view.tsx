@@ -12,22 +12,22 @@
 // asset, and the per-pin thread.
 //
 // There is no editing surface here at all: the canvas mounts read-only (no
-// Place pin mode, no drafts, no drags), the panel offers no edit, move, or
-// delete control, and the only write is the founder's own reply. A denied
-// exchange or a session that stopped verifying (rotation, revocation) is one
-// generic message with no project data.
+// drafts, no drags, no box tool), the panel offers no edit, move, or delete
+// control, and the only writes are the founder's own reply and resolve. A
+// denied exchange or a session that stopped verifying (rotation, revocation)
+// is one generic message with no project data.
+//
+// The view reads first (D078): the list of marks names each one by its
+// comment and element, the panel shows the chosen mark's name, status, and
+// thread, and nothing here prints coordinates, versions, or hashes. On a
+// phone the list comes first, then the screenshot, then the panel; tapping
+// an entry scrolls the screenshot into view with that mark in the middle.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import type { AnnotationView, PinListResponse, PinStatusResponse } from "../lib/annotations";
-import {
-  markKindNoun,
-  markPosition,
-  markTitle,
-  pinsOf,
-  rectanglesOf,
-} from "../lib/canvas/marks";
-import { PIN_STATUS_LABELS, pinExcerpt, pinFeedbackPath } from "../lib/feedback-counts";
+import { markKindNoun, markLabel, pinsOf, rectanglesOf } from "../lib/canvas/marks";
+import { PIN_STATUS_LABELS, pinFeedbackPath } from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
@@ -90,6 +90,10 @@ export function FounderView({ publicId }: { publicId: string }) {
   // Resolve / reopen in flight (D075).
   const [statusState, setStatusState] = useState<"idle" | "saving" | "failed">("idle");
   const cameras = useRef(new Map<string, CaptureCameraState>());
+  // Each tap on a list entry (D078) bumps this so the canvas centers the
+  // chosen mark, and scrolls the screenshot into view on a narrow screen.
+  const [revealSignal, setRevealSignal] = useState(0);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const loadProject = useCallback(async () => {
     setPhase({ status: "loading" });
@@ -368,6 +372,28 @@ export function FounderView({ publicId }: { publicId: string }) {
     [captureId],
   );
 
+  /**
+   * A tap on a list entry (D078): select the mark, ask the canvas to center
+   * it, and on a narrow screen, where the list sits above the screenshot,
+   * scroll the screenshot into view so the reader lands on the picture.
+   * Tapping the chosen entry again only clears the selection.
+   */
+  const chooseFromList = useCallback(
+    (pin: AnnotationView) => {
+      if (pin.id === selectedPinId) {
+        setSelectedPinId(null);
+        return;
+      }
+      setSelectedPinId(pin.id);
+      setRevealSignal((value) => value + 1);
+      const narrow = window.matchMedia?.("(max-width: 48rem)")?.matches ?? false;
+      if (!narrow) return;
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+      bodyRef.current?.scrollIntoView?.({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    },
+    [selectedPinId],
+  );
+
   if (phase.status === "exchanging" || phase.status === "loading") {
     return (
       <main className="founder-shell">
@@ -401,10 +427,7 @@ export function FounderView({ publicId }: { publicId: string }) {
         <h1>{project.title}</h1>
         <p className="founder-root">{project.rootUrl}</p>
         <p className="workspace-hint">
-          This is a static screenshot of each page with Lucas&apos;s pins on it. Drag to pan,
-          scroll or pinch to zoom, or use the camera buttons. Click a numbered pin, or its entry
-          in the Pins list, to read the comment and reply. Pins cannot be added, moved, or edited
-          from this view, and replies are permanent.
+          Click a mark, or its entry in the list, to read the note and reply.
         </p>
       </header>
 
@@ -448,10 +471,11 @@ export function FounderView({ publicId }: { publicId: string }) {
               <h2>
                 {variantLabel(attempt.variant)} — {activePage.normalizedUrl}
               </h2>
-              {/* Every pin on this capture, in number order, above the canvas
-                  (D075): the founder's list of what is waiting for them, with
-                  the comment excerpt, the status, and an unread marker.
-                  Choosing an entry selects the pin everywhere. */}
+              {/* Every mark on this capture, in number order, above the canvas
+                  (D075): the founder's list of what is waiting for them. Each
+                  entry is the mark's name (D078: kind, number, comment, and
+                  element), its status, and an unread marker. Choosing an
+                  entry selects the mark everywhere and brings it into view. */}
               <section className="founder-pins" aria-label="Pins on this capture">
                 <h3 className="visually-hidden">Pins on this capture</h3>
                 {pinsState?.status === "loading" ? (
@@ -471,13 +495,11 @@ export function FounderView({ publicId }: { publicId: string }) {
                           type="button"
                           aria-current={pin.id === selectedPinId ? "true" : undefined}
                           data-status={pin.status}
-                          onClick={() =>
-                            setSelectedPinId(pin.id === selectedPinId ? null : pin.id)
-                          }
+                          onClick={() => chooseFromList(pin)}
                         >
-                          {markTitle(pin)} —{" "}
-                          <span className="founder-pin-excerpt">“{pinExcerpt(pin.body)}”</span>{" "}
+                          {markLabel(pin)}
                           <span className="pin-status">
+                            {" "}
                             · {PIN_STATUS_LABELS[pin.status] ?? pin.status}
                           </span>
                           {pin.unreadReplies > 0 ? (
@@ -489,7 +511,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                   </ol>
                 ) : null}
               </section>
-              <div className="workspace-body">
+              <div className="workspace-body" ref={bodyRef}>
                 <CaptureCanvas
                   key={attempt.id}
                   readOnly
@@ -505,6 +527,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                   onSelectPin={setSelectedPinId}
                   savedCamera={cameras.current.get(attempt.id) ?? null}
                   onCameraChange={handleCameraChange}
+                  revealSelected={revealSignal}
                 />
                 <aside
                   className="workspace-panel"
@@ -514,11 +537,15 @@ export function FounderView({ publicId }: { publicId: string }) {
                   <h4>Selection</h4>
                   {selectedPin ? (
                     <div className="panel-pin" data-testid="panel-pin">
-                      <p data-testid="panel-position" data-kind={selectedPin.kind}>
-                        <strong>{markTitle(selectedPin)}</strong>{" "}
-                        {selectedPin.kind === "rectangle"
-                          ? `at natural pixels (${markPosition(selectedPin)})`
-                          : `at natural pixel (${markPosition(selectedPin)})`}
+                      {/* The mark's name (D078), its status, and the thread.
+                          No coordinates, no element internals: the name
+                          already says what the mark points at. */}
+                      <p
+                        className="panel-mark-name"
+                        data-testid="panel-mark-name"
+                        data-kind={selectedPin.kind}
+                      >
+                        <strong>{markLabel(selectedPin)}</strong>
                       </p>
                       <p
                         className="panel-status"
@@ -526,17 +553,6 @@ export function FounderView({ publicId }: { publicId: string }) {
                         data-status={selectedPin.status}
                       >
                         Status: {PIN_STATUS_LABELS[selectedPin.status] ?? selectedPin.status}
-                      </p>
-                      <p className="panel-snapshot" data-testid="panel-snapshot">
-                        {selectedPin.elementSnapshot
-                          ? `Element: ${selectedPin.elementSnapshot.kind} <${
-                              selectedPin.elementSnapshot.tag || "element"
-                            }> — “${(
-                              selectedPin.elementSnapshot.text ||
-                              selectedPin.elementSnapshot.accessibleName ||
-                              selectedPin.elementSnapshot.tag
-                            ).slice(0, 80)}”`
-                          : "Element: No element"}
                       </p>
                       {/* The founder's one lifecycle control (D075): "done" is
                           their statement; the editor can reopen, and so can
@@ -578,10 +594,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                       ) : null}
                     </div>
                   ) : (
-                    <p className="panel-empty">
-                      Nothing selected. Choose a pin from the list above the screenshot or
-                      click a numbered badge on it.
-                    </p>
+                    <p className="panel-empty">Nothing selected.</p>
                   )}
                 </aside>
               </div>

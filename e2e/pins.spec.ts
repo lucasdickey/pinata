@@ -120,7 +120,7 @@ async function waitPinsLoaded(page: Page): Promise<void> {
   // failure renders a different note, so this wait fails loudly instead of
   // passing early.
   await expect(page.getByTestId("capture-panel")).toContainText(
-    /No pins yet\.|(Pin|Box) \d+ — at \(/,
+    /No pins yet\.|(Pin|Box) \d+ · “/,
   );
 }
 
@@ -259,12 +259,14 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   const target = await openDesktopPlane(page);
   const doc = { width: target.width, height: target.height };
 
-  // The page documents itself (VAL-CANVAS-009, D074): one line under the
-  // canvas names the three verbs, and there is no mode toggle to find.
-  const hint = page.locator(".workspace-hint");
-  await expect(hint).toContainText("drop a pin");
-  await expect(hint).toContainText("drag a pin to move it");
-  await expect(hint).toContainText("read or reply");
+  // The page documents itself (VAL-CANVAS-009, D074, D078): a verb strip
+  // beside the canvas controls names the verbs, and there is no mode toggle
+  // to find.
+  const verbs = page.getByTestId("workspace-verbs");
+  await expect(verbs).toContainText("drop a pin: click the page");
+  await expect(verbs).toContainText("draw a box: shift-drag");
+  await expect(verbs).toContainText("move: drag it");
+  await expect(verbs).toContainText("read or reply: click a mark");
   await expect(page.getByRole("button", { name: /place pin|navigate/i })).toHaveCount(0);
 
   const before = await listPins(page, target.captureId);

@@ -40,14 +40,19 @@ edits; Pinata just makes "try tightening this" unambiguous.
    (tag, role, short text, position) — never HTML source, cookies, or form
    values.
 3. **Annotate.** Each capture opens in a pan/zoom canvas (React Flow) rendered
-   at its natural pixel size. The editor places numbered pins — and later
-   boxes, circles, and arrows — whose coordinates are stored in screenshot
-   pixels, so they stay glued to their target at any zoom. When placing a pin,
-   nearby captured elements are offered as metadata attachments.
+   at the screenshot's own size. A click drops a numbered pin; a Shift-drag
+   (or the Box tool) draws a numbered box around a region. Both are stored in
+   screenshot pixels, so they stay glued to their target at any zoom, and
+   both are named by what they say and what they point at ("Pin 3 · “Annual
+   toggle reads the same in both states” · Annual (save 20%)"). When placing
+   a mark, nearby captured elements are offered as context. Circles and
+   arrows are still to come.
 4. **Share and reply.** A persistent, revocable link opens the project in a
    read/reply-only founder view. Threads are append-only and chronological:
    the founder replies, the editor follows up, and nobody — including the
-   founder — can edit or delete a founder reply.
+   founder — can edit or delete a founder reply. Either side can mark a
+   note resolved, and reopen it later; each change is recorded in the
+   thread.
 
 Guardrails: public pages only, static captures only, no runtime AI, and
 directional feedback only. Full rationale lives in the decision log.
