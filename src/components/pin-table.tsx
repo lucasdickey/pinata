@@ -86,8 +86,7 @@ export function PinTable({
       ) : null}
       {status === "ready" && pins.length === 0 ? (
         <p className="panel-note">
-          No pins yet. Choose Place pin above the screenshot, then click or tap the page to
-          drop the first one.
+          No pins yet. Click or tap the page to drop the first one.
         </p>
       ) : null}
 

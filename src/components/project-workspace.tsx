@@ -29,13 +29,9 @@ import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
-import {
-  CapturePanel,
-  STATE_LABELS,
-  variantLabel,
-  type DraftCandidates,
-} from "./capture-panel";
+import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { FounderShareControl } from "./founder-share";
+import type { DraftCandidates } from "./pin-composer";
 import { PinTable } from "./pin-table";
 import type { ReplySendState, ThreadStatus } from "./thread-view";
 
@@ -130,9 +126,9 @@ export function ProjectWorkspace({
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
   const cameras = useRef(new Map<string, CaptureCameraState>());
-  // The active plane's transient draft tip, mirrored here only so the
-  // screen-fixed panel can announce it. The canvas remains the source of
-  // truth and clears it on switch via the keyed remount.
+  // The active plane's transient draft tip, mirrored here so the save can
+  // carry it and the composer state below can follow it. The canvas remains
+  // the source of truth and clears it on switch via the keyed remount.
   const [draftTip, setDraftTip] = useState<NaturalPoint | null>(null);
   // One idempotency key per draft intent: generated when the draft appears,
   // held across safe retries of the same save, and released when the draft
@@ -140,11 +136,13 @@ export function ProjectWorkspace({
   const [draftKey, setDraftKey] = useState<string | null>(null);
   const [draftBody, setDraftBody] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "failed">("idle");
-  // The draft's explicit context decision: undefined = undecided (Save is
-  // disabled), null = "No element", otherwise a candidate's capture-local
+  // The draft's explicit context decision: undefined = not settled yet (Save
+  // is disabled), null = "No element", otherwise a candidate's capture-local
   // element id. Candidates come from the capture's own persisted manifest
   // via the authorized context route, resolved once per settled draft
-  // position (placement tap or draft-drag end) — never per drag frame.
+  // position (placement click, the N shortcut, or draft-drag end) — never
+  // per drag frame — and the top-ranked one is pre-selected when they
+  // arrive (D074).
   const [draftChoice, setDraftChoice] = useState<string | null | undefined>(undefined);
   const [draftCandidates, setDraftCandidates] = useState<
     (DraftCandidates & { captureId: string }) | null
@@ -437,29 +435,43 @@ export function ProjectWorkspace({
 
   // Nearby context for the draft, fetched once per settled position. The
   // response is scoped to the capture it was fetched for; a stale response
-  // (plane switch mid-flight) can never land on another capture's draft.
+  // (plane switch mid-flight, or an earlier settle answered late) can never
+  // land on another capture's draft or overwrite a newer candidate set.
+  // When it settles, the top-ranked candidate is pre-selected — or No
+  // element when there is none or the read failed — unless Lucas already
+  // chose while it was loading (D074). The decision stays explicit on the
+  // wire: the chosen id or null is still what the save sends (D061).
+  const contextRequestRef = useRef(0);
   const fetchContext = useCallback(async (captureId: string, tip: NaturalPoint) => {
-    // A fresh candidate set replaces the old one; any highlight belonging to
-    // the replaced set clears with it.
+    const request = contextRequestRef.current + 1;
+    contextRequestRef.current = request;
+    // A fresh candidate set replaces the old one; any highlight or choice
+    // belonging to the replaced set clears with it.
     setPreviewRect(null);
+    setDraftChoice(undefined);
     setDraftCandidates({ captureId, status: "loading", items: [] });
+    const settle = (candidates: DraftCandidates) => {
+      if (contextRequestRef.current !== request) return;
+      setDraftCandidates({ captureId, ...candidates });
+      const top = candidates.items[0]?.id ?? null;
+      setDraftChoice((current) => (current === undefined ? top : current));
+    };
     try {
       const response = await fetch(
         `/api/captures/${encodeURIComponent(captureId)}/context?x=${tip.x}&y=${tip.y}`,
         { cache: "no-store" },
       );
       if (!response.ok) {
-        setDraftCandidates({ captureId, status: "failed", items: [] });
+        settle({ status: "failed", items: [] });
         return;
       }
       const payload = (await response.json()) as PinContextResponse;
-      setDraftCandidates({
-        captureId,
+      settle({
         status: "ready",
         items: Array.isArray(payload.candidates) ? payload.candidates : [],
       });
     } catch {
-      setDraftCandidates({ captureId, status: "failed", items: [] });
+      settle({ status: "failed", items: [] });
     }
   }, []);
 
@@ -823,24 +835,6 @@ export function ProjectWorkspace({
           {/* Project-level capture progress and retry (D076). */}
           <CaptureProgress project={active.project} onChanged={onChanged} />
 
-          {/* Self-documenting canvas (VAL-CANVAS-009): plain-language
-              instructions for every interaction this build actually has —
-              pan, zoom, drop a pin, save it with a comment, and open a saved
-              pin's comment — so the page alone teaches the workflow. */}
-          <p className="workspace-hint">
-            This is a static screenshot of the page. Navigate mode: drag to
-            pan, scroll or pinch to zoom, or use the camera buttons to fit
-            the whole page, fit its width, or view it at natural size.
-            Navigate never creates or moves a mark. Place pin mode: click or
-            tap the screenshot to drop a pin, write a comment in the panel,
-            choose a nearby element or No element, and press Save pin —
-            Escape or Cancel discards the draft — and drag a pin to move it.
-            Hover, tab to, or touch-and-hold a nearby element in the list to
-            highlight its captured bounds on the screenshot.
-            Click a saved pin, or its entry in the Pins list, to read its
-            comment, edit it, or delete the pin.
-          </p>
-
           {active.device.attempts.length > 1 ? (
             <ul className="capture-versions" aria-label="Capture versions">
               {active.device.attempts.map((attempt) => (
@@ -888,6 +882,20 @@ export function ProjectWorkspace({
                 onDraftChange={setDraftTip}
                 onDraftSettled={handleDraftSettled}
                 draftResetSignal={draftResetSignal}
+                composer={{
+                  draftBody,
+                  onDraftBodyChange: setDraftBody,
+                  draftChoice,
+                  onDraftChoiceChange: handleDraftChoiceChange,
+                  draftCandidates:
+                    draftCandidates && draftCandidates.captureId === selectedCaptureId
+                      ? draftCandidates
+                      : null,
+                  onPreviewCandidate: handlePreviewCandidate,
+                  onSaveDraft: () => void saveDraft(),
+                  onCancelDraft: cancelDraft,
+                  saveState,
+                }}
               />
             ) : (
               // Unavailable/empty states are non-annotatable: no canvas, no
@@ -904,20 +912,6 @@ export function ProjectWorkspace({
               pageUrl={active.page.normalizedUrl}
               variant={active.device.variant}
               ready={selectedReady !== null}
-              draftTip={draftTip}
-              draftBody={draftBody}
-              onDraftBodyChange={setDraftBody}
-              draftChoice={draftChoice}
-              onDraftChoiceChange={handleDraftChoiceChange}
-              onPreviewCandidate={handlePreviewCandidate}
-              draftCandidates={
-                draftCandidates && draftCandidates.captureId === selectedCaptureId
-                  ? draftCandidates
-                  : null
-              }
-              onSaveDraft={() => void saveDraft()}
-              onCancelDraft={cancelDraft}
-              saveState={saveState}
               pinsStatus={
                 pinsState && pinsState.captureId === selectedCaptureId ? pinsState.status : null
               }
@@ -969,6 +963,15 @@ export function ProjectWorkspace({
               }
             />
           </div>
+
+          {/* The page explains itself in one line (VAL-CANVAS-009, D074):
+              the three things a reader can do on the screenshot. */}
+          {selectedReady ? (
+            <p className="workspace-hint">
+              Click the page to drop a pin · drag a pin to move it · click a pin to read or
+              reply.
+            </p>
+          ) : null}
 
           {active.device.latest?.state === "failed" && active.device.latest.errorCode ? (
             <p role="alert" className="capture-error">

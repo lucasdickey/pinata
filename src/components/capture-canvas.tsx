@@ -10,19 +10,24 @@
 // and camera state is remembered per capture for the session (in memory
 // only) so switching planes never shares or transfers a camera.
 //
-// Two explicit interaction modes keep navigation and editing separate:
-// Navigate pans/zooms and never creates a mark; Place pin turns one
-// deliberate click/tap into exactly one transient draft pin and disables
-// drag-panning so presses cannot be mistaken for pans. Drafts are local UI
-// state — draggable with the pointer's grab offset preserved, clamped
+// There are no interaction modes (D074). One number tells the two intents
+// apart: PLACEMENT_SLOP_SCREEN_PX. A press on the screenshot that releases
+// within it drops one transient draft pin at that natural pixel; a press
+// that travels past it pans the camera. Saved pins drag by their badge in
+// every state and commit exactly one revisioned write at drag end
+// (onMovePin); a press on a saved pin that releases within the slop is a
+// click and selects it instead, so a tap can never write. Drafts are local
+// UI state — draggable with the pointer's grab offset preserved, clamped
 // inclusively to the frame, cleared by Escape, and dropped on any capture
-// switch (the keyed remount). Persisted pins are the server-canonical
-// records passed in as props: they render as numbered badges parented to
-// the frame, drag with the same grab-offset/clamp math in Place pin mode
-// only (a Navigate press always pans; it must never move a mark), a tap on
-// one selects rather than stacking a draft, and a drag commits exactly one
-// revisioned write at drag end (onMovePin). Camera work, selection, and
-// intermediate drag frames never write.
+// switch (the keyed remount). The comment composer for a draft opens in a
+// popover beside the badge: it is rendered outside the transformed plane
+// and re-positioned from the draft's projected screen point on every pan
+// and zoom, so it never leaves the visible frame.
+//
+// Keyboard, on the canvas region when focus is not in a text field: J or
+// ArrowDown selects the next saved pin, K or ArrowUp the previous, N drops
+// a draft at the viewport center (clamped to the frame). Inside the
+// composer, Enter saves, Shift+Enter inserts a newline, Escape cancels.
 //
 // Camera state is local UI state only. The three named modes — entire
 // capture (the initial contain view), fit width, and natural size — come
@@ -45,7 +50,18 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { MIN_HIT_TARGET_CSS_PX } from "../lib/boundaries";
 import {
   CANVAS_MAX_ZOOM,
   CANVAS_MIN_ZOOM,
@@ -57,6 +73,7 @@ import {
   type NaturalPoint,
 } from "../lib/canvas/camera";
 import {
+  clampNaturalPointToCapture,
   dragPinBox,
   pinHitBox,
   PLACEMENT_SLOP_SCREEN_PX,
@@ -78,6 +95,8 @@ import {
   type DraftPinNode,
   type PinNode,
 } from "../lib/canvas/flow-model";
+import { placePopover, popoverBounds, type ScreenSize } from "../lib/canvas/popover";
+import { PinComposer, type PinComposerProps } from "./pin-composer";
 
 /** The named camera modes; "entire" is the initial view of every capture. */
 export const CAMERA_MODES = [
@@ -87,14 +106,6 @@ export const CAMERA_MODES = [
 ] as const;
 
 export type CameraMode = (typeof CAMERA_MODES)[number]["id"];
-
-/** The named interaction modes: navigation can never create a mark. */
-export const INTERACTION_MODES = [
-  { id: "navigate", label: "Navigate" },
-  { id: "pin", label: "Place pin" },
-] as const;
-
-export type InteractionMode = (typeof INTERACTION_MODES)[number]["id"];
 
 /**
  * One plane's remembered camera: the transform, the named mode it came from,
@@ -187,7 +198,7 @@ function Pin({ data }: NodeProps<PinNode>) {
  * The transient nearby-candidate highlight: a bare box at exactly the
  * candidate's persisted natural-pixel rect, parented to the frame so the
  * plane's own transform keeps it aligned at every zoom. Pure decoration —
- * it ignores the pointer, is hidden from assistive tech (the panel's
+ * it ignores the pointer, is hidden from assistive tech (the composer's
  * candidate list is the accessible surface), and never persists.
  */
 function ContextPreview(_: NodeProps<ContextPreviewNode>) {
@@ -211,6 +222,97 @@ function ZoomReadout() {
   );
 }
 
+/** True when a key event came from somewhere text is being entered. */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
+}
+
+/** The popover's size before it has been measured. */
+const COMPOSER_SIZE_GUESS: ScreenSize = { width: 320, height: 240 };
+
+/**
+ * The screen-fixed popover the draft composer lives in. It is a sibling of
+ * the transformed plane, not a child: the draft tip is projected to client
+ * coordinates on every camera change (useViewport re-renders this on each
+ * pan and zoom frame), on window scroll, and on resize, and the pure
+ * placement math flips or clamps the box so it stays inside the visible
+ * part of the canvas frame (or, when that is too small, the browser
+ * viewport).
+ */
+function DraftComposerPopover({
+  tip,
+  frameRef,
+  children,
+}: {
+  tip: NaturalPoint;
+  frameRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  const instance = useReactFlow();
+  // Subscribing to the viewport is what re-positions the popover on pan
+  // and zoom; the values themselves come from flowToScreenPosition below.
+  useViewport();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState<ScreenSize>(COMPOSER_SIZE_GUESS);
+  const [, setLayoutTick] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setLayoutTick((value) => value + 1);
+    window.addEventListener("scroll", bump, true);
+    window.addEventListener("resize", bump);
+    return () => {
+      window.removeEventListener("scroll", bump, true);
+      window.removeEventListener("resize", bump);
+    };
+  }, []);
+
+  // Measure the rendered box so the clamp uses its real size; the guess
+  // above only covers the first paint.
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const width = element.offsetWidth;
+    const height = element.offsetHeight;
+    if (width > 0 && height > 0 && (width !== size.width || height !== size.height)) {
+      setSize({ width, height });
+    }
+  });
+
+  const anchor = instance.flowToScreenPosition(tip);
+  const frame = frameRef.current?.getBoundingClientRect();
+  const viewport = {
+    left: 0,
+    top: 0,
+    right: window.innerWidth,
+    bottom: window.innerHeight,
+  };
+  const bounds = popoverBounds(
+    frame
+      ? { left: frame.left, top: frame.top, right: frame.right, bottom: frame.bottom }
+      : viewport,
+    viewport,
+    size,
+  );
+  const badge = Math.min(MIN_HIT_TARGET_CSS_PX, size.height);
+  const placed = placePopover({ anchor, badge, size, bounds });
+
+  return (
+    <div
+      ref={ref}
+      className="pin-composer"
+      role="dialog"
+      aria-label="New pin"
+      data-testid="pin-composer"
+      data-side={placed.side}
+      style={{ left: placed.left, top: placed.top }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function CaptureCanvasInner({
   domain,
   regionName,
@@ -225,14 +327,15 @@ function CaptureCanvasInner({
   onDraftChange,
   onDraftSettled,
   draftResetSignal,
+  composer,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
   /**
-   * The founder's read/reply-only plane: no Place pin mode, no drafts, no
-   * pin dragging, and no editing controls in the DOM at all. Pan, zoom, and
-   * selecting a saved pin to read its thread still work. Defaults to the
-   * editor's full behavior.
+   * The founder's read/reply-only plane: no drafts, no pin dragging, no
+   * composer, and no keyboard shortcuts that could create or move a mark.
+   * Pan, zoom, and selecting a saved pin to read its thread still work.
+   * Defaults to the editor's full behavior.
    */
   readOnly: boolean;
   /** This plane's persisted pins (server is canonical; never RF state). */
@@ -251,13 +354,16 @@ function CaptureCanvasInner({
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (tip: NaturalPoint | null) => void;
   /**
-   * Fires only when a draft's position is final for now — the placement tap
-   * and the end of a draft drag — so the panel can resolve nearby context
-   * once per gesture instead of per drag frame. Never a write.
+   * Fires only when a draft's position is final for now — the placement
+   * click, the N shortcut, and the end of a draft drag — so the workspace
+   * can resolve nearby context once per gesture instead of per drag frame.
+   * Never a write.
    */
   onDraftSettled?: (tip: NaturalPoint) => void;
   /** Increments when a draft was saved; the canvas drops the unsaved draft. */
   draftResetSignal?: number;
+  /** The draft composer's state and callbacks; shown beside the draft badge. */
+  composer?: PinComposerProps | null;
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -272,20 +378,12 @@ function CaptureCanvasInner({
   draftRef.current = draft;
   const liveZoomRef = useRef(liveZoom);
   liveZoomRef.current = liveZoom;
-  // The interaction mode gates persisted-pin dragging: a press in Navigate
-  // mode always pans (it must never move a mark — an accidental drag would
-  // commit a real write), while Place pin mode owns mark manipulation.
-  // Draft pins stay draggable in either mode: a draft only exists because
-  // pin mode created it, and adjusting it after switching back to navigate
-  // is the shipped placement flow. The adapter marks pins draggable-capable;
-  // this layer enforces the mode.
-  const [interactionState, setInteraction] = useState<InteractionMode>("navigate");
-  // A read-only plane is permanently in Navigate: there is no toggle to
-  // leave it, so no press can ever place or move a mark.
-  const interaction: InteractionMode = readOnly ? "navigate" : interactionState;
   // A persisted pin being dragged: movement is local state, re-derived
   // through the pure clamping adapter; the commit at drag end is one write.
+  // The ref mirrors the latest tip synchronously so drag end can read it
+  // without going through a state updater.
   const [pinDrag, setPinDrag] = useState<{ id: string; tip: NaturalPoint } | null>(null);
+  const pinDragRef = useRef<{ id: string; tip: NaturalPoint } | null>(null);
   const effectivePins = useMemo<CanvasPin[]>(
     () =>
       pins.map((pin) => ({
@@ -297,9 +395,11 @@ function CaptureCanvasInner({
   );
   const nodes = useMemo(() => {
     const built = nodesForCapture(domain, effectivePins, draft, liveZoom, previewRect ?? null);
-    if (interaction === "pin" && !readOnly) return built;
+    // The adapter marks pins draggable; only a read-only plane turns that
+    // off. There is no mode that could.
+    if (!readOnly) return built;
     return built.map((node) => (node.type === PIN_TYPE ? { ...node, draggable: false } : node));
-  }, [domain, effectivePins, draft, liveZoom, interaction, previewRect, readOnly]);
+  }, [domain, effectivePins, draft, liveZoom, previewRect, readOnly]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
   const modeRef = useRef(mode);
@@ -356,9 +456,9 @@ function CaptureCanvasInner({
     return () => observer.disconnect();
   }, [applyMode]);
 
-  // Report the draft to the screen-fixed panel (and clear it there) whenever
-  // it changes; the panel lives outside the transformed canvas. The initial
-  // null mount is not a change and is never reported.
+  // Report the draft to the workspace (and clear it there) whenever it
+  // changes; the workspace owns the comment, the key, and the save. The
+  // initial null mount is not a change and is never reported.
   const draftReported = useRef(false);
   useEffect(() => {
     if (!draftReported.current) {
@@ -367,6 +467,18 @@ function CaptureCanvasInner({
     }
     onDraftChange?.(draft);
   }, [draft, onDraftChange]);
+
+  // When a draft closes (saved, cancelled, escaped) the composer's textarea
+  // unmounts and focus would fall to the document body; hand it back to the
+  // canvas region so the keyboard shortcuts keep working.
+  const hadDraft = useRef(false);
+  useEffect(() => {
+    const had = hadDraft.current;
+    hadDraft.current = draft !== null;
+    if (had && draft === null && document.activeElement === document.body) {
+      wrapperRef.current?.focus({ preventScroll: true });
+    }
+  }, [draft]);
 
   // A successful save clears the unsaved draft from the canvas: the parent
   // increments the reset signal and this plane drops its transient mark.
@@ -381,18 +493,13 @@ function CaptureCanvasInner({
   }, [draftResetSignal]);
 
   // Escape clears only the transient draft. It never fires while typing in
-  // an editable element, and it never touches persisted state.
+  // an editable element (the composer handles its own Escape and stops it
+  // here), and it never touches persisted state.
   useEffect(() => {
     if (!draft) return;
-    const onKey = (event: KeyboardEvent) => {
+    const onKey = (event: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-      ) {
-        return;
-      }
+      if (isTextEntry(event.target)) return;
       setDraft(null);
     };
     window.addEventListener("keydown", onKey);
@@ -408,6 +515,9 @@ function CaptureCanvasInner({
   // pointer movement at all. All movement is local state — the persisted
   // commit happens exactly once, at drag end, in onNodeDragStop.
   const dragGrab = useRef<Pick<PinBox, "tipOffsetX" | "tipOffsetY"> | null>(null);
+  // Where a saved pin's tip was when its drag began: drag end compares the
+  // final tip against it to tell a click from a move.
+  const dragOrigin = useRef<NaturalPoint | null>(null);
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
@@ -423,24 +533,97 @@ function CaptureCanvasInner({
         } else {
           // A persisted pin: track the clamped tip locally; the single
           // revisioned write fires at drag stop.
-          setPinDrag((current) => {
-            const zoom = liveZoomRef.current;
-            const grab = dragGrab.current;
-            if (!grab) return current;
-            const tip = tipFromPinBox(dragPinBox(position, grab, doc, zoom));
-            return { id: change.id, tip };
-          });
+          const grab = dragGrab.current;
+          if (!grab) continue;
+          const tip = tipFromPinBox(dragPinBox(position, grab, doc, liveZoomRef.current));
+          pinDragRef.current = { id: change.id, tip };
+          setPinDrag({ id: change.id, tip });
         }
       }
     },
     [domain.captureId, doc],
   );
 
-  // Placement taps: a press/release pair with less than the placement slop
-  // of travel is one deliberate action. It lands on the wrapper so both the
-  // pane and the frame image behave identically; taps on the draft itself
-  // (its drag handles) and taps outside the screenshot do nothing.
+  // Put the one draft at a natural point and let the workspace resolve
+  // nearby context for it. Exactly one draft per plane: a second click or
+  // press of N moves the same draft rather than stacking marks.
+  const placeDraft = useCallback(
+    (natural: NaturalPoint) => {
+      setDraft(natural);
+      onDraftSettled?.(natural);
+      const zoom = instance.getViewport().zoom;
+      liveZoomRef.current = zoom;
+      setLiveZoom(zoom);
+    },
+    [instance, onDraftSettled],
+  );
+
+  // A click on the screenshot: a press/release pair with no more than the
+  // placement slop of travel. It lands on the wrapper so both the pane and
+  // the frame image behave identically; releases on a pin or on the draft
+  // itself are theirs (select, or the end of a drag), and releases outside
+  // the screenshot do nothing.
   const pressStart = useRef<{ x: number; y: number } | null>(null);
+
+  /** N: a draft at the visible center of the canvas, clamped to the frame. */
+  const dropAtViewportCenter = useCallback(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    const center = {
+      x: rect.left + wrapper.clientWidth / 2,
+      y: rect.top + wrapper.clientHeight / 2,
+    };
+    const natural = instance.screenToFlowPosition(center);
+    if (!Number.isFinite(natural.x) || !Number.isFinite(natural.y)) return;
+    onSelectPin?.(null);
+    placeDraft(clampNaturalPointToCapture(natural, doc));
+  }, [instance, doc, onSelectPin, placeDraft]);
+
+  /** J/K: the next or previous saved pin in number order, wrapping around. */
+  const stepSelection = useCallback(
+    (direction: 1 | -1) => {
+      const ordered = [...pins].sort((a, b) => a.number - b.number);
+      if (ordered.length === 0) return;
+      const index = ordered.findIndex((pin) => pin.id === selectedPinId);
+      const next =
+        index === -1
+          ? direction === 1
+            ? 0
+            : ordered.length - 1
+          : (index + direction + ordered.length) % ordered.length;
+      onSelectPin?.(ordered[next]!.id);
+    },
+    [pins, selectedPinId, onSelectPin],
+  );
+
+  const onRegionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+    // Never while typing, and never as part of a browser or OS shortcut.
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (isTextEntry(event.target)) return;
+    switch (event.key) {
+      case "j":
+      case "J":
+      case "ArrowDown":
+        event.preventDefault();
+        stepSelection(1);
+        return;
+      case "k":
+      case "K":
+      case "ArrowUp":
+        event.preventDefault();
+        stepSelection(-1);
+        return;
+      case "n":
+      case "N":
+        event.preventDefault();
+        dropAtViewportCenter();
+        return;
+      default:
+        return;
+    }
+  };
 
   return (
     <div className="capture-stage capture-stage-canvas" data-testid="capture-stage">
@@ -481,30 +664,17 @@ function CaptureCanvasInner({
         </button>
         <ZoomReadout />
       </p>
-      {/* The editing tools exist only on an editable plane: a read-only
-          plane renders no mode toggle at all, so the affordance is absent
-          from the DOM and the accessibility tree, not merely hidden. */}
-      {readOnly ? null : (
-        <p className="capture-camera" role="group" aria-label="Canvas tools">
-          {INTERACTION_MODES.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              aria-pressed={interaction === candidate.id}
-              onClick={() => setInteraction(candidate.id)}
-            >
-              {candidate.label}
-            </button>
-          ))}
-        </p>
-      )}
       <div
         className="capture-canvas"
         ref={wrapperRef}
         role="region"
         aria-label={regionName}
-        data-interaction={interaction}
+        // Focusable on an editable plane so the shortcuts have somewhere to
+        // land; a click on the pane focuses it, and Tab reaches it.
+        tabIndex={readOnly ? undefined : 0}
+        aria-keyshortcuts={readOnly ? undefined : "J K N ArrowDown ArrowUp"}
         data-read-only={readOnly ? "true" : undefined}
+        onKeyDown={onRegionKeyDown}
         onPointerDown={(event) => {
           // isPrimary is undefined on some synthetic event surfaces; only an
           // explicit non-primary pointer is ignored.
@@ -514,11 +684,12 @@ function CaptureCanvasInner({
         onPointerUp={(event) => {
           const start = pressStart.current;
           pressStart.current = null;
-          if (readOnly || !start || interaction !== "pin" || event.isPrimary === false) return;
+          if (readOnly || !start || event.isPrimary === false) return;
           const travel = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+          // Past the slop it was a pan (or a pin drag), never a placement.
           if (travel > PLACEMENT_SLOP_SCREEN_PX) return;
           const target = event.target as HTMLElement | null;
-          // Taps on an existing mark are selection, not placement: a draft
+          // A click on an existing mark is selection, not placement: a draft
           // stacked on a saved pin would be invisible and confusing.
           if (target?.closest(".react-flow__node-draftPin, .react-flow__node-pin")) return;
           const natural = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
@@ -533,13 +704,7 @@ function CaptureCanvasInner({
           ) {
             return;
           }
-          // Exactly one draft per plane: a second deliberate tap moves the
-          // same draft to the new target rather than stacking marks.
-          setDraft(natural);
-          onDraftSettled?.(natural);
-          const zoom = instance.getViewport().zoom;
-          liveZoomRef.current = zoom;
-          setLiveZoom(zoom);
+          placeDraft(natural);
         }}
       >
         <ReactFlow
@@ -571,16 +736,32 @@ function CaptureCanvasInner({
               // position inside the box at drag start, held for the gesture.
               const data = node.data as PinNode["data"];
               dragGrab.current = { tipOffsetX: data.tipOffsetX, tipOffsetY: data.tipOffsetY };
+              dragOrigin.current = { x: data.tipX, y: data.tipY };
+              pinDragRef.current = null;
             }
           }}
           onNodeDragStop={(_event, node) => {
             if (node.type === PIN_TYPE) {
-              // The one write of a drag: the final clamped natural tip.
-              // Intermediate frames were local state only.
-              setPinDrag((current) => {
-                if (current && current.id === node.id) onMovePin?.(node.id, current.tip);
-                return null;
-              });
+              // React Flow applies the final position (handleNodesChange
+              // above, which fills pinDragRef) before it calls this, so the
+              // ref holds the drop tip.
+              const drop = pinDragRef.current;
+              const origin = dragOrigin.current;
+              pinDragRef.current = null;
+              dragOrigin.current = null;
+              setPinDrag(null);
+              if (drop && drop.id === node.id) {
+                // A press that barely moved is a click: select the pin and
+                // write nothing (the badge snaps back to the saved tip). Past
+                // the slop it is the one write of the drag: the final
+                // clamped natural tip. Intermediate frames were local only.
+                const travel = origin
+                  ? Math.hypot(drop.tip.x - origin.x, drop.tip.y - origin.y) *
+                    liveZoomRef.current
+                  : Number.POSITIVE_INFINITY;
+                if (travel <= PLACEMENT_SLOP_SCREEN_PX) onSelectPin?.(node.id);
+                else onMovePin?.(node.id, drop.tip);
+              }
             } else if (node.type === DRAFT_PIN_TYPE && draftRef.current) {
               // A draft drag commits nothing; it only re-anchors the nearby
               // context query on the final position.
@@ -599,11 +780,11 @@ function CaptureCanvasInner({
           // threshold: the default threshold of 1 captures the drag origin
           // at the first qualifying pointermove, so every drop would land a
           // few screen pixels short of where Lucas released it (VAL-PIN-002
-          // drop fidelity). Zero-movement presses still click (selection);
-          // click-vs-drag disambiguation stays with d3's clickDistance.
+          // drop fidelity, D062). Click-versus-drag is decided at drop time
+          // against PLACEMENT_SLOP_SCREEN_PX instead (D074).
           nodeDragThreshold={0}
           zoomOnDoubleClick={false}
-          panOnDrag={interaction === "navigate"}
+          panOnDrag
           onMove={(_event, viewport: Viewport) => {
             // Badge hit boxes keep the shared minimum screen target by
             // tracking the live zoom. Only a zoom change re-renders the
@@ -621,6 +802,14 @@ function CaptureCanvasInner({
           onMoveEnd={(_event, viewport) => reportCamera(viewport)}
         />
       </div>
+      {/* The composer sits beside the draft badge but outside the transformed
+          plane, so it never scales with the zoom and never leaves the
+          visible frame. A read-only plane has no drafts and no composer. */}
+      {draft && composer && !readOnly ? (
+        <DraftComposerPopover tip={draft} frameRef={wrapperRef}>
+          <PinComposer {...composer} />
+        </DraftComposerPopover>
+      ) : null}
     </div>
   );
 }
@@ -643,6 +832,7 @@ export function CaptureCanvas({
   onDraftChange,
   onDraftSettled,
   draftResetSignal,
+  composer,
 }: {
   captureId: string;
   pageUrl: string;
@@ -651,8 +841,8 @@ export function CaptureCanvas({
   width: number;
   height: number;
   /**
-   * Render the founder's read/reply-only plane: no editing tools, drafts, or
-   * pin drags, and none of their controls in the DOM. Defaults to the
+   * Render the founder's read/reply-only plane: no drafts, pin drags,
+   * composer, or shortcuts that create or move a mark. Defaults to the
    * editor's full behavior, so existing planes are unchanged.
    */
   readOnly?: boolean;
@@ -668,6 +858,8 @@ export function CaptureCanvas({
   onDraftChange?: (tip: NaturalPoint | null) => void;
   onDraftSettled?: (tip: NaturalPoint) => void;
   draftResetSignal?: number;
+  /** The draft composer's state and callbacks; rendered beside the draft. */
+  composer?: PinComposerProps | null;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -696,6 +888,7 @@ export function CaptureCanvas({
         onDraftChange={onDraftChange}
         onDraftSettled={onDraftSettled}
         draftResetSignal={draftResetSignal}
+        composer={composer}
       />
     </ReactFlowProvider>
   );

@@ -1,8 +1,10 @@
 // End-to-end contract for the pin comment and mutation lifecycle
-// (VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009): a draft cannot save
-// until Lucas explicitly chooses a nearby element or No element; only the
-// capture-local element id crosses the wire and the server-derived snapshot
-// comes back immutable through move and edit; a drag commits one
+// (VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009): a draft's nearby
+// element decision is pre-selected once the candidates read settles (the
+// top-ranked candidate, or No element) and can be overridden with one
+// click (D074); only the capture-local element id crosses the wire and the
+// server-derived snapshot comes back immutable through move and edit; a
+// drag commits one
 // revisioned move; edit and delete carry the pin's revision; a stale write
 // conflicts and the UI settles on the authoritative revision instead of
 // overwriting it; a session that lost authority cannot move anything; and
@@ -113,15 +115,22 @@ async function waitPinsLoaded(page: Page): Promise<void> {
 }
 
 /**
- * Wait for the context panel's quiescent marker before touching any radio:
- * the async candidates render can detach a radio mid-click under load (the
- * 2026-09-10 full-gate flake), so specs never click while it reads loading.
+ * Wait for the composer's quiescent marker before touching the choice
+ * controls: the async candidates render can detach a control mid-click
+ * under load (the 2026-09-10 full-gate flake), so specs never click while
+ * it reads loading. Once settled, the decision is already pre-selected.
  */
 async function waitContextSettled(page: Page): Promise<void> {
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
   );
+}
+
+/** Override the pre-selected candidate with the explicit No element. */
+async function chooseNoElement(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "No element" }).click();
+  await expect(page.getByTestId("draft-choice")).toHaveText("No element");
 }
 
 /**
@@ -167,12 +176,11 @@ async function pinNodeBox(page: Page, number: number) {
 }
 
 /**
- * Place one draft at a natural point. The pane is re-anchored after
- * entering pin mode so the click lands exactly on the intended pixel.
+ * Click a natural point to drop one draft (no mode to enter first, D074).
+ * The pane is re-anchored right before the click so it lands exactly on the
+ * intended pixel, and the composer must open beside the draft.
  */
 async function placeDraft(page: Page, natural: { x: number; y: number }): Promise<void> {
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
   const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
   const local = toScreen(natural, camera);
   if (local.x < 0 || local.y < 0 || local.x > pane.width || local.y > pane.height) {
@@ -180,6 +188,7 @@ async function placeDraft(page: Page, natural: { x: number; y: number }): Promis
   }
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
 }
 
 /** Count annotation-mutating requests from this point on. */
@@ -220,7 +229,7 @@ async function aimBottomBand(page: Page, target: ReadyTarget): Promise<{ x: numb
   return aim;
 }
 
-test("saving requires an explicit context decision; the server-derived snapshot survives reload (VAL-PIN-003, VAL-PIN-008)", async ({
+test("the context decision is pre-selected and explicit on the wire; the server-derived snapshot survives reload (VAL-PIN-003, VAL-PIN-008)", async ({
   page,
 }) => {
   test.skip(!gate.ready, gate.reason);
@@ -232,27 +241,17 @@ test("saving requires an explicit context decision; the server-derived snapshot 
   const aim = await aimBottomBand(page, target);
 
   await placeDraft(page, aim);
+  // The composer opens beside the draft with the comment focused.
+  await expect(page.getByLabel("Comment")).toBeFocused();
   await page.getByLabel("Comment").fill("e2e: lifecycle decision and snapshot");
 
-  // Undecided drafts cannot save — the requirement is visible, not hidden.
-  const saveButton = page.getByRole("button", { name: "Save pin" });
-  await expect(saveButton).toBeDisabled();
-  await expect(page.getByTestId("draft-context")).toContainText(
-    /choose a nearby element or no element/i,
-  );
-
-  // Wait out the nearby-candidate read, then decide deliberately: the
-  // first ranked candidate when the manifest offers one near the aim,
-  // otherwise the explicit No element. Both are real decisions.
+  // Once the nearby-candidate read settles the decision is already made:
+  // the first ranked candidate when the manifest offers one near the aim,
+  // otherwise the explicit No element. Save needs nothing more (D074).
   await waitContextSettled(page);
-  const candidateRows = page.locator('[data-testid="draft-context"] .panel-candidate');
-  const candidateCount = await candidateRows.count();
-  if (candidateCount > 1) {
-    await candidateRows.first().locator("input").check();
-  } else {
-    await page.getByRole("radio", { name: "No element" }).check();
-  }
+  const saveButton = page.getByRole("button", { name: "Save pin" });
   await expect(saveButton).toBeEnabled();
+  const preselected = await page.getByTestId("draft-choice").getAttribute("data-element-id");
 
   // Capture the create request body: only the capture-local id crosses the
   // wire — never a client-authored metadata object.
@@ -262,8 +261,8 @@ test("saving requires an explicit context decision; the server-derived snapshot 
   await saveButton.click();
   const posted = JSON.parse((await createRequest).postData()!) as Record<string, unknown>;
   expect(Object.keys(posted).sort()).toEqual(["body", "elementId", "idempotencyKey", "tip"]);
-  if (candidateCount > 1) {
-    expect(typeof posted.elementId).toBe("string");
+  if (preselected !== null) {
+    expect(posted.elementId).toBe(preselected);
   } else {
     expect(posted.elementId).toBeNull();
   }
@@ -319,8 +318,9 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: lifecycle move-edit-delete");
   await waitContextSettled(page);
-  await page.getByRole("radio", { name: "No element" }).check();
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await chooseNoElement(page);
+  // The keyboard path: Enter in the comment saves (D074).
+  await page.getByLabel("Comment").press("Enter");
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
   const snapshotAtCreate = saved.elementSnapshot;
@@ -394,7 +394,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   await placeDraft(page, aim2);
   await page.getByLabel("Comment").fill("e2e: lifecycle number-retirement probe");
   await waitContextSettled(page);
-  await page.getByRole("radio", { name: "No element" }).check();
+  await chooseNoElement(page);
   await page.getByRole("button", { name: "Save pin" }).click();
   const probe = await awaitNewPin(page, target.captureId, beforeProbe);
   expect(probe.number).toBe(number + 1);
@@ -429,7 +429,7 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: stale conflict victim");
   await waitContextSettled(page);
-  await page.getByRole("radio", { name: "No element" }).check();
+  await chooseNoElement(page);
   await page.getByRole("button", { name: "Save pin" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
@@ -512,7 +512,7 @@ test("a session that lost authority cannot move the pin and the record is untouc
   await placeDraft(page, aim);
   await page.getByLabel("Comment").fill("e2e: lost-authority probe");
   await waitContextSettled(page);
-  await page.getByRole("radio", { name: "No element" }).check();
+  await chooseNoElement(page);
   await page.getByRole("button", { name: "Save pin" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;

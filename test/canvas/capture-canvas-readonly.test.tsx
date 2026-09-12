@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 // Component tests for the canvas's read-only plane (the founder's view,
-// REQUIREMENTS 6 and 7): no editing tool exists in the DOM at all, a
-// deliberate tap creates no draft, persisted pins are never draggable, and
-// selecting a pin to read it still works. The default (editable) plane is
-// unchanged — capture-canvas.test.tsx keeps proving that.
+// REQUIREMENTS 6 and 7): a click on the screenshot creates no draft and no
+// composer, persisted pins are never draggable, the editor's keyboard
+// shortcuts are absent, and selecting a pin to read it still works. The
+// default (editable) plane is unchanged — capture-canvas.test.tsx keeps
+// proving that.
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
@@ -29,6 +30,18 @@ const pins = [
   { id: "ann-2", number: 2, tip: { x: 100, y: 200 } },
 ];
 
+const composer = {
+  draftBody: "",
+  onDraftBodyChange: vi.fn(),
+  draftChoice: null,
+  onDraftChoiceChange: vi.fn(),
+  draftCandidates: { status: "ready" as const, items: [] },
+  onPreviewCandidate: vi.fn(),
+  onSaveDraft: vi.fn(),
+  onCancelDraft: vi.fn(),
+  saveState: "idle" as const,
+};
+
 function stage(): HTMLElement {
   return document.querySelector('[data-testid="capture-stage"]') as HTMLElement;
 }
@@ -43,27 +56,29 @@ function tap(target: Element, x: number, y: number): void {
 }
 
 describe("readOnly canvas", () => {
-  test("renders no editing tools, only camera controls", () => {
+  test("renders only camera controls and marks the region read-only", () => {
     render(<CaptureCanvas {...props} readOnly pins={pins} />);
-    expect(within(stage()).queryByRole("group", { name: "Canvas tools" })).toBeNull();
-    expect(within(stage()).queryByRole("button", { name: "Place pin" })).toBeNull();
-    expect(within(stage()).queryByRole("button", { name: "Navigate" })).toBeNull();
     expect(within(stage()).getByRole("group", { name: "Camera modes and zoom" })).toBeInTheDocument();
     expect(within(stage()).getByRole("button", { name: "Entire page" })).toBeInTheDocument();
     expect(within(stage()).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    // No editing tool of any kind: no second toolbar, no composer.
+    expect(within(stage()).queryByRole("group", { name: "Canvas tools" })).toBeNull();
+    expect(within(stage()).queryByRole("dialog")).toBeNull();
     const region = within(stage()).getByRole("region");
-    expect(region).toHaveAttribute("data-interaction", "navigate");
     expect(region).toHaveAttribute("data-read-only", "true");
+    // The editor's shortcuts have no focus target here.
+    expect(region).not.toHaveAttribute("tabindex");
+    expect(region).not.toHaveAttribute("aria-keyshortcuts");
   });
 
-  test("the default plane is unchanged: tools present and no read-only marker", () => {
+  test("the default plane is unchanged: focusable region and no read-only marker", () => {
     render(<CaptureCanvas {...props} pins={pins} />);
-    expect(within(stage()).getByRole("group", { name: "Canvas tools" })).toBeInTheDocument();
-    expect(within(stage()).getByRole("button", { name: "Place pin" })).toBeInTheDocument();
-    expect(within(stage()).getByRole("region")).not.toHaveAttribute("data-read-only");
+    const region = within(stage()).getByRole("region");
+    expect(region).not.toHaveAttribute("data-read-only");
+    expect(region).toHaveAttribute("tabindex", "0");
   });
 
-  test("a deliberate tap never creates a draft and reports nothing", () => {
+  test("a click on the screenshot never creates a draft, a composer, or a report", () => {
     const onDraftChange = vi.fn();
     const onDraftSettled = vi.fn();
     render(
@@ -71,6 +86,7 @@ describe("readOnly canvas", () => {
         {...props}
         readOnly
         pins={pins}
+        composer={composer}
         onDraftChange={onDraftChange}
         onDraftSettled={onDraftSettled}
       />,
@@ -78,8 +94,29 @@ describe("readOnly canvas", () => {
     tap(frameImage(), 400, 300);
     tap(frameImage(), 420, 320);
     expect(document.querySelectorAll(".react-flow__node-draftPin")).toHaveLength(0);
+    expect(within(stage()).queryByRole("dialog")).toBeNull();
     expect(onDraftChange).not.toHaveBeenCalled();
     expect(onDraftSettled).not.toHaveBeenCalled();
+  });
+
+  test("the N and J shortcuts do nothing on a read-only plane", () => {
+    const onDraftChange = vi.fn();
+    const onSelectPin = vi.fn();
+    render(
+      <CaptureCanvas
+        {...props}
+        readOnly
+        pins={pins}
+        onDraftChange={onDraftChange}
+        onSelectPin={onSelectPin}
+      />,
+    );
+    const region = within(stage()).getByRole("region");
+    fireEvent.keyDown(region, { key: "n" });
+    fireEvent.keyDown(region, { key: "j" });
+    expect(document.querySelectorAll(".react-flow__node-draftPin")).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(onSelectPin).not.toHaveBeenCalled();
   });
 
   test("persisted pins render but are never draggable", () => {

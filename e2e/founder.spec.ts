@@ -238,10 +238,11 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     .getByRole("button", { name: `Desktop capture of ${target!.pageUrl}`, exact: true })
     .click();
   await expect(founder.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
-  for (const name of ["Place pin", "Navigate", "Edit comment", "Delete pin", "Save pin", "Share with founder"]) {
+  for (const name of ["Edit comment", "Delete pin", "Save pin", "Share with founder"]) {
     await expect(founder.getByRole("button", { name })).toHaveCount(0);
   }
   await expect(founder.getByRole("radio")).toHaveCount(0);
+  await expect(founder.getByTestId("pin-composer")).toHaveCount(0);
   await expect(founder.locator(".capture-canvas[data-read-only='true']")).toHaveCount(1);
   // The private asset loads for the founder through the authorized route.
   await founder.waitForFunction(() => {

@@ -877,6 +877,73 @@ pre code {
   padding-left: 1.25rem;
 }
 
+/* Keyboard focus on the canvas region: J/K step through pins, N drops a
+   draft at the viewport center (D074). */
+.capture-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The pin composer (D074): screen-fixed beside the draft badge, outside the
+   transformed plane. The canvas sets left/top from the draft's projected
+   screen point and keeps the box inside the visible canvas frame. */
+.pin-composer {
+  position: fixed;
+  z-index: 20;
+  width: 20rem;
+  max-width: calc(100vw - 2rem);
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  padding: 0.75rem 0.85rem;
+}
+.pin-composer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pin-composer-title {
+  margin: 0;
+  font-weight: 700;
+}
+.pin-composer-attach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.pin-composer-attach-label {
+  color: var(--ink-soft);
+}
+.pin-composer-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin-composer-attach button {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.5rem;
+}
+.pin-composer-attach button[aria-pressed="true"],
+.pin-composer-attach button[aria-expanded="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.pin-composer .panel-candidates {
+  max-height: 14rem;
+  overflow: auto;
+}
+
 /* ---- founder sharing and threads (REQUIREMENTS 6 and 7) ---- */
 
 /* The editor's per-project share control: closed by default, existing

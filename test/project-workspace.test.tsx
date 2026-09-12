@@ -435,25 +435,31 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("the hint documents pan, zoom, pin drop, saving, and opening comments (VAL-CANVAS-009)", () => {
+  test("one short line under the canvas names the three verbs (VAL-CANVAS-009, D074)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // Plain language, no jargon, and no dead affordances: a first-time user
-    // can discover the whole pin workflow from the page alone.
-    const hint = within(detail()).getByText(/drag to pan/i);
-    expect(hint).toHaveTextContent(/scroll or pinch to zoom/i);
-    expect(hint).toHaveTextContent(/static screenshot/i);
-    expect(hint).toHaveTextContent(/place pin mode/i);
-    expect(hint).toHaveTextContent(/write a comment/i);
-    expect(hint).toHaveTextContent(/save pin/i);
-    expect(hint).toHaveTextContent(/escape or cancel/i);
-    expect(hint).toHaveTextContent(/click a saved pin/i);
-    expect(hint).toHaveTextContent(/pins list/i);
+    // Plain words, no modes, no jargon: the page teaches the whole workflow
+    // in one line, and there is no toggle anywhere to find first.
+    const hint = detail().querySelector(".workspace-hint") as HTMLElement;
+    expect(hint).not.toBeNull();
+    expect(hint).toHaveTextContent(/click the page to drop a pin/i);
     expect(hint).toHaveTextContent(/drag a pin to move it/i);
-    expect(hint.textContent?.toLowerCase()).not.toContain("canvas update");
-    expect(hint.textContent?.toLowerCase()).not.toContain("next update");
-    // The affordance is real: an explicit mode toggle, pressed only when on.
-    const pin = within(detail()).getByRole("button", { name: "Place pin" });
-    expect(pin).toHaveAttribute("aria-pressed", "false");
+    expect(hint).toHaveTextContent(/click a pin to read or reply/i);
+    expect(hint.textContent!.length).toBeLessThan(120);
+    const lower = hint.textContent!.toLowerCase();
+    for (const jargon of ["mode", "navigate", "canvas update", "natural pixel"]) {
+      expect(lower).not.toContain(jargon);
+    }
+    expect(within(detail()).queryByRole("button", { name: /place pin|navigate/i })).toBeNull();
+    // Under the canvas, not above it.
+    const stage = within(detail()).getByTestId("capture-stage");
+    expect(stage.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("the hint is not shown for a capture that cannot be pinned", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(within(tree()).getAllByRole("button", { name: /^Mobile capture of/ })[1]!);
+    expect(detail().querySelector(".workspace-hint")).toBeNull();
   });
 
   test("each plane keeps its own camera for the session", async () => {
@@ -533,44 +539,48 @@ describe("screen-fixed selection and metadata panel", () => {
     expect(panel).not.toHaveTextContent("Natural size");
   });
 
-  test("a draft pin is announced in the panel and cleared by Escape and switching", async () => {
+  test("a click drops a draft whose composer opens beside it; Escape and switching close it", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     const panel = () => within(detail()).getByTestId("capture-panel");
+    const clickImage = () => {
+      const image = document.querySelector(".capture-frame-image")!;
+      fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
+      fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
+    };
 
-    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
-    const image = document.querySelector(".capture-frame-image")!;
-    fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
-    fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
-
-    // The screen-fixed panel mirrors the transient draft; the badge itself
-    // stays inside the transformed canvas.
-    await waitFor(() =>
-      expect(panel()).toHaveTextContent(/Draft pin at natural pixel \(/),
-    );
-    expect(panel()).toHaveTextContent(/not saved yet/);
+    // No mode to enter first: the click itself is the intent (D074).
+    clickImage();
+    const composer = await within(detail()).findByRole("dialog", { name: "New pin" });
+    // Screen-fixed beside the badge: outside the transformed plane and
+    // outside the side panel, with the comment ready to type into.
+    expect(composer.closest(".react-flow")).toBeNull();
+    expect(composer.closest(".capture-canvas")).toBeNull();
+    expect(panel().contains(composer)).toBe(false);
+    expect(within(composer).getByLabelText("Comment")).toHaveFocus();
+    // The side panel keeps its own job and never shows the draft.
+    expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument();
     expect(panel().querySelector(".pin-badge")).toBeNull();
 
-    // Escape clears only the transient draft.
-    fireEvent.keyDown(window, { key: "Escape" });
+    // Escape in the composer cancels only the transient draft.
+    fireEvent.keyDown(within(composer).getByLabelText("Comment"), { key: "Escape" });
     await waitFor(() =>
-      expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument(),
+      expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
     );
+    expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
 
-    // A draft on one plane never leaks into another: place again, switch to
-    // Mobile, and the panel and canvas show nothing.
-    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
-    const image2 = document.querySelector(".capture-frame-image")!;
-    fireEvent.pointerDown(image2, { clientX: 400, clientY: 300, isPrimary: true });
-    fireEvent.pointerUp(image2, { clientX: 400, clientY: 300, isPrimary: true });
-    await waitFor(() => expect(panel()).toHaveTextContent(/Draft pin at natural pixel \(/));
+    // A draft on one plane never leaks into another: drop again, switch to
+    // Mobile, and the composer and canvas show nothing.
+    clickImage();
+    await within(detail()).findByRole("dialog", { name: "New pin" });
     await user.click(
       within(tree()).getByRole("button", { name: "Mobile capture of https://chickpea.co/" }),
     );
     await waitFor(() =>
-      expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument(),
+      expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
     );
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
+    expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument();
   });
 });
 
@@ -756,38 +766,50 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     return { pins, writes };
   }
 
-  /** Place one draft pin at a fixed pane point. */
-  async function placeDraft(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(within(detail()).getByRole("button", { name: "Place pin" }));
+  /** Drop one draft pin with a click at a fixed pane point; the composer opens. */
+  async function placeDraft() {
     const image = document.querySelector(".capture-frame-image")!;
     fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
     fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
+    await within(detail()).findByRole("dialog", { name: "New pin" });
+  }
+
+  const composer = () => within(detail()).getByRole("dialog", { name: "New pin" });
+  const noComposer = () =>
+    waitFor(() => expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull());
+
+  /** Wait for the nearby-candidate read to settle (ready or failed). */
+  async function settleCandidates() {
     await waitFor(() =>
-      expect(within(detail()).getByTestId("panel-draft")).toBeInTheDocument(),
+      expect(
+        within(composer()).getByTestId("draft-context").getAttribute("data-candidates-state"),
+      ).toMatch(/^(ready|failed)$/),
     );
   }
 
-  /** The explicit No-element decision, always offered for a draft. */
+  /** The one-click No element override in the composer. */
   async function chooseNoElement(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(within(detail()).getByRole("radio", { name: "No element" }));
+    await user.click(within(composer()).getByRole("button", { name: "No element" }));
   }
 
-  test("saving a draft posts one create with the explicit decision and lists the pin", async () => {
+  test("with no nearby element, No element is pre-selected and one create posts the null decision", async () => {
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
 
-    await placeDraft(user);
-    const comment = within(detail()).getByLabelText("Comment");
+    await placeDraft();
+    const comment = within(composer()).getByLabelText("Comment");
     await user.type(comment, "Hero copy is placeholder text.");
-    // Undecided drafts cannot save; the hint names the requirement.
-    expect(within(detail()).getByRole("button", { name: "Save pin" })).toBeDisabled();
-    expect(within(detail()).getByTestId("draft-context")).toHaveTextContent(
-      /choose a nearby element or no element/i,
+    // The plane offers no nearby element, so the settled default is the
+    // explicit No element; nothing else stands between typing and Save.
+    await settleCandidates();
+    expect(within(composer()).getByTestId("draft-choice")).toHaveTextContent("No element");
+    expect(within(composer()).getByTestId("draft-choice")).not.toHaveAttribute(
+      "data-element-id",
     );
-    await chooseNoElement(user);
-    await user.click(within(detail()).getByRole("button", { name: "Save pin" }));
+    expect(within(composer()).getByRole("button", { name: "Save pin" })).toBeEnabled();
+    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
 
     // Exactly one create, addressed to the selected capture, carrying the
     // tip, the comment, the explicit null decision, and the draft's key.
@@ -800,9 +822,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(Number.isFinite(tip.x)).toBe(true);
 
     // The draft resolved and the saved pin renders in the list and canvas.
-    await waitFor(() =>
-      expect(within(detail()).queryByTestId("panel-draft")).toBeNull(),
-    );
+    await noComposer();
     const list = within(detail()).getByRole("list", { name: "Saved pins" });
     expect(within(list).getAllByRole("button")).toHaveLength(1);
     expect(within(list).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument();
@@ -812,51 +832,116 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(pins).toHaveLength(1);
   });
 
-  test("a chosen candidate is submitted by id and its snapshot comes back", async () => {
+  test("the top-ranked candidate is pre-selected, submitted by id, and its snapshot comes back", async () => {
     const user = userEvent.setup();
     const { writes } = stubAnnotations([], [candidateElement]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
-    await placeDraft(user);
+    await placeDraft();
 
-    // The ranked candidates from the capture's own manifest render as
-    // explicit choices alongside No element.
-    await waitFor(() =>
-      expect(
-        within(detail()).getByRole("radio", { name: /Starter plan/ }),
-      ).toBeInTheDocument(),
-    );
-    await user.click(within(detail()).getByRole("radio", { name: /Starter plan/ }));
-    await user.type(within(detail()).getByLabelText("Comment"), "This cell, specifically.");
-    await user.click(within(detail()).getByRole("button", { name: "Save pin" }));
+    // The ranked read resolves and the first candidate is already the chip:
+    // no radio to find, nothing to click before Save.
+    await settleCandidates();
+    const chip = within(composer()).getByTestId("draft-choice");
+    expect(chip).toHaveAttribute("data-element-id", "cell-1");
+    expect(chip).toHaveTextContent(/Starter plan/);
+    expect(within(composer()).queryByRole("radio")).toBeNull();
+    await user.type(within(composer()).getByLabelText("Comment"), "This cell, specifically.");
+    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     // Only the capture-local id crosses the wire — never a metadata object.
     expect(writes[0]!.body.elementId).toBe("cell-1");
     expect(writes[0]!.body.elementSnapshot).toBeUndefined();
-    await waitFor(() =>
-      expect(within(detail()).queryByTestId("panel-draft")).toBeNull(),
-    );
+    await noComposer();
     await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     expect(within(detail()).getByTestId("panel-snapshot")).toHaveTextContent(/Starter plan/);
   });
 
-  test("Save stays disabled until the comment is non-blank and the decision made", async () => {
+  test("No element overrides the pre-selected candidate with one click", async () => {
+    const user = userEvent.setup();
+    const { writes } = stubAnnotations([], [candidateElement]);
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft();
+    await settleCandidates();
+    expect(within(composer()).getByTestId("draft-choice")).toHaveAttribute(
+      "data-element-id",
+      "cell-1",
+    );
+    await chooseNoElement(user);
+    expect(within(composer()).getByTestId("draft-choice")).toHaveTextContent("No element");
+    await user.type(within(composer()).getByLabelText("Comment"), "Background, not the cell.");
+    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.body.elementId).toBeNull();
+  });
+
+  test("Save waits for a non-blank comment and the settled default, nothing more", async () => {
     const user = userEvent.setup();
     stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
-    await placeDraft(user);
+    await placeDraft();
 
-    const save = within(detail()).getByRole("button", { name: "Save pin" });
+    const save = within(composer()).getByRole("button", { name: "Save pin" });
     expect(save).toBeDisabled();
-    // A decision alone is not enough: the comment must be non-blank.
-    await chooseNoElement(user);
+    await settleCandidates();
+    // The default is settled; the comment is still blank.
     expect(save).toBeDisabled();
-    await user.type(within(detail()).getByLabelText("Comment"), "   ");
+    await user.type(within(composer()).getByLabelText("Comment"), "   ");
     expect(save).toBeDisabled();
-    await user.type(within(detail()).getByLabelText("Comment"), "real feedback");
+    await user.type(within(composer()).getByLabelText("Comment"), "real feedback");
     expect(save).toBeEnabled();
+  });
+
+  test("Enter saves the draft; Shift+Enter only starts a new line", async () => {
+    const user = userEvent.setup();
+    const { writes } = stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft();
+    await settleCandidates();
+
+    const comment = within(composer()).getByLabelText("Comment");
+    expect(comment).toHaveFocus();
+    await user.type(comment, "line one{Shift>}{Enter}{/Shift}line two");
+    expect(comment).toHaveValue("line one\nline two");
+    expect(writes).toHaveLength(0);
+
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.body.body).toBe("line one\nline two");
+    expect(writes[0]!.body.elementId).toBeNull();
+    await noComposer();
+  });
+
+  test("Escape in the composer cancels the draft without any write", async () => {
+    const user = userEvent.setup();
+    const { writes } = stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    await placeDraft();
+    await user.type(within(composer()).getByLabelText("Comment"), "never saved");
+    await user.keyboard("{Escape}");
+    await noComposer();
+    expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
+    expect(writes).toHaveLength(0);
+  });
+
+  test("N drops a draft at the viewport center from the canvas region", async () => {
+    stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await settleAnnotations();
+    const region = within(detail()).getByRole("region", { name: /^Screenshot of/ });
+    fireEvent.keyDown(region, { key: "n" });
+    await within(detail()).findByRole("dialog", { name: "New pin" });
+    expect(document.querySelectorAll(".react-flow__node-draftPin")).toHaveLength(1);
+    // The nearby-candidate read runs for it exactly as for a click.
+    await settleCandidates();
+    expect(
+      fetchMock.mock.calls.map((call) => String(call[0])).filter((url) => url.includes("/context")),
+    ).toHaveLength(1);
   });
 
   test("hovering a candidate highlights its manifest rect on the canvas; choice, cancel, and plane switch clear it (VAL-PIN-004)", async () => {
@@ -864,16 +949,13 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const { writes } = stubAnnotations([], [candidateElement]);
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
-    await placeDraft(user);
+    await placeDraft();
 
-    // The candidate list settles, then hover previews exactly the candidate's
-    // persisted rectangle — a pure local render with zero writes.
-    await waitFor(() =>
-      expect(within(detail()).getByTestId("draft-context")).toHaveAttribute(
-        "data-candidates-state",
-        "ready",
-      ),
-    );
+    // The candidate list settles behind the chip; Change opens it, then
+    // hover previews exactly the candidate's persisted rectangle — a pure
+    // local render with zero writes.
+    await settleCandidates();
+    await user.click(within(composer()).getByRole("button", { name: "Change" }));
     const row = document.querySelector('.panel-candidate[data-element-id="cell-1"]')!;
     const preview = () => document.querySelector(".react-flow__node-contextPreview");
     expect(preview()).toBeNull();
@@ -883,31 +965,33 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect((preview() as HTMLElement).style.transform).toContain("translate(800px,4200px)");
     expect(writes).toHaveLength(0);
 
-    // Replacement: leaving clears, and choosing a candidate ends its preview.
+    // Replacement: leaving clears, and making a choice ends the preview. The
+    // one candidate is already the pre-selected choice (clicking its radio
+    // again changes nothing), so the choice that changes is No element.
     fireEvent.mouseLeave(row);
     await waitFor(() => expect(preview()).toBeNull());
     fireEvent.mouseEnter(row);
     await waitFor(() => expect(preview()).not.toBeNull());
-    await user.click(within(detail()).getByRole("radio", { name: /Starter plan/ }));
+    await user.click(within(composer()).getByRole("button", { name: "No element" }));
+    await waitFor(() => expect(preview()).toBeNull());
+    expect(within(composer()).getByRole("radio", { name: "No element" })).toBeChecked();
+    expect(writes).toHaveLength(0);
+
+    // Cancel resolves the draft; the highlight dies with it (the composer
+    // closes first, the canvas reports the cleared draft, and the
+    // workspace's draft lifecycle drops the highlight — a few renders, no
+    // hover-leave needed).
+    fireEvent.mouseEnter(row);
+    await waitFor(() => expect(preview()).not.toBeNull());
+    await user.click(within(composer()).getByRole("button", { name: "Cancel" }));
+    await noComposer();
     await waitFor(() => expect(preview()).toBeNull());
     expect(writes).toHaveLength(0);
 
-    // Cancel resolves the draft; the highlight dies with it.
-    fireEvent.mouseEnter(row);
-    await waitFor(() => expect(preview()).not.toBeNull());
-    await user.click(within(detail()).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(within(detail()).queryByTestId("panel-draft")).toBeNull());
-    expect(preview()).toBeNull();
-    expect(writes).toHaveLength(0);
-
     // A highlight on one plane never crosses a plane switch.
-    await placeDraft(user);
-    await waitFor(() =>
-      expect(within(detail()).getByTestId("draft-context")).toHaveAttribute(
-        "data-candidates-state",
-        "ready",
-      ),
-    );
+    await placeDraft();
+    await settleCandidates();
+    await user.click(within(composer()).getByRole("button", { name: "Change" }));
     fireEvent.mouseEnter(document.querySelector('.panel-candidate[data-element-id="cell-1"]')!);
     await waitFor(() => expect(preview()).not.toBeNull());
     await user.click(
@@ -922,12 +1006,12 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const { writes } = stubAnnotations();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
-    await placeDraft(user);
-    await user.type(within(detail()).getByLabelText("Comment"), "never saved");
-    await chooseNoElement(user);
+    await placeDraft();
+    await user.type(within(composer()).getByLabelText("Comment"), "never saved");
+    await settleCandidates();
 
-    await user.click(within(detail()).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(within(detail()).queryByTestId("panel-draft")).toBeNull());
+    await user.click(within(composer()).getByRole("button", { name: "Cancel" }));
+    await noComposer();
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
     expect(writes).toHaveLength(0);
     expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
@@ -945,19 +1029,18 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     });
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await settleAnnotations();
-    await placeDraft(user);
-    await user.type(within(detail()).getByLabelText("Comment"), "keep me");
-    await chooseNoElement(user);
+    await placeDraft();
+    await user.type(within(composer()).getByLabelText("Comment"), "keep me");
+    await settleCandidates();
 
-    await user.click(within(detail()).getByRole("button", { name: "Save pin" }));
+    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
     await waitFor(() =>
-      expect(within(detail()).getByRole("alert")).toHaveTextContent(/could not be saved/i),
+      expect(within(composer()).getByRole("alert")).toHaveTextContent(/could not be saved/i),
     );
     // Recoverable: the draft, the comment, the decision, and the draft node
     // all survive — a retry replays the same intent.
-    expect(within(detail()).getByTestId("panel-draft")).toBeInTheDocument();
-    expect(within(detail()).getByLabelText("Comment")).toHaveValue("keep me");
-    expect(within(detail()).getByRole("radio", { name: "No element" })).toBeChecked();
+    expect(within(composer()).getByLabelText("Comment")).toHaveValue("keep me");
+    expect(within(composer()).getByTestId("draft-choice")).toHaveTextContent("No element");
     expect(document.querySelector(".react-flow__node-draftPin")).not.toBeNull();
     expect(within(detail()).queryByRole("list", { name: "Saved pins" })).toBeNull();
   });

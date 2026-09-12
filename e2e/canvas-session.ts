@@ -322,10 +322,12 @@ export async function expectEntireCaptureVisible(
 }
 
 /**
- * Pan (the caller must be in Navigate mode) until a natural point sits
- * within 40 screen px of the pane center, then return its fresh screen
- * point. Specs that share a seeded plane with the pins spec use this to
- * bring a pin-free target into view before placing drafts.
+ * Pan (a press that moves well past the placement slop) until a natural
+ * point sits within 40 screen px of the pane center, then return its fresh
+ * screen point. Specs that share a seeded plane with the pins spec use this
+ * to bring a pin-free target into view before placing drafts. The press
+ * lands at the pane center, so callers must not have a pin or an open
+ * composer sitting there.
  */
 export async function panUntilNaturalVisible(
   page: Page,

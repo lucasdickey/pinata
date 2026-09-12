@@ -154,10 +154,10 @@ async function ownPins(page: Page, captureId: string): Promise<PinRecord[]> {
 }
 
 /**
- * Write one pin on the current plane: draft at a clear aim, wait for the
- * context panel's quiescent marker, make the explicit context decision
- * (the first ranked candidate, or No element when asked), save, and wait
- * for the pin to persist.
+ * Write one pin on the current plane: click a clear aim to drop a draft
+ * (no mode to enter first, D074), wait for the composer's quiescent
+ * marker, keep the pre-selected top-ranked candidate or override it with
+ * No element when asked, save, and wait for the pin to persist.
  */
 async function writePin(
   page: Page,
@@ -166,8 +166,6 @@ async function writePin(
   withElement: boolean,
 ): Promise<void> {
   const before = await listPins(page, target.captureId);
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
   const aim = await findClearAim(page, target.captureId, {
     width: target.width,
     height: target.height,
@@ -176,21 +174,18 @@ async function writePin(
   const local = toScreen(aim, camera);
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
-  // The quiescent marker gates every radio interaction (the async
-  // candidates render once detached a radio mid-click under load).
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
+  // Wait for the settled marker before touching the choice controls: the
+  // decision is pre-selected once the candidates read resolves.
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
   );
   await page.getByLabel("Comment").fill(body);
-  const candidates = page
-    .getByTestId("draft-context")
-    .locator(".panel-candidate[data-element-id]");
-  const choseElement = withElement && (await candidates.count()) > 0;
-  if (choseElement) {
-    await candidates.first().getByRole("radio").check();
-  } else {
-    await page.getByRole("radio", { name: "No element" }).check();
+  const preselected = await page.getByTestId("draft-choice").getAttribute("data-element-id");
+  const choseElement = withElement && preselected !== null;
+  if (!choseElement) {
+    await page.getByRole("button", { name: "No element" }).click();
   }
   await page.getByRole("button", { name: "Save pin" }).click();
   const beforeIds = new Set(before.map((pin) => pin.id));

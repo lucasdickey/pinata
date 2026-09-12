@@ -1,7 +1,8 @@
 // End-to-end contract for persisted numbered pins (VAL-CANVAS-001,
-// VAL-CANVAS-009, VAL-PIN-001): a deliberate tap in Place pin mode plus a
-// comment and Save creates exactly one server-persisted pin whose rendered
-// tip inverse-transforms to the tapped natural pixel at 1x and 8x; numbers
+// VAL-CANVAS-009, VAL-PIN-001): one click on the screenshot (no mode to
+// enter first, D074) plus a comment and Save creates exactly one
+// server-persisted pin whose rendered tip inverse-transforms to the
+// clicked natural pixel at 1x and 8x; numbers
 // are monotonic per capture and cancelled drafts consume none; camera-only
 // work writes nothing; a pin drag commits exactly one revisioned move with
 // the grab offset preserved and inclusive frame clamps; and everything
@@ -149,10 +150,9 @@ async function zoomToMax(page: Page): Promise<void> {
 }
 
 /**
- * Place one draft at a natural point and save it with a comment. The screen
- * point is computed AFTER entering pin mode and re-anchoring the pane:
- * clicking the toolbar can scroll the page, which would stale any earlier
- * screen coordinate.
+ * Click a natural point to drop one draft and save it with a comment. The
+ * screen point is computed right after re-anchoring the pane so it lands
+ * exactly on the intended pixel.
  */
 async function placeAndSave(
   page: Page,
@@ -161,9 +161,6 @@ async function placeAndSave(
   body: string,
   expectedPinCount: number,
 ): Promise<void> {
-  // Place pin is a toggle: enter it only if not already active.
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
   const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
   const local = toScreen(natural, camera);
   expect(local.x, "placement x maps on-document").toBeGreaterThanOrEqual(0);
@@ -177,20 +174,21 @@ async function placeAndSave(
   }
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
-  // Wait for the context panel's quiescent marker before touching any
-  // control inside it: the async candidates render once detached the
-  // "No element" radio mid-click under full-gate CPU contention. The
-  // generous timeout covers a slow candidates round trip under full-gate
-  // load, not a behavior change.
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
+  // Wait for the composer's quiescent marker before touching any control
+  // inside it: the async candidates render once detached a control
+  // mid-click under full-gate CPU contention. The generous timeout covers
+  // a slow candidates round trip under full-gate load, not a behavior
+  // change.
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
     { timeout: 15_000 },
   );
   await page.getByLabel("Comment").fill(body);
-  // The explicit context decision is required before Save (VAL-PIN-003):
-  // these specs annotate background, so No element is the honest choice.
-  await page.getByRole("radio", { name: "No element" }).click();
+  // The top-ranked nearby element is pre-selected (D074); these specs
+  // annotate background, so No element is the honest choice.
+  await page.getByRole("button", { name: "No element" }).click();
   await page.getByRole("button", { name: "Save pin" }).click();
   await expect(page.locator(PIN_NODE)).toHaveCount(expectedPinCount);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
@@ -231,12 +229,13 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   const target = await openDesktopPlane(page);
   const doc = { width: target.width, height: target.height };
 
-  // The page documents itself (VAL-CANVAS-009): the hint teaches pan, zoom,
-  // pin drop, saving, and opening a pin's comments without leaving the page.
+  // The page documents itself (VAL-CANVAS-009, D074): one line under the
+  // canvas names the three verbs, and there is no mode toggle to find.
   const hint = page.locator(".workspace-hint");
-  await expect(hint).toContainText("Place pin mode");
-  await expect(hint).toContainText("Save pin");
-  await expect(hint).toContainText("drag to pan");
+  await expect(hint).toContainText("drop a pin");
+  await expect(hint).toContainText("drag a pin to move it");
+  await expect(hint).toContainText("read or reply");
+  await expect(page.getByRole("button", { name: /place pin|navigate/i })).toHaveCount(0);
 
   const before = await listPins(page, target.captureId);
   const writes = trackAnnotationWrites(page);
@@ -363,8 +362,10 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   expect(cancelNatural.y, "cancel tap on-document y").toBeLessThanOrEqual(doc.height);
   await page.mouse.click(paneC.left + paneC.width / 3, paneC.top + paneC.height / 3);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
+  await expect(page.getByTestId("pin-composer")).toHaveCount(0);
   await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
   expect(writes).toHaveLength(writesBeforeCancel);
 
@@ -382,14 +383,14 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   await expectRenderedTip(page, second.number, aim2, true);
 
   // Camera-only work — pan, wheel zoom, mode buttons, zoom buttons — never
-  // writes (VAL-CANVAS-006). Enter Navigate first: pin mode is still active
-  // with a pin at the pane center, and a pin-mode press there would drag it.
+  // writes (VAL-CANVAS-006). Pins are draggable in the only state there is,
+  // so the pan press must start on clear background: pin A sits at the pane
+  // center and pin B at two thirds, so press at (one third, two thirds).
   const writesBeforeCamera = writes.length;
-  await page.getByRole("button", { name: "Navigate" }).click();
   const paneCam = await visiblePane(page);
-  await page.mouse.move(paneCam.left + paneCam.width / 2, paneCam.top + paneCam.height / 2);
+  await page.mouse.move(paneCam.left + paneCam.width / 3, paneCam.top + (paneCam.height * 2) / 3);
   await page.mouse.down();
-  await page.mouse.move(paneCam.left + paneCam.width / 3, paneCam.top + paneCam.height / 3, {
+  await page.mouse.move(paneCam.left + paneCam.width / 6, paneCam.top + paneCam.height / 3, {
     steps: 6,
   });
   await page.mouse.up();
