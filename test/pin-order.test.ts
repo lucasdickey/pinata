@@ -159,3 +159,42 @@ describe("preferredVariant", () => {
     expect(preferredVariant({ id: "p", devices: [] })).toBeNull();
   });
 });
+
+// Rectangles (D079) sit in the same per-capture sequence as pins, so the
+// project order and the stepping treat them by number like any other mark.
+describe("boxes in the order and the stepping (D079)", () => {
+  function box(id: string, captureId: string, number: number): ProjectPinAnnotationView {
+    const base = pin(id, captureId, number);
+    if (base.kind !== "pin") throw new Error("the pin fixture makes pins");
+    const { tip: _tip, kind: _kind, ...rest } = base;
+    return { ...rest, kind: "rectangle", rect: { x: 10, y: 20, width: 30, height: 40 } };
+  }
+
+  test("a box takes its place by number among the pins of its plane and across planes", () => {
+    const ordered = orderProjectPins(
+      [
+        pin("rd1-3", "root-d1", 3),
+        box("rd1-2", "root-d1", 2),
+        pin("rd1-1", "root-d1", 1),
+        box("rm1-1", "root-m1", 1),
+      ],
+      planes,
+    );
+    expect(ordered.map((mark) => mark.id)).toEqual(["rd1-1", "rd1-2", "rd1-3", "rm1-1"]);
+    expect(stepProjectPin(ordered, planes, { captureId: "root-d1", pinId: "rd1-1" }, 1)?.id).toBe(
+      "rd1-2",
+    );
+    expect(stepProjectPin(ordered, planes, { captureId: "root-d1", pinId: "rd1-2" }, 1)?.id).toBe(
+      "rd1-3",
+    );
+    expect(stepProjectPin(ordered, planes, { captureId: "root-d1", pinId: "rd1-3" }, 1)?.id).toBe(
+      "rm1-1",
+    );
+    expect(stepProjectPin(ordered, planes, { captureId: "root-m1", pinId: "rm1-1" }, 1)?.id).toBe(
+      "rd1-1",
+    );
+    expect(stepProjectPin(ordered, planes, { captureId: "root-m1", pinId: null }, -1)?.id).toBe(
+      "rm1-1",
+    );
+  });
+});

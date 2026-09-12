@@ -25,8 +25,8 @@ import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import type {
+  AnnotationView,
   FeedbackCounts,
-  PinAnnotationView,
   PinContextResponse,
   PinElementSnapshot,
   PinListResponse,
@@ -35,7 +35,15 @@ import type {
   ProjectPinAnnotationView,
   ProjectPinListResponse,
 } from "../lib/annotations";
-import type { NaturalPoint } from "../lib/canvas/camera";
+import {
+  contextQuery,
+  markOf,
+  markPayload,
+  pinsOf,
+  rectanglesOf,
+  withMark,
+  type DraftMark,
+} from "../lib/canvas/marks";
 import {
   feedbackBadge,
   feedbackSummary,
@@ -181,10 +189,11 @@ export function ProjectWorkspace({
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
   const cameras = useRef(new Map<string, CaptureCameraState>());
-  // The active plane's transient draft tip, mirrored here so the save can
-  // carry it and the composer state below can follow it. The canvas remains
-  // the source of truth and clears it on switch via the keyed remount.
-  const [draftTip, setDraftTip] = useState<NaturalPoint | null>(null);
+  // The active plane's transient draft (a pin tip or a rectangle, D079),
+  // mirrored here so the save can carry it and the composer state below can
+  // follow it. The canvas remains the source of truth and clears it on
+  // switch via the keyed remount.
+  const [draft, setDraft] = useState<DraftMark | null>(null);
   // One idempotency key per draft intent: generated when the draft appears,
   // held across safe retries of the same save, and released when the draft
   // resolves (saved, cancelled, or escaped).
@@ -229,7 +238,7 @@ export function ProjectWorkspace({
   const [pinsState, setPinsState] = useState<{
     captureId: string;
     status: "loading" | "ready" | "failed";
-    pins: PinAnnotationView[];
+    pins: AnnotationView[];
   } | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
@@ -408,7 +417,7 @@ export function ProjectWorkspace({
   }, []);
 
   useEffect(() => {
-    setDraftTip(null);
+    setDraft(null);
     // A plane switch clears the pin selection, unless the switch was made
     // to reach a pin on this very plane (a cross-plane step or table row).
     const pending = pendingPin.current;
@@ -470,19 +479,33 @@ export function ProjectWorkspace({
   const reloadProjectPins = useCallback(() => {
     void loadProjectPins(activePublicIdRef.current);
   }, [loadProjectPins]);
-  /** Apply a returned record to the listed project pin with the same id. */
-  const patchProjectPin = useCallback((annotationId: string, patch: Partial<PinAnnotationView>) => {
-    setProjectPins((current) =>
-      current
-        ? {
-            ...current,
-            pins: current.pins.map((pin) =>
-              pin.id === annotationId ? { ...pin, ...patch } : pin,
-            ),
-          }
-        : current,
-    );
-  }, []);
+  /**
+   * Apply a returned record to the listed project pin with the same id: the
+   * shared fields, and (D079) new geometry of either kind through the mark.
+   */
+  const patchProjectPin = useCallback(
+    (
+      annotationId: string,
+      patch: Partial<Pick<AnnotationView, "status" | "unreadReplies" | "body" | "revision">>,
+      geometry?: DraftMark,
+    ) => {
+      setProjectPins((current) =>
+        current
+          ? {
+              ...current,
+              pins: current.pins.map((pin) => {
+                if (pin.id !== annotationId) return pin;
+                const patched = { ...pin, ...patch };
+                return geometry
+                  ? ({ ...patched, ...withMark(patched, geometry) } as ProjectPinAnnotationView)
+                  : patched;
+              }),
+            }
+          : current,
+      );
+    },
+    [],
+  );
   // ---- end project-scoped pins -------------------------------------------------
 
   // The draft's intent — idempotency key, context decision, candidates —
@@ -493,14 +516,14 @@ export function ProjectWorkspace({
   // (saved, cancelled, escaped, or a plane switch) releases everything.
   const hadDraft = useRef(false);
   useEffect(() => {
-    const isNew = draftTip !== null && !hadDraft.current;
-    hadDraft.current = draftTip !== null;
+    const isNew = draft !== null && !hadDraft.current;
+    hadDraft.current = draft !== null;
     if (isNew) {
       setDraftKey(crypto.randomUUID());
       setDraftChoice(undefined);
       setDraftCandidates(null);
       setPreviewRect(null);
-    } else if (!draftTip) {
+    } else if (!draft) {
       setDraftKey(null);
       setDraftBody("");
       setSaveState("idle");
@@ -508,7 +531,7 @@ export function ProjectWorkspace({
       setDraftCandidates(null);
       setPreviewRect(null);
     }
-  }, [draftTip]);
+  }, [draft]);
 
   // A selection change closes any edit/delete in flight: the panel's
   // editable state always belongs to one specific pin record.
@@ -707,7 +730,7 @@ export function ProjectWorkspace({
   // chose while it was loading (D074). The decision stays explicit on the
   // wire: the chosen id or null is still what the save sends (D061).
   const contextRequestRef = useRef(0);
-  const fetchContext = useCallback(async (captureId: string, tip: NaturalPoint) => {
+  const fetchContext = useCallback(async (captureId: string, mark: DraftMark) => {
     const request = contextRequestRef.current + 1;
     contextRequestRef.current = request;
     // A fresh candidate set replaces the old one; any highlight or choice
@@ -722,8 +745,9 @@ export function ProjectWorkspace({
       setDraftChoice((current) => (current === undefined ? top : current));
     };
     try {
+      // A pin asks around its tip; a rectangle asks by overlap (D079).
       const response = await fetch(
-        `/api/captures/${encodeURIComponent(captureId)}/context?x=${tip.x}&y=${tip.y}`,
+        `/api/captures/${encodeURIComponent(captureId)}/context?${contextQuery(mark)}`,
         { cache: "no-store" },
       );
       if (!response.ok) {
@@ -762,8 +786,8 @@ export function ProjectWorkspace({
   // The draft's context query fires when the draft settles (placement tap
   // or draft-drag end), keyed to the capture the draft belongs to.
   const handleDraftSettled = useCallback(
-    (tip: NaturalPoint) => {
-      if (selectedReadyId) void fetchContext(selectedReadyId, tip);
+    (mark: DraftMark) => {
+      if (selectedReadyId) void fetchContext(selectedReadyId, mark);
     },
     [selectedReadyId, fetchContext],
   );
@@ -783,7 +807,7 @@ export function ProjectWorkspace({
     // The explicit context decision is part of the save contract: an
     // undecided draft cannot submit at all.
     if (
-      !draftTip ||
+      !draft ||
       !selectedReady ||
       !draftKey ||
       draftChoice === undefined ||
@@ -803,7 +827,8 @@ export function ProjectWorkspace({
             [EDITOR_CSRF_HEADER]: readCsrfProof(),
           },
           body: JSON.stringify({
-            tip: draftTip,
+            // `tip` for a pin, `rect` for a rectangle: the key names the kind.
+            ...markPayload(draft),
             body: draftBody,
             elementId: draftChoice,
             idempotencyKey: draftKey,
@@ -826,7 +851,7 @@ export function ProjectWorkspace({
       setSaveState("failed");
     }
   }, [
-    draftTip,
+    draft,
     selectedReady,
     draftKey,
     draftBody,
@@ -842,8 +867,10 @@ export function ProjectWorkspace({
     setDraftResetSignal((value) => value + 1);
   }, []);
 
+  // One revisioned geometry write for a pin move or a rectangle move or
+  // resize (D079): the mark names the kind and carries the new geometry.
   const movePin = useCallback(
-    async (annotationId: string, tip: NaturalPoint) => {
+    async (annotationId: string, mark: DraftMark) => {
       const captureId = selectedReady?.id;
       if (!captureId) return;
       // The revision precondition comes from the record the drag started
@@ -858,7 +885,9 @@ export function ProjectWorkspace({
         current && current.captureId === captureId
           ? {
               ...current,
-              pins: current.pins.map((pin) => (pin.id === annotationId ? { ...pin, tip } : pin)),
+              pins: current.pins.map((pin) =>
+                pin.id === annotationId ? withMark(pin, mark) : pin,
+              ),
             }
           : current,
       );
@@ -872,7 +901,7 @@ export function ProjectWorkspace({
               "content-type": "application/json",
               [EDITOR_CSRF_HEADER]: readCsrfProof(),
             },
-            body: JSON.stringify({ tip, expectedRevision: pin.revision }),
+            body: JSON.stringify({ ...markPayload(mark), expectedRevision: pin.revision }),
           },
         );
         if (!response.ok) {
@@ -901,10 +930,11 @@ export function ProjectWorkspace({
               }
             : current,
         );
-        patchProjectPin(annotationId, {
-          tip: payload.annotation.tip,
-          revision: payload.annotation.revision,
-        });
+        patchProjectPin(
+          annotationId,
+          { revision: payload.annotation.revision },
+          markOf(payload.annotation),
+        );
       } catch {
         setMoveError("That pin move could not be saved. The saved position was restored.");
         setEditState("idle");
@@ -1337,14 +1367,20 @@ export function ProjectWorkspace({
                   attempt={selectedReady.attempt}
                   width={selectedReady.documentWidth!}
                   height={selectedReady.documentHeight!}
-                  pins={activePins}
+                  pins={pinsOf(activePins)}
+                  rectangles={rectanglesOf(activePins)}
                   previewRect={previewRect}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
-                  onMovePin={(annotationId, tip) => void movePin(annotationId, tip)}
+                  onMovePin={(annotationId, tip) =>
+                    void movePin(annotationId, { kind: "pin", tip })
+                  }
+                  onMoveRectangle={(annotationId, rect) =>
+                    void movePin(annotationId, { kind: "rectangle", rect })
+                  }
                   savedCamera={cameras.current.get(selectedReady.id) ?? null}
                   onCameraChange={handleCameraChange}
-                  onDraftChange={setDraftTip}
+                  onDraftChange={setDraft}
                   onDraftSettled={handleDraftSettled}
                   draftResetSignal={draftResetSignal}
                   onStepPin={stepPinByKey}
@@ -1433,12 +1469,12 @@ export function ProjectWorkspace({
               />
             </div>
 
-            {/* The page explains itself in one line (VAL-CANVAS-009, D074):
-                the three things a reader can do on the screenshot. */}
+            {/* The page explains itself in one line (VAL-CANVAS-009, D074,
+                D079): the four things a reader can do on the screenshot. */}
             {selectedReady ? (
               <p className="workspace-hint">
-                Click the page to drop a pin · drag a pin to move it · click a pin to read or
-                reply.
+                Click the page to drop a pin · shift-drag to draw a box · drag a pin to move it ·
+                click a pin to read or reply.
               </p>
             ) : null}
 

@@ -19,6 +19,7 @@ import {
   type DeviceView,
   type WorkspaceProject,
 } from "../src/components/project-workspace";
+import { MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
 
 installReactFlowMocks();
@@ -839,11 +840,14 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
           : {};
       if (init?.method === "POST") {
         writes.push({ method: "POST", url: target, body });
-        const created = {
+        const created: StubPin & { rect?: Record<string, number> } = {
           ...savedPin,
           id: `ann-${writes.length}`,
           number: Math.max(0, ...pins.map((pin) => pin.number)) + 1,
-          tip: body.tip as { x: number; y: number },
+          // The geometry key names the kind (D079): a rect body is a box.
+          ...(body.rect
+            ? { kind: "rectangle", rect: body.rect as Record<string, number> }
+            : { tip: body.tip as { x: number; y: number } }),
           body: body.body as string,
           elementSnapshot:
             body.elementId === null
@@ -1453,5 +1457,133 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       );
       expect(within(detail()).getByRole("button", { name: "Resolve pin" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("rectangle drafts (D079)", () => {
+  test("a Shift-drag draws a box: the context query carries the box and the save posts rect", async () => {
+    const user = userEvent.setup();
+    const writes: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    const contextUrls: string[] = [];
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes("/context")) {
+        contextUrls.push(target);
+        return Promise.resolve(json({ candidates: [] }));
+      }
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        // The project-scoped read (D077) carries the saved box with its location.
+        return Promise.resolve(
+          json({
+            annotations: writes.map((write) => ({
+              id: "box-1",
+              captureId: "root-d1",
+              kind: "rectangle",
+              number: 1,
+              rect: write.body.rect,
+              body: write.body.body,
+              elementSnapshot: null,
+              revision: 1,
+              status: "open",
+              unreadReplies: 0,
+              createdAt: 1,
+              pageId: "page-root",
+              normalizedUrl: "https://chickpea.co/",
+              variant: "desktop",
+              attempt: 1,
+            })),
+          }),
+        );
+      }
+      if (target.includes("/annotations") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        writes.push({ method: "POST", url: target, body });
+        return Promise.resolve(
+          json(
+            {
+              annotation: {
+                id: "box-1",
+                captureId: "root-d1",
+                kind: "rectangle",
+                number: 1,
+                rect: body.rect,
+                body: body.body,
+                elementSnapshot: null,
+                revision: 1,
+                status: "open",
+                unreadReplies: 0,
+                createdAt: 1,
+              },
+            },
+            201,
+          ),
+        );
+      }
+      if (target.includes("/annotations")) {
+        return Promise.resolve(
+          json({
+            annotations: writes.map((write) => ({
+              id: "box-1",
+              captureId: "root-d1",
+              kind: "rectangle",
+              number: 1,
+              rect: write.body.rect,
+              body: write.body.body,
+              elementSnapshot: null,
+              revision: 1,
+              status: "open",
+              unreadReplies: 0,
+              createdAt: 1,
+            })),
+          }),
+        );
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${target}`));
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+
+    const image = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true, shiftKey: true });
+    fireEvent.pointerMove(image, { clientX: 440, clientY: 340, isPrimary: true, shiftKey: true });
+    fireEvent.pointerMove(image, { clientX: 460, clientY: 360, isPrimary: true, shiftKey: true });
+    fireEvent.pointerUp(image, { clientX: 460, clientY: 360, isPrimary: true, shiftKey: true });
+
+    const dialog = await within(detail()).findByRole("dialog", { name: "New box" });
+    // The candidates were asked for by overlap: one query, carrying the box.
+    await waitFor(() => expect(contextUrls).toHaveLength(1));
+    expect(contextUrls[0]).toMatch(/\/api\/captures\/root-d1\/context\?x=[\d.]+&y=[\d.]+&width=[\d.]+&height=[\d.]+$/);
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
+      ).toMatch(/^(ready|failed)$/),
+    );
+    await user.type(within(dialog).getByLabelText("Comment"), "This whole card needs more air.");
+    await user.click(within(dialog).getByRole("button", { name: "Save box" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
+    expect(writes[0]!.body.tip).toBeUndefined();
+    const rect = writes[0]!.body.rect as { x: number; y: number; width: number; height: number };
+    expect(rect.width).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    expect(rect.height).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(1440);
+    expect(writes[0]!.body.elementId).toBeNull();
+
+    // The saved box renders, and the list and table name it as a box.
+    await waitFor(() => expect(within(detail()).queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
+    );
+    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    expect(within(list).getByRole("button", { name: /^Box 1 — at \(/ })).toBeInTheDocument();
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1");
+    // The hint names the gesture.
+    expect(within(detail()).getByText(/shift-drag to draw a box/)).toBeInTheDocument();
   });
 });

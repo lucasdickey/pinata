@@ -1,12 +1,15 @@
-// /api/captures/[captureId]/annotations — list and create pins on one
-// immutable ready capture (VAL-PIN-001, VAL-CANVAS-001).
+// /api/captures/[captureId]/annotations — list and create annotations (pins
+// and rectangles, D079) on one immutable ready capture (VAL-PIN-001,
+// VAL-CANVAS-001).
 //
-// Pins bind to exactly one capture's coordinate plane: the route names the
-// capture, and the store refuses pending/failed/missing captures with the
-// same generic 404, so non-ready attempts are never annotatable. Create is
-// durable-idempotent and assigns the server-side monotonic per-capture
-// number inside the transaction — cancelled or failed drafts consume no
-// number, and deleted numbers are never reused.
+// Annotations bind to exactly one capture's coordinate plane: the route
+// names the capture, and the store refuses pending/failed/missing captures
+// with the same generic 404, so non-ready attempts are never annotatable.
+// Create is durable-idempotent and assigns the server-side monotonic
+// per-capture number inside the transaction — one sequence shared by both
+// kinds; cancelled or failed drafts consume no number, and deleted numbers
+// are never reused. The body's geometry key names the kind: `tip` creates a
+// pin, `rect` creates a rectangle.
 //
 // Boundary order matches every other mutation: same-origin Origin, session +
 // CSRF, content type and hard byte cap, strict schema, then the durable
@@ -19,7 +22,7 @@ import {
   createPinAtomically,
   listPins,
 } from "../../../../../src/lib/server/annotations/pins";
-import { createPinBodySchema } from "../../../../../src/lib/server/annotations/schemas";
+import { createAnnotationBodySchema } from "../../../../../src/lib/server/annotations/schemas";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
 import { authorizeCaptureReader } from "../../../../../src/lib/server/founder/reader";
 import {
@@ -40,10 +43,10 @@ function withRenewal(response: Response, renewedToken: string | null, secure: bo
 }
 
 /**
- * List the live pins of one ready capture, numbered in stable order. This
- * is the founder's read path too: a founder session bound to the capture's
- * project is admitted alongside the editor, and every other caller gets the
- * editor-only denial this route always answered.
+ * List the live annotations of one ready capture, numbered in stable order.
+ * This is the founder's read path too: a founder session bound to the
+ * capture's project is admitted alongside the editor, and every other
+ * caller gets the editor-only denial this route always answered.
  */
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
   // A safe method needs no Origin/CSRF proof, but authority is always live:
@@ -71,7 +74,10 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   return finish(Response.json({ annotations: result.annotations }));
 }
 
-/** Create one pin: one tip, one bounded comment, one idempotency key. */
+/**
+ * Create one annotation: one geometry (tip or rect), one bounded comment,
+ * one explicit context decision, one idempotency key.
+ */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   if (!hasSameOrigin(request)) return jsonError(403, ERRORS.rejected);
 
@@ -86,7 +92,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     const status = body.error === "too-large" ? 413 : body.error === "content-type" ? 415 : 400;
     return deny(status, ERRORS.invalidRequest);
   }
-  const parsed = createPinBodySchema.safeParse(body.value);
+  const parsed = createAnnotationBodySchema.safeParse(body.value);
   if (!parsed.success) return deny(400, ERRORS.invalidRequest);
 
   const db = getDatabase();
@@ -97,7 +103,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   try {
     result = await createPinAtomically(db, {
       captureId,
-      tip: parsed.data.tip,
+      ...("tip" in parsed.data ? { tip: parsed.data.tip } : { rect: parsed.data.rect }),
       body: parsed.data.body,
       elementId: parsed.data.elementId,
       idempotencyKey: parsed.data.idempotencyKey,

@@ -5,11 +5,17 @@
 // verbatim.
 
 import { describe, expect, test } from "vitest";
-import type { PinAnnotationView, PinElementSnapshot } from "../src/lib/annotations";
+import type {
+  PinAnnotationView,
+  PinElementSnapshot,
+  RectangleAnnotationView,
+} from "../src/lib/annotations";
 import {
   formatPinsAsMarkdown,
   formatProjectPinsAsMarkdown,
+  markHeading,
   pinPosition,
+  rectangleBoundsLine,
   snapshotPath,
   snapshotSummary,
 } from "../src/lib/pin-export";
@@ -206,5 +212,73 @@ describe("formatProjectPinsAsMarkdown", () => {
     expect(empty).toContain("0 captures · 0 pins");
     expect(empty).toContain("_No pins in this project._");
     expect(formatProjectPinsAsMarkdown(groups, project)).not.toMatch(/\n\s*$/);
+  });
+});
+
+describe("rectangles in the export (D079)", () => {
+  const box: RectangleAnnotationView = {
+    id: "a3",
+    captureId: "cap-1",
+    kind: "rectangle",
+    number: 3,
+    rect: { x: 120.4, y: 640.6, width: 300.2, height: 180.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+
+  test("the position is the corner and size, and the heading labels the kind", () => {
+    expect(pinPosition(box)).toBe("120, 641 · 300 × 181");
+    expect(markHeading(box)).toBe("## Box 3 — at (120, 641 · 300 × 181)");
+    expect(markHeading(pin())).toBe("## Pin 1 — at (392, 387)");
+    expect(rectangleBoundsLine(box)).toBe("- Box: 120, 641 · 300 × 181 px natural");
+    expect(rectangleBoundsLine(pin())).toBeNull();
+  });
+
+  test("a box block carries its kind, status, box line, element, and comment in the shared order", () => {
+    const markdown = formatPinsAsMarkdown([pin(), box], context);
+    expect(markdown).toContain("2 pins");
+    const block = markdown.slice(markdown.indexOf("## Box 3"));
+    expect(block).toContain("## Box 3 — at (120, 641 · 300 × 181)");
+    expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Box:"));
+    expect(block.indexOf("- Box:")).toBeLessThan(block.indexOf("- Element: No element"));
+    expect(block).toContain("> This whole card needs more air.");
+    expect(block).not.toContain("- Path:");
+  });
+});
+
+describe("rectangles in the project export (D077 + D079)", () => {
+  const box: RectangleAnnotationView = {
+    id: "b1",
+    captureId: "cap-2",
+    kind: "rectangle",
+    number: 2,
+    rect: { x: 120.4, y: 640.6, width: 300.2, height: 180.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+
+  test("a box in a capture's group renders with the kind-aware heading and box line, one level down", () => {
+    const markdown = formatProjectPinsAsMarkdown(
+      [
+        {
+          context: { pageUrl: "https://chickpea.co/pricing", variant: "Desktop", attempt: 2 },
+          pins: [pin({ id: "p1", number: 1 }), box],
+        },
+      ],
+      { title: "chickpea.co", rootUrl: "https://chickpea.co/" },
+    );
+    expect(markdown).toContain("https://chickpea.co/ · 1 capture · 2 pins");
+    expect(markdown).toContain("### Pin 1 — at (392, 387)");
+    expect(markdown).toContain("### Box 2 — at (120, 641 · 300 × 181)");
+    expect(markdown).toContain("- Box: 120, 641 · 300 × 181 px natural");
+    expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
   });
 });

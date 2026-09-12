@@ -205,16 +205,30 @@ canonical and raw canvas state is never persisted. Each capture is its own
 coordinate plane rendered at natural screenshot dimensions:
 
 - pins are child nodes whose stored coordinate is the pin tip in
-  screenshot-natural CSS pixels;
-- rectangles and circles are resizable child nodes clamped to the frame;
-- arrows are straight edges between two draggable endpoint nodes;
+  screenshot-natural CSS pixels; a click on the screenshot drops one and a
+  drag pans;
+- rectangles are child nodes placed at exactly their persisted box
+  (`{x, y, width, height}` in natural pixels, `geometry_version` 1). A drag
+  with Shift held, or the next drag after the "Draw a box" toggle in the
+  camera toolbar, draws one from press to release; a saved box moves by its
+  stroke or badge and resizes by eight handles, each gesture committing one
+  revisioned write. Boxes are clamped to the frame and never smaller than
+  `MIN_SHAPE_SIZE_PX`; the server rejects anything else. Pins and boxes
+  share one number sequence per capture, and the founder's read-only plane
+  renders boxes with no handles and no drag;
+- circles (resizable child nodes) and arrows (straight edges between two
+  draggable endpoint nodes) are allowed by the schema and not built yet;
 - desktop and mobile planes are fully independent;
 - pan, zoom, and browser resizing never change persisted geometry.
 
-When the editor places a mark, nearby manifest elements are ranked by
-containment, distance, area, depth, and semantic value; the editor explicitly
-chooses one candidate or "no element", and the chosen snapshot is stored with
-the annotation.
+When the editor places a mark, nearby manifest elements are ranked and the
+top result is pre-selected; the editor keeps or changes that choice, or picks
+"no element", and the chosen snapshot is stored with the annotation. For a pin
+the ranking is by containment of the tip, distance, area, depth, and semantic
+value. For a rectangle it is by overlap with the box: the share of each
+element inside the box first (an enclosed element beats a partly covered
+one), then the overlap area (the enclosed card beats its caption), then the
+same tie-breakers.
 
 ## Security boundaries
 

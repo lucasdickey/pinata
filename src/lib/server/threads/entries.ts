@@ -20,10 +20,11 @@
 // same generic 404 every other capture read uses.
 
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { FEEDBACK_BODY_MAX_CHARS } from "../../boundaries";
 import { schema, type Database } from "../db/client";
 import {
+  BUILT_ANNOTATION_KINDS,
   THREAD_AUTHOR_LABELS,
   type ThreadActorRole,
   type ThreadAuthorLabel,
@@ -121,7 +122,7 @@ async function loadLivePin(db: Database, ref: ThreadRef) {
     .where(
       and(
         eq(schema.annotations.id, ref.annotationId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...BUILT_ANNOTATION_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )

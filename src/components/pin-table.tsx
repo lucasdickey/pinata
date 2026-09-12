@@ -17,17 +17,21 @@
 // Selecting a row selects the pin everywhere else: the canvas badge and the
 // side panel follow, so the table is a second route to the same state, never
 // a second copy of it.
+//
+// Rectangles (D079) are rows too: the first column names the kind ("Box 4")
+// and the position column shows the box's corner and size.
 
 import { useEffect, useState } from "react";
-import type { PinAnnotationView } from "../lib/annotations";
+import type { AnnotationView } from "../lib/annotations";
+import { markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import { pinPosition, snapshotPath, snapshotSummary } from "../lib/pin-export";
 
 type CopyState = "idle" | "copied" | "failed";
 
-/** One row: the pin and the page and device its capture sits on. */
+/** One row: the mark (a pin or a box, D079) and the page and device its capture sits on. */
 export interface PinTableRow {
-  pin: PinAnnotationView;
+  pin: AnnotationView;
   pageUrl: string;
   /** Human device label, e.g. "Desktop". */
   variant: string;
@@ -172,7 +176,7 @@ export function PinTable({
                         aria-current={pin.id === selectedPinId ? "true" : undefined}
                         onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                       >
-                        Pin {pin.number}
+                        {markTitle(pin)}
                       </button>
                     </th>
                     <td className="pin-table-status" data-status={pin.status}>
@@ -181,7 +185,9 @@ export function PinTable({
                         <span className="pin-unread"> · {pin.unreadReplies} new</span>
                       ) : null}
                     </td>
-                    <td className="pin-table-position">{pinPosition(pin)}</td>
+                    <td className="pin-table-position" data-kind={pin.kind}>
+                      {pinPosition(pin)}
+                    </td>
                     <td>
                       <span className="pin-table-element">
                         {snapshotSummary(pin.elementSnapshot)}

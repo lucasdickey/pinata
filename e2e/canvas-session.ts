@@ -384,15 +384,24 @@ export interface PinTipRecord {
   tip: { x: number; y: number };
 }
 
-/** This capture's persisted pin tips, read from the annotations route. */
+/**
+ * This capture's persisted mark anchors, read from the annotations route.
+ * A rectangle (D079) counts by its top-left corner, where its badge sits,
+ * so the clear-aim search below keeps drafts off box badges too.
+ */
 export async function listPinTips(page: Page, captureId: string): Promise<PinTipRecord[]> {
   return page.evaluate(async (id) => {
     const response = await fetch(`/api/captures/${encodeURIComponent(id)}/annotations`, {
       cache: "no-store",
     });
     if (!response.ok) return [];
-    const payload = (await response.json()) as { annotations?: PinTipRecord[] };
-    return Array.isArray(payload.annotations) ? payload.annotations : [];
+    const payload = (await response.json()) as {
+      annotations?: { tip?: { x: number; y: number }; rect?: { x: number; y: number } }[];
+    };
+    if (!Array.isArray(payload.annotations)) return [];
+    return payload.annotations.flatMap((mark) =>
+      mark.tip ? [{ tip: mark.tip }] : mark.rect ? [{ tip: { x: mark.rect.x, y: mark.rect.y } }] : [],
+    );
   }, captureId);
 }
 

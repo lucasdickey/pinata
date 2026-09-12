@@ -9,6 +9,9 @@
 // conflicts and the UI settles on the authoritative revision instead of
 // overwriting it; a session that lost authority cannot move anything; and
 // every state survives reload with numbers, snapshots, and threads intact.
+// The last test runs the same lifecycle for a rectangle (D079): drawn by a
+// Shift-drag, saved from the same composer, resized and moved in one
+// revisioned write each, and deleted.
 //
 // Runs against the seeded local store like pins.spec.ts and skips when the
 // seeded pricing plane is absent. Tests write real pins to the seeded
@@ -27,6 +30,7 @@ import {
   clickPlane,
   readCamera,
   signIn,
+  toNatural,
   toScreen,
   trackConsoleErrors,
   visiblePane,
@@ -42,6 +46,8 @@ test.describe.configure({ mode: "serial" });
 
 const PIN_NODE = ".react-flow__node-pin";
 const PIN_BADGE = '[data-testid="pin-badge"]';
+const RECTANGLE_NODE = ".react-flow__node-rectangle";
+const DRAFT_RECTANGLE_NODE = ".react-flow__node-draftRectangle";
 
 interface ElementSnapshot {
   id: string;
@@ -54,8 +60,11 @@ interface ElementSnapshot {
 interface PinRecord {
   id: string;
   captureId: string;
+  kind?: "pin" | "rectangle";
   number: number;
   tip: { x: number; y: number };
+  /** A rectangle's box (D079); absent on pins. */
+  rect?: { x: number; y: number; width: number; height: number };
   body: string;
   elementSnapshot: ElementSnapshot | null;
   revision: number;
@@ -111,7 +120,9 @@ async function mutatePin(
 
 /** Wait until the workspace has finished loading this plane's pins. */
 async function waitPinsLoaded(page: Page): Promise<void> {
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|Pin \d+ — at \(/);
+  await expect(page.getByTestId("capture-panel")).toContainText(
+    /No pins yet\.|(Pin|Box) \d+ — at \(/,
+  );
 }
 
 /**
@@ -559,4 +570,176 @@ test("a session that lost authority cannot move the pin and the record is untouc
     body: "e2e: write after delete",
   });
   expect(afterDelete.status).toBe(404);
+});
+
+/** The saved box's node wrapper, by its badge number. */
+function rectangleNode(page: Page, number: number) {
+  return page.locator(RECTANGLE_NODE, {
+    has: page.locator(`[data-testid="rectangle-badge"][data-mark-number="${number}"]`),
+  });
+}
+
+/** Press, travel in two steps, release — with or without Shift held. */
+async function dragPointer(
+  page: Page,
+  from: { x: number; y: number },
+  delta: { x: number; y: number },
+  shift = false,
+): Promise<void> {
+  if (shift) await page.keyboard.down("Shift");
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + delta.x / 2, from.y + delta.y / 2, { steps: 8 });
+  await page.mouse.move(from.x + delta.x, from.y + delta.y, { steps: 8 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up("Shift");
+}
+
+test("a box is drawn by Shift-drag, saved from the same composer, resized and moved in one write each, and deleted (D079)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(240_000);
+
+  const consoleErrors = trackConsoleErrors(page);
+  const target = await openDesktopPlane(page);
+  const before = await listPins(page, target.captureId);
+  const writes = trackAnnotationWrites(page);
+  const aim = await aimBottomBand(page, target);
+
+  // Shift-drag 120 by 80 screen px from the aim: at 1x, a 120 by 80 natural
+  // box whose top-left corner is the aim. Plain drags on this plane pan.
+  const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
+  const zoom = camera.zoom;
+  const local = toScreen(aim, camera);
+  const from = { x: pane.left + local.x, y: pane.top + local.y };
+  const size = { x: 120, y: 80 };
+  await dragPointer(page, from, size, true);
+  await expect(page.locator(DRAFT_RECTANGLE_NODE)).toHaveCount(1);
+  await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
+  // The camera did not move: the drag drew instead of panning.
+  const after = await readCamera(page);
+  expect(Math.abs(after.x - camera.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - camera.y)).toBeLessThanOrEqual(1);
+
+  // The same composer, labelled for a box, anchored beside the box's
+  // top-right corner and inside the canvas frame.
+  const composer = page.getByTestId("pin-composer");
+  await expect(composer).toBeVisible();
+  await expect(composer).toHaveAttribute("data-draft-kind", "rectangle");
+  await expect(page.getByRole("dialog", { name: "New box" })).toBeVisible();
+  const composerBox = (await composer.boundingBox())!;
+  const frameBox = (await page.locator(".capture-canvas").boundingBox())!;
+  expect(composerBox.x).toBeGreaterThanOrEqual(frameBox.x - 1);
+  expect(composerBox.x + composerBox.width).toBeLessThanOrEqual(frameBox.x + frameBox.width + 1);
+  const corner = { x: from.x + size.x, y: from.y };
+  const side = await composer.getAttribute("data-side");
+  if (side === "right") expect(composerBox.x).toBeGreaterThanOrEqual(corner.x - 1);
+  else expect(composerBox.x + composerBox.width).toBeLessThanOrEqual(corner.x + 1);
+
+  await page.getByLabel("Comment").fill("e2e: box lifecycle");
+  await waitContextSettled(page);
+  await chooseNoElement(page);
+  await page.getByLabel("Comment").press("Enter");
+  const saved = await awaitNewPin(page, target.captureId, before);
+  const number = saved.number;
+  expect(saved.kind).toBe("rectangle");
+  expect(saved.rect, "a rectangle persists its box").toBeDefined();
+  const savedRect = saved.rect!;
+  expect(Math.abs(savedRect.x - aim.x)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedRect.y - aim.y)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedRect.width - size.x / zoom)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedRect.height - size.y / zoom)).toBeLessThanOrEqual(1 + 1 / zoom);
+  await expect(page.locator(DRAFT_RECTANGLE_NODE)).toHaveCount(0);
+  await expect(rectangleNode(page, number)).toHaveCount(1);
+  // The rendered box inverse-transforms to the persisted geometry.
+  await visiblePane(page);
+  const paneNow = await visiblePane(page);
+  const cameraNow = await readCamera(page);
+  const nodeBox = (await rectangleNode(page, number).boundingBox())!;
+  const renderedTopLeft = toNatural(
+    { x: nodeBox.x - paneNow.left, y: nodeBox.y - paneNow.top },
+    cameraNow,
+  );
+  expect(Math.abs(renderedTopLeft.x - savedRect.x)).toBeLessThanOrEqual(1 + 1 / cameraNow.zoom);
+  expect(Math.abs(renderedTopLeft.y - savedRect.y)).toBeLessThanOrEqual(1 + 1 / cameraNow.zoom);
+  expect(Math.abs(nodeBox.width / cameraNow.zoom - savedRect.width)).toBeLessThanOrEqual(
+    1 + 1 / cameraNow.zoom,
+  );
+
+  // Resize by the south-east handle: exactly one revisioned PATCH, the
+  // corner untouched, the size grown by the pointer's travel.
+  const handle = rectangleNode(page, number).locator(
+    '[data-testid="rectangle-handle"][data-handle="se"]',
+  );
+  const handleBox = (await handle.boundingBox())!;
+  const grow = { x: 30, y: 20 };
+  await dragPointer(
+    page,
+    { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 },
+    grow,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 1);
+  const resized = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(resized.rect!.x).toBe(savedRect.x);
+  expect(resized.rect!.y).toBe(savedRect.y);
+  expect(Math.abs(resized.rect!.width - (savedRect.width + grow.x / zoom))).toBeLessThanOrEqual(
+    1 + 1 / zoom,
+  );
+  expect(Math.abs(resized.rect!.height - (savedRect.height + grow.y / zoom))).toBeLessThanOrEqual(
+    1 + 1 / zoom,
+  );
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(1);
+
+  // Move by the badge: one more PATCH, the size untouched.
+  await visiblePane(page);
+  const badge = rectangleNode(page, number).locator('[data-testid="rectangle-badge"]');
+  const badgeBox = (await badge.boundingBox())!;
+  const step = { x: 25, y: 15 };
+  await dragPointer(
+    page,
+    { x: badgeBox.x + badgeBox.width / 2, y: badgeBox.y + badgeBox.height * 0.4 },
+    step,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 2);
+  const moved = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(Math.abs(moved.rect!.x - (resized.rect!.x + step.x / zoom))).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(moved.rect!.y - (resized.rect!.y + step.y / zoom))).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(moved.rect!.width).toBe(resized.rect!.width);
+  expect(moved.rect!.height).toBe(resized.rect!.height);
+  expect(moved.body).toBe(saved.body);
+  expect(moved.elementSnapshot).toEqual(saved.elementSnapshot);
+
+  // The panel shows the bounds; delete is the same two-step revisioned write.
+  await page.getByRole("button", { name: new RegExp(`^Box ${number} — at \\(`) }).click();
+  await expect(page.getByTestId("panel-position")).toContainText(`Box ${number} at natural pixels (`);
+  await expect(page.getByTestId("panel-position")).toContainText("×");
+  await page.getByRole("button", { name: "Delete box" }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect
+    .poll(
+      async () => (await listPins(page, target.captureId)).some((pin) => pin.number === number),
+      { timeout: 10_000 },
+    )
+    .toBe(false);
+  await expect(rectangleNode(page, number)).toHaveCount(0);
+
+  // One create, one resize, one move, one delete — nothing else ever wrote.
+  expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(2);
+  expect(writes.filter((w) => w.startsWith("DELETE "))).toHaveLength(1);
+  expect(writes).toHaveLength(4);
+  expect(consoleErrors).toEqual([]);
 });

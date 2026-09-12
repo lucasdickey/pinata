@@ -858,6 +858,72 @@ pre code {
   border-radius: 2px;
 }
 
+/* Rectangle marks (D079). The node wrapper is pointer-transparent (set
+   inline by the adapter) so a click inside a box still lands on the
+   screenshot; the stroke, the badge, and the handles take the pointer. The
+   svg has no viewBox, so its user units are the node's natural pixels and
+   the visible stroke sits centered on the exact persisted edge. Every
+   width here is set inline from the zoom so the chrome keeps its screen
+   size while the box stays exact. */
+.mark-rectangle {
+  position: absolute;
+  inset: 0;
+}
+.mark-rectangle-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.mark-rectangle-grab {
+  fill: none;
+  stroke: transparent;
+  pointer-events: stroke;
+  cursor: grab;
+}
+.mark-rectangle-stroke {
+  fill: none;
+  stroke: var(--accent);
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.7));
+}
+.mark-rectangle[data-selected="true"] .mark-rectangle-stroke {
+  stroke: var(--ink);
+}
+.mark-rectangle .pin-badge {
+  pointer-events: all;
+  cursor: grab;
+}
+.mark-rectangle-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  box-sizing: border-box;
+}
+.mark-rectangle-handle-dot {
+  display: block;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+}
+.mark-rectangle[data-selected="true"] .mark-rectangle-handle-dot {
+  border-color: var(--ink);
+}
+/* The box toggle: pressed while it waits for the next drag. */
+.capture-draw-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.capture-canvas[data-draw-armed="true"],
+.capture-canvas[data-drawing="true"] {
+  cursor: crosshair;
+}
+
 .capture-error {
   color: var(--accent);
 }

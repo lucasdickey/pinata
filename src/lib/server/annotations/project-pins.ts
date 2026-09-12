@@ -1,4 +1,4 @@
-// Server-only project-scoped pin read (D077).
+// Server-only project-scoped annotation read (D077; rectangles since D079).
 //
 // The workspace's overview, its Next/Previous pin stepping, and the
 // project-wide table all need every live pin of a project at once, in the
@@ -14,13 +14,16 @@ import type { Database } from "../db/client";
 import { listPins, type AnnotationRecord } from "./pins";
 import { EDITOR_VIEWER, type Viewer } from "./seen";
 
-/** A pin plus where its capture sits in the project. */
-export interface ProjectAnnotationRecord extends AnnotationRecord {
+/** Where an annotation's capture sits in the project. */
+export interface ProjectAnnotationLocation {
   pageId: string;
   normalizedUrl: string;
   variant: string;
   attempt: number;
 }
+
+/** An annotation (pin or rectangle, D079) plus where its capture sits. */
+export type ProjectAnnotationRecord = AnnotationRecord & ProjectAnnotationLocation;
 
 export type ListProjectPinsResult =
   | { ok: true; annotations: ProjectAnnotationRecord[] }

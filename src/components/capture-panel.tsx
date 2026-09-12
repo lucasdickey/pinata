@@ -5,21 +5,24 @@
 // panning and zooming never move it. Exactly one saved pin can be selected
 // at a time:
 //
-// - A saved pin shows its number, comment, and immutable context snapshot
-//   (or the explicit "No element"), and offers Edit comment and Delete pin.
-//   Both carry the pin's current revision; a conflict means another session
-//   wrote first, and the panel says so while the workspace reloads the
+// - A saved mark (a pin, or a rectangle since D079, which shows its bounds)
+//   shows its number, comment, and immutable context snapshot (or the
+//   explicit "No element"), and offers Edit comment and Delete. Both carry
+//   the mark's current revision; a conflict means another session wrote
+//   first, and the panel says so while the workspace reloads the
 //   authoritative list.
-// - The pins list keeps every mark reachable by keyboard, and the capture
-//   identity facts follow the active plane.
+// - The pins list keeps every mark, pin and box alike, reachable by
+//   keyboard in number order, and the capture identity facts follow the
+//   active plane.
 //
 // A draft pin is composed beside its badge, not here (D074): see
 // pin-composer.tsx. The panel keeps showing the selected saved pin, if any,
 // while a draft is open.
 
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
-import type { PinAnnotationView, PinElementSnapshot } from "../lib/annotations";
+import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
+import { markKindNoun, markPosition, markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
 import { snapshotLabel } from "./pin-composer";
@@ -71,7 +74,8 @@ export function CapturePanel({
   /** Whether the active capture is annotatable (ready). */
   ready: boolean;
   pinsStatus: "loading" | "ready" | "failed" | null;
-  pins: PinAnnotationView[];
+  /** Every live mark on the capture, pins and rectangles, in number order. */
+  pins: AnnotationView[];
   selectedPinId: string | null;
   onSelectPin: (annotationId: string | null) => void;
   moveError: string | null;
@@ -101,6 +105,7 @@ export function CapturePanel({
   thread?: ThreadViewProps;
 }) {
   const selectedPin = pins.find((pin) => pin.id === selectedPinId) ?? null;
+  const noun = selectedPin ? markKindNoun(selectedPin.kind) : "pin";
   return (
     <aside
       className="workspace-panel"
@@ -110,9 +115,11 @@ export function CapturePanel({
       <h4>Selection</h4>
       {selectedPin ? (
         <div className="panel-pin" data-testid="panel-pin">
-          <p>
-            <strong>Pin {selectedPin.number}</strong> at natural pixel (
-            {Math.round(selectedPin.tip.x)}, {Math.round(selectedPin.tip.y)})
+          <p data-testid="panel-position" data-kind={selectedPin.kind}>
+            <strong>{markTitle(selectedPin)}</strong>{" "}
+            {selectedPin.kind === "rectangle"
+              ? `at natural pixels (${markPosition(selectedPin)})`
+              : `at natural pixel (${markPosition(selectedPin)})`}
           </p>
           {/* The pin lifecycle (D075): its status, and one control that
               resolves an open or replied pin or reopens a resolved one. */}
@@ -167,7 +174,7 @@ export function CapturePanel({
                 onClick={onCancelDelete}
                 disabled={deleteState === "deleting"}
               >
-                Keep pin
+                Keep {noun}
               </button>
             </p>
           ) : (
@@ -176,7 +183,7 @@ export function CapturePanel({
                 Edit comment
               </button>
               <button type="button" onClick={onRequestDelete}>
-                Delete pin
+                Delete {noun}
               </button>
               {onSetPinStatus ? (
                 <button
@@ -189,8 +196,8 @@ export function CapturePanel({
                   {statusState === "saving"
                     ? "Saving…"
                     : selectedPin.status === "resolved"
-                      ? "Reopen pin"
-                      : "Resolve pin"}
+                      ? `Reopen ${noun}`
+                      : `Resolve ${noun}`}
                 </button>
               ) : null}
             </p>
@@ -207,17 +214,18 @@ export function CapturePanel({
           ) : null}
           {deleteState === "failed" ? (
             <p role="alert" className="capture-error">
-              That pin could not be deleted. Try again.
+              That {noun} could not be deleted. Try again.
             </p>
           ) : null}
           {editState === "conflict" || deleteState === "conflict" ? (
             <p role="alert" className="capture-error">
-              This pin changed in another session. The latest version is now shown.
+              This {noun} changed in another session. The latest version is now shown.
             </p>
           ) : null}
           <p className="panel-note">
-            Drag the pin on the screenshot to move it. Deleting a pin retires its number
-            forever.
+            {selectedPin.kind === "rectangle"
+              ? "Drag the box's edge or badge to move it and its handles to resize it. Deleting a box retires its number forever."
+              : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
           </p>
           {thread ? (
             <>
@@ -256,7 +264,7 @@ export function CapturePanel({
                     aria-current={pin.id === selectedPinId ? "true" : undefined}
                     onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                   >
-                    Pin {pin.number} — at ({Math.round(pin.tip.x)}, {Math.round(pin.tip.y)})
+                    {markTitle(pin)} — at ({markPosition(pin)})
                     {pin.status === "resolved" ? (
                       <span className="pin-status"> · Resolved</span>
                     ) : null}

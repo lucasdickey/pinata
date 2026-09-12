@@ -1,10 +1,12 @@
 "use client";
 
 // The pin composer (D074): the comment editor for the one transient draft
-// pin. It opens in a popover beside the draft badge instead of in the side
-// panel — the canvas renders it outside the transformed React Flow plane,
-// positions it from the draft's projected screen point, and re-positions it
-// on every pan and zoom (see DraftComposerPopover in capture-canvas.tsx).
+// (a pin, or since D079 a rectangle). It opens in a popover beside the
+// draft instead of in the side panel — the canvas renders it outside the
+// transformed React Flow plane, positions it from the draft's projected
+// screen point, and re-positions it on every pan and zoom (see
+// DraftComposerPopover in capture-canvas.tsx). The copy names the kind
+// ("Save pin" / "Save box"); everything else is the same for both.
 //
 // The nearby-element decision stays explicit in the data (VAL-PIN-003,
 // D061): the client still sends one candidate id or null and the server
@@ -22,6 +24,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { PinElementSnapshot } from "../lib/annotations";
+import { markKindNoun, type MarkKind } from "../lib/canvas/marks";
 
 /** The draft's nearby-candidate fetch state. */
 export interface DraftCandidates {
@@ -49,6 +52,12 @@ export interface PinComposerProps {
   onSaveDraft: () => void;
   onCancelDraft: () => void;
   saveState: "idle" | "saving" | "failed";
+  /**
+   * Which kind of mark the draft is (D079). Only the copy changes; the
+   * canvas sets it from the draft, so callers building the props from
+   * workspace state can leave it out. Defaults to a pin.
+   */
+  draftKind?: MarkKind;
 }
 
 /** Human label for one candidate or snapshot: kind, tag, and a snippet. */
@@ -79,10 +88,12 @@ export function PinComposer({
   onSaveDraft,
   onCancelDraft,
   saveState,
+  draftKind = "pin",
 }: PinComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
+  const noun = markKindNoun(draftKind);
 
   // The comment is what the editor came to write: focus it as soon as the
   // draft appears, without scrolling the page under the pin.
@@ -118,7 +129,7 @@ export function PinComposer({
   return (
     <div className="pin-composer-body" onKeyDown={onRootKeyDown}>
       <p className="pin-composer-title">
-        New pin <span className="panel-note">— not saved yet</span>
+        New {noun} <span className="panel-note">— not saved yet</span>
       </p>
       <label className="panel-field">
         Comment
@@ -180,12 +191,16 @@ export function PinComposer({
         </p>
         {status === "failed" ? (
           <p className="panel-note">
-            Nearby elements could not be loaded, so this pin is not attached to one.
+            Nearby elements could not be loaded, so this {noun} is not attached to one.
           </p>
         ) : null}
         {expanded ? (
           <fieldset id={listId} className="panel-candidates">
-            <legend>Nearby elements, closest first</legend>
+            <legend>
+              {draftKind === "rectangle"
+                ? "Nearby elements, most overlap first"
+                : "Nearby elements, closest first"}
+            </legend>
             {items.map((candidate) => (
               <label
                 key={candidate.id}
@@ -229,7 +244,7 @@ export function PinComposer({
       </div>
       <p className="panel-actions">
         <button type="button" onClick={onSaveDraft} disabled={saveDisabled}>
-          {saveState === "saving" ? "Saving…" : "Save pin"}
+          {saveState === "saving" ? "Saving…" : `Save ${noun}`}
         </button>
         <button type="button" onClick={onCancelDraft} disabled={saveState === "saving"}>
           Cancel
@@ -238,7 +253,7 @@ export function PinComposer({
       <p className="panel-hint">Enter saves · Shift+Enter starts a new line · Escape cancels</p>
       {saveState === "failed" ? (
         <p role="alert" className="capture-error">
-          That pin could not be saved. Your draft and comment are still here — try again.
+          That {noun} could not be saved. Your draft and comment are still here — try again.
         </p>
       ) : null}
     </div>

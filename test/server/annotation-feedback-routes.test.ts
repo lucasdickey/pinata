@@ -389,3 +389,112 @@ describe("hierarchy counts per role", () => {
     expect(editorAgain.projects.find((p) => p.publicId === "pub-a")!.feedback.unreadReplies).toBe(2);
   });
 });
+
+// Rectangles (D079) in the founder's world: listed by the founder's read,
+// resolvable and markable like a pin, and never writable by the founder.
+describe("rectangles and the founder (D079)", () => {
+  /** One rectangle on project B's capture, seeded per test so the counts
+      the earlier tests assert for the seeded projects stay as they were. */
+  async function seedBox() {
+    await testDb.db.insert(schema.annotations).values({
+      id: "box-b",
+      captureId: "cap-b",
+      kind: "rectangle",
+      number: 2,
+      geometryJson: JSON.stringify({ x: 100, y: 200, width: 300, height: 150 }),
+      originalBody: "This whole card needs more air.",
+      createdAt: T0,
+      updatedAt: T0,
+    });
+  }
+
+  async function founderForB() {
+    const issued = await issueFounderCapability(testDb.db, "pub-b", T0);
+    const session = createFounderSession(
+      TEST_SECRET,
+      { projectId: "proj-b", version: issued!.status.version },
+      T0,
+    );
+    return { cookie: `${FOUNDER_SESSION_COOKIE}=${session.token}`, csrf: session.payload.csrf };
+  }
+
+  test("the founder's list carries the box beside the pin, and the founder can resolve it", async () => {
+    await seedBox();
+    const founderB = await founderForB();
+    const listed = await list("cap-b", founderB);
+    expect(listed.status).toBe(200);
+    const { annotations } = await listed.json();
+    expect(annotations.map((a: { kind: string; number: number }) => [a.kind, a.number])).toEqual([
+      ["pin", 1],
+      ["rectangle", 2],
+    ]);
+    expect(annotations[1]).toMatchObject({
+      id: "box-b",
+      rect: { x: 100, y: 200, width: 300, height: 150 },
+      status: "open",
+      unreadReplies: 0,
+    });
+    vi.setSystemTime(T0 + 10);
+    const resolved = await resolve("cap-b", "box-b", founderB);
+    expect(resolved.status).toBe(200);
+    expect((await resolved.json()).annotation).toMatchObject({
+      id: "box-b",
+      kind: "rectangle",
+      status: "resolved",
+    });
+    const marked = await seen("cap-b", "box-b", founderB);
+    expect(marked.status).toBe(200);
+    const readBack = await thread("cap-b", "box-b", founderB);
+    expect(readBack.status).toBe(200);
+    expect((await readBack.json()).entries.map((e: { kind: string }) => e.kind)).toEqual(["status"]);
+  });
+
+  test("the founder cannot create, move, resize, edit, or delete a box", async () => {
+    await seedBox();
+    const founderB = await founderForB();
+    const rect = { x: 10, y: 10, width: 50, height: 50 };
+    const create = await createPOST(
+      build(`${ORIGIN}/api/captures/cap-b/annotations`, "POST", {
+        ...founderB,
+        body: { rect, body: "Founder box", elementId: null, idempotencyKey: "founder-box-1" },
+      }),
+      { params: Promise.resolve({ captureId: "cap-b" }) },
+    );
+    expect(create.status).toBe(401);
+    const resize = await itemPATCH(
+      build(pinUrl("cap-b", "box-b"), "PATCH", { ...founderB, body: { rect, expectedRevision: 1 } }),
+      ctx("cap-b", "box-b"),
+    );
+    expect(resize.status).toBe(401);
+    const edit = await itemPATCH(
+      build(pinUrl("cap-b", "box-b"), "PATCH", {
+        ...founderB,
+        body: { body: "Rewritten", expectedRevision: 1 },
+      }),
+      ctx("cap-b", "box-b"),
+    );
+    expect(edit.status).toBe(401);
+    const remove = await itemDELETE(
+      build(pinUrl("cap-b", "box-b"), "DELETE", { ...founderB, body: { expectedRevision: 1 } }),
+      ctx("cap-b", "box-b"),
+    );
+    expect(remove.status).toBe(401);
+    const rows = await testDb.db.select().from(schema.annotations);
+    expect(rows.filter((row) => row.captureId === "cap-b" && row.deletedAt === null)).toHaveLength(2);
+    expect(rows.find((row) => row.id === "box-b")).toMatchObject({
+      originalBody: "This whole card needs more air.",
+      geometryJson: JSON.stringify({ x: 100, y: 200, width: 300, height: 150 }),
+      revision: 1,
+    });
+  });
+
+  test("the hierarchy counts include boxes for both roles", async () => {
+    await seedBox();
+    const editorRead = await projectsGET(build(`${ORIGIN}/api/projects`, "GET", { cookie: editorCookie() }));
+    const { projects } = (await editorRead.json()) as {
+      projects: { publicId: string; feedback: unknown }[];
+    };
+    const projectB = projects.find((project) => project.publicId === "pub-b")!;
+    expect(projectB.feedback).toEqual({ pins: 2, open: 2, resolved: 0, unreadReplies: 0 });
+  });
+});

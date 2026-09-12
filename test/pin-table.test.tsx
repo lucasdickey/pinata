@@ -11,7 +11,11 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { PinAnnotationView, PinElementSnapshot } from "../src/lib/annotations";
+import type {
+  PinAnnotationView,
+  PinElementSnapshot,
+  RectangleAnnotationView,
+} from "../src/lib/annotations";
 import { PinTable, type PinTableRow } from "../src/components/pin-table";
 
 const element: PinElementSnapshot = {
@@ -217,5 +221,56 @@ describe("the all-pins table", () => {
       expect(screen.queryByRole("group", { name: "Pins shown" })).toBeNull();
       expect(screen.getByRole("heading", { name: "All pins in this project" })).toBeInTheDocument();
     });
+  });
+});
+
+describe("rectangles in the table (D079)", () => {
+  const box: RectangleAnnotationView = {
+    id: "a3",
+    captureId: "cap-1",
+    kind: "rectangle",
+    number: 3,
+    rect: { x: 120.4, y: 640.6, width: 300.2, height: 180.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: element,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+  // A project-scoped row (D077): the box sits on another page's capture.
+  const mixed: PinTableRow[] = [
+    ...rows,
+    { pin: box, pageUrl: "https://chickpea.co/", variant: "Mobile", attempt: 3 },
+  ];
+
+  test("a box row names the kind, its page and device, and shows its corner and size", async () => {
+    const user = userEvent.setup();
+    const { onSelectPin } = renderTable({ rows: mixed, heading: "All pins in this project" });
+    const tableRows = screen.getAllByRole("row").slice(1);
+    expect(tableRows).toHaveLength(3);
+    const row = tableRows[2]!;
+    expect(within(row).getByRole("button", { name: "Box 3" })).toBeInTheDocument();
+    expect(row).toHaveTextContent("https://chickpea.co/");
+    expect(row).toHaveTextContent("Mobile v3");
+    const position = row.querySelector(".pin-table-position")!;
+    expect(position).toHaveAttribute("data-kind", "rectangle");
+    expect(position).toHaveTextContent("120, 641 · 300 × 181");
+    expect(row).toHaveTextContent("This whole card needs more air.");
+    // Pin rows are unchanged beside it.
+    expect(tableRows[0]!.querySelector(".pin-table-position")).toHaveTextContent("392, 386");
+    expect(tableRows[0]!.querySelector(".pin-table-position")).toHaveAttribute("data-kind", "pin");
+    await user.click(within(row).getByRole("button", { name: "Box 3" }));
+    expect(onSelectPin).toHaveBeenCalledWith("a3");
+  });
+
+  test("Copy all counts the box among the rows it hands to the Markdown renderer", async () => {
+    const user = userEvent.setup();
+    installClipboard();
+    const { markdown } = renderTable({ rows: mixed, heading: "All pins in this project" });
+    await user.click(screen.getByRole("button", { name: "Copy all as Markdown" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(markdown).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Copied 3 pins as Markdown.");
   });
 });

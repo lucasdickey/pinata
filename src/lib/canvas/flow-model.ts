@@ -11,8 +11,11 @@
 // their `parentId` against a frame that precedes them.
 
 import type { Node } from "@xyflow/react";
+import { MIN_HIT_TARGET_CSS_PX } from "../boundaries";
 import { pinHitBox, type PinBox } from "./geometry";
 import type { NaturalPoint } from "./camera";
+import type { DraftMark } from "./marks";
+import { isFiniteRect, type NaturalRect } from "./rectangle";
 
 /** Custom node type for the one immutable screenshot frame. */
 export const CAPTURE_FRAME_TYPE = "captureFrame";
@@ -25,6 +28,12 @@ export const DRAFT_PIN_TYPE = "draftPin";
 
 /** Custom node type for the transient nearby-candidate highlight box. */
 export const CONTEXT_PREVIEW_TYPE = "contextPreview";
+
+/** Custom node type for one persisted, numbered rectangle (D079). */
+export const RECTANGLE_TYPE = "rectangle";
+
+/** Custom node type for the one transient, unsaved draft rectangle. */
+export const DRAFT_RECTANGLE_TYPE = "draftRectangle";
 
 /** The domain facts a capture frame renders from. */
 export interface CaptureFrameDomain {
@@ -92,6 +101,8 @@ export function captureFrameNode(domain: CaptureFrameDomain): CaptureFrameNode {
  * when one exists. Adapter artifacts (frame, preview, draft) use namespaced
  * ids; a persisted pin's node id IS its server annotation id — the domain
  * record is canonical and raw React Flow state is never persisted.
+ *
+ * Pins only; see nodesForPlane for a plane that also carries rectangles.
  */
 export function nodesForCapture(
   domain: CaptureFrameDomain,
@@ -100,15 +111,62 @@ export function nodesForCapture(
   zoom = 1,
   preview?: ContextRect | null,
 ): CanvasNode[] {
+  return nodesForPlane(domain, {
+    pins,
+    draft: draftTip ? { kind: "pin", tip: draftTip } : null,
+    zoom,
+    preview: preview ?? null,
+  });
+}
+
+/** Everything a plane renders besides its frame. */
+export interface PlaneMarks {
+  pins?: CanvasPin[];
+  rectangles?: CanvasRectangle[];
+  /** The one transient draft (pin or rectangle), or null. */
+  draft?: DraftMark | null;
+  /**
+   * A draft rectangle still being drawn: it renders without handles and
+   * carries a marker so the composer waits for the release.
+   */
+  drawing?: boolean;
+  zoom?: number;
+  preview?: ContextRect | null;
+  /**
+   * The founder's read-only plane: rectangles render with no handles and
+   * no drag. Pins keep their own read-only handling in the canvas.
+   */
+  readOnly?: boolean;
+}
+
+/**
+ * The controlled node array for one plane with both mark kinds (D079):
+ * frame, then the preview highlight, then every persisted pin and rectangle
+ * in one stable number order (the shared sequence), then the draft. Node
+ * ids for persisted marks are their server annotation ids.
+ */
+export function nodesForPlane(domain: CaptureFrameDomain, marks: PlaneMarks): CanvasNode[] {
+  const zoom = marks.zoom ?? 1;
   const frame = captureFrameNode(domain);
-  const ordered = [...pins].sort((a, b) => a.number - b.number);
-  const highlight = preview ? contextPreviewNode(domain, preview) : null;
-  const nodes: CanvasNode[] = [
-    frame,
-    ...(highlight ? [highlight] : []),
-    ...ordered.map((pin) => pinNode(domain, pin, zoom)),
-  ];
-  return draftTip ? [...nodes, draftPinNode(domain, draftTip, zoom)] : nodes;
+  const highlight = marks.preview ? contextPreviewNode(domain, marks.preview) : null;
+  const ordered: (CanvasPin | CanvasRectangle)[] = [
+    ...(marks.pins ?? []),
+    ...(marks.rectangles ?? []),
+  ].sort((a, b) => a.number - b.number);
+  const nodes: CanvasNode[] = [frame, ...(highlight ? [highlight] : [])];
+  for (const mark of ordered) {
+    nodes.push(
+      "rect" in mark
+        ? rectangleNode(domain, mark, zoom, { readOnly: marks.readOnly ?? false })
+        : pinNode(domain, mark, zoom),
+    );
+  }
+  const draft = marks.draft ?? null;
+  if (draft?.kind === "pin") nodes.push(draftPinNode(domain, draft.tip, zoom));
+  if (draft?.kind === "rectangle") {
+    nodes.push(draftRectangleNode(domain, draft.rect, zoom, { drawing: marks.drawing ?? false }));
+  }
+  return nodes;
 }
 
 /** The domain facts one persisted pin renders from. */
@@ -216,7 +274,13 @@ export interface ContextPreviewData extends Record<string, unknown> {
 
 export type ContextPreviewNode = Node<ContextPreviewData, typeof CONTEXT_PREVIEW_TYPE>;
 
-export type CanvasNode = CaptureFrameNode | PinNode | DraftPinNode | ContextPreviewNode;
+export type CanvasNode =
+  | CaptureFrameNode
+  | PinNode
+  | DraftPinNode
+  | ContextPreviewNode
+  | RectangleNode
+  | DraftRectangleNode;
 
 /**
  * The preview node id is a deterministic namespaced derivative of the
@@ -331,5 +395,190 @@ export function draftPinNode(
     selectable: false,
     connectable: false,
     deletable: false,
+  };
+}
+
+/** The domain facts one persisted rectangle renders from (D079). */
+export interface CanvasRectangle {
+  /** Server annotation id; the React Flow node id is exactly this. */
+  id: string;
+  /** Server-assigned monotonic per-capture number (shared with pins). */
+  number: number;
+  /** Canonical box in screenshot-natural pixels. */
+  rect: NaturalRect;
+  /** Whether the workspace panel currently shows this rectangle. */
+  selected: boolean;
+}
+
+/** On-screen sizes the rectangle chrome keeps constant across zoom. */
+export const RECTANGLE_STROKE_SCREEN_PX = 2;
+export const RECTANGLE_GRAB_SCREEN_PX = 14;
+export const RECTANGLE_HANDLE_DOT_SCREEN_PX = 10;
+
+export interface RectangleData extends Record<string, unknown> {
+  /** The annotation id for saved rectangles; the namespaced id for a draft. */
+  annotationId: string;
+  /** The server number, or null for a draft. */
+  number: number | null;
+  /** Canonical box in screenshot-natural pixels; the only domain geometry. */
+  rectX: number;
+  rectY: number;
+  rectWidth: number;
+  rectHeight: number;
+  /** Whether this is the transient draft. */
+  draft: boolean;
+  /** Whether the draft is still being drawn (no handles, no composer yet). */
+  drawing: boolean;
+  /** Whether the panel selection is on this rectangle (styling only). */
+  selected: boolean;
+  /** Whether the eight resize handles render (never on a read-only plane). */
+  handles: boolean;
+  /** Natural-pixel sizes derived from the zoom so the chrome stays screen-sized. */
+  strokeWidth: number;
+  grabWidth: number;
+  badgeSize: number;
+  handleSize: number;
+  handleDotSize: number;
+  /** Accessible name for the node. */
+  label: string;
+}
+
+export type RectangleNode = Node<RectangleData, typeof RECTANGLE_TYPE>;
+export type DraftRectangleNode = Node<RectangleData, typeof DRAFT_RECTANGLE_TYPE>;
+
+function requireRect(rect: NaturalRect, label: string): void {
+  if (!isFiniteRect(rect) || rect.width < 0 || rect.height < 0) {
+    throw new RangeError(`${label} must be a finite box with non-negative size`);
+  }
+}
+
+/** The zoom-derived natural-pixel sizes of the rectangle chrome. */
+function rectangleChrome(doc: { width: number; height: number }, zoom: number) {
+  if (!Number.isFinite(zoom) || zoom <= 0) {
+    throw new RangeError("zoom must be a positive finite number");
+  }
+  return {
+    strokeWidth: RECTANGLE_STROKE_SCREEN_PX / zoom,
+    grabWidth: RECTANGLE_GRAB_SCREEN_PX / zoom,
+    badgeSize: Math.min(Math.min(doc.width, doc.height), MIN_HIT_TARGET_CSS_PX / zoom),
+    handleSize: MIN_HIT_TARGET_CSS_PX / zoom,
+    handleDotSize: RECTANGLE_HANDLE_DOT_SCREEN_PX / zoom,
+  };
+}
+
+function rectLabel(prefix: string, rect: NaturalRect): string {
+  return `${prefix} at natural pixels (${Math.round(rect.x)}, ${Math.round(rect.y)}), ${Math.round(
+    rect.width,
+  )} by ${Math.round(rect.height)}`;
+}
+
+/**
+ * One persisted numbered rectangle as a child of the screenshot frame
+ * (D079). Its position and size ARE the persisted natural-pixel box: no
+ * padding, no hit-box math, so the rendered edge inverse-transforms to the
+ * stored geometry within one natural pixel at any zoom. The wrapper itself
+ * is pointer-transparent (a click inside a box still lands on the
+ * screenshot, so a pin can be dropped there); its stroke, badge, and
+ * handles take the pointer. Dragging the stroke or badge moves the box and
+ * commits one revisioned write at drag end; the handles resize it the same
+ * way. A read-only plane renders no handles and no drag.
+ *
+ * Deliberately no `extent: "parent"`, for the same reason as pins: the
+ * pure adapter (moveRect, resizeRect) is the single clamping authority.
+ */
+export function rectangleNode(
+  domain: CaptureFrameDomain,
+  rectangle: CanvasRectangle,
+  zoom: number,
+  options: { readOnly?: boolean } = {},
+): RectangleNode {
+  requireRect(rectangle.rect, "rect");
+  const chrome = rectangleChrome(domain, zoom);
+  const label = rectLabel(`Box ${rectangle.number}`, rectangle.rect);
+  const readOnly = options.readOnly ?? false;
+  return {
+    id: rectangle.id,
+    type: RECTANGLE_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: rectangle.rect.x, y: rectangle.rect.y },
+    width: rectangle.rect.width,
+    height: rectangle.rect.height,
+    data: {
+      annotationId: rectangle.id,
+      number: rectangle.number,
+      rectX: rectangle.rect.x,
+      rectY: rectangle.rect.y,
+      rectWidth: rectangle.rect.width,
+      rectHeight: rectangle.rect.height,
+      draft: false,
+      drawing: false,
+      selected: rectangle.selected,
+      handles: !readOnly,
+      ...chrome,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !readOnly,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    // See contextPreviewNode: only node.style reliably sets the wrapper's
+    // pointer-events. The children opt back in.
+    style: { pointerEvents: "none" },
+  };
+}
+
+/**
+ * The draft rectangle node id is a deterministic namespaced derivative of
+ * the capture id: it can never collide with a server-assigned annotation
+ * id, and there is at most one draft per plane.
+ */
+export function draftRectangleNodeId(captureId: string): string {
+  return `draft-rectangle:${captureId}`;
+}
+
+/**
+ * The transient draft rectangle as a child of the screenshot frame: the box
+ * being drawn (no handles yet) or the drawn box awaiting its comment
+ * (draggable and resizable). A draft is local UI state: never persisted,
+ * numbered, or listed as an annotation.
+ */
+export function draftRectangleNode(
+  domain: CaptureFrameDomain,
+  rect: NaturalRect,
+  zoom: number,
+  options: { drawing?: boolean } = {},
+): DraftRectangleNode {
+  requireRect(rect, "rect");
+  const chrome = rectangleChrome(domain, zoom);
+  const drawing = options.drawing ?? false;
+  const label = rectLabel("Draft box", rect) + " — not saved yet";
+  return {
+    id: draftRectangleNodeId(domain.captureId),
+    type: DRAFT_RECTANGLE_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: rect.x, y: rect.y },
+    width: rect.width,
+    height: rect.height,
+    data: {
+      annotationId: draftRectangleNodeId(domain.captureId),
+      number: null,
+      rectX: rect.x,
+      rectY: rect.y,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      draft: true,
+      drawing,
+      selected: false,
+      handles: !drawing,
+      ...chrome,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !drawing,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    style: { pointerEvents: "none" },
   };
 }

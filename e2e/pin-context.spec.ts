@@ -351,3 +351,83 @@ test("the mobile pricing plane offers its own bounded candidate list (VAL-PIN-00
   await cancelDraft(page);
   expect(consoleErrors).toEqual([]);
 });
+
+test("a drawn box asks for candidates by overlap and pre-selects the server's first result (D079)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(120_000);
+  const consoleErrors = trackConsoleErrors(page);
+  await stubDispatchQuota(page);
+  await signIn(page);
+
+  const target = await findReadyTarget(page, "desktop", "https://chickpea.co/pricing");
+  test.skip(!target, "no ready seeded pricing desktop capture in the local store");
+  await openPlane(page, target!);
+
+  const annotationWrites: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() !== "GET" &&
+      request.method() !== "HEAD" &&
+      request.url().includes("/annotations")
+    ) {
+      annotationWrites.push(`${request.method()} ${request.url()}`);
+    }
+  });
+
+  // Shift-drag a box on the pricing plane; the client's own context request
+  // names the box, so the same URL is what the server is asked to re-rank.
+  const aim = await findClearAim(page, target!.captureId, {
+    width: target!.width,
+    height: target!.height,
+  });
+  const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
+  const local = toScreen(aim, camera);
+  const from = { x: pane.left + local.x, y: pane.top + local.y };
+  const contextRequest = page.waitForRequest(
+    (request) => /\/context\?x=[^&]+&y=[^&]+&width=[^&]+&height=/.test(request.url()),
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 25, { steps: 6 });
+  await page.mouse.move(from.x + 80, from.y + 50, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(1);
+  const requested = new URL((await contextRequest).url());
+  await expect(page.getByTestId("draft-context")).toHaveAttribute(
+    "data-candidates-state",
+    "ready",
+  );
+
+  const serverOrder = (
+    await page.evaluate(async (query) => {
+      const response = await fetch(`/api/captures/${query.captureId}/context?${query.search}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`context read failed: ${response.status}`);
+      return ((await response.json()) as { candidates: { id: string }[] }).candidates;
+    }, { captureId: encodeURIComponent(target!.captureId), search: requested.searchParams.toString() })
+  ).map((item) => item.id);
+  expect(serverOrder.length).toBeGreaterThan(0);
+  expect(serverOrder.length).toBeLessThanOrEqual(NEARBY_CANDIDATES_MAX);
+  // The largest-overlap element is the pre-selected chip.
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute(
+    "data-element-id",
+    serverOrder[0]!,
+  );
+  await expandCandidates(page);
+  const rows = candidateRows(page);
+  const renderedIds = await rows.evaluateAll((labels) =>
+    labels.map((label) => label.getAttribute("data-element-id")),
+  );
+  expect(renderedIds).toEqual(serverOrder);
+  await expect(page.getByText("Nearby elements, most overlap first")).toBeVisible();
+
+  await cancelDraft(page);
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
+  expect(annotationWrites).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});

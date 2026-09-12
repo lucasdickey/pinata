@@ -19,11 +19,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
-import type {
-  PinAnnotationView,
-  PinListResponse,
-  PinStatusResponse,
-} from "../lib/annotations";
+import type { AnnotationView, PinListResponse, PinStatusResponse } from "../lib/annotations";
+import {
+  markKindNoun,
+  markPosition,
+  markTitle,
+  pinsOf,
+  rectanglesOf,
+} from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS, pinExcerpt, pinFeedbackPath } from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
@@ -69,10 +72,11 @@ function firstReadable(project: WorkspaceProject): Selection | null {
 export function FounderView({ publicId }: { publicId: string }) {
   const [phase, setPhase] = useState<Phase>({ status: "exchanging" });
   const [selection, setSelection] = useState<Selection | null>(null);
+  // Every live mark on the capture: pins and rectangles (D079) alike.
   const [pinsState, setPinsState] = useState<{
     captureId: string;
     status: "loading" | "ready" | "failed";
-    pins: PinAnnotationView[];
+    pins: AnnotationView[];
   } | null>(null);
   const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
   const [threadState, setThreadState] = useState<{
@@ -471,7 +475,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                             setSelectedPinId(pin.id === selectedPinId ? null : pin.id)
                           }
                         >
-                          Pin {pin.number} —{" "}
+                          {markTitle(pin)} —{" "}
                           <span className="founder-pin-excerpt">“{pinExcerpt(pin.body)}”</span>{" "}
                           <span className="pin-status">
                             · {PIN_STATUS_LABELS[pin.status] ?? pin.status}
@@ -495,7 +499,8 @@ export function FounderView({ publicId }: { publicId: string }) {
                   attempt={attempt.attempt}
                   width={attempt.documentWidth!}
                   height={attempt.documentHeight!}
-                  pins={activePins}
+                  pins={pinsOf(activePins)}
+                  rectangles={rectanglesOf(activePins)}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
                   savedCamera={cameras.current.get(attempt.id) ?? null}
@@ -509,9 +514,11 @@ export function FounderView({ publicId }: { publicId: string }) {
                   <h4>Selection</h4>
                   {selectedPin ? (
                     <div className="panel-pin" data-testid="panel-pin">
-                      <p>
-                        <strong>Pin {selectedPin.number}</strong> at natural pixel (
-                        {Math.round(selectedPin.tip.x)}, {Math.round(selectedPin.tip.y)})
+                      <p data-testid="panel-position" data-kind={selectedPin.kind}>
+                        <strong>{markTitle(selectedPin)}</strong>{" "}
+                        {selectedPin.kind === "rectangle"
+                          ? `at natural pixels (${markPosition(selectedPin)})`
+                          : `at natural pixel (${markPosition(selectedPin)})`}
                       </p>
                       <p
                         className="panel-status"
@@ -547,8 +554,8 @@ export function FounderView({ publicId }: { publicId: string }) {
                           {statusState === "saving"
                             ? "Saving…"
                             : selectedPin.status === "resolved"
-                              ? "Reopen pin"
-                              : "Resolve pin"}
+                              ? `Reopen ${markKindNoun(selectedPin.kind)}`
+                              : `Resolve ${markKindNoun(selectedPin.kind)}`}
                         </button>
                       </p>
                       {statusState === "failed" ? (

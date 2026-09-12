@@ -40,11 +40,15 @@ const gate = localEnvGate([
 test.describe.configure({ mode: "serial" });
 
 const FIXTURE_BODY_PREFIX = "e2e: founder thread fixture";
+const BOX_FIXTURE_BODY_PREFIX = "e2e: founder box fixture";
 
 interface PinRecord {
   id: string;
+  kind?: "pin" | "rectangle";
   number: number;
   tip: { x: number; y: number };
+  /** A rectangle's box (D079); absent on pins. */
+  rect?: { x: number; y: number; width: number; height: number };
   body: string;
   status: "open" | "replied" | "resolved";
   unreadReplies: number;
@@ -114,6 +118,48 @@ async function fixturePin(page: Page, target: ReadyTarget): Promise<PinRecord> {
       id: target.captureId,
       tip: aim,
       body: `${FIXTURE_BODY_PREFIX} — reply target on ${target.pageUrl}`,
+      csrf: proof,
+    },
+  );
+}
+
+/**
+ * Find or create the one fixture box (D079) the founder must see read-only.
+ * Never written to again: it exists so the founder's list and canvas can be
+ * checked against a rectangle without creating one per run.
+ */
+async function fixtureBox(page: Page, target: ReadyTarget): Promise<PinRecord> {
+  const existing = (await listPins(page, target.captureId)).find((mark) =>
+    mark.body.startsWith(BOX_FIXTURE_BODY_PREFIX),
+  );
+  if (existing) return existing;
+  const size = { width: 160, height: 90 };
+  const aim = await findClearAim(page, target.captureId, target, { from: 0.6, to: 0.75 });
+  const rect = {
+    x: Math.min(aim.x, target.width - size.width),
+    y: Math.min(aim.y, target.height - size.height),
+    ...size,
+  };
+  const proof = await csrfProof(page);
+  return page.evaluate(
+    async ({ id, box, body, csrf }) => {
+      const response = await fetch(`/api/captures/${encodeURIComponent(id)}/annotations`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-pinata-csrf": csrf },
+        body: JSON.stringify({
+          rect: box,
+          body,
+          elementId: null,
+          idempotencyKey: `founder-box-fixture-${Math.random().toString(36).slice(2, 14)}`,
+        }),
+      });
+      if (!response.ok) throw new Error(`fixture box create failed: ${response.status}`);
+      return ((await response.json()) as { annotation: PinRecord }).annotation;
+    },
+    {
+      id: target.captureId,
+      box: rect,
+      body: `${BOX_FIXTURE_BODY_PREFIX} — read-only box on ${target.pageUrl}`,
       csrf: proof,
     },
   );
@@ -218,6 +264,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   const publicId = await publicIdFor(page, target!);
   const pin = await fixturePin(page, target!);
   await ensureUnresolved(page, target!.captureId, pin);
+  const box = await fixtureBox(page, target!);
   const runTag = `${Date.now().toString(36)}`;
 
   // The editor issues the link: the token is in the fragment, nowhere else.
@@ -275,7 +322,15 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     .getByRole("button", { name: `Desktop capture of ${target!.pageUrl}`, exact: true })
     .click();
   await expect(founder.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
-  for (const name of ["Edit comment", "Delete pin", "Save pin", "Share with founder"]) {
+  for (const name of [
+    "Edit comment",
+    "Delete pin",
+    "Delete box",
+    "Save pin",
+    "Save box",
+    "Draw a box",
+    "Share with founder",
+  ]) {
     await expect(founder.getByRole("button", { name })).toHaveCount(0);
   }
   await expect(founder.getByRole("radio")).toHaveCount(0);
@@ -300,6 +355,34 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   const listBox = (await founderPinList.boundingBox())!;
   const canvasBox = (await founder.locator(".capture-canvas").boundingBox())!;
   expect(listBox.y + listBox.height).toBeLessThanOrEqual(canvasBox.y + 1);
+
+  // The fixture box (D079) is listed as a box, drawn on the read-only plane
+  // with no handles and no drag, and readable with its bounds.
+  const boxEntry = founderPinList.getByRole("button", {
+    name: new RegExp(`^Box ${box.number} —`),
+  });
+  await expect(boxEntry).toContainText(BOX_FIXTURE_BODY_PREFIX);
+  const boxNode = founder.locator(".react-flow__node-rectangle", {
+    has: founder.locator(`[data-testid="rectangle-badge"][data-mark-number="${box.number}"]`),
+  });
+  await expect(boxNode).toHaveCount(1);
+  await expect(founder.locator('[data-testid="rectangle-handle"]')).toHaveCount(0);
+  expect(await boxNode.getAttribute("class")).not.toMatch(/\bdraggable\b/);
+  await boxEntry.click();
+  await expect(founder.getByTestId("founder-panel").getByTestId("panel-position")).toContainText(
+    `Box ${box.number} at natural pixels (`,
+  );
+  await expect(founder.getByTestId("founder-panel")).toContainText(BOX_FIXTURE_BODY_PREFIX);
+  // A Shift-drag on the founder's plane draws nothing.
+  const founderCanvas = (await founder.locator(".capture-canvas").boundingBox())!;
+  await founder.keyboard.down("Shift");
+  await founder.mouse.move(founderCanvas.x + founderCanvas.width / 2, founderCanvas.y + founderCanvas.height / 2);
+  await founder.mouse.down();
+  await founder.mouse.move(founderCanvas.x + founderCanvas.width / 2 + 80, founderCanvas.y + founderCanvas.height / 2 + 60, { steps: 6 });
+  await founder.mouse.up();
+  await founder.keyboard.up("Shift");
+  await expect(founder.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
+  await expect(founder.getByTestId("pin-composer")).toHaveCount(0);
 
   // The founder opens the fixture pin and replies.
   await fixtureEntry.click();

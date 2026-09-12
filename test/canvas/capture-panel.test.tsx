@@ -6,7 +6,7 @@
 // text, and the panel copy names the one gesture that drops a pin.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { CapturePanel } from "../../src/components/capture-panel";
 import type { PinElementSnapshot } from "../../src/lib/annotations";
@@ -104,5 +104,62 @@ describe("hostile captured content", () => {
     expect(screen.getByText(/Drag the pin on the screenshot/).textContent).not.toMatch(
       /place pin/i,
     );
+  });
+});
+
+describe("rectangles in the panel (D079)", () => {
+  const box = {
+    id: "box-4",
+    captureId: "cap-1",
+    kind: "rectangle" as const,
+    number: 4,
+    rect: { x: 100.4, y: 200.6, width: 300.2, height: 150.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 2,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+  const pin = {
+    id: "ann-1",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 1,
+    tip: { x: 10, y: 10 },
+    body: "the comment",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+
+  test("the selected box shows its bounds and box-specific controls", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "box-4" })} />);
+    const position = document.querySelector('[data-testid="panel-position"]')!;
+    expect(position).toHaveAttribute("data-kind", "rectangle");
+    expect(position).toHaveTextContent("Box 4 at natural pixels (100, 201 · 300 × 151)");
+    expect(screen.getByRole("button", { name: "Delete box" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete pin" })).toBeNull();
+    expect(screen.getByText(/Drag the box's edge or badge/)).toBeInTheDocument();
+  });
+
+  test("the list names both kinds in number order with their positions", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box] })} />);
+    const list = screen.getByRole("list", { name: "Saved pins" });
+    const buttons = within(list).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Pin 1 — at (10, 10)",
+      "Box 4 — at (100, 201 · 300 × 151)",
+    ]);
+  });
+
+  test("a selected pin still reads as before", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "ann-1" })} />);
+    expect(document.querySelector('[data-testid="panel-position"]')).toHaveTextContent(
+      "Pin 1 at natural pixel (10, 10)",
+    );
+    expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
   });
 });

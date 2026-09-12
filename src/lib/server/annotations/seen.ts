@@ -10,13 +10,19 @@
 //
 // Counts are computed in one grouped query per read so the hierarchy can
 // carry them for every capture of every project without extra requests.
-// Only live pins on the queried captures are counted; tombstoned pins and
-// `status` entries never count as unread.
+// Only live pins and rectangles (D079) on the queried captures are counted;
+// tombstoned rows and `status` entries never count as unread.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { FeedbackCounts } from "../../annotations";
 import { schema, type Database } from "../db/client";
-import type { ThreadActorRole } from "../db/schema";
+import { BUILT_ANNOTATION_KINDS, type ThreadActorRole } from "../db/schema";
+
+/** The `a.kind IN (...)` list for the raw SQL below: pins and rectangles. */
+const KIND_LIST = sql.join(
+  BUILT_ANNOTATION_KINDS.map((kind) => sql`${kind}`),
+  sql`, `,
+);
 
 /** Who is reading: the role plus the durable key its views are stored under. */
 export interface Viewer {
@@ -72,7 +78,7 @@ async function loadLivePinId(db: Database, ref: PinRef): Promise<string | null> 
     .where(
       and(
         eq(schema.annotations.id, ref.annotationId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...BUILT_ANNOTATION_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )
@@ -130,7 +136,7 @@ export async function unreadRepliesByPin(
      AND v.role = ${viewer.role}
      AND v.viewer_key = ${viewer.viewerKey}
     WHERE a.capture_id = ${captureId}
-      AND a.kind = 'pin'
+      AND a.kind IN (${KIND_LIST})
       AND a.deleted_at IS NULL
       AND e.created_at > coalesce(v.seen_at, 0)
     GROUP BY a.id
@@ -181,7 +187,7 @@ export async function feedbackCountsByCapture(
           ), 0)
       )) AS unread
     FROM annotations a
-    WHERE a.kind = 'pin'
+    WHERE a.kind IN (${KIND_LIST})
       AND a.deleted_at IS NULL
       AND a.capture_id IN (${idList})
     GROUP BY a.capture_id

@@ -140,3 +140,28 @@ describe("readOnly canvas", () => {
     expect(onSelectPin).toHaveBeenCalledWith("ann-2");
   });
 });
+
+describe("readOnly rectangles (D079)", () => {
+  const rectangles = [{ id: "box-3", number: 3, rect: { x: 100, y: 200, width: 300, height: 150 } }];
+
+  test("boxes render with no handles, no drag, and no Draw a box toggle; selecting one still works", () => {
+    const onSelectPin = vi.fn();
+    render(
+      <CaptureCanvas {...props} readOnly pins={pins} rectangles={rectangles} onSelectPin={onSelectPin} />,
+    );
+    const nodes = Array.from(document.querySelectorAll(".react-flow__node-rectangle"));
+    expect(nodes).toHaveLength(1);
+    expect(document.querySelectorAll('[data-testid="rectangle-handle"]')).toHaveLength(0);
+    expect(nodes[0]!.className).not.toMatch(/\bdraggable\b/);
+    expect(within(stage()).queryByRole("button", { name: "Draw a box" })).toBeNull();
+    const badge = nodes[0]!.querySelector('[data-testid="rectangle-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "3");
+    fireEvent.click(nodes[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("box-3");
+    // A Shift-drag on the founder's plane draws nothing.
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, shiftKey: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 480, clientY: 360, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 480, clientY: 360, isPrimary: true });
+    expect(document.querySelectorAll(".react-flow__node-draftRectangle")).toHaveLength(0);
+  });
+});

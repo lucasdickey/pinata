@@ -329,3 +329,24 @@ describe("hostile captured content", () => {
     expect(row.querySelector("svg")).toBeNull();
   });
 });
+
+describe("the box draft (D079)", () => {
+  test("names the kind in the title, the save button, and the candidate legend", async () => {
+    const user = userEvent.setup();
+    render(<PinComposer {...props({ draftKind: "rectangle" })} />);
+    expect(screen.getByText(/^New box/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save box" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Save pin" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByText("Nearby elements, most overlap first")).toBeInTheDocument();
+    // The chip, the choice controls, and the keyboard contract are shared.
+    expect(chip()).toHaveAttribute("data-element-id", "cell-1");
+    expect(context()).toHaveAttribute("data-candidates-state", "ready");
+  });
+
+  test("defaults to a pin when no kind is given", () => {
+    render(<PinComposer {...props()} />);
+    expect(screen.getByText(/^New pin/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save pin" })).toBeInTheDocument();
+  });
+});

@@ -1,5 +1,5 @@
-// Server-only pin lifecycle transitions: resolve and reopen (D075,
-// REQUIREMENTS 6).
+// Server-only annotation lifecycle transitions: resolve and reopen (D075,
+// REQUIREMENTS 6). Pins and rectangles (D079) share the lifecycle.
 //
 // Either role may resolve a pin and either may reopen it. Each change
 // commits as one transaction: the conditional status update on the
@@ -15,9 +15,13 @@
 // changes never bump `revision`, which protects tip and body edits only.
 
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { schema, type Database } from "../db/client";
-import type { AnnotationStatus, ThreadActorRole } from "../db/schema";
+import {
+  BUILT_ANNOTATION_KINDS,
+  type AnnotationStatus,
+  type ThreadActorRole,
+} from "../db/schema";
 import { AUTHOR_LABEL_BY_ROLE, type ThreadEntryRecord } from "../threads/entries";
 import { annotationRecordFromRow, type AnnotationRecord } from "./pins";
 import { unreadRepliesByPin, type PinRef, type Viewer } from "./seen";
@@ -66,7 +70,7 @@ async function loadLivePin(db: Database, ref: PinRef): Promise<AnnotationRow | n
     .where(
       and(
         eq(schema.annotations.id, ref.annotationId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...BUILT_ANNOTATION_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )

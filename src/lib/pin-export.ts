@@ -8,7 +8,8 @@
 // capture is a screenshot, and the manifest is never re-derived after the
 // pin is saved (VAL-PIN-003, VAL-PIN-008).
 
-import type { PinAnnotationView, PinElementSnapshot } from "./annotations";
+import type { AnnotationView, PinElementSnapshot } from "./annotations";
+import { markPosition, markTitle, rectanglePosition } from "./canvas/marks";
 import { PIN_STATUS_LABELS } from "./feedback-counts";
 
 export interface PinExportContext {
@@ -42,9 +43,23 @@ export function snapshotSummary(element: PinElementSnapshot | null): string {
   return parts.join(" ");
 }
 
-/** Natural-pixel position of a pin tip, rounded for reading. */
-export function pinPosition(pin: PinAnnotationView): string {
-  return `${Math.round(pin.tip.x)}, ${Math.round(pin.tip.y)}`;
+/**
+ * Natural-pixel position of a mark, rounded for reading: "x, y" for a pin
+ * tip, "x, y · w × h" for a rectangle (D079).
+ */
+export function pinPosition(pin: AnnotationView): string {
+  return markPosition(pin);
+}
+
+/** The heading line for one mark: "## Pin 3 — at (x, y)" or "## Box 4 — at (x, y · w × h)". */
+export function markHeading(annotation: AnnotationView): string {
+  return `## ${markTitle(annotation)} — at (${markPosition(annotation)})`;
+}
+
+/** The extra detail line a rectangle carries: its box in natural pixels. */
+export function rectangleBoundsLine(annotation: AnnotationView): string | null {
+  if (annotation.kind !== "rectangle") return null;
+  return `- Box: ${rectanglePosition(annotation.rect)} px natural`;
 }
 
 /**
@@ -55,7 +70,7 @@ export function pinPosition(pin: PinAnnotationView): string {
  * on).
  */
 export function formatPinsAsMarkdown(
-  pins: readonly PinAnnotationView[],
+  pins: readonly AnnotationView[],
   context: PinExportContext,
 ): string {
   const version = context.attempt === null ? "" : ` · version ${context.attempt}`;
@@ -72,11 +87,13 @@ export function formatPinsAsMarkdown(
   }
 
   for (const pin of pins) {
-    lines.push(`## Pin ${pin.number} — at (${pinPosition(pin)})`);
+    lines.push(markHeading(pin));
     lines.push("");
     // The lifecycle status (D075) travels with the note so an agent reading
     // the paste can skip what is already done.
     lines.push(`- Status: ${PIN_STATUS_LABELS[pin.status] ?? pin.status}`);
+    const bounds = rectangleBoundsLine(pin);
+    if (bounds) lines.push(bounds);
     lines.push(`- Element: ${snapshotSummary(pin.elementSnapshot)}`);
     const path = snapshotPath(pin.elementSnapshot);
     if (path) lines.push(`- Path: \`${path}\``);
@@ -96,10 +113,10 @@ export function formatPinsAsMarkdown(
 
 // ---- project export (D077) --------------------------------------------------
 
-/** One capture's pins with the context its section is headed by. */
+/** One capture's marks (pins and boxes) with the context its section is headed by. */
 export interface PinExportGroup {
   context: PinExportContext;
-  pins: readonly PinAnnotationView[];
+  pins: readonly AnnotationView[];
 }
 
 export interface ProjectExportContext {

@@ -155,6 +155,16 @@ export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
 export const ANNOTATION_STATUSES = ["open", "replied", "resolved"] as const;
 export type AnnotationStatus = (typeof ANNOTATION_STATUSES)[number];
 
+/**
+ * The annotation kinds the application reads and writes today (D079): a pin
+ * with one natural-pixel tip, and a rectangle with a natural-pixel box.
+ * ANNOTATION_KINDS above (and the check constraint) also admit circle and
+ * arrow for later; no code path creates or lists those yet, so every
+ * kind-aware read filters on this list.
+ */
+export const BUILT_ANNOTATION_KINDS = ["pin", "rectangle"] as const;
+export type BuiltAnnotationKind = (typeof BUILT_ANNOTATION_KINDS)[number];
+
 export const annotations = sqliteTable(
   "annotations",
   {

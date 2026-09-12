@@ -1,10 +1,12 @@
-// Server-only pin annotation store (VAL-PIN-001, VAL-PIN-002, VAL-PIN-003,
-// VAL-PIN-008, VAL-PIN-009, VAL-CANVAS-001, VAL-CANVAS-003, VAL-CANVAS-004).
+// Server-only annotation store for pins and rectangles (VAL-PIN-001,
+// VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009, VAL-CANVAS-001,
+// VAL-CANVAS-003, VAL-CANVAS-004, D079).
 //
-// The pin is the canonical domain record: its tip is stored as exact
-// screenshot-natural CSS pixels in geometry_json, bound to one immutable
-// ready capture. Numbers are server-determined and monotonically increasing
-// per capture: the next number is derived from every row the capture has —
+// The annotation is the canonical domain record: its geometry is stored as
+// exact screenshot-natural CSS pixels in geometry_json — a tip for a pin, a
+// box for a rectangle — bound to one immutable ready capture. Numbers are
+// server-determined and monotonically increasing per capture across both
+// kinds: the next number is derived from every row the capture has —
 // including tombstoned ones — inside the same transaction as the insert, so
 // deleted numbers are never reused and cancelled or failed drafts consume
 // none. The unique (capture_id, number) index is the backstop that makes
@@ -16,24 +18,35 @@
 // bounded inert snapshot from the capture's own persisted manifest — a
 // client can name an element, never author one — and an id the manifest
 // does not contain is an invalid save that persists nothing. The snapshot
-// (or null) is then immutable for the life of the pin: moves, edits,
-// recaptures, and reloads never re-query or rebind it.
+// (or null) is then immutable for the life of the annotation: moves,
+// resizes, edits, recaptures, and reloads never re-query or rebind it.
 //
-// Updates (move, edit) and delete carry an expectedRevision precondition and
-// commit as one conditional atomic write: a stale, concurrent, or repeated
-// write loses with a conflict and changes no row, so one authoritative
-// revision always remains. Delete is a tombstone: the row stays so its
-// number is never reused, and its thread entries (future) are untouched.
+// Updates (move, resize, edit) and delete carry an expectedRevision
+// precondition and commit as one conditional atomic write: a stale,
+// concurrent, or repeated write loses with a conflict and changes no row, so
+// one authoritative revision always remains. Delete is a tombstone: the row
+// stays so its number is never reused, and its thread entries are untouched.
 //
 // Idempotency is durable and intent-bound, same shape as project creation:
-// the same key with the same normalized payload replays the original pin,
+// the same key with the same normalized payload replays the original record,
 // and the same key with a different payload conflicts.
+//
+// The exported names still say "pin" because the routes and the tests grew
+// up with them; every one of them handles both kinds.
 
 import { createHash, randomUUID } from "node:crypto";
-import { and, asc, count, eq, isNull, max } from "drizzle-orm";
-import { FEEDBACK_BODY_MAX_CHARS, MAX_ANNOTATIONS_PER_CAPTURE } from "../../boundaries";
+import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
+import {
+  FEEDBACK_BODY_MAX_CHARS,
+  MAX_ANNOTATIONS_PER_CAPTURE,
+  MIN_SHAPE_SIZE_PX,
+} from "../../boundaries";
 import { schema, type Database } from "../db/client";
-import type { AnnotationStatus } from "../db/schema";
+import {
+  BUILT_ANNOTATION_KINDS,
+  type AnnotationStatus,
+  type BuiltAnnotationKind,
+} from "../db/schema";
 import {
   deriveSnapshot,
   parseManifestElements,
@@ -41,11 +54,11 @@ import {
 } from "./context";
 import { EDITOR_VIEWER, unreadRepliesByPin, type Viewer } from "./seen";
 
-/** Idempotency scope for editor pin creation. */
+/** Idempotency scope for editor annotation creation. */
 export const ANNOTATION_CREATE_SCOPE = "annotation-create";
 
-/** Geometry schema version persisted with every pin. */
-const PIN_GEOMETRY_VERSION = 1;
+/** Geometry schema version persisted with every annotation (both kinds). */
+const GEOMETRY_VERSION = 1;
 
 /** Bounded retries when two concurrent inserts race for the same number. */
 const MAX_NUMBER_COLLISION_RETRIES = 3;
@@ -56,13 +69,23 @@ export interface PinTip {
   y: number;
 }
 
-/** The canonical domain view of one persisted pin. */
-export interface AnnotationRecord {
+/** A rectangle's box in screenshot-natural CSS pixels (D079). */
+export interface RectangleGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The geometry of one annotation, named by kind. */
+export type AnnotationGeometry =
+  | { kind: "pin"; tip: PinTip }
+  | { kind: "rectangle"; rect: RectangleGeometry };
+
+interface AnnotationRecordBase {
   id: string;
   captureId: string;
-  kind: "pin";
   number: number;
-  tip: PinTip;
   body: string;
   /** Inert capture-time DOM context snapshot, or the explicit null. */
   elementSnapshot: ContextElement | null;
@@ -74,13 +97,32 @@ export interface AnnotationRecord {
   createdAt: number;
 }
 
+/** The canonical domain view of one persisted pin. */
+export interface PinAnnotationRecord extends AnnotationRecordBase {
+  kind: "pin";
+  tip: PinTip;
+}
+
+/** The canonical domain view of one persisted rectangle (D079). */
+export interface RectangleAnnotationRecord extends AnnotationRecordBase {
+  kind: "rectangle";
+  rect: RectangleGeometry;
+}
+
+export type AnnotationRecord = PinAnnotationRecord | RectangleAnnotationRecord;
+
 export type ListPinsResult =
   | { ok: true; annotations: AnnotationRecord[] }
   | { ok: false; error: "not-found" };
 
+/**
+ * A create carries exactly one geometry: `tip` for a pin or `rect` for a
+ * rectangle. Both or neither is an invalid input.
+ */
 export interface CreatePinInput {
   captureId: string;
-  tip: PinTip;
+  tip?: PinTip;
+  rect?: RectangleGeometry;
   body: string;
   /** Explicit context decision: a manifest element id, or null = No element. */
   elementId: string | null;
@@ -96,8 +138,11 @@ export interface UpdatePinInput {
   annotationId: string;
   /** The revision the caller based its write on; a mismatch is a conflict. */
   expectedRevision: number;
-  /** A moved tip, a new original body, or both in one revisioned write. */
+  /** A moved tip (pins only). */
   tip?: PinTip;
+  /** A moved or resized box (rectangles only). */
+  rect?: RectangleGeometry;
+  /** A new original body. */
   body?: string;
 }
 
@@ -126,6 +171,9 @@ export const defaultPinStoreDeps: PinStoreDeps = {
 type CaptureRow = typeof schema.captures.$inferSelect;
 type AnnotationRow = typeof schema.annotations.$inferSelect;
 
+/** The kinds every read here lists and every write here accepts. */
+const LISTED_KINDS: readonly string[] = BUILT_ANNOTATION_KINDS;
+
 /** Only an immutable ready capture with persisted dimensions is annotatable. */
 function annotatable(capture: CaptureRow | undefined): capture is CaptureRow {
   return (
@@ -136,15 +184,32 @@ function annotatable(capture: CaptureRow | undefined): capture is CaptureRow {
   );
 }
 
+/** The geometry a create or update names, or null when it names none or both. */
+export function geometryOf(input: {
+  tip?: PinTip;
+  rect?: RectangleGeometry;
+}): AnnotationGeometry | null {
+  if (input.tip !== undefined && input.rect === undefined) {
+    return { kind: "pin", tip: { x: input.tip.x, y: input.tip.y } };
+  }
+  if (input.rect !== undefined && input.tip === undefined) {
+    const { x, y, width, height } = input.rect;
+    return { kind: "rectangle", rect: { x, y, width, height } };
+  }
+  return null;
+}
+
+/** What geometry_json holds for one geometry: the tip or the box itself. */
+function geometryJson(geometry: AnnotationGeometry): string {
+  return JSON.stringify(geometry.kind === "pin" ? geometry.tip : geometry.rect);
+}
+
 /** The domain record for one annotation row, with the viewer's unread count. */
 export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): AnnotationRecord {
-  const tip = JSON.parse(row.geometryJson) as PinTip;
-  return {
+  const base: AnnotationRecordBase = {
     id: row.id,
     captureId: row.captureId,
-    kind: "pin",
     number: row.number,
-    tip,
     body: row.originalBody,
     elementSnapshot: row.elementSnapshotJson
       ? (JSON.parse(row.elementSnapshotJson) as ContextElement)
@@ -154,6 +219,10 @@ export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): 
     unreadReplies,
     createdAt: row.createdAt,
   };
+  if (row.kind === "rectangle") {
+    return { ...base, kind: "rectangle", rect: JSON.parse(row.geometryJson) as RectangleGeometry };
+  }
+  return { ...base, kind: "pin", tip: JSON.parse(row.geometryJson) as PinTip };
 }
 
 const toRecord = annotationRecordFromRow;
@@ -187,14 +256,40 @@ function tipWithinCapture(tip: PinTip, capture: CaptureRow): boolean {
   );
 }
 
+/**
+ * True when the box is finite, at least MIN_SHAPE_SIZE_PX in each dimension,
+ * and entirely inside the capture's document (inclusive edges). Clamping is
+ * the client's job; the server only rejects.
+ */
+function rectWithinCapture(rect: RectangleGeometry, capture: CaptureRow): boolean {
+  const values = [rect.x, rect.y, rect.width, rect.height];
+  if (!values.every((value) => Number.isFinite(value))) return false;
+  return (
+    rect.width >= MIN_SHAPE_SIZE_PX &&
+    rect.height >= MIN_SHAPE_SIZE_PX &&
+    rect.x >= 0 &&
+    rect.y >= 0 &&
+    rect.x + rect.width <= (capture.documentWidth ?? -1) &&
+    rect.y + rect.height <= (capture.documentHeight ?? -1)
+  );
+}
+
+/** Geometry validation by kind against one ready capture. */
+function geometryWithinCapture(geometry: AnnotationGeometry, capture: CaptureRow): boolean {
+  return geometry.kind === "pin"
+    ? tipWithinCapture(geometry.tip, capture)
+    : rectWithinCapture(geometry.rect, capture);
+}
+
 /** True when the original body is bounded directional plain text. */
 function bodyValid(body: string): boolean {
   return body.trim().length > 0 && body.length <= FEEDBACK_BODY_MAX_CHARS;
 }
 
 /**
- * List the live pins of one ready capture, ordered by their stable numbers,
- * each carrying the unread-reply count for the requesting viewer (D075).
+ * List the live annotations (pins and rectangles) of one ready capture,
+ * ordered by their stable numbers, each carrying the unread-reply count for
+ * the requesting viewer (D075). This is the founder's read too.
  */
 export async function listPins(
   db: Database,
@@ -209,7 +304,7 @@ export async function listPins(
     .where(
       and(
         eq(schema.annotations.captureId, captureId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...LISTED_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )
@@ -219,12 +314,16 @@ export async function listPins(
 }
 
 /** Binds an idempotency key to the whole normalized create intent. */
-function createDigest(input: CreatePinInput): string {
+function createDigest(input: CreatePinInput, geometry: AnnotationGeometry | null): string {
   return createHash("sha256")
     .update(
       JSON.stringify({
         captureId: input.captureId,
-        tip: { x: input.tip.x, y: input.tip.y },
+        // A pin digest keeps the shape it always had, so keys recorded
+        // before rectangles existed still replay.
+        ...(geometry?.kind === "rectangle"
+          ? { kind: "rectangle", rect: geometry.rect }
+          : { tip: geometry?.tip ?? null }),
         body: input.body,
         elementId: input.elementId,
       }),
@@ -251,12 +350,12 @@ function replay(
   digest: string,
 ): CreatePinResult {
   // Same key, different intent is a conflict: the caller must choose a new
-  // key rather than silently getting a different pin back.
+  // key rather than silently getting a different record back.
   if (record.payloadDigest !== digest || record.resultJson === null) {
     return { ok: false, error: "conflict" };
   }
   // Records committed before the lifecycle columns existed carry no status;
-  // a replayed create is always a fresh open pin with nothing unread.
+  // a replayed create is always a fresh open record with nothing unread.
   const stored = JSON.parse(record.resultJson) as Partial<AnnotationRecord> & AnnotationRecord;
   return {
     ok: true,
@@ -284,23 +383,27 @@ function isNumberCollision(error: unknown): boolean {
 }
 
 /**
- * Persist one pin atomically: idempotency record, monotonic number, and the
- * annotation row in one transaction — or nothing at all. A blank or
- * over-limit body, out-of-bounds tip, non-ready capture, unknown context
- * element id, or exhausted quota writes nothing and consumes no number.
+ * Persist one annotation atomically: idempotency record, monotonic number,
+ * and the annotation row in one transaction — or nothing at all. A blank or
+ * over-limit body, out-of-bounds or too-small geometry, non-ready capture,
+ * unknown context element id, or exhausted quota writes nothing and
+ * consumes no number.
  */
 export async function createPinAtomically(
   db: Database,
   input: CreatePinInput,
   deps: PinStoreDeps = defaultPinStoreDeps,
 ): Promise<CreatePinResult> {
-  const digest = createDigest(input);
+  const geometry = geometryOf(input);
+  const digest = createDigest(input, geometry);
   const existing = await findIdempotencyRecord(db, input.idempotencyKey);
   if (existing) return replay(existing, digest);
 
   const capture = await loadCapture(db, input.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
-  if (!tipWithinCapture(input.tip, capture)) return { ok: false, error: "invalid" };
+  if (!geometry || !geometryWithinCapture(geometry, capture)) {
+    return { ok: false, error: "invalid" };
+  }
   if (!bodyValid(input.body)) return { ok: false, error: "invalid" };
 
   // The explicit context decision resolves against the capture's own
@@ -329,13 +432,11 @@ export async function createPinAtomically(
   const id = deps.newId();
 
   for (let attempt = 0; attempt < MAX_NUMBER_COLLISION_RETRIES; attempt += 1) {
-    const annotation: AnnotationRecord = {
+    const base: AnnotationRecordBase = {
       id,
       captureId: input.captureId,
-      kind: "pin",
       // Filled in inside the transaction before the insert lands.
       number: 0,
-      tip: { x: input.tip.x, y: input.tip.y },
       body: input.body,
       elementSnapshot: snapshot,
       revision: 1,
@@ -343,10 +444,14 @@ export async function createPinAtomically(
       unreadReplies: 0,
       createdAt: now,
     };
+    const annotation: AnnotationRecord =
+      geometry.kind === "pin"
+        ? { ...base, kind: "pin", tip: geometry.tip }
+        : { ...base, kind: "rectangle", rect: geometry.rect };
     try {
       await db.transaction(async (tx) => {
         // The idempotency row goes first: its primary key is what makes two
-        // concurrent same-key requests resolve to one committed pin.
+        // concurrent same-key requests resolve to one committed record.
         await tx.insert(schema.idempotencyKeys).values({
           scope: ANNOTATION_CREATE_SCOPE,
           key: input.idempotencyKey,
@@ -354,8 +459,8 @@ export async function createPinAtomically(
           resultJson: null,
           createdAt: now,
         });
-        // Monotonic per capture and never reused: tombstoned rows still
-        // count, so a deleted number stays retired.
+        // Monotonic per capture across both kinds and never reused:
+        // tombstoned rows still count, so a deleted number stays retired.
         const [{ highest }] = await tx
           .select({ highest: max(schema.annotations.number) })
           .from(schema.annotations)
@@ -364,10 +469,10 @@ export async function createPinAtomically(
         await tx.insert(schema.annotations).values({
           id: annotation.id,
           captureId: annotation.captureId,
-          kind: "pin",
+          kind: geometry.kind,
           number: annotation.number,
-          geometryJson: JSON.stringify(annotation.tip),
-          geometryVersion: PIN_GEOMETRY_VERSION,
+          geometryJson: geometryJson(geometry),
+          geometryVersion: GEOMETRY_VERSION,
           originalBody: annotation.body,
           elementSnapshotJson: snapshotJson,
           revision: 1,
@@ -401,12 +506,12 @@ export async function createPinAtomically(
     }
   }
   // Unreachable: the loop either returns or throws.
-  throw new Error("pin create retries exhausted");
+  throw new Error("annotation create retries exhausted");
 }
 
 /**
- * Load the addressed live pin, honoring the capture binding: a pin addressed
- * through another capture's route is not found, never rebound.
+ * Load the addressed live annotation, honoring the capture binding: one
+ * addressed through another capture's route is not found, never rebound.
  */
 async function loadLivePin(
   db: Database,
@@ -418,7 +523,7 @@ async function loadLivePin(
     .where(
       and(
         eq(schema.annotations.id, input.annotationId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...LISTED_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )
@@ -429,13 +534,15 @@ async function loadLivePin(
 }
 
 /**
- * Commit one revisioned update — a moved tip, a new original body, or both —
- * as a single conditional atomic write gated on the caller's expected
- * revision. The write binds to the pin's own capture; out-of-bounds tips and
- * blank/over-limit bodies write nothing. Geometry updates preserve number,
- * body, snapshot, and capture binding; body updates preserve geometry and
- * snapshot. A stale or concurrent write loses with a conflict and changes
- * no row, leaving one authoritative revision.
+ * Commit one revisioned update — new geometry (a moved tip, or a moved or
+ * resized box), a new original body, or both — as a single conditional
+ * atomic write guarded by the caller's expected revision. The write binds to
+ * the annotation's own capture and kind: geometry of the other kind,
+ * out-of-bounds or too-small geometry, and blank/over-limit bodies write
+ * nothing. Geometry updates preserve number, body, snapshot, and capture
+ * binding; body updates preserve geometry and snapshot. A stale or
+ * concurrent write loses with a conflict and changes no row, leaving one
+ * authoritative revision.
  */
 export async function updatePin(
   db: Database,
@@ -446,8 +553,15 @@ export async function updatePin(
   if (!pin) return { ok: false, error: "not-found" };
   const capture = await loadCapture(db, pin.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
-  if (input.tip !== undefined && !tipWithinCapture(input.tip, capture)) {
-    return { ok: false, error: "invalid" };
+
+  const wantsGeometry = input.tip !== undefined || input.rect !== undefined;
+  const geometry = wantsGeometry ? geometryOf(input) : null;
+  if (wantsGeometry) {
+    // Exactly one geometry, of the annotation's own kind, inside the frame.
+    if (!geometry || geometry.kind !== (pin.kind as BuiltAnnotationKind)) {
+      return { ok: false, error: "invalid" };
+    }
+    if (!geometryWithinCapture(geometry, capture)) return { ok: false, error: "invalid" };
   }
   if (input.body !== undefined && !bodyValid(input.body)) {
     return { ok: false, error: "invalid" };
@@ -457,9 +571,7 @@ export async function updatePin(
   const updated = await db
     .update(schema.annotations)
     .set({
-      ...(input.tip !== undefined
-        ? { geometryJson: JSON.stringify({ x: input.tip.x, y: input.tip.y }) }
-        : {}),
+      ...(geometry ? { geometryJson: geometryJson(geometry) } : {}),
       ...(input.body !== undefined ? { originalBody: input.body } : {}),
       revision: input.expectedRevision + 1,
       updatedAt: now,
@@ -468,7 +580,7 @@ export async function updatePin(
       and(
         eq(schema.annotations.id, pin.id),
         eq(schema.annotations.captureId, input.captureId),
-        eq(schema.annotations.kind, "pin"),
+        eq(schema.annotations.kind, pin.kind),
         isNull(schema.annotations.deletedAt),
         // The precondition: exactly the revision the caller based its write
         // on. Two sessions holding the same starting revision cannot both
@@ -486,26 +598,28 @@ export async function updatePin(
     return current ? { ok: false, error: "conflict" } : { ok: false, error: "not-found" };
   }
 
-  // Move and edit are editor-only, so the returned record carries the
-  // editor's unread count and can replace the listed pin one for one.
+  // Move, resize, and edit are editor-only, so the returned record carries
+  // the editor's unread count and can replace the listed record one for one.
   const unread = await unreadRepliesByPin(db, pin.captureId, EDITOR_VIEWER);
-  const record = toRecord(pin, unread.get(pin.id) ?? 0);
-  return {
-    ok: true,
-    annotation: {
-      ...record,
-      tip: input.tip !== undefined ? { x: input.tip.x, y: input.tip.y } : record.tip,
-      body: input.body !== undefined ? input.body : record.body,
+  const record = toRecord(
+    {
+      ...pin,
+      ...(geometry ? { geometryJson: geometryJson(geometry) } : {}),
+      ...(input.body !== undefined ? { originalBody: input.body } : {}),
       revision: input.expectedRevision + 1,
+      updatedAt: now,
     },
-  };
+    unread.get(pin.id) ?? 0,
+  );
+  return { ok: true, annotation: record };
 }
 
 /**
- * Tombstone one pin with the same revision precondition. The row is never
- * deleted: its number stays retired forever, its snapshot and body remain
- * addressable history, and listing simply excludes it. A stale or repeated
- * delete conflicts (or reads not-found once tombstoned) and changes nothing.
+ * Tombstone one annotation with the same revision precondition. The row is
+ * never deleted: its number stays retired forever, its snapshot and body
+ * remain addressable history, and listing simply excludes it. A stale or
+ * repeated delete conflicts (or reads not-found once tombstoned) and changes
+ * nothing.
  */
 export async function deletePin(
   db: Database,
@@ -523,7 +637,7 @@ export async function deletePin(
       and(
         eq(schema.annotations.id, pin.id),
         eq(schema.annotations.captureId, input.captureId),
-        eq(schema.annotations.kind, "pin"),
+        eq(schema.annotations.kind, pin.kind),
         isNull(schema.annotations.deletedAt),
         eq(schema.annotations.revision, input.expectedRevision),
       ),

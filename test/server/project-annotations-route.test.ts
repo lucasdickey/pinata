@@ -275,3 +275,42 @@ describe("GET /api/projects/[publicId]/annotations", () => {
     expect(annotationsDELETE().status).toBe(405);
   });
 });
+
+describe("rectangles in the project read (D079)", () => {
+  test("a box is listed in the same page, device, version, number order with its kind and box", async () => {
+    await testDb.db.insert(schema.annotations).values({
+      id: "root-d1-box",
+      captureId: "root-d1",
+      kind: "rectangle",
+      number: 4,
+      geometryJson: JSON.stringify({ x: 100, y: 200, width: 300, height: 150 }),
+      originalBody: "This whole card needs more air.",
+      createdAt: T0 + 3,
+      updatedAt: T0 + 3,
+    });
+    const response = await annotationsGET(request("pub-1"), context("pub-1"));
+    expect(response.status).toBe(200);
+    const { annotations } = await response.json();
+    expect(annotations.map((mark: { id: string }) => mark.id)).toEqual([
+      "root-d1-1",
+      "root-d1-2",
+      "root-d1-box",
+      "root-m1-1",
+      "pricing-d1-1",
+      "pricing-d2-1",
+    ]);
+    expect(annotations[2]).toMatchObject({
+      kind: "rectangle",
+      number: 4,
+      rect: { x: 100, y: 200, width: 300, height: 150 },
+      captureId: "root-d1",
+      pageId: "page-root",
+      normalizedUrl: "https://chickpea.co/",
+      variant: "desktop",
+      attempt: 1,
+      status: "open",
+      unreadReplies: 0,
+    });
+    expect(annotations[2].tip).toBeUndefined();
+  });
+});

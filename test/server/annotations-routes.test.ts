@@ -599,3 +599,121 @@ describe("method policy", () => {
     expect(annotationGET().status).toBe(405);
   });
 });
+
+// Rectangles over the wire (D079): `rect` in place of `tip` creates a box,
+// the same PATCH moves or resizes it with the revision precondition, and
+// the list carries both kinds in one number order.
+describe("rectangles over the routes (D079)", () => {
+  const rect = { x: 100, y: 200, width: 300, height: 150 };
+  const rectBody = (overrides: Record<string, unknown> = {}) => {
+    const { tip: _tip, ...rest } = createBody({ idempotencyKey: "rect-route-key-00001" });
+    return { ...rest, rect, ...overrides };
+  };
+
+  test("creates a box with 201, lists it beside a pin in number order, and resizes it in one write", async () => {
+    await annotationsPOST(createRequest("cap-ready", { body: createBody() }), listContext("cap-ready"));
+    const created = await annotationsPOST(
+      createRequest("cap-ready", { body: rectBody() }),
+      listContext("cap-ready"),
+    );
+    expect(created.status).toBe(201);
+    const { annotation } = await created.json();
+    expect(annotation).toMatchObject({ kind: "rectangle", number: 2, rect, revision: 1 });
+    expect(annotation.tip).toBeUndefined();
+
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    const payload = await listed.json();
+    expect(payload.annotations.map((a: { kind: string; number: number }) => [a.kind, a.number])).toEqual([
+      ["pin", 1],
+      ["rectangle", 2],
+    ]);
+
+    const resized = await annotationPATCH(
+      moveRequest("cap-ready", annotation.id, {
+        body: { rect: { ...rect, width: 400, height: 8 }, expectedRevision: 1 },
+      }),
+      pinContext("cap-ready", annotation.id),
+    );
+    expect(resized.status).toBe(200);
+    expect((await resized.json()).annotation).toMatchObject({
+      kind: "rectangle",
+      rect: { ...rect, width: 400, height: 8 },
+      revision: 2,
+      number: 2,
+    });
+    // Stale revision: 409 and nothing written.
+    const stale = await annotationPATCH(
+      moveRequest("cap-ready", annotation.id, { body: { rect, expectedRevision: 1 } }),
+      pinContext("cap-ready", annotation.id),
+    );
+    expect(stale.status).toBe(409);
+  });
+
+  test("rejects too-small, out-of-frame, non-finite, and ambiguous boxes with a bounded 400", async () => {
+    for (const body of [
+      rectBody({ rect: { ...rect, width: 7.5 } }),
+      rectBody({ rect: { ...rect, x: 1300 } }),
+      rectBody({ rect: { ...rect, y: Number.NaN } }),
+      rectBody({ rect: { x: 1, y: 2, width: 30 } }),
+      rectBody({ rect, tip: { x: 1, y: 1 } }),
+      rectBody({ rect: { ...rect, extra: 1 } }),
+    ]) {
+      const response = await annotationsPOST(
+        createRequest("cap-ready", { body }),
+        listContext("cap-ready"),
+      );
+      expect(response.status, JSON.stringify(body)).toBe(400);
+      expect(JSON.stringify(await response.json())).not.toContain("rect");
+    }
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    expect((await listed.json()).annotations).toHaveLength(0);
+  });
+
+  test("a rect on a pin, or a tip on a box, is a 400 with no write", async () => {
+    const pinResponse = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody() }),
+      listContext("cap-ready"),
+    );
+    const pin = (await pinResponse.json()).annotation;
+    const wrongKind = await annotationPATCH(
+      moveRequest("cap-ready", pin.id, { body: { rect, expectedRevision: 1 } }),
+      pinContext("cap-ready", pin.id),
+    );
+    expect(wrongKind.status).toBe(400);
+    const boxResponse = await annotationsPOST(
+      createRequest("cap-ready", { body: rectBody() }),
+      listContext("cap-ready"),
+    );
+    const box = (await boxResponse.json()).annotation;
+    const tipOnBox = await annotationPATCH(
+      moveRequest("cap-ready", box.id, { body: { tip: { x: 1, y: 1 }, expectedRevision: 1 } }),
+      pinContext("cap-ready", box.id),
+    );
+    expect(tipOnBox.status).toBe(400);
+    const both = await annotationPATCH(
+      moveRequest("cap-ready", box.id, { body: { tip: { x: 1, y: 1 }, rect, expectedRevision: 1 } }),
+      pinContext("cap-ready", box.id),
+    );
+    expect(both.status).toBe(400);
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    for (const item of (await listed.json()).annotations) expect(item.revision).toBe(1);
+  });
+
+  test("a box tombstones like a pin and its number stays retired", async () => {
+    const created = await annotationsPOST(
+      createRequest("cap-ready", { body: rectBody() }),
+      listContext("cap-ready"),
+    );
+    const box = (await created.json()).annotation;
+    const removed = await annotationDELETE(
+      deleteRequest("cap-ready", box.id, { body: { expectedRevision: 1 } }),
+      pinContext("cap-ready", box.id),
+    );
+    expect(removed.status).toBe(200);
+    const next = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody({ idempotencyKey: "pin-after-box" }) }),
+      listContext("cap-ready"),
+    );
+    expect((await next.json()).annotation.number).toBe(2);
+  });
+});

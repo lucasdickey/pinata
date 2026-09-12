@@ -47,8 +47,11 @@ const FIXTURE_BODY_PREFIX = "e2e: corner fixture";
 
 interface PinRecord {
   id: string;
+  kind?: "pin" | "rectangle";
   number: number;
   tip: { x: number; y: number };
+  /** A rectangle's box (D079); absent on pins. */
+  rect?: { x: number; y: number; width: number; height: number };
   body: string;
   revision: number;
 }
@@ -63,6 +66,30 @@ async function listPins(page: Page, captureId: string): Promise<PinRecord[]> {
     const payload = (await response.json()) as { annotations: PinRecord[] };
     return payload.annotations.sort((a, b) => a.number - b.number);
   }, captureId);
+}
+
+/** Delete one mark straight through the revisioned route (test cleanup). */
+async function deleteMark(page: Page, captureId: string, mark: PinRecord): Promise<void> {
+  await page.evaluate(
+    async ({ id, annotationId, revision }) => {
+      const csrf =
+        document.cookie
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => part.startsWith("pinata_csrf="))
+          ?.slice("pinata_csrf=".length) ?? "";
+      const response = await fetch(
+        `/api/captures/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annotationId)}`,
+        {
+          method: "DELETE",
+          headers: { "content-type": "application/json", "x-pinata-csrf": csrf },
+          body: JSON.stringify({ expectedRevision: revision }),
+        },
+      );
+      if (!response.ok) throw new Error(`cleanup delete failed: ${response.status}`);
+    },
+    { id: captureId, annotationId: mark.id, revision: mark.revision },
+  );
 }
 
 /**
@@ -89,9 +116,12 @@ async function awaitNewPin(
 /** Wait until the workspace has finished loading this plane's pins. */
 async function waitPinsLoaded(page: Page): Promise<void> {
   // The panel renders nothing pins-related until the fetch resolves, then
-  // either the empty note or numbered list entries. A load failure renders
-  // a different note, so this wait fails loudly instead of passing early.
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|Pin \d+ — at \(/);
+  // either the empty note or numbered list entries (pins or boxes). A load
+  // failure renders a different note, so this wait fails loudly instead of
+  // passing early.
+  await expect(page.getByTestId("capture-panel")).toContainText(
+    /No pins yet\.|(Pin|Box) \d+ — at \(/,
+  );
 }
 
 /** The badge for a saved pin number, and its draggable node wrapper. */
@@ -519,5 +549,113 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
   // One create, two moves — nothing else ever wrote.
   expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);
   expect(writes).toHaveLength(3);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("the Draw a box toggle arms one drag; the box shares the pin numbering and holds its natural pixels (D079)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(240_000);
+
+  const consoleErrors = trackConsoleErrors(page);
+  const target = await openDesktopPlane(page);
+  const doc = { width: target.width, height: target.height };
+  const before = await listPins(page, target.captureId);
+  const writes = trackAnnotationWrites(page);
+
+  await page.getByRole("button", { name: "Natural size" }).click();
+  await waitForZoom(page, 1);
+  await panUntilNaturalVisible(
+    page,
+    await findClearAim(page, target.captureId, doc, { from: 0.88, to: 0.97 }),
+  );
+  const pane = await visiblePane(page);
+  const camera = await readCamera(page);
+  const zoom = camera.zoom;
+  // Draw from just above and left of the pane center, away from the pin
+  // badges the other tests leave in this band.
+  const from = { x: pane.left + pane.width / 2 - 70, y: pane.top + pane.height / 2 - 50 };
+  const aim = toNatural({ x: from.x - pane.left, y: from.y - pane.top }, camera);
+
+  // The toggle arms exactly the next drag: a plain drag then draws instead
+  // of panning, and the toggle releases itself.
+  const toggle = page.getByRole("button", { name: "Draw a box" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 50, from.y + 30, { steps: 6 });
+  await page.mouse.move(from.x + 100, from.y + 60, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(1);
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  const afterDraw = await readCamera(page);
+  expect(Math.abs(afterDraw.x - camera.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(afterDraw.y - camera.y)).toBeLessThanOrEqual(1);
+
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
+  await expect(page.getByTestId("draft-context")).toHaveAttribute(
+    "data-candidates-state",
+    /ready|failed/,
+    { timeout: 15_000 },
+  );
+  await page.getByLabel("Comment").fill("e2e: toggle box (shared numbering)");
+  await page.getByRole("button", { name: "No element" }).click();
+  await page.getByRole("button", { name: "Save box" }).click();
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
+  const box = await awaitNewPin(page, target.captureId, before);
+  expect(box.kind).toBe("rectangle");
+  expect(box.rect).toBeDefined();
+  expect(Math.abs(box.rect!.x - aim.x)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(box.rect!.y - aim.y)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(box.rect!.width - 100 / zoom)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(box.rect!.height - 60 / zoom)).toBeLessThanOrEqual(1 + 1 / zoom);
+  // One sequence for both kinds: the box took the next number after every
+  // pin and box the capture has ever had, and the next pin takes box + 1.
+  const highestBefore = Math.max(0, ...before.map((pin) => pin.number));
+  expect(box.number).toBeGreaterThan(highestBefore);
+  await expect(page.locator(".react-flow__node-rectangle")).toHaveCount(
+    before.filter((pin) => pin.kind === "rectangle").length + 1,
+  );
+
+  // A plain drag pans again now that the toggle released.
+  const beforePan = await readCamera(page);
+  await page.mouse.move(pane.left + pane.width / 2 + 120, pane.top + pane.height / 2 + 120);
+  await page.mouse.down();
+  await page.mouse.move(pane.left + pane.width / 2 + 60, pane.top + pane.height / 2 + 80, { steps: 6 });
+  await page.mouse.up();
+  const afterPan = await readCamera(page);
+  expect(Math.hypot(afterPan.x - beforePan.x, afterPan.y - beforePan.y)).toBeGreaterThan(20);
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
+
+  const withBox = await listPins(page, target.captureId);
+  const pinAim = await findClearAim(page, target.captureId, doc, { from: 0.88, to: 0.97 });
+  await panUntilNaturalVisible(page, pinAim);
+  const pinNodesBefore = await page.locator(PIN_NODE).count();
+  await placeAndSave(page, pinAim, doc, "e2e: pin after box (shared numbering)", pinNodesBefore + 1);
+  const pin = await awaitNewPin(page, target.captureId, withBox);
+  expect(pin.kind).toBe("pin");
+  expect(pin.number).toBe(box.number + 1);
+
+  // Reload: the box comes back at exactly the persisted geometry.
+  await page.reload();
+  await clickPlane(page, target);
+  await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
+  await waitPinsLoaded(page);
+  const reloaded = (await listPins(page, target.captureId)).find((mark) => mark.id === box.id)!;
+  expect(reloaded.rect).toEqual(box.rect);
+  await expect(
+    page.locator(`[data-testid="rectangle-badge"][data-mark-number="${box.number}"]`),
+  ).toBeVisible();
+
+  // Cleanup: the probe pin and the box leave; their numbers stay retired.
+  await deleteMark(page, target.captureId, pin);
+  await deleteMark(page, target.captureId, reloaded);
+
+  // One box create, one pin create, two cleanup deletes — nothing else wrote.
+  expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(2);
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(0);
   expect(consoleErrors).toEqual([]);
 });

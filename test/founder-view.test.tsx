@@ -169,7 +169,7 @@ function installFetch() {
       );
     }
     if (target.endsWith("/annotations")) {
-      return Promise.resolve(json({ annotations: [pin, secondPin] }));
+      return Promise.resolve(json({ annotations: [pin, secondPin, ...extraAnnotations] }));
     }
     if (target.endsWith("/seen") && method === "POST") {
       return Promise.resolve(json({ seen: true }));
@@ -216,9 +216,13 @@ function installFetch() {
   vi.stubGlobal("fetch", fetchMock);
 }
 
+/** Extra marks the annotations list returns for one test (D079 boxes). */
+let extraAnnotations: unknown[] = [];
+
 beforeEach(() => {
   exchangeStatus = 200;
   projectStatus = 200;
+  extraAnnotations = [];
   installFetch();
   window.history.replaceState(null, "", `/f/pub-1#${TOKEN}`);
   document.cookie = `${FOUNDER_CSRF_COOKIE}=founder-proof-sentinel`;
@@ -474,5 +478,46 @@ describe("pin list and lifecycle (D075)", () => {
     expect(thread.querySelectorAll(".thread-entry")).toHaveLength(3);
     expect(within(list).getAllByRole("button")[0]).toHaveTextContent("Resolved");
     expect(within(panel).queryByRole("button", { name: /edit|delete/i })).toBeNull();
+  });
+});
+
+// Rectangles (D079) reach the founder through the same list and canvas:
+// listed by kind and number, drawn read-only with no handles, readable.
+describe("rectangles for the founder (D079)", () => {
+  const box = {
+    id: "box-3",
+    captureId: "root-d1",
+    kind: "rectangle",
+    number: 3,
+    rect: { x: 100.4, y: 200.6, width: 300.2, height: 150.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 1_800_000_000_200,
+  };
+
+  test("a box is listed as a box, rendered without handles, and shows its bounds when chosen", async () => {
+    const user = userEvent.setup();
+    extraAnnotations = [box];
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const items = within(list).getAllByRole("button");
+    expect(items).toHaveLength(3);
+    expect(items[2]).toHaveTextContent(/^Box 3 — “This whole card needs more air.” · Open/);
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
+    );
+    expect(document.querySelectorAll('[data-testid="rectangle-handle"]')).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Draw a box" })).toBeNull();
+
+    await user.click(items[2]!);
+    const panel = screen.getByTestId("founder-panel");
+    expect(within(panel).getByTestId("panel-position")).toHaveTextContent(
+      "Box 3 at natural pixels (100, 201 · 300 × 151)",
+    );
+    expect(within(panel).getByRole("button", { name: "Resolve box" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
 });
