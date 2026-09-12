@@ -26,7 +26,7 @@ import { MAX_ACTIVE_CAPTURES, MAX_AUTOMATIC_CAPTURE_RETRIES } from "../../bounda
 import { schema, type Database } from "../db/client";
 import { CAPTURE_VARIANTS } from "../db/schema";
 import type { AdmissionDeps } from "./admission";
-import type { ContinuationScheduler } from "./continuation";
+import { serverCaptureEnabled, type ContinuationScheduler } from "./continuation";
 import { dispatchCapture } from "./dispatch";
 import { executeCapture, type CaptureExecutionDeps, type ReadyCapture } from "./execute";
 import { releaseCaptureLease } from "./leases";
@@ -282,7 +282,9 @@ export interface SweepReport {
  * their one automatic retry first (a pending row the drive then picks up);
  * each affected project is then driven up to the lease cap. The store
  * decides real concurrency, so a sweep over many projects cannot exceed the
- * published slot count no matter how many tasks it schedules.
+ * published slot count no matter how many tasks it schedules. While
+ * PINATA_SERVER_CAPTURE is off the sweep only counts: it creates no retry
+ * and schedules nothing.
  */
 export async function sweepCaptures(db: Database, deps: CaptureDriveDeps): Promise<SweepReport> {
   const now = deps.now?.() ?? Date.now();
@@ -299,6 +301,7 @@ export async function sweepCaptures(db: Database, deps: CaptureDriveDeps): Promi
 
   const report: SweepReport = { projects: 0, pending: 0, stale: 0, retried: 0, scheduled: 0 };
   const projects = new Set<string>();
+  const stale: typeof open = [];
   for (const row of open) {
     const state = captureAttemptState(row, now);
     if (state === "pending") {
@@ -307,12 +310,16 @@ export async function sweepCaptures(db: Database, deps: CaptureDriveDeps): Promi
     } else if (state === "stale") {
       report.stale += 1;
       projects.add(row.projectId);
-      const retried = await scheduleAutomaticRetry(db, row.id, { ...deps, now: () => now });
-      if (retried.created) report.retried += 1;
+      stale.push(row);
     }
   }
-
   report.projects = projects.size;
+  if (!serverCaptureEnabled()) return report;
+
+  for (const row of stale) {
+    const retried = await scheduleAutomaticRetry(db, row.id, { ...deps, now: () => now });
+    if (retried.created) report.retried += 1;
+  }
   for (const projectId of [...projects].sort()) {
     const driven = await driveProject(db, projectId, deps);
     report.scheduled += driven.scheduled.length;

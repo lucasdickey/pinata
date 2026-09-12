@@ -112,7 +112,11 @@ re-drives every project with pending or stale attempts and creates the
 automatic retry for stale ones; `vercel.json` calls it once a day as a cron
 backstop. Function duration on the deployment must cover one capture plus
 its preflight and the continuation that follows: the dispatch, create, retry,
-and sweep routes export `maxDuration = 300`.
+and sweep routes export `maxDuration = 300`. For local and test use only,
+`PINATA_SERVER_CAPTURE=off` turns the continuation and the sweep's re-drive
+off while the dispatch route keeps working, so the client fallback driver is
+the only thing dispatching; the Playwright server runs that way, and the
+variable is never set on a deployment.
 
 1. Revalidate the normalized public HTTPS URL on the server: no credentials,
    no IP literals, no non-443 ports, no private, loopback, link-local,

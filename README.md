@@ -205,7 +205,11 @@ cron in `vercel.json` calls `/api/captures/sweep` with
 `CAPTURE_SWEEP_SECRET` sent as the `x-pinata-sweep-secret` header for any
 other scheduler or a hand-run sweep. With neither variable set the sweep
 route answers 404. `PINATA_AUTH_DISABLED` must never be set in any Vercel
-environment; that bypass is local-only (`D052`).
+environment; that bypass is local-only (`D052`). The same goes for
+`PINATA_SERVER_CAPTURE=off`, which turns server-driven capture off (nothing
+is continued after create or retry, and the sweep only counts) so the client
+fallback driver is the only thing dispatching; `playwright.config.ts` runs
+the production server under test with it off, and it is local/test only.
 
 ### Runbook
 

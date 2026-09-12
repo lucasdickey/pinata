@@ -14,6 +14,23 @@ import { after as nextAfter } from "next/server";
 /** Schedule one task to run once the current response has been sent. */
 export type ContinuationScheduler = (task: () => Promise<void>) => void;
 
+/**
+ * Local and test switch: `PINATA_SERVER_CAPTURE=off` turns server
+ * continuation off — nothing is scheduled after create, retry, or a
+ * finalized attempt, and the sweep only counts. The dispatch route keeps
+ * working, so the client fallback driver behaves exactly as before. Any
+ * other value, or the variable unset, means on. Never set it on a
+ * deployment; the Playwright server runs with it off so a spec that creates
+ * a project cannot start real captures behind the browser's back.
+ */
+export const SERVER_CAPTURE_SWITCH = "PINATA_SERVER_CAPTURE";
+
+export function serverCaptureEnabled(
+  env: { PINATA_SERVER_CAPTURE?: string | undefined; [key: string]: string | undefined } = process.env,
+): boolean {
+  return env.PINATA_SERVER_CAPTURE !== "off";
+}
+
 let override: ContinuationScheduler | null = null;
 
 function defaultScheduler(task: () => Promise<void>): void {
@@ -24,8 +41,12 @@ function defaultScheduler(task: () => Promise<void>): void {
   }
 }
 
-/** The process-wide scheduler, or whatever a test injected. */
+/** Schedules nothing: what every caller gets while the switch is off. */
+function inertScheduler(): void {}
+
+/** The process-wide scheduler, or whatever a test injected; inert when off. */
 export function getContinuationScheduler(): ContinuationScheduler {
+  if (!serverCaptureEnabled()) return inertScheduler;
   return override ?? defaultScheduler;
 }
 

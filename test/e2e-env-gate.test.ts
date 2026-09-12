@@ -143,3 +143,16 @@ describe("the e2e specs", () => {
     }
   });
 });
+
+describe("the Playwright production server", () => {
+  // Server-driven capture (D076) would otherwise start real captures behind
+  // the browser's back whenever a spec creates a project; the browser-side
+  // dispatch stub cannot intercept that. The server under test therefore
+  // runs with the switch off, inheriting everything else from the shell.
+  const config = readFileSync(join(import.meta.dirname, "..", "playwright.config.ts"), "utf8");
+
+  test("runs with server-driven capture off and inherits the rest of the environment", () => {
+    expect(config).toMatch(/PINATA_SERVER_CAPTURE:\s*"off"/);
+    expect(config).toContain("...(process.env");
+  });
+});
