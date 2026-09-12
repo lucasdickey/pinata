@@ -2928,3 +2928,72 @@ imagery that exists in the repository"
 - D073 (agent-autonomous): in-app Player at `/walkthrough`, CLI dev-only,
   allowlist widened to admit the three Remotion packages.
 
+## Session: the UX overhaul, waves one and two (2026-09-12)
+
+Elapsed: about 3 hours of coordinator time so far against no fixed timebox;
+wrap-phase work on the branch `ux-overhaul/pins-loop-capture`, opened as a
+pull request when done, in the same shape as the walkthrough.
+
+### The request
+
+A UX review with the top five functional recommendations, then: "yep let's
+do them, prioritizing 1, 2 and 5 first. then find the feature set associated
+with doing a square bounding box with comments, too. draft the decision
+records, then spin up sub-agents to do the work where parallelization is
+doable"
+
+### How the work was split
+
+Six records were drafted first (D074 to D079) so every agent had a spec and
+none had to invent one. Wave one ran three agents at once in isolated
+worktrees, one each for D074 (one-gesture pin placement), D075 (pin status,
+unread counts, founder pin list, share in the header), and D076
+(server-driven capture with progress and one automatic retry). Each was told
+to keep its edits to the shared workspace component small, to put new logic
+in new files, to run the e2e stage under a file lock because all worktrees
+share port 3100, and not to add decision records, since sequential ids would
+collide. Wave two ran D077 (project overview) and D079 (rectangles) the same
+way; D078 (vocabulary) goes last because it rewrites copy across all of it.
+
+### What was attempted, wave one
+
+- **D074.** Modeless canvas: a press that does not move drops a draft, a
+  drag pans, pins drag by their badge, the composer is a popover anchored at
+  the pin with the top nearby element pre-selected, Enter saves, J/K step,
+  N drops at the viewport center. PLACEMENT_SLOP_SCREEN_PX became a published
+  boundary.
+- **D075.** Annotation status with resolve and reopen written as append-only
+  thread entries, per-role last-seen with unread counts riding the hierarchy
+  read, a founder pin list, and the share control in the project header.
+- **D076.** Capture continues after the response with Next's after(), a
+  secret-protected sweep route with a daily Vercel cron as the backstop, one
+  automatic retry, progress on the hierarchy, and a test-only off switch so
+  credentialed e2e runs do not spend real Browserless captures.
+
+### What broke
+
+- **A migration number collision.** D075 and D076 each generated a
+  migration 0004 from the same base. Rather than keep two 0004 files, the
+  D075 migration was regenerated on top of D076's from the merged schema
+  (the SQL came out byte-identical to the agent's) and its hand-written
+  triggers migration was re-added as 0006 through drizzle-kit's custom
+  migration, so the snapshot chain carries both sets of columns.
+- **A cherry-pick that committed conflict markers.** A resolution script
+  stopped on a failed assertion, the shell went on, and `git add` staged the
+  still-conflicted files. Caught by grepping for markers before the next
+  step; fixed by a union merge of the two appended CSS blocks plus one
+  missing brace, and amended.
+- **Two D076 tests asserting the old two-mode canvas.** They looked for the
+  Place pin button and the long hint; rewritten against the modeless region
+  and the one-line hint.
+- **Credentialed specs cannot run here.** Every canvas, pin, founder, and
+  capture-driver Playwright spec skips without `.env.local`. The agents
+  edited them to the new interactions; only a local run with credentials
+  proves those edits. The list is in the pull request.
+
+### Decisions
+
+- D074, D075, D076, D077, D078: agent-proposed, human-approved in one message.
+- D079: user-directed (the bounding box).
+- Consequences added to D074, D075, and D076 for the findings above.
+
