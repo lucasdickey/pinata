@@ -24,7 +24,7 @@
 
 import { useEffect, useState } from "react";
 import type { AnnotationView } from "../lib/annotations";
-import { markLabel } from "../lib/canvas/marks";
+import { markCountLabel, markLabel } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import { pinPosition, snapshotPath, snapshotSummary } from "../lib/pin-export";
 
@@ -118,7 +118,9 @@ export function PinTable({
             Copy all as Markdown
           </button>
           <span role="status" className="pin-table-status">
-            {copyState === "copied" ? `Copied ${rows.length} pins as Markdown.` : null}
+            {copyState === "copied"
+              ? `Copied ${markCountLabel(rows.map((row) => row.pin))} as Markdown.`
+              : null}
             {copyState === "failed"
               ? "Could not reach the clipboard. Select the table text to copy it."
               : null}

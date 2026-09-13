@@ -285,6 +285,6 @@ describe("rectangles in the table (D079)", () => {
     await user.click(screen.getByRole("button", { name: "Copy all as Markdown" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(markdown).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status")).toHaveTextContent("Copied 3 pins as Markdown.");
+    expect(screen.getByRole("status")).toHaveTextContent("Copied 2 pins · 1 box as Markdown.");
   });
 });

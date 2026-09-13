@@ -14,6 +14,7 @@ import {
   MARK_ELEMENT_LABEL_MAX_CHARS,
   MARK_EXCERPT_MAX_CHARS,
   markCenter,
+  markCountLabel,
   markKindLabel,
   markKindNoun,
   markLabel,
@@ -114,6 +115,15 @@ describe("labels", () => {
     const list = [box, pin];
     expect(pinsOf(list)).toEqual([pin]);
     expect(rectanglesOf(list)).toEqual([box]);
+  });
+
+  test("markCountLabel counts each kind, never calling a box a pin", () => {
+    expect(markCountLabel([])).toBe("0 pins");
+    expect(markCountLabel([pin])).toBe("1 pin");
+    expect(markCountLabel([pin, { ...pin, id: "a3" }])).toBe("2 pins");
+    expect(markCountLabel([box])).toBe("1 box");
+    expect(markCountLabel([box, { ...box, id: "a4" }])).toBe("2 boxes");
+    expect(markCountLabel([pin, box])).toBe("1 pin · 1 box");
   });
 });
 

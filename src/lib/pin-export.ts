@@ -9,7 +9,7 @@
 // pin is saved (VAL-PIN-003, VAL-PIN-008).
 
 import type { AnnotationView, PinElementSnapshot } from "./annotations";
-import { markLabel, markPosition, rectanglePosition } from "./canvas/marks";
+import { markCountLabel, markLabel, markPosition, rectanglePosition } from "./canvas/marks";
 import { PIN_STATUS_LABELS } from "./feedback-counts";
 
 export interface PinExportContext {
@@ -87,7 +87,7 @@ export function formatPinsAsMarkdown(
   const lines: string[] = [
     `# ${context.heading ?? `Pinata pins — ${context.pageUrl}`}`,
     "",
-    `${context.variant}${version} · ${pins.length} pin${pins.length === 1 ? "" : "s"}`,
+    `${context.variant}${version} · ${markCountLabel(pins)}`,
     "",
   ];
 
@@ -151,13 +151,13 @@ export function formatProjectPinsAsMarkdown(
   project: ProjectExportContext,
 ): string {
   const withPins = groups.filter((group) => group.pins.length > 0);
-  const total = withPins.reduce((sum, group) => sum + group.pins.length, 0);
+  const allMarks = withPins.flatMap((group) => group.pins);
   const lines: string[] = [
     `# Pinata pins — ${project.title}`,
     "",
-    `${project.rootUrl} · ${withPins.length} capture${withPins.length === 1 ? "" : "s"} · ${total} pin${
-      total === 1 ? "" : "s"
-    }`,
+    `${project.rootUrl} · ${withPins.length} capture${withPins.length === 1 ? "" : "s"} · ${markCountLabel(
+      allMarks,
+    )}`,
     "",
   ];
   if (withPins.length === 0) {
