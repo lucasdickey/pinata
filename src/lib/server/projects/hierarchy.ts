@@ -246,6 +246,22 @@ async function hydrate(
       captureRows.filter((row) => pageIds.has(row.pageId)),
     );
     const captureFeedback = captureFeedbackByProject.get(project.id) ?? {};
+    // The project header summarizes the *current* version of each page, so it
+    // sums the selected capture of every device — the same basis as the rail
+    // badges and the overview cards. Pins on superseded attempts stay counted
+    // per capture (and listed in the all-versions table), just not in this
+    // headline total, which otherwise diverged from the sum of the badges
+    // beneath it once a page with pins was retried (D080).
+    const selectedFeedback = sumFeedbackCounts(
+      pages.flatMap((page) =>
+        page.devices.flatMap((device) => {
+          const counts = device.selectedCaptureId
+            ? captureFeedback[device.selectedCaptureId]
+            : undefined;
+          return counts ? [counts] : [];
+        }),
+      ),
+    );
     return {
       projectId: project.id,
       publicId: project.publicId,
@@ -255,7 +271,7 @@ async function hydrate(
       pages,
       counts,
       progress,
-      feedback: sumFeedbackCounts(Object.values(captureFeedback)),
+      feedback: selectedFeedback,
       captureFeedback,
     };
   });

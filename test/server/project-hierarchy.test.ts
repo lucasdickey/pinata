@@ -11,6 +11,7 @@ import {
   markPinSeen,
 } from "../../src/lib/server/annotations/seen";
 import { applyCaptureTransition } from "../../src/lib/server/captures/transitions";
+import { retryCapture } from "../../src/lib/server/captures/retry";
 import { schema } from "../../src/lib/server/db/client";
 import { createProjectAtomically } from "../../src/lib/server/projects/create";
 import {
@@ -257,6 +258,62 @@ describe("feedback counts (D075)", () => {
     const emptyHierarchy = hierarchies.find((candidate) => candidate.publicId === empty.publicId)!;
     expect(emptyHierarchy.feedback).toEqual({ pins: 0, open: 0, resolved: 0, unreadReplies: 0 });
     expect(emptyHierarchy.captureFeedback).toEqual({});
+  });
+
+  test("the header counts the current version, not a superseded attempt's pins (D080)", async () => {
+    const project = await seed("https://chickpea.co", [], "key-c-0080");
+    const page = project.pages[0]!;
+    const attempt1 = await captureId(page.id, "desktop", 1);
+    await applyCaptureTransition(testDb.db, {
+      captureId: attempt1,
+      from: "pending",
+      to: "ready",
+      imageHash: "hash-1",
+      blobPath: "captures/1.webp",
+      now: T0 + 1,
+    });
+    // A pin lands on attempt 1.
+    await testDb.db.insert(schema.annotations).values({
+      id: "pin-old",
+      captureId: attempt1,
+      kind: "pin",
+      number: 1,
+      geometryJson: JSON.stringify({ x: 1, y: 1 }),
+      originalBody: "Old note.",
+      status: "open",
+      createdAt: T0 + 2,
+      updatedAt: T0 + 2,
+    });
+    // Retry to a fresh, empty attempt 2, which becomes the selected version.
+    const retry = await retryCapture(
+      testDb.db,
+      { pageId: page.id, variant: "desktop", idempotencyKey: "k-0080" },
+      { now: () => T0 + 3, newId: () => "cap-2" },
+    );
+    if (!retry.ok) throw new Error("retry must succeed");
+    await applyCaptureTransition(testDb.db, {
+      captureId: retry.attempt.id,
+      from: "pending",
+      to: "ready",
+      imageHash: "hash-2",
+      blobPath: "captures/2.webp",
+      now: T0 + 4,
+    });
+
+    const [hier] = await listProjectHierarchies(testDb.db, T0 + 10);
+    const desktop = hier!.pages[0]!.devices.find((d) => d.variant === "desktop")!;
+    // The selected desktop capture is the empty attempt 2, so the header total
+    // is zero — matching the rail badge — even though attempt 1's pin persists.
+    expect(desktop.selectedCaptureId).toBe(retry.attempt.id);
+    expect(hier!.feedback).toEqual({ pins: 0, open: 0, resolved: 0, unreadReplies: 0 });
+    // The pin is still counted on its own superseded capture (and the
+    // all-versions table reads that per-capture record).
+    expect(hier!.captureFeedback[attempt1]).toEqual({
+      pins: 1,
+      open: 1,
+      resolved: 0,
+      unreadReplies: 0,
+    });
   });
 });
 
