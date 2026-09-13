@@ -910,6 +910,43 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await user.click(within(composer()).getByRole("button", { name: "No element" }));
   }
 
+  // B1 regression: a background hierarchy reload (poll tick or onChanged)
+  // hands ProjectWorkspace a structurally identical but freshly-parsed
+  // `projects` array. The plane derivation effect must key off the plane's
+  // stable ids, not the `selectedReady` object, or the reload silently
+  // deselects the open pin and wipes the in-progress draft.
+  test("a background hierarchy reload keeps the selected pin and its panel open", async () => {
+    const user = userEvent.setup();
+    stubAnnotations([savedPin]);
+    // The same array instance stands in for a re-render that is NOT a reload.
+    const initial: WorkspaceProject[] = [project()];
+    const { rerender } = render(
+      <ProjectWorkspace projects={initial} onChanged={onChanged} />,
+    );
+    openHome();
+    await waitFor(() =>
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument(),
+    );
+    await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
+    expect(within(detail()).getByTestId("panel-pin")).toBeInTheDocument();
+
+    // Control: an unrelated re-render with the SAME reference keeps selection.
+    rerender(<ProjectWorkspace projects={initial} onChanged={onChanged} />);
+    expect(within(detail()).getByTestId("panel-pin")).toBeInTheDocument();
+
+    // Reload: replace `projects` with a fresh, structurally identical array —
+    // exactly what EditorHome.load() does on a poll tick or onChanged. No
+    // plane changed and the user did nothing, so the selection must survive.
+    const reloaded = JSON.parse(JSON.stringify(project())) as WorkspaceProject;
+    rerender(<ProjectWorkspace projects={[reloaded]} onChanged={onChanged} />);
+
+    // Give any errant plane-reset effect a chance to run, then assert the
+    // pin and its detail panel are still open.
+    await Promise.resolve();
+    expect(within(detail()).getByTestId("panel-pin")).toBeInTheDocument();
+    expect(within(detail()).getByTestId("panel-pin")).toHaveTextContent("Pin 1");
+  });
+
   test("with no nearby element, No element is pre-selected and one create posts the null decision", async () => {
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations();

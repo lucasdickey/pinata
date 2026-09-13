@@ -386,6 +386,11 @@ export function ProjectWorkspace({
     selectedAttempt.documentHeight !== null
       ? selectedAttempt
       : null;
+  // The plane's stable identity. `selectedReady` is a fresh object on every
+  // hierarchy reload (a poll tick or an onChanged re-read reparses the JSON),
+  // so effects must key off this id, not the object, or unrelated reloads look
+  // like plane switches (B1).
+  const selectedReadyId = selectedReady?.id ?? null;
 
   // The id of the load the panel is allowed to show. A plane switch starts
   // a new fetch while the old plane's may still be in flight; without this
@@ -428,13 +433,18 @@ export function ProjectWorkspace({
     setMoveError(null);
     setSaveState("idle");
     setPreviewRect(null);
-    if (selectedReady) {
-      void loadPins(selectedReady.id);
+    if (selectedReadyId) {
+      void loadPins(selectedReadyId);
     } else {
       pinsRequestRef.current = null;
       setPinsState(null);
     }
-  }, [selectedCaptureId, selectedReady, loadPins]);
+    // Keyed on the plane's stable ids, never the `selectedReady` object: a
+    // background hierarchy reload (poll tick, onChanged) hands us new object
+    // references with identical data, and re-running here would wipe the live
+    // selection and the in-progress draft. Mutations refresh pins themselves,
+    // so this effect only owns the initial per-plane load (B1).
+  }, [selectedCaptureId, selectedReadyId, loadPins]);
 
   // ---- project-scoped pins (D077) --------------------------------------------
   // One read per selected project, guarded like the per-capture load so a
@@ -776,8 +786,8 @@ export function ProjectWorkspace({
   // Stable canvas callbacks: the canvas's resize-follow effect keys off
   // these identities, so inline arrows would re-create its observer on
   // every unrelated workspace re-render (a pins load, say) and re-apply
-  // the camera over a restored plane.
-  const selectedReadyId = selectedReady?.id ?? null;
+  // the camera over a restored plane. `selectedReadyId` is defined with the
+  // plane derivation above.
   const handleCameraChange = useCallback(
     (state: CaptureCameraState) => {
       if (selectedReadyId) cameras.current.set(selectedReadyId, state);
