@@ -56,3 +56,10 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   would approach the 200-per-capture annotation quota on the seeded desktop
   capture (`D059`). Deletion or a scratch capture per run would make this
   free.
+- Rectangle resize handles are rough at low zoom (`D079`): all eight are a
+  fixed screen size, so a near-minimum box renders them overlapping and
+  blanketing its interior, and the top-left handle paints over the number
+  badge, so the corner resizes instead of selecting/grabbing. The fix is
+  screen-size-aware handle rendering (hide or shrink them below a threshold)
+  and stacking the badge above the corner handle; it wants visual iteration
+  in the canvas, so it was left for a pass that can be checked by eye.
