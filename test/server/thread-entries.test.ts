@@ -130,6 +130,7 @@ describe("append", () => {
         annotationId: "pin-1",
         actorRole: "founder",
         authorLabel: "founder",
+        kind: "message",
         body: "Agreed, will tighten.",
         createdAt: T0,
       },
@@ -302,6 +303,7 @@ describe("list", () => {
         annotationId: "pin-1",
         actorRole: "founder",
         authorLabel: "founder",
+        kind: "message",
         body: "1",
         createdAt: T0 + 1,
       });

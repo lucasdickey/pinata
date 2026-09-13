@@ -9,6 +9,13 @@
 // explicit tie-breaker so two reads can never disagree.
 
 import { asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import type { FeedbackCounts } from "../../annotations";
+import {
+  EDITOR_VIEWER,
+  feedbackCountsByCapture,
+  sumFeedbackCounts,
+  type Viewer,
+} from "../annotations/seen";
 import { summarizeVariant, type VariantSummary } from "../captures/status";
 import { schema, type Database } from "../db/client";
 import { CAPTURE_VARIANTS } from "../db/schema";
@@ -39,11 +46,86 @@ export interface ProjectHierarchy {
   createdAt: number;
   pages: HierarchyPage[];
   counts: HierarchyCounts;
+  progress: ProjectProgress;
+  /**
+   * Feedback counts for the requesting role (D075): the project total, and
+   * per capture attempt for every capture that has at least one live pin.
+   * The rail badges a device with the counts of its selected capture.
+   */
+  feedback: FeedbackCounts;
+  captureFeedback: Record<string, FeedbackCounts>;
 }
 
 type CaptureRow = typeof schema.captures.$inferSelect;
 type PageRow = typeof schema.pages.$inferSelect;
 type ProjectRow = typeof schema.projects.$inferSelect;
+
+// ---- capture progress (D076) ------------------------------------------------
+// Per-project progress, computed from the same rows as the hierarchy: one
+// unit per page device, judged by its newest attempt, plus a time estimate
+// from what this project's finished attempts actually took.
+
+export interface ProjectProgress {
+  /** Page devices with at least one attempt. */
+  total: number;
+  /** Devices whose newest attempt is ready. */
+  done: number;
+  /** Devices whose newest attempt failed. */
+  failed: number;
+  /** Devices whose newest attempt is pending, capturing, or computed stale. */
+  inProgress: number;
+  /** The first page (in submitted order) with an attempt capturing right now. */
+  capturingPage: string | null;
+  /**
+   * Median duration of this project's finished attempts times the devices
+   * still in progress; null until at least one attempt has finished.
+   */
+  estimatedRemainingMs: number | null;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]!
+    : Math.round((sorted[middle - 1]! + sorted[middle]!) / 2);
+}
+
+/** Progress for one project from its built pages and its raw attempt rows. */
+export function computeProjectProgress(
+  pages: HierarchyPage[],
+  captureRows: CaptureRow[],
+): ProjectProgress {
+  const progress: ProjectProgress = {
+    total: 0,
+    done: 0,
+    failed: 0,
+    inProgress: 0,
+    capturingPage: null,
+    estimatedRemainingMs: null,
+  };
+  for (const page of pages) {
+    for (const device of page.devices) {
+      const latest = device.latest;
+      if (!latest) continue;
+      progress.total += 1;
+      if (latest.state === "ready") progress.done += 1;
+      else if (latest.state === "failed") progress.failed += 1;
+      else progress.inProgress += 1;
+      if (latest.state === "capturing" && progress.capturingPage === null) {
+        progress.capturingPage = page.normalizedUrl;
+      }
+    }
+  }
+  const durations = captureRows
+    .filter((row) => row.startedAt !== null && row.finishedAt !== null)
+    .map((row) => Math.max(0, row.finishedAt! - row.startedAt!));
+  if (durations.length > 0) {
+    progress.estimatedRemainingMs = median(durations) * progress.inProgress;
+  }
+  return progress;
+}
+// ---- end capture progress ---------------------------------------------------
 
 function buildPages(
   pageRows: PageRow[],
@@ -98,6 +180,7 @@ async function hydrate(
   db: Database,
   projectRows: ProjectRow[],
   now: number,
+  viewer: Viewer,
 ): Promise<ProjectHierarchy[]> {
   if (projectRows.length === 0) return [];
   const pageRows = await db
@@ -132,12 +215,37 @@ async function hydrate(
     pagesByProject.set(page.projectId, list);
   }
 
+  // Feedback counts (D075) ride the same read: one grouped query for every
+  // capture of every project, then regrouped by project here.
+  const feedbackByCapture = await feedbackCountsByCapture(
+    db,
+    captureRows.map((row) => row.id),
+    viewer,
+  );
+  const projectByPage = new Map(pageRows.map((page) => [page.id, page.projectId]));
+  const captureFeedbackByProject = new Map<string, Record<string, FeedbackCounts>>();
+  for (const capture of captureRows) {
+    const counts = feedbackByCapture.get(capture.id);
+    const projectId = projectByPage.get(capture.pageId);
+    if (!counts || !projectId) continue;
+    const record = captureFeedbackByProject.get(projectId) ?? {};
+    record[capture.id] = counts;
+    captureFeedbackByProject.set(projectId, record);
+  }
+
   return projectRows.map((project) => {
     const { pages, counts } = buildPages(
       pagesByProject.get(project.id) ?? [],
       captureRows,
       now,
     );
+    // Capture progress (D076): only this project's rows feed its estimate.
+    const pageIds = new Set(pages.map((page) => page.id));
+    const progress = computeProjectProgress(
+      pages,
+      captureRows.filter((row) => pageIds.has(row.pageId)),
+    );
+    const captureFeedback = captureFeedbackByProject.get(project.id) ?? {};
     return {
       projectId: project.id,
       publicId: project.publicId,
@@ -146,21 +254,28 @@ async function hydrate(
       createdAt: project.createdAt,
       pages,
       counts,
+      progress,
+      feedback: sumFeedbackCounts(Object.values(captureFeedback)),
+      captureFeedback,
     };
   });
 }
 
-/** Every live project with its ordered pages, devices, and attempt history. */
+/**
+ * Every live project with its ordered pages, devices, and attempt history.
+ * Feedback counts are computed for `viewer` (the editor unless told otherwise).
+ */
 export async function listProjectHierarchies(
   db: Database,
   now: number,
+  viewer: Viewer = EDITOR_VIEWER,
 ): Promise<ProjectHierarchy[]> {
   const projectRows = await db
     .select()
     .from(schema.projects)
     .where(isNull(schema.projects.deletedAt))
     .orderBy(desc(schema.projects.createdAt), asc(schema.projects.id));
-  return hydrate(db, projectRows, now);
+  return hydrate(db, projectRows, now, viewer);
 }
 
 /**
@@ -172,6 +287,7 @@ export async function readProjectHierarchy(
   db: Database,
   publicId: string,
   now: number,
+  viewer: Viewer = EDITOR_VIEWER,
 ): Promise<ProjectHierarchy | null> {
   const projectRows = await db
     .select()
@@ -180,6 +296,6 @@ export async function readProjectHierarchy(
     .limit(1);
   const project = projectRows[0];
   if (!project || project.deletedAt !== null) return null;
-  const [hierarchy] = await hydrate(db, [project], now);
+  const [hierarchy] = await hydrate(db, [project], now, viewer);
   return hierarchy ?? null;
 }

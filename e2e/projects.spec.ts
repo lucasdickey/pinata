@@ -163,7 +163,7 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
   await expect(
-    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+    page.getByRole("navigation", { name: "Projects and pages" }),
   ).toBeVisible();
 
   // Reload and Back/Forward traversal never resubmit the form and never
@@ -272,14 +272,22 @@ test("the workspace keeps one active device, retries one variant, and survives r
   }
 
   await page.reload();
-  const tree = page.getByRole("navigation", { name: "Projects, pages, and devices" });
+  const tree = page.getByRole("navigation", { name: "Projects and pages" });
   await expect(tree.getByText(`${RUN_ID} review`)).toBeVisible();
-  // Exactly one page/device is active at a time.
+  // Exactly one rail entry is current at a time: the shown project's
+  // overview until a page is opened, then that page (D077).
   await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
 
   const detail = page.getByRole("region", { name: "Selected capture" });
-  await tree.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
+  await tree.getByRole("button", { name: PRICING, exact: true }).click();
   await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
+  // The device is a toggle above the canvas with exactly one device pressed.
+  const deviceToggle = detail.getByRole("group", { name: "Device" });
+  await deviceToggle.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
+  await expect(deviceToggle.locator('button[aria-pressed="true"]')).toHaveCount(1);
+  await expect(
+    deviceToggle.getByRole("button", { name: `Mobile capture of ${PRICING}` }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(detail.getByRole("alert")).toContainText(
     "The capture exceeded its total time budget.",
   );
@@ -306,7 +314,11 @@ test("the workspace keeps one active device, retries one variant, and survives r
   // The organization is durable, not browser-local: a hard reload rebuilds it
   // from the database with the same versions.
   await page.reload();
-  await tree.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
+  await tree.getByRole("button", { name: PRICING, exact: true }).click();
+  await detail
+    .getByRole("group", { name: "Device" })
+    .getByRole("button", { name: `Mobile capture of ${PRICING}` })
+    .click();
   await expect(
     detail.getByRole("list", { name: "Capture versions" }).getByRole("button"),
   ).toHaveCount(2);
@@ -370,14 +382,14 @@ test("a failed list load retries with exactly one read and never loses logout", 
   const readsBeforeRetry = listReads;
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(
-    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+    page.getByRole("navigation", { name: "Projects and pages" }),
   ).toBeVisible();
   expect(listReads).toBe(readsBeforeRetry + 1);
 
   // A reload re-reads but never writes.
   await page.reload();
   await expect(
-    page.getByRole("navigation", { name: "Projects, pages, and devices" }),
+    page.getByRole("navigation", { name: "Projects and pages" }),
   ).toBeVisible();
   expect(projectWrites).toBe(0);
   expect(consoleErrors).toEqual([]);

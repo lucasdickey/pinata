@@ -20,13 +20,15 @@
 // same generic 404 every other capture read uses.
 
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { FEEDBACK_BODY_MAX_CHARS } from "../../boundaries";
 import { schema, type Database } from "../db/client";
 import {
+  BUILT_ANNOTATION_KINDS,
   THREAD_AUTHOR_LABELS,
   type ThreadActorRole,
   type ThreadAuthorLabel,
+  type ThreadEntryKind,
 } from "../db/schema";
 
 /** The server-assigned display label for each actor role. */
@@ -35,12 +37,17 @@ export const AUTHOR_LABEL_BY_ROLE: Record<ThreadActorRole, ThreadAuthorLabel> = 
   founder: "founder",
 };
 
-/** One immutable thread entry as presented to an authorized reader. */
+/**
+ * One immutable thread entry as presented to an authorized reader. A
+ * `message` was typed by a person; a `status` entry was written by the
+ * server when the pin was resolved or reopened (D075).
+ */
 export interface ThreadEntryRecord {
   id: string;
   annotationId: string;
   actorRole: ThreadActorRole;
   authorLabel: ThreadAuthorLabel;
+  kind: ThreadEntryKind;
   body: string;
   createdAt: number;
 }
@@ -93,6 +100,7 @@ function toRecord(row: EntryRow): ThreadEntryRecord {
     annotationId: row.annotationId,
     actorRole: row.actorRole as ThreadActorRole,
     authorLabel: row.authorLabel as ThreadAuthorLabel,
+    kind: row.kind as ThreadEntryKind,
     body: row.body,
     createdAt: row.createdAt,
   };
@@ -114,7 +122,7 @@ async function loadLivePin(db: Database, ref: ThreadRef) {
     .where(
       and(
         eq(schema.annotations.id, ref.annotationId),
-        eq(schema.annotations.kind, "pin"),
+        inArray(schema.annotations.kind, [...BUILT_ANNOTATION_KINDS]),
         isNull(schema.annotations.deletedAt),
       ),
     )
@@ -214,18 +222,32 @@ export async function appendThreadEntry(
     annotationId: pin.id,
     actorRole: input.actorRole,
     authorLabel,
+    kind: "message",
     body: input.body,
     createdAt: deps.now(),
   };
   try {
-    await db.insert(schema.threadEntries).values({
-      id: entry.id,
-      annotationId: entry.annotationId,
-      actorRole: entry.actorRole,
-      authorLabel: entry.authorLabel,
-      body: entry.body,
-      idempotencyKey: input.idempotencyKey,
-      createdAt: entry.createdAt,
+    await db.transaction(async (tx) => {
+      await tx.insert(schema.threadEntries).values({
+        id: entry.id,
+        annotationId: entry.annotationId,
+        actorRole: entry.actorRole,
+        authorLabel: entry.authorLabel,
+        kind: entry.kind,
+        body: entry.body,
+        idempotencyKey: input.idempotencyKey,
+        createdAt: entry.createdAt,
+      });
+      // The pin lifecycle (D075): the founder's first reply moves an open
+      // pin to `replied`, in the same transaction as the entry. An editor
+      // follow-up changes nothing, and a resolved pin stays resolved until
+      // someone reopens it.
+      if (input.actorRole === "founder") {
+        await tx
+          .update(schema.annotations)
+          .set({ status: "replied", updatedAt: entry.createdAt })
+          .where(and(eq(schema.annotations.id, pin.id), eq(schema.annotations.status, "open")));
+      }
     });
   } catch (error) {
     // A concurrent same-key request committed first: converge on that one

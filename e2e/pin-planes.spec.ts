@@ -19,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import {
+  clickPlane,
   findClearAim,
   readCamera,
   signIn,
@@ -110,18 +111,13 @@ function planeTarget(
   };
 }
 
-/** Select a plane and wait for its screenshot to decode. */
+/**
+ * Select a plane and wait for its screenshot to decode. The shared helper
+ * opens the page from the rail and picks the device from the toggle above
+ * the canvas (D077), expanding a collapsed project first (D070).
+ */
 async function openPlane(page: Page, target: ReadyTarget): Promise<void> {
-  const button = page.getByRole("button", {
-    name: `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`,
-    exact: true,
-  });
-  // The rail collapses every project but the one holding the selection
-  // (D070), so a plane in another project has to be revealed first.
-  if (!(await button.isVisible())) {
-    await page.locator("details.tree-project").filter({ has: button }).locator("> summary").first().click();
-  }
-  await button.click();
+  await clickPlane(page, target);
   await expect(page.getByRole("img", { name: `Screenshot of ${target.pageUrl}` })).toBeVisible();
   await page.waitForFunction(() => {
     const img = document.querySelector<HTMLImageElement>(".capture-frame-image");
@@ -154,10 +150,10 @@ async function ownPins(page: Page, captureId: string): Promise<PinRecord[]> {
 }
 
 /**
- * Write one pin on the current plane: draft at a clear aim, wait for the
- * context panel's quiescent marker, make the explicit context decision
- * (the first ranked candidate, or No element when asked), save, and wait
- * for the pin to persist.
+ * Write one pin on the current plane: click a clear aim to drop a draft
+ * (no mode to enter first, D074), wait for the composer's quiescent
+ * marker, keep the pre-selected top-ranked candidate or override it with
+ * No element when asked, save, and wait for the pin to persist.
  */
 async function writePin(
   page: Page,
@@ -166,8 +162,6 @@ async function writePin(
   withElement: boolean,
 ): Promise<void> {
   const before = await listPins(page, target.captureId);
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
   const aim = await findClearAim(page, target.captureId, {
     width: target.width,
     height: target.height,
@@ -176,21 +170,18 @@ async function writePin(
   const local = toScreen(aim, camera);
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
-  // The quiescent marker gates every radio interaction (the async
-  // candidates render once detached a radio mid-click under load).
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
+  // Wait for the settled marker before touching the choice controls: the
+  // decision is pre-selected once the candidates read resolves.
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
   );
   await page.getByLabel("Comment").fill(body);
-  const candidates = page
-    .getByTestId("draft-context")
-    .locator(".panel-candidate[data-element-id]");
-  const choseElement = withElement && (await candidates.count()) > 0;
-  if (choseElement) {
-    await candidates.first().getByRole("radio").check();
-  } else {
-    await page.getByRole("radio", { name: "No element" }).check();
+  const preselected = await page.getByTestId("draft-choice").getAttribute("data-element-id");
+  const choseElement = withElement && preselected !== null;
+  if (!choseElement) {
+    await page.getByRole("button", { name: "No element" }).click();
   }
   await page.getByRole("button", { name: "Save pin" }).click();
   const beforeIds = new Set(before.map((pin) => pin.id));
@@ -352,8 +343,10 @@ test("pins and metadata choices stay isolated across Desktop, Mobile, old captur
   ).toBe(false);
   // UI parity: the old plane's list shows its pin and opening it shows its
   // comment (re-anchored to the panel after the version switch settles).
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|Pin \d+ — at \(/);
-  await page.getByRole("button", { name: `Pin ${v1AfterSwitch[0]!.number} — at (` }).click();
+  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ · “/);
+  await page
+    .getByRole("button", { name: new RegExp(`^Pin ${v1AfterSwitch[0]!.number} · “`) })
+    .click();
   await expect(page.getByTestId("panel-pin")).toContainText(`${BODY_PREFIX} desktop-v1`);
 
   // --- After a full reload, every plane still shows only its own marks.

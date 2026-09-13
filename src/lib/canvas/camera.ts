@@ -108,6 +108,24 @@ export function naturalCamera(viewport: PlaneSize, doc: PlaneSize): CanvasCamera
   };
 }
 
+/**
+ * A camera that puts one screenshot-natural point in the middle of the
+ * viewport at the given zoom (D078): how the canvas brings a chosen mark
+ * into view without changing how far in the reader was.
+ */
+export function centerCamera(viewport: PlaneSize, point: NaturalPoint, zoom: number): CanvasCamera {
+  requirePositiveFinite(viewport, "viewport");
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    throw new RangeError("point must be finite");
+  }
+  const clamped = clampCanvasZoom(zoom);
+  return {
+    x: viewport.width / 2 - point.x * clamped,
+    y: viewport.height / 2 - point.y * clamped,
+    zoom: clamped,
+  };
+}
+
 /** Project a screenshot-natural point to its screen point under a camera. */
 export function flowToScreen(point: NaturalPoint, camera: CanvasCamera): NaturalPoint {
   return {

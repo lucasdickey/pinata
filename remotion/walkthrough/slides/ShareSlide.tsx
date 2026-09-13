@@ -57,21 +57,26 @@ export function ShareSlide({ index }: SlideProps) {
       </Reveal>
       <div style={{ display: "flex", gap: 40, marginTop: 18 }}>
         <Callout delay={96} width={560}>
-          The capability rides only in the <strong>URL fragment</strong>: no header, no server
-          log, no referrer ever sees it.
+          The link&rsquo;s secret rides only in the <strong>URL fragment</strong>: no header, no
+          server log, no referrer ever sees it.
         </Callout>
         <Callout delay={116} width={560}>
           The database stores only its <strong>SHA-256 digest</strong>. Rotate or revoke any
           time; the old link dies.
         </Callout>
         <Callout delay={136} width={480}>
-          The founder view is <strong>read and reply only</strong>.
+          The founder view is <strong>read, reply, and resolve only</strong>. On a phone the
+          notes come first.
         </Callout>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, marginTop: 26 }}>
         <Reveal delay={150}>
           <Card>
-            <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 14 }}>Pin 1 · thread</div>
+            {/* The mark's name (D078) heads its thread, as in the app. */}
+            <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 14, lineHeight: 1.3 }}>
+              Pin 1 · &ldquo;This billing toggle reads the same in both&hellip;&rdquo; · Annual
+              (save 20%)
+            </div>
             <ThreadEntry author="Lucas" delay={160}>
               This billing toggle reads the same in both states. Which one is active?
             </ThreadEntry>
@@ -81,6 +86,31 @@ export function ShareSlide({ index }: SlideProps) {
             <ThreadEntry author="Lucas" delay={240}>
               Perfect, that&rsquo;s all it needs.
             </ThreadEntry>
+            {/* A status line (D075): the quiet system entry a resolve writes
+                into the same chronology. */}
+            <Reveal delay={270} from="left" distance={24}>
+              <div
+                style={{
+                  fontSize: 21,
+                  color: THEME.inkSoft,
+                  padding: "4px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 12,
+                    height: 12,
+                    borderRadius: 999,
+                    background: THEME.accent,
+                  }}
+                />
+                Resolved by founder · Status: Resolved
+              </div>
+            </Reveal>
           </Card>
         </Reveal>
         <div>

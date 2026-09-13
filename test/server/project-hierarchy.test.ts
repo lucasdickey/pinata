@@ -5,6 +5,11 @@
 
 import { and, asc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import {
+  EDITOR_VIEWER,
+  founderViewer,
+  markPinSeen,
+} from "../../src/lib/server/annotations/seen";
 import { applyCaptureTransition } from "../../src/lib/server/captures/transitions";
 import { schema } from "../../src/lib/server/db/client";
 import { createProjectAtomically } from "../../src/lib/server/projects/create";
@@ -177,6 +182,81 @@ describe("listProjectHierarchies", () => {
     const first = await listProjectHierarchies(testDb.db, T0 + 5);
     const second = await listProjectHierarchies(testDb.db, T0 + 5);
     expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+  });
+});
+
+describe("feedback counts (D075)", () => {
+  test("ride the hierarchy per capture and per project, computed for the requesting viewer", async () => {
+    const project = await seed("https://chickpea.co", ["https://chickpea.co/pricing"], "key-a-0007");
+    const [root, pricing] = project.pages;
+    const rootDesktop = await captureId(root!.id, "desktop", 1);
+    const pricingDesktop = await captureId(pricing!.id, "desktop", 1);
+    for (const id of [rootDesktop, pricingDesktop]) {
+      await applyCaptureTransition(testDb.db, {
+        captureId: id,
+        from: "pending",
+        to: "ready",
+        imageHash: `hash-${id}`,
+        blobPath: `captures/${id}.webp`,
+        now: T0 + 1,
+      });
+    }
+    const pin = (id: string, capture: string, number: number, status = "open") => ({
+      id,
+      captureId: capture,
+      kind: "pin",
+      number,
+      geometryJson: JSON.stringify({ x: 1, y: 1 }),
+      originalBody: "Note.",
+      status,
+      createdAt: T0 + 2,
+      updatedAt: T0 + 2,
+    });
+    await testDb.db.insert(schema.annotations).values([
+      pin("pin-1", rootDesktop, 1, "replied"),
+      pin("pin-2", rootDesktop, 2, "resolved"),
+      { ...pin("pin-3", rootDesktop, 3), deletedAt: T0 + 3 },
+      pin("pin-4", pricingDesktop, 1),
+    ]);
+    const entry = (id: string, annotationId: string, actorRole: string, createdAt: number, kind = "message") => ({
+      id,
+      annotationId,
+      actorRole,
+      authorLabel: actorRole === "editor" ? "Lucas" : "founder",
+      kind,
+      body: "…",
+      idempotencyKey: id,
+      createdAt,
+    });
+    await testDb.db.insert(schema.threadEntries).values([
+      entry("e1", "pin-1", "founder", T0 + 4),
+      entry("e2", "pin-1", "founder", T0 + 5),
+      entry("e3", "pin-4", "editor", T0 + 6),
+      entry("e4", "pin-2", "founder", T0 + 7, "status"),
+    ]);
+
+    // Default viewer: the editor.
+    const [forEditor] = await listProjectHierarchies(testDb.db, T0 + 10);
+    expect(forEditor!.counts).toEqual({ pages: 2, attempts: 4, ready: 2, failed: 0, inProgress: 2 });
+    expect(forEditor!.feedback).toEqual({ pins: 3, open: 2, resolved: 1, unreadReplies: 2 });
+    expect(forEditor!.captureFeedback).toEqual({
+      [rootDesktop]: { pins: 2, open: 1, resolved: 1, unreadReplies: 2 },
+      [pricingDesktop]: { pins: 1, open: 1, resolved: 0, unreadReplies: 0 },
+    });
+
+    const forFounder = await readProjectHierarchy(testDb.db, project.publicId, T0 + 10, founderViewer(1));
+    expect(forFounder!.feedback).toEqual({ pins: 3, open: 2, resolved: 1, unreadReplies: 1 });
+    expect(forFounder!.captureFeedback[pricingDesktop]!.unreadReplies).toBe(1);
+
+    await markPinSeen(testDb.db, { captureId: rootDesktop, annotationId: "pin-1" }, EDITOR_VIEWER, T0 + 11);
+    const [afterSeen] = await listProjectHierarchies(testDb.db, T0 + 12, EDITOR_VIEWER);
+    expect(afterSeen!.feedback.unreadReplies).toBe(0);
+    // A project with no pins reports zeros and no capture entries.
+    const empty = await seed("https://example.com", [], "key-b-0007", T0 + 1);
+    const hierarchies = await listProjectHierarchies(testDb.db, T0 + 12);
+    const emptyHierarchy = hierarchies.find((candidate) => candidate.publicId === empty.publicId)!;
+    expect(emptyHierarchy.feedback).toEqual({ pins: 0, open: 0, resolved: 0, unreadReplies: 0 });
+    expect(emptyHierarchy.captureFeedback).toEqual({});
   });
 });
 

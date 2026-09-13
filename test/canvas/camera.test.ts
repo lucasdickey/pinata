@@ -9,6 +9,7 @@ import {
   CANVAS_MAX_ZOOM,
   CANVAS_MIN_ZOOM,
   CANVAS_PADDING_PX,
+  centerCamera,
   clampCanvasZoom,
   containCamera,
   flowToScreen,
@@ -191,5 +192,31 @@ describe("flow/screen inverse transforms", () => {
     expect(center.x).toBeLessThan(doc.width);
     expect(center.y).toBeGreaterThan(0);
     expect(center.y).toBeLessThan(doc.height);
+  });
+});
+
+// Bringing a chosen mark into view (D078): the point lands in the middle of
+// the viewport and the zoom is kept, within the published range.
+describe("centerCamera", () => {
+  test("puts the point at the viewport center at the given zoom", () => {
+    const viewport = { width: 800, height: 600 };
+    for (const zoom of [0.25, 1, 4]) {
+      const camera = centerCamera(viewport, { x: 720, y: 4000 }, zoom);
+      expect(camera.zoom).toBe(zoom);
+      const screen = flowToScreen({ x: 720, y: 4000 }, camera);
+      expect(screen.x).toBeCloseTo(400, 9);
+      expect(screen.y).toBeCloseTo(300, 9);
+    }
+  });
+
+  test("clamps the zoom to the published range and rejects a bad point or viewport", () => {
+    expect(centerCamera({ width: 800, height: 600 }, { x: 0, y: 0 }, 99).zoom).toBe(CANVAS_MAX_ZOOM);
+    expect(centerCamera({ width: 800, height: 600 }, { x: 0, y: 0 }, 0.0001).zoom).toBe(
+      CANVAS_MIN_ZOOM,
+    );
+    expect(() => centerCamera({ width: 800, height: 600 }, { x: Number.NaN, y: 0 }, 1)).toThrow(
+      RangeError,
+    );
+    expect(() => centerCamera({ width: 0, height: 600 }, { x: 0, y: 0 }, 1)).toThrow(RangeError);
   });
 });

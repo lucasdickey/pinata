@@ -499,12 +499,22 @@ pre code {
   padding-left: 0;
 }
 
-/* Self-documenting capabilities line above the stage (VAL-CAPTURE-015
-   feedback, 2026-09-09): quiet supporting text, existing tokens only. */
+/* The one sentence the founder view opens with (D078): quiet supporting
+   text, existing tokens only. */
 .workspace-hint {
   color: var(--ink-soft);
   font-size: 0.9rem;
   max-width: var(--max);
+}
+
+/* The verb strip beside the canvas controls (D078): what a click, a
+   shift-drag, and a drag do, in a handful of words. A paragraph, not a
+   heading; it wraps under the controls when the row is full. */
+.workspace-verbs {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 /* The stage and its screen-fixed panel sit side by side; the panel never
@@ -626,6 +636,46 @@ pre code {
   word-break: break-all;
 }
 
+/* The mark's name in the panel (D078) can run long; wrap, never clip. */
+.panel-mark-name {
+  margin: 0 0 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+/* The internals behind one native disclosure (D078). */
+.panel-details {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.panel-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.2rem 0;
+}
+
+.panel-details > dl {
+  margin-top: 0.5rem;
+}
+
+.panel-facts-label {
+  margin: 0.5rem 0 0.15rem;
+  color: var(--ink-soft);
+}
+
+.panel-keys {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.panel-keys li {
+  margin: 0.1rem 0;
+}
+
 /* ---- all-pins table (D071) ---- */
 
 .pin-table {
@@ -676,9 +726,19 @@ pre code {
   background: var(--code-bg);
 }
 
+/* The row header is the mark's name (D078): it can run to the comment
+   excerpt and the element, so it wraps inside a bounded column instead of
+   stretching the table. */
 .pin-table tbody th {
-  white-space: nowrap;
+  min-width: 12rem;
+  max-width: 22rem;
   font-weight: 400;
+  overflow-wrap: anywhere;
+}
+
+.pin-table tbody th button {
+  text-align: left;
+  white-space: normal;
 }
 
 .pin-table tr[data-selected="true"] > * {
@@ -858,8 +918,156 @@ pre code {
   border-radius: 2px;
 }
 
+/* Rectangle marks (D079). The node wrapper is pointer-transparent (set
+   inline by the adapter) so a click inside a box still lands on the
+   screenshot; the stroke, the badge, and the handles take the pointer. The
+   svg has no viewBox, so its user units are the node's natural pixels and
+   the visible stroke sits centered on the exact persisted edge. Every
+   width here is set inline from the zoom so the chrome keeps its screen
+   size while the box stays exact. */
+.mark-rectangle {
+  position: absolute;
+  inset: 0;
+}
+.mark-rectangle-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.mark-rectangle-grab {
+  fill: none;
+  stroke: transparent;
+  pointer-events: stroke;
+  cursor: grab;
+}
+.mark-rectangle-stroke {
+  fill: none;
+  stroke: var(--accent);
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.7));
+}
+.mark-rectangle[data-selected="true"] .mark-rectangle-stroke {
+  stroke: var(--ink);
+}
+.mark-rectangle .pin-badge {
+  pointer-events: all;
+  cursor: grab;
+}
+.mark-rectangle-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  box-sizing: border-box;
+}
+.mark-rectangle-handle-dot {
+  display: block;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+}
+.mark-rectangle[data-selected="true"] .mark-rectangle-handle-dot {
+  border-color: var(--ink);
+}
+/* The box toggle: pressed while it waits for the next drag. */
+.capture-draw-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.capture-canvas[data-draw-armed="true"],
+.capture-canvas[data-drawing="true"] {
+  cursor: crosshair;
+}
+
 .capture-error {
   color: var(--accent);
+}
+
+/* Project-level capture progress line and failure list (D076). */
+.capture-progress {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.capture-progress-line {
+  margin: 0;
+}
+
+.capture-progress-failed ul {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+/* Keyboard focus on the canvas region: J/K step through pins, N drops a
+   draft at the viewport center (D074). */
+.capture-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The pin composer (D074): screen-fixed beside the draft badge, outside the
+   transformed plane. The canvas sets left/top from the draft's projected
+   screen point and keeps the box inside the visible canvas frame. */
+.pin-composer {
+  position: fixed;
+  z-index: 20;
+  width: 20rem;
+  max-width: calc(100vw - 2rem);
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+  padding: 0.75rem 0.85rem;
+}
+.pin-composer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pin-composer-title {
+  margin: 0;
+  font-weight: 700;
+}
+.pin-composer-attach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.pin-composer-attach-label {
+  color: var(--ink-soft);
+}
+.pin-composer-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin-composer-attach button {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.5rem;
+}
+.pin-composer-attach button[aria-pressed="true"],
+.pin-composer-attach button[aria-expanded="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.pin-composer .panel-candidates {
+  max-height: 14rem;
+  overflow: auto;
 }
 
 /* ---- founder sharing and threads (REQUIREMENTS 6 and 7) ---- */
@@ -915,6 +1123,110 @@ pre code {
 
 .thread-entry[data-author="founder"] {
   border-left-color: var(--accent);
+}
+
+/* A resolve or reopen in the thread (D075): a quiet system line, visibly
+   not a message. */
+.thread-status {
+  border-left: 3px dashed var(--line);
+  padding-left: 0.6rem;
+}
+
+.thread-status .thread-meta {
+  font-style: italic;
+}
+
+/* ---- feedback loop (D075): status, unread markers, badges, header ---- */
+
+.pin-unread {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pin-status,
+.panel-status {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.panel-status {
+  margin: 0 0 0.5rem;
+}
+
+.pin-table-status {
+  white-space: nowrap;
+}
+
+/* Rail badges: the existing count pill, placed beside the device button. */
+.feedback-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.feedback-badge[data-unread="true"] {
+  background: var(--accent);
+  color: var(--surface);
+}
+
+/* The selected project's header: title, feedback summary, share control. */
+.project-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.project-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.project-feedback {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.project-header .founder-share {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.founder-share-state {
+  margin-left: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.founder-share-state[data-state="active"] {
+  color: var(--ink);
+}
+
+/* The founder's pin list above the canvas. */
+.founder-pin-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.founder-pin-list button {
+  text-align: left;
+  width: 100%;
+}
+
+.founder-pin-list button[aria-current="true"] {
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.founder-pin-excerpt {
+  color: var(--ink-soft);
 }
 
 .thread-meta {
@@ -1311,4 +1623,135 @@ pre code {
 .home-walkthrough {
   margin-top: 1.25rem;
   color: var(--ink-soft);
+}
+
+/* ---- project overview, device toggle, pin stepping (D077) ---- */
+
+/* The rail lists projects and pages only; a page is one button carrying its
+   URL, with the summed feedback badge beside it. */
+.workspace-tree .tree-pages {
+  padding-left: 0.75rem;
+}
+
+.workspace-tree .tree-pages > li {
+  margin: 0.25rem 0;
+}
+
+.workspace-tree button.page-url {
+  display: inline;
+  text-align: left;
+  word-break: break-all;
+  font-size: 0.9rem;
+}
+
+.workspace-tree .tree-overview {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+/* One card per capture, in page order, Desktop then Mobile. The thumbnail
+   is the same private asset the canvas renders, clipped to a fixed frame
+   and sized by CSS; no new storage. */
+.project-overview {
+  margin-top: 0.5rem;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.6rem;
+  text-align: left;
+  font: inherit;
+}
+
+.overview-thumb {
+  display: block;
+  width: 100%;
+  height: 10rem;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--code-bg);
+}
+
+.overview-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.overview-url {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.overview-meta,
+.overview-counts {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.overview-counts[data-unread="true"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The canvas view's controls sit in one row directly above the stage, next
+   to the camera controls the canvas draws as its first row. */
+.canvas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.device-toggle,
+.pin-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.device-toggle button[aria-pressed="true"],
+.pin-table-scope button[aria-pressed="true"] {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.pin-step-position {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pin-table-scope {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.pin-table-page {
+  overflow-wrap: anywhere;
+  font-size: 0.85em;
+}
+
+.pin-table-device {
+  white-space: nowrap;
 }

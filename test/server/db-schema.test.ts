@@ -6,7 +6,7 @@
 
 import { createClient, type Client } from "@libsql/client";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { describe, expect, test } from "vitest";
 import { databaseFromClient, schema, type Database } from "../../src/lib/server/db/client";
 
@@ -137,7 +137,7 @@ describe("migrations", () => {
     const applied = await client.execute(
       "SELECT COUNT(*) AS n FROM __drizzle_migrations",
     );
-    expect(Number(applied.rows[0]?.n)).toBe(4);
+    expect(Number(applied.rows[0]?.n)).toBe(7);
     const tables = await client.execute(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     );
@@ -149,6 +149,7 @@ describe("migrations", () => {
       "capture_cleanups",
       "capture_leases",
       "annotations",
+      "annotation_views",
       "thread_entries",
       "idempotency_keys",
       "rate_limit_buckets",
@@ -167,6 +168,106 @@ describe("migrations", () => {
     const names = triggers.rows.map((row) => String(row.name));
     expect(names).toContain("thread_entries_reject_update");
     expect(names).toContain("thread_entries_reject_delete");
+    // The D075 value domains are triggers too (see 0005): adding a CHECK to
+    // an existing SQLite table would mean recreating it, and recreating
+    // thread_entries would drop the two triggers above.
+    expect(names).toContain("annotations_status_check_insert");
+    expect(names).toContain("annotations_status_check_update");
+    expect(names).toContain("thread_entries_kind_check_insert");
+    client.close();
+  });
+});
+
+describe("feedback loop columns (D075)", () => {
+  test("annotations default to open and accept only the three lifecycle values", async () => {
+    const { client, db } = await createTestDb();
+    const project = await seedProject(db);
+    const page = await seedPage(db, project.id);
+    const capture = await seedCapture(db, page.id);
+    const annotation = await seedAnnotation(db, capture.id, 1);
+    const [row] = await db
+      .select({ status: schema.annotations.status })
+      .from(schema.annotations)
+      .where(eq(schema.annotations.id, annotation.id));
+    expect(row?.status).toBe("open");
+
+    for (const status of ["replied", "resolved", "open"]) {
+      await db.update(schema.annotations).set({ status }).where(eq(schema.annotations.id, annotation.id));
+    }
+    await expectRejection(
+      db.update(schema.annotations).set({ status: "done" }).where(eq(schema.annotations.id, annotation.id)),
+      /annotations\.status must be open, replied, or resolved/,
+    );
+    await expectRejection(
+      db.insert(schema.annotations).values({
+        id: id("ann"),
+        captureId: capture.id,
+        kind: "pin",
+        number: 2,
+        geometryJson: "{}",
+        originalBody: "x",
+        status: "closed",
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+      /annotations\.status must be open, replied, or resolved/,
+    );
+    client.close();
+  });
+
+  test("thread entries default to message and accept only message or status", async () => {
+    const { client, db } = await createTestDb();
+    const project = await seedProject(db);
+    const page = await seedPage(db, project.id);
+    const capture = await seedCapture(db, page.id);
+    const annotation = await seedAnnotation(db, capture.id, 1);
+    await db.insert(schema.threadEntries).values(seedThreadEntry(annotation.id));
+    await db.insert(schema.threadEntries).values(
+      seedThreadEntry(annotation.id, { id: id("thr"), idempotencyKey: id("key"), kind: "status" }),
+    );
+    const rows = await db
+      .select({ kind: schema.threadEntries.kind })
+      .from(schema.threadEntries)
+      .where(eq(schema.threadEntries.annotationId, annotation.id))
+      .orderBy(asc(schema.threadEntries.id));
+    expect(rows.map((row) => row.kind).sort()).toEqual(["message", "status"]);
+    await expectRejection(
+      db.insert(schema.threadEntries).values(
+        seedThreadEntry(annotation.id, { id: id("thr"), idempotencyKey: id("key"), kind: "note" }),
+      ),
+      /thread_entries\.kind must be message or status/,
+    );
+    // Status entries are as immutable as messages.
+    await expectRejection(
+      db.update(schema.threadEntries).set({ body: "edited" }).where(eq(schema.threadEntries.kind, "status")),
+      /append-only/,
+    );
+    await expectRejection(
+      db.delete(schema.threadEntries).where(eq(schema.threadEntries.kind, "status")),
+      /append-only/,
+    );
+    client.close();
+  });
+
+  test("annotation_views keeps one row per pin, role, and viewer key and only the two roles", async () => {
+    const { client, db } = await createTestDb();
+    const project = await seedProject(db);
+    const page = await seedPage(db, project.id);
+    const capture = await seedCapture(db, page.id);
+    const annotation = await seedAnnotation(db, capture.id, 1);
+    const view = { annotationId: annotation.id, role: "editor", viewerKey: "editor", seenAt: NOW };
+    await db.insert(schema.annotationViews).values(view);
+    await db.insert(schema.annotationViews).values({ ...view, role: "founder", viewerKey: "founder:v1" });
+    await db.insert(schema.annotationViews).values({ ...view, role: "founder", viewerKey: "founder:v2" });
+    await expectRejection(db.insert(schema.annotationViews).values(view), /UNIQUE|PRIMARY/i);
+    await expectRejection(
+      db.insert(schema.annotationViews).values({ ...view, role: "guest", viewerKey: "guest" }),
+      /CHECK constraint failed/i,
+    );
+    await expectRejection(
+      db.insert(schema.annotationViews).values({ ...view, annotationId: "no-such-annotation" }),
+      /FOREIGN KEY constraint failed/i,
+    );
     client.close();
   });
 });

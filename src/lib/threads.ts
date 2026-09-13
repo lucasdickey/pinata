@@ -2,12 +2,18 @@
 // (REQUIREMENTS 6 and 7). Types only: no server machinery, credentials, or
 // store handles are importable from here.
 
-/** One immutable thread entry; the label is server-assigned by role. */
+/**
+ * One immutable thread entry; the label is server-assigned by role. A
+ * `message` was typed by a person; a `status` entry was written by the
+ * server when the pin was resolved or reopened (D075), with a body such as
+ * "Resolved by founder". Both kinds are append-only.
+ */
 export interface ThreadEntryView {
   id: string;
   annotationId: string;
   actorRole: "editor" | "founder";
   authorLabel: "Lucas" | "founder";
+  kind: "message" | "status";
   body: string;
   createdAt: number;
 }

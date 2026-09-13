@@ -84,7 +84,7 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
     title: "Pin notes to the exact pixel",
     durationInFrames: seconds(12),
     notes:
-      "Each capture opens on a pan-and-zoom canvas at its natural pixel size. The editor places numbered pins whose coordinates are stored in screenshot pixels, so panning, zooming, and resizing never move a target. Desktop and mobile captures are independent planes. When placing a pin, nearby captured elements are offered as context, and the editor explicitly picks one, or none.",
+      "Each capture opens on a pan-and-zoom canvas at the screenshot's own size. A click drops a numbered pin; a Shift-drag, or the Box tool, draws a numbered box around a region. Both are stored in screenshot pixels, so panning, zooming, and resizing never move a target, and both are named by what they say and what they point at, such as Pin 1, the comment, and the Annual toggle. Desktop and mobile captures each keep their own marks. When placing a mark, nearby captured elements are offered as context, and the editor picks one, or none.",
   },
   {
     id: "share",
@@ -92,7 +92,7 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
     title: "Share one link. Get the reply in place.",
     durationInFrames: seconds(11),
     notes:
-      "A persistent, revocable link opens the project in a read-and-reply-only founder view. The capability token travels only in the URL fragment, and the database stores only its SHA-256 digest. Threads are append-only and chronological: the founder replies, the editor follows up, and nobody, including the founder, can edit or delete a founder reply.",
+      "A persistent, revocable link opens the project in a read-and-reply-only founder view: on a phone the list of notes comes first, and tapping one brings the screenshot to it. The link's secret travels only in the URL fragment, and the database stores only its SHA-256 digest. Threads are append-only and chronological: the founder replies, the editor follows up, and nobody, including the founder, can edit or delete a founder reply. Either side can mark a note resolved, or reopen it, and the thread records who did so.",
   },
   {
     id: "guardrails",

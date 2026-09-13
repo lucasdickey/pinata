@@ -47,10 +47,9 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   provider flake leaves a failed attempt the product cannot recover. Whether
   to distinguish it from an admission-time unsafe target and offer retry is
   deferred (`D054`, pending user answer).
-- Pins cannot yet be edited or deleted (`D059`): the schema already carries
-  tombstones and the non-reuse numbering rule, but no route or UI mutates a
-  pin beyond move. A reviewer looking for comment editing or pin removal
-  will not find them.
+- Circles and arrows are still unbuilt (`D079` adds rectangles only); the
+  schema and geometry minimums already allow them, and the rectangle's
+  resize and geometry path is the one they would reuse.
 - The pins e2e writes real pins to the shared local store by design (the
   corner-fixture pin is reused across runs; the other tests add at most
   three pins per run), so roughly sixty full local `npm run validate` runs

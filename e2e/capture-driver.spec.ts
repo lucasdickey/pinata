@@ -1,11 +1,16 @@
-// End-to-end proof of the capture-dispatch driver against the production
-// build, the real Turso database, the real private Blob store, and the real
-// Browserless provider: a project whose attempts were committed entirely
-// outside the browser reaches `ready` on every attempt with zero manual
-// dispatch calls — the editor client drives the scoped dispatch route itself,
-// on load and after reload, never more than MAX_ACTIVE_CAPTURES at a time.
-// A second project whose target fails admission shows the catalog outcome in
-// the workspace and is never re-driven once terminal.
+// End-to-end proof of capture driving against the production build, the real
+// Turso database, the real private Blob store, and the real Browserless
+// provider: a project committed through the API reaches `ready` on every
+// attempt with zero manual dispatch calls. Since D076 the server continues
+// capture work after the create response on its own, and the editor client's
+// driver is the fallback that re-drives whatever it still sees pending on
+// load and after reload — so this spec no longer insists the browser issued
+// every dispatch; it insists that every attempt finished, that whatever the
+// browser did issue stayed inside the durable lease cap, and that every
+// answer after an attempt was claimed was fenced (409 or 429). A second
+// project whose target fails admission shows the catalog outcome in the
+// workspace, is retried once automatically, and is never re-driven once
+// terminal.
 //
 // The suite gates on the full local configuration and skips with a name-only
 // reason in CI. Fixture targets come from the durable public fixture host
@@ -104,7 +109,7 @@ function allAttempts(project: RunProject) {
   return project.pages.flatMap((page) => page.devices.flatMap((device) => device.attempts));
 }
 
-test("a project created outside the browser is driven to ready by the editor client", async ({
+test("a project created outside the browser is driven to ready with no manual dispatch", async ({
   page,
 }) => {
   test.skip(!gate.ready, gate.reason);
@@ -171,8 +176,9 @@ test("a project created outside the browser is driven to ready by the editor cli
 
   await signIn(page);
 
-  // Commit the project entirely outside the browser: four pending attempts,
-  // nothing dispatched. This is the "returned to pending work" shape.
+  // Commit the project through the API: four pending attempts at the moment
+  // the response is written. The server continues from here on its own
+  // (D076); the browser has issued nothing.
   const created = await createProject(page.request, page, {
     title: `${RUN_ID} drive`,
     rootUrl: ROOT_URL,
@@ -181,16 +187,14 @@ test("a project created outside the browser is driven to ready by the editor cli
   own = new Set(attemptIds(created));
   expect(own.size).toBe(4);
   const before = await runProject(page.request, `${RUN_ID} drive`);
-  expect(before?.counts).toMatchObject({ attempts: 4, ready: 0, failed: 0, inProgress: 4 });
+  expect(before?.counts).toMatchObject({ attempts: 4, failed: 0 });
   expect(dispatched.size).toBe(0);
 
-  // Reloading the editor — the plain navigation case — is what drives the
-  // pending attempts. No test code ever calls the dispatch route.
+  // Reloading the editor — the plain navigation case — brings the fallback
+  // driver in for whatever is still pending. No test code ever calls the
+  // dispatch route.
   await page.reload();
   await expect(page.getByRole("heading", { name: `${RUN_ID} drive` })).toBeVisible();
-  await expect
-    .poll(() => dispatched.size, { timeout: 30_000, intervals: [500] })
-    .toBeGreaterThan(0);
 
   // Every attempt reaches ready with no manual dispatch call.
   await expect
@@ -207,16 +211,17 @@ test("a project created outside the browser is driven to ready by the editor cli
   }
 
   // The lease cap held end to end: within any one loaded document this
-  // client never ran more dispatches than the durable slot count, and every
-  // attempt was driven. The real per-attempt guarantee is the server fence,
-  // not a dispatch count: a reload racing an in-flight claim, or a hierarchy
-  // read that still shows a just-claimed row as pending, legitimately
-  // produces a re-drive — and every answer after the claim must be fenced
-  // (409 conflict or 429 quota), with at most one claiming 2xx. A small
-  // absolute bound keeps "never an unbounded retry" explicit.
-  expect(maxInFlight).toBeGreaterThan(0);
+  // client never ran more dispatches than the durable slot count. The real
+  // per-attempt guarantee is the server fence, not a dispatch count: the
+  // server's own continuation, a reload racing an in-flight claim, or a
+  // hierarchy read that still shows a just-claimed row as pending, all
+  // legitimately produce a browser re-drive — and every answer after the
+  // claim must be fenced (409 conflict or 429 quota), with at most one
+  // claiming 2xx. The browser may have dispatched none of this run's
+  // attempts if the server finished first; whatever it did dispatch is
+  // bounded by a small absolute count.
   expect(maxInFlight).toBeLessThanOrEqual(MAX_ACTIVE_CAPTURES);
-  expect(dispatched.size).toBe(4);
+  expect(dispatched.size).toBeLessThanOrEqual(4);
   for (const [id, count] of dispatched) {
     expect(count, id).toBeGreaterThanOrEqual(1);
     expect(count, id).toBeLessThanOrEqual(8);
@@ -247,6 +252,15 @@ test("a project created outside the browser is driven to ready by the editor cli
       .filter({ hasText: `${RUN_ID} drive` })
       .getByText("2 pages · 4 ready · 0 failed · 0 in progress"),
   ).toBeVisible();
+
+  // The progress line (D076) reads the same server-computed block: with the
+  // project's root page open (on its ready Desktop capture, D077), it
+  // reports every capture ready.
+  const tree = page.getByRole("navigation", { name: "Projects and pages" });
+  await tree.getByRole("button", { name: ROOT_URL, exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Selected capture" }).getByTestId("capture-progress"),
+  ).toHaveText("All 4 captures ready");
   expect(consoleErrors).toEqual([]);
 });
 
@@ -258,9 +272,10 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
 
   // Count only this run's dispatches: the driver legitimately drives any
   // other pending work the shared database shows this page. Requests are
-  // tracked separately from terminal (non-429) answers: a quota-held attempt
-  // may be re-driven a bounded number of times before its slot frees, but it
-  // must reach its terminal answer exactly once.
+  // tracked separately from terminal answers: a quota-held (429) or fenced
+  // (409, the server's own continuation claimed it first since D076) attempt
+  // may be re-driven a bounded number of times, but it must reach its
+  // terminal answer at most once from this page.
   let own: Set<string> | null = null;
   let dispatchRequests = 0;
   const terminalAnswers = new Map<string, number>();
@@ -275,7 +290,7 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
   });
   page.on("response", (response) => {
     const id = ownDispatchId(response.url(), response.request().method());
-    if (id && response.status() !== 429) {
+    if (id && response.status() !== 429 && response.status() !== 409) {
       terminalAnswers.set(id, (terminalAnswers.get(id) ?? 0) + 1);
     }
   });
@@ -292,21 +307,35 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
   await page.reload();
   await expect(page.getByRole("heading", { name: `${RUN_ID} unresolvable` })).toBeVisible();
 
-  // The driver dispatches, admission fails closed, and the workspace
-  // surfaces the catalog's bounded message for both variants.
+  // Admission fails closed, dns-failed is retryable, so each variant is
+  // retried exactly once automatically (D076) and fails the same way: four
+  // failed attempts, two per variant, and then nothing moves.
   await expect
     .poll(
       async () => (await runProject(page.request, `${RUN_ID} unresolvable`))?.counts.failed,
       { timeout: 60_000, intervals: [1_000, 2_000] },
     )
-    .toBe(2);
+    .toBe(4);
+  const failedProject = (await runProject(page.request, `${RUN_ID} unresolvable`))!;
+  expect(failedProject.counts).toMatchObject({ attempts: 4, failed: 4, inProgress: 0 });
+  for (const device of failedProject.pages[0]!.devices) {
+    expect(device.attempts.map((attempt) => attempt.state)).toEqual(["failed", "failed"]);
+  }
 
-  const tree = page.getByRole("navigation", { name: "Projects, pages, and devices" });
-  await tree
-    .getByRole("button", { name: `Desktop capture of ${FAIL_URL}` })
-    .click();
-  await expect(page.getByRole("region", { name: "Selected capture" }).getByRole("alert"))
+  // Neither device is usable, so the page opens on Desktop (D077).
+  const tree = page.getByRole("navigation", { name: "Projects and pages" });
+  await tree.getByRole("button", { name: FAIL_URL, exact: true }).click();
+  const detail = page.getByRole("region", { name: "Selected capture" });
+  await expect(detail.getByRole("alert"))
     .toContainText("The address could not be resolved to a public host.");
+  // The project-level control lists both failures with their catalog reason.
+  await expect(detail.getByTestId("capture-progress")).toContainText(
+    "0 of 2 captured · 2 captures failed",
+  );
+  await expect(detail.getByRole("list", { name: "Failed captures" })).toContainText(
+    "The address could not be resolved to a public host.",
+  );
+  await expect(detail.getByRole("button", { name: "Retry 2 failed captures" })).toBeVisible();
 
   // Terminal means terminal: this page may observe an own attempt's terminal
   // answer at most once, and no further dispatch leaves the browser

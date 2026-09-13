@@ -5,10 +5,18 @@
 // verbatim.
 
 import { describe, expect, test } from "vitest";
-import type { PinAnnotationView, PinElementSnapshot } from "../src/lib/annotations";
+import type {
+  PinAnnotationView,
+  PinElementSnapshot,
+  RectangleAnnotationView,
+} from "../src/lib/annotations";
 import {
   formatPinsAsMarkdown,
+  formatProjectPinsAsMarkdown,
+  markHeading,
   pinPosition,
+  pinPositionLine,
+  rectangleBoundsLine,
   snapshotPath,
   snapshotSummary,
 } from "../src/lib/pin-export";
@@ -35,6 +43,8 @@ function pin(overrides: Partial<PinAnnotationView> = {}): PinAnnotationView {
     body: "This billing toggle reads the same in both states.",
     elementSnapshot: element,
     revision: 1,
+    status: "open",
+    unreadReplies: 0,
     createdAt: 0,
     ...overrides,
   };
@@ -81,12 +91,30 @@ describe("formatPinsAsMarkdown", () => {
     expect(markdown).not.toContain("version");
   });
 
-  test("every pin carries its number, position, element, path, and bounds", () => {
+  test("every pin carries its name, position, element, path, and bounds", () => {
     const markdown = formatPinsAsMarkdown([pin()], context);
-    expect(markdown).toContain("## Pin 1 — at (392, 387)");
+    // The heading is the mark's name (D078); the coordinates follow as data.
+    expect(markdown).toContain(
+      "## Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+    );
+    expect(markdown).toContain("- Position: 392, 387 px natural");
+    expect(markdown.indexOf("- Status:")).toBeLessThan(markdown.indexOf("- Position:"));
+    expect(markdown.indexOf("- Position:")).toBeLessThan(markdown.indexOf("- Element:"));
+    expect(markdown).not.toContain("— at (");
     expect(markdown).toContain("- Element: <button> role=switch “Annual (save 20%)”");
     expect(markdown).toContain("- Path: `main > section.pricing > div.billing-toggle`");
     expect(markdown).toContain("- Bounds: 176 × 44 px natural");
+  });
+
+  test("every pin carries its lifecycle status (D075)", () => {
+    expect(formatPinsAsMarkdown([pin()], context)).toContain("- Status: Open");
+    expect(formatPinsAsMarkdown([pin({ status: "replied" })], context)).toContain(
+      "- Status: Replied",
+    );
+    const resolved = formatPinsAsMarkdown([pin({ status: "resolved" })], context);
+    expect(resolved).toContain("- Status: Resolved");
+    // The status line sits between the heading and the element context.
+    expect(resolved.indexOf("- Status:")).toBeLessThan(resolved.indexOf("- Element:"));
   });
 
   test("a no-element pin says so and emits no path or bounds line", () => {
@@ -123,5 +151,150 @@ describe("formatPinsAsMarkdown", () => {
 
   test("the block never ends in blank lines", () => {
     expect(formatPinsAsMarkdown([pin()], context)).not.toMatch(/\n\s*$/);
+  });
+
+  test("a supplied heading replaces the default one and nothing else changes", () => {
+    const markdown = formatPinsAsMarkdown([pin()], { ...context, heading: "Pricing — Desktop" });
+    expect(markdown.split("\n")[0]).toBe("# Pricing — Desktop");
+    expect(markdown).not.toContain("Pinata pins");
+    expect(markdown).toContain("## Pin 1 · “This billing toggle reads the same in both states.”");
+  });
+});
+
+// The project export (D077): one document for the whole project, one heading
+// per capture in page/device order, each capture's pins beneath it in the
+// per-capture format. Pin numbers stay per capture, so the capture heading
+// is what makes "Pin 1" unambiguous.
+describe("formatProjectPinsAsMarkdown", () => {
+  const project = { title: "chickpea.co", rootUrl: "https://chickpea.co/" };
+  const groups = [
+    {
+      context: { pageUrl: "https://chickpea.co/", variant: "Desktop", attempt: 1 },
+      pins: [pin({ id: "h1", number: 1, body: "Home desktop note." })],
+    },
+    {
+      context: { pageUrl: "https://chickpea.co/", variant: "Mobile", attempt: 1 },
+      pins: [],
+    },
+    {
+      context: { pageUrl: "https://chickpea.co/pricing", variant: "Desktop", attempt: 2 },
+      pins: [
+        pin({ id: "p1", number: 1, body: "Pricing note one." }),
+        pin({ id: "p2", number: 2, body: "Pricing note two.", elementSnapshot: null }),
+      ],
+    },
+  ];
+
+  test("heads the document with the project and the totals", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    expect(markdown.split("\n")[0]).toBe("# Pinata pins — chickpea.co");
+    expect(markdown).toContain("https://chickpea.co/ · 2 captures · 3 pins");
+  });
+
+  test("one heading per capture with pins, in the order given, naming page and device", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    const headings = markdown.split("\n").filter((line) => line.startsWith("## "));
+    expect(headings).toEqual(["## https://chickpea.co/ — Desktop", "## https://chickpea.co/pricing — Desktop"]);
+    // The capture with no pins gets no section: nothing to hand an agent.
+    expect(markdown).not.toContain("Mobile");
+    expect(markdown).toContain("Desktop · version 2 · 2 pins");
+  });
+
+  test("each capture's pins follow its heading in the per-capture format, one level down", () => {
+    const markdown = formatProjectPinsAsMarkdown(groups, project);
+    const home = markdown.indexOf("## https://chickpea.co/ — Desktop");
+    const pricing = markdown.indexOf("## https://chickpea.co/pricing — Desktop");
+    const homePin = markdown.indexOf("### Pin 1 · “Home desktop note.” · Annual (save 20%)");
+    expect(home).toBeLessThan(homePin);
+    expect(homePin).toBeLessThan(pricing);
+    expect(markdown.indexOf("### Pin 2 · “Pricing note two.”")).toBeGreaterThan(pricing);
+    // Exactly one top-level heading in the whole document.
+    expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
+    // The per-pin details and the verbatim comment come through unchanged.
+    expect(markdown).toContain("- Path: `main > section.pricing > div.billing-toggle`");
+    expect(markdown).toContain("> Pricing note two.");
+  });
+
+  test("a project with no pins produces a readable block and never ends in blank lines", () => {
+    const empty = formatProjectPinsAsMarkdown([groups[1]!], project);
+    expect(empty).toContain("0 captures · 0 pins");
+    expect(empty).toContain("_No pins in this project._");
+    expect(formatProjectPinsAsMarkdown(groups, project)).not.toMatch(/\n\s*$/);
+  });
+});
+
+describe("rectangles in the export (D079)", () => {
+  const box: RectangleAnnotationView = {
+    id: "a3",
+    captureId: "cap-1",
+    kind: "rectangle",
+    number: 3,
+    rect: { x: 120.4, y: 640.6, width: 300.2, height: 180.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+
+  test("the position is the corner and size, and the heading is the mark's name", () => {
+    expect(pinPosition(box)).toBe("120, 641 · 300 × 181");
+    expect(markHeading(box)).toBe("## Box 3 · “This whole card needs more air.”");
+    expect(markHeading(pin())).toBe(
+      "## Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+    );
+    expect(rectangleBoundsLine(box)).toBe("- Box: 120, 641 · 300 × 181 px natural");
+    expect(rectangleBoundsLine(pin())).toBeNull();
+    // A box has a box line and no position line; a pin the other way round.
+    expect(pinPositionLine(box)).toBeNull();
+    expect(pinPositionLine(pin())).toBe("- Position: 392, 387 px natural");
+  });
+
+  test("a box block carries its kind, status, box line, element, and comment in the shared order", () => {
+    const markdown = formatPinsAsMarkdown([pin(), box], context);
+    expect(markdown).toContain("2 pins");
+    const block = markdown.slice(markdown.indexOf("## Box 3"));
+    expect(block).toContain("## Box 3 · “This whole card needs more air.”");
+    expect(block).not.toContain("- Position:");
+    expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Box:"));
+    expect(block.indexOf("- Box:")).toBeLessThan(block.indexOf("- Element: No element"));
+    expect(block).toContain("> This whole card needs more air.");
+    expect(block).not.toContain("- Path:");
+  });
+});
+
+describe("rectangles in the project export (D077 + D079)", () => {
+  const box: RectangleAnnotationView = {
+    id: "b1",
+    captureId: "cap-2",
+    kind: "rectangle",
+    number: 2,
+    rect: { x: 120.4, y: 640.6, width: 300.2, height: 180.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+
+  test("a box in a capture's group renders with the kind-aware heading and box line, one level down", () => {
+    const markdown = formatProjectPinsAsMarkdown(
+      [
+        {
+          context: { pageUrl: "https://chickpea.co/pricing", variant: "Desktop", attempt: 2 },
+          pins: [pin({ id: "p1", number: 1 }), box],
+        },
+      ],
+      { title: "chickpea.co", rootUrl: "https://chickpea.co/" },
+    );
+    expect(markdown).toContain("https://chickpea.co/ · 1 capture · 2 pins");
+    expect(markdown).toContain(
+      "### Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+    );
+    expect(markdown).toContain("### Box 2 · “This whole card needs more air.”");
+    expect(markdown).toContain("- Box: 120, 641 · 300 × 181 px natural");
+    expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
   });
 });

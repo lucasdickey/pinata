@@ -90,7 +90,12 @@ test("anonymous landing: brand, entry form, static example, sign-in path, no api
     page.getByRole("list", { name: "Example thread" }).getByRole("listitem"),
   ).toHaveCount(2);
   await expect(page.getByRole("heading", { name: "DOM context" })).toBeVisible();
-  await expect(page.getByText("Annual (save 20%)")).toBeVisible();
+  // The element's text shows in the metadata panel, and (D078) the pin's
+  // name carries it too, in the example's heading and its pins list.
+  await expect(page.getByText("“Annual (save 20%)”")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /^Pin 1 · “This billing toggle .* · Annual \(save 20%\)$/ }),
+  ).toBeVisible();
 
   // A clear sign-in path.
   await expect(page.getByRole("heading", { name: "Editor sign in" })).toBeVisible();

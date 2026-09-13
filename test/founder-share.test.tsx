@@ -65,19 +65,49 @@ describe("composeFounderLink", () => {
 });
 
 describe("FounderShareControl", () => {
-  test("is closed by default and reads nothing until opened", async () => {
+  test("is closed by default, reads the status once on mount, and shows it inline (D075)", async () => {
     const user = userEvent.setup();
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     const toggle = screen.getByRole("button", { name: "Share with founder" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(fetchMock).not.toHaveBeenCalled();
+    // The state is visible without opening the panel.
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("No founder link");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("group")).toBeNull();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
     await within(panel).findByText("No founder link yet.");
+    // Opening reuses the status already read.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(within(panel).getByRole("button", { name: "Create link" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: "Revoke link" })).toBeNull();
+  });
+
+  test("the inline state names an active link's version and a revoked link", async () => {
+    share = { state: "active", version: 2, revokedAt: null };
+    const { unmount } = render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
+      "Founder link active · v2",
+    );
+    unmount();
+    share = { state: "revoked", version: 2, revokedAt: 1_800_000_000_000 };
+    render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
+      "Founder link revoked",
+    );
+  });
+
+  test("a failed status read is named inline and retried when the panel opens", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementationOnce(() => Promise.resolve(json({ error: "Service unavailable." }, 503)));
+    render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
+      "Link status unavailable",
+    );
+    await user.click(screen.getByRole("button", { name: "Share with founder" }));
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("No founder link");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test("creating shows the complete link once with the token in the fragment", async () => {
