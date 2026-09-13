@@ -103,6 +103,23 @@ export function markKindNoun(kind: MarkKind): "pin" | "box" {
   return kind === "rectangle" ? "box" : "pin";
 }
 
+/**
+ * A reader-facing count of a mixed list of marks (D078/D079): "3 pins" when
+ * they are all pins, "2 boxes" when all boxes, and "2 pins · 1 box" when both.
+ * An empty list reads "0 pins". Keeps summaries (the export headers, the copy
+ * toast) honest once a capture holds boxes as well as pins, instead of calling
+ * every mark a "pin".
+ */
+export function markCountLabel(marks: readonly Pick<AnnotationView, "kind">[]): string {
+  const pins = marks.filter((mark) => mark.kind === "pin").length;
+  const boxes = marks.length - pins;
+  const pinPart = `${pins} pin${pins === 1 ? "" : "s"}`;
+  const boxPart = `${boxes} box${boxes === 1 ? "" : "es"}`;
+  if (boxes === 0) return pinPart;
+  if (pins === 0) return boxPart;
+  return `${pinPart} · ${boxPart}`;
+}
+
 /** "Pin 3" or "Box 4": the kind and number that open every mark's name. */
 export function markTitle(annotation: Pick<AnnotationView, "kind" | "number">): string {
   return `${markKindLabel(annotation.kind)} ${annotation.number}`;

@@ -3534,6 +3534,43 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D080",
+      "date": "2026-09-13",
+      "phase": "build",
+      "title": "Project header feedback counts the current version, matching the rail badges",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The project header summed feedback across every capture of a project, while the page rail badges and the overview cards summed only each device's selected (current) capture. Retrying a page that already had pins — the old attempt keeps its pins, the new attempt is selected and empty — made the header total exceed the sum of the badges beneath it, so the same screen disagreed with itself. Found in review of the D074–D079 pull request.",
+      "decision": "Compute the project header total (project.feedback on the hierarchy read) over each device's selected capture, the same basis the rail badges and overview cards already use. Pins on superseded attempts stay counted per capture (captureFeedback) and stay listed in the explicit all-versions pins table; they simply no longer inflate the current-state headline.",
+      "alternatives": [
+        {
+          "option": "Count all attempts everywhere, including the rail badges",
+          "why_not": "A page badge would then show feedback for pins that live on a superseded capture the editor is not viewing; clicking the page shows the empty current capture, so the badge and the canvas would disagree."
+        },
+        {
+          "option": "Leave the header summing all captures",
+          "why_not": "Keeps the header inconsistent with the badges it sits directly above and with the overview cards, which is exactly what the review flagged."
+        }
+      ],
+      "rationale": "Safe to decide unilaterally inside the granted latitude to tackle the review concerns: it aligns three existing UI surfaces onto the basis two of them already used, changes no schema or wire shape, and preserves the historical record — per-capture counts and the all-versions table still expose superseded pins. It is reversible in one function if the product later prefers the all-history reading.",
+      "consequences": [
+        "The header reads as current-state; the all-versions pins table is the single surface that enumerates superseded attempts' pins.",
+        "project.feedback on the hierarchy wire is now a selected-capture sum, not an all-captures sum."
+      ],
+      "transcript": {
+        "request": "go ahead and fix B1, then merge. and tackle each of your concerns thereafter."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/hierarchy.ts",
+          "caption": "Header total summed over selected captures."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

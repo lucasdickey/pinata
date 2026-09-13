@@ -18,9 +18,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | --- | --: | --- |
 | Human directed | 20 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079 |
 | Agent proposed, human approved | 14 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078 |
-| Agent decided alone | 43 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073 |
+| Agent decided alone | 44 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **79** | |
+| **Total** | **80** | |
 
 ## Index
 
@@ -105,6 +105,7 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D077](#d077--a-project-overview-capture-grid-with-counts-device-toggle-per-page-cross-capture-next-and-previous-pin-and-project-scoped-pin-table-and-export) | build | A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export | Agent proposed, human approved | accepted |
 | [D078](#d078--speak-the-users-language-pins-named-by-their-comment-and-element-internals-behind-a-details-disclosure-and-a-reading-first-founder-view-on-phones) | build | Speak the user's language: pins named by their comment and element, internals behind a Details disclosure, and a reading-first founder view on phones | Agent proposed, human approved | accepted |
 | [D079](#d079--rectangle-marks-drag-to-draw-a-box-comment-and-context-like-a-pin-shared-numbering-resizable-readable-by-the-founder) | build | Rectangle marks: drag to draw a box, comment and context like a pin, shared numbering, resizable, readable by the founder | Human directed | accepted |
+| [D080](#d080--project-header-feedback-counts-the-current-version-matching-the-rail-badges) | build | Project header feedback counts the current version, matching the rail badges | Agent decided alone | accepted |
 
 ---
 
@@ -3112,4 +3113,42 @@ Human instruction:
 
 ---
 
-<sub>Generated from 79 record(s) as of 2026-09-12 · source `07d43a6b1ee1`</sub>
+## D080 — Project header feedback counts the current version, matching the rail badges
+
+*2026-09-13 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The project header summed feedback across every capture of a project, while the page rail badges and the overview cards summed only each device's selected (current) capture. Retrying a page that already had pins — the old attempt keeps its pins, the new attempt is selected and empty — made the header total exceed the sum of the badges beneath it, so the same screen disagreed with itself. Found in review of the D074–D079 pull request.
+
+**Decision**
+
+Compute the project header total (project.feedback on the hierarchy read) over each device's selected capture, the same basis the rail badges and overview cards already use. Pins on superseded attempts stay counted per capture (captureFeedback) and stay listed in the explicit all-versions pins table; they simply no longer inflate the current-state headline.
+
+**Alternatives considered**
+
+- *Count all attempts everywhere, including the rail badges* — A page badge would then show feedback for pins that live on a superseded capture the editor is not viewing; clicking the page shows the empty current capture, so the badge and the canvas would disagree.
+- *Leave the header summing all captures* — Keeps the header inconsistent with the badges it sits directly above and with the overview cards, which is exactly what the review flagged.
+
+**Rationale**
+
+Safe to decide unilaterally inside the granted latitude to tackle the review concerns: it aligns three existing UI surfaces onto the basis two of them already used, changes no schema or wire shape, and preserves the historical record — per-capture counts and the all-versions table still expose superseded pins. It is reversible in one function if the product later prefers the all-history reading.
+
+**Consequences**
+
+- The header reads as current-state; the all-versions pins table is the single surface that enumerates superseded attempts' pins.
+- project.feedback on the hierarchy wire is now a selected-capture sum, not an all-captures sum.
+
+**Provenance evidence**
+
+Human instruction:
+
+> go ahead and fix B1, then merge. and tackle each of your concerns thereafter.
+
+**Artifacts**
+
+- `src/lib/server/projects/hierarchy.ts` — Header total summed over selected captures.
+
+---
+
+<sub>Generated from 80 record(s) as of 2026-09-13 · source `138c4704a4b2`</sub>

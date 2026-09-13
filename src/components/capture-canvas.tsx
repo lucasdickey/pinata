@@ -906,8 +906,11 @@ function CaptureCanvasInner({
   // The window listeners for a gesture in flight: movement updates local
   // state through the pure geometry; the release is the one moment anything
   // settles (a draft for a draw, a context re-query for a draft resize, one
-  // revisioned write for a saved-box resize).
-  useEffect(() => {
+  // revisioned write for a saved-box resize). Attached in a layout effect, not
+  // a passive one, so they are in place before the browser can dispatch the
+  // matching pointerup — a very fast tap that begins and ends a gesture in one
+  // frame would otherwise strand it with a passive effect that runs after paint.
+  useLayoutEffect(() => {
     if (!gestureActive) return;
     const onMove = (event: PointerEvent) => {
       const gesture = gestureRef.current;

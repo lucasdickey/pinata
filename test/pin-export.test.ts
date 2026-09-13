@@ -253,7 +253,8 @@ describe("rectangles in the export (D079)", () => {
 
   test("a box block carries its kind, status, box line, element, and comment in the shared order", () => {
     const markdown = formatPinsAsMarkdown([pin(), box], context);
-    expect(markdown).toContain("2 pins");
+    // The summary counts each kind, not "2 pins" for a pin and a box.
+    expect(markdown).toContain("1 pin · 1 box");
     const block = markdown.slice(markdown.indexOf("## Box 3"));
     expect(block).toContain("## Box 3 · “This whole card needs more air.”");
     expect(block).not.toContain("- Position:");
@@ -289,7 +290,7 @@ describe("rectangles in the project export (D077 + D079)", () => {
       ],
       { title: "chickpea.co", rootUrl: "https://chickpea.co/" },
     );
-    expect(markdown).toContain("https://chickpea.co/ · 1 capture · 2 pins");
+    expect(markdown).toContain("https://chickpea.co/ · 1 capture · 1 pin · 1 box");
     expect(markdown).toContain(
       "### Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
     );
