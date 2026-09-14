@@ -16,8 +16,8 @@ export function PinataLogo({ size = 72 }: { size?: number }) {
       aria-label="pinata logo"
     >
       <rect width="64" height="64" rx={BRAND_MARK.tileRadius} fill={BRAND_MARK.tileFill} />
-      <path d={BRAND_MARK.pinPath} fill={BRAND_MARK.pinFill} />
-      <path d={BRAND_MARK.starPath} fill={BRAND_MARK.starFill} />
+      <path d={BRAND_MARK.bodyPath} fill={BRAND_MARK.bodyFill} fillRule={BRAND_MARK.fillRule} />
+      <path d={BRAND_MARK.inkPath} fill={BRAND_MARK.inkFill} fillRule={BRAND_MARK.fillRule} />
     </svg>
   );
 }

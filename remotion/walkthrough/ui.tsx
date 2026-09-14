@@ -14,6 +14,13 @@ import {
 } from "remotion";
 import { BRAND_MARK } from "../../src/lib/brand-mark";
 import { SLIDES } from "./slides";
+
+// A plain map-pin teardrop for the numbered annotation pins the walkthrough
+// animates. These stand in for the product's own pins, not the brand logo, so
+// they keep the simple teardrop silhouette rather than the llama brand mark
+// (which BRAND_MARK now carries since D069).
+const PIN_TEARDROP =
+  "M32 51 C24.9 40.6 19 35.1 19 27 a13 13 0 1 1 26 0 C45 35.1 39.1 40.6 32 51 Z";
 import { FONT, MONO, THEME } from "./theme";
 
 export type Tone = "light" | "dark";
@@ -86,8 +93,8 @@ export function Mark({ size = 64, style }: { size?: number; style?: CSSPropertie
   return (
     <svg viewBox={BRAND_MARK.viewBox} width={size} height={size} style={style} aria-hidden="true">
       <rect width="64" height="64" rx={BRAND_MARK.tileRadius} fill={BRAND_MARK.tileFill} />
-      <path d={BRAND_MARK.pinPath} fill={BRAND_MARK.pinFill} />
-      <path d={BRAND_MARK.starPath} fill={BRAND_MARK.starFill} />
+      <path d={BRAND_MARK.bodyPath} fill={BRAND_MARK.bodyFill} fillRule={BRAND_MARK.fillRule} />
+      <path d={BRAND_MARK.inkPath} fill={BRAND_MARK.inkFill} fillRule={BRAND_MARK.fillRule} />
     </svg>
   );
 }
@@ -276,7 +283,7 @@ export function PinBadge({
     >
       <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
         <path
-          d={BRAND_MARK.pinPath}
+          d={PIN_TEARDROP}
           fill={THEME.accent}
           stroke={selected ? THEME.ink : THEME.surface}
           strokeWidth={selected ? 2 : 1.4}
