@@ -1,9 +1,10 @@
 // End-to-end interaction contract for the canvas coordinate engine
-// (VAL-CANVAS-003, VAL-CANVAS-006, VAL-CANVAS-008): explicit Navigate /
-// Place pin modes, one deliberate tap creating exactly one draft at the
-// tapped natural pixel, grab-offset dragging with inclusive frame clamps,
-// per-capture session cameras, plane isolation for transient drafts, and
-// touch pan / focal pinch / tap placement via trusted CDP touch input.
+// (VAL-CANVAS-003, VAL-CANVAS-006, VAL-CANVAS-008, D074): no modes — a
+// press that moves pans and a click drops exactly one draft at the clicked
+// natural pixel with the composer beside it; grab-offset dragging with
+// inclusive frame clamps; per-capture session cameras; plane isolation for
+// transient drafts; and touch pan / focal pinch / tap placement via trusted
+// CDP touch input.
 //
 // Runs against the seeded local store like canvas.spec.ts and skips when no
 // ready capture exists. Drafts are local UI state, so nothing here creates
@@ -148,7 +149,7 @@ async function openDesktopPlane(page: Page): Promise<ReadyTarget> {
   return target!;
 }
 
-test("pin mode places exactly one draft at the tapped natural pixel, at 1x and 8x", async ({
+test("a drag pans and a click places exactly one draft at the clicked natural pixel, at 1x and 8x", async ({
   page,
 }) => {
   test.skip(!gate.ready, gate.reason);
@@ -160,35 +161,56 @@ test("pin mode places exactly one draft at the tapped natural pixel, at 1x and 8
   const doc = { width: target.width, height: target.height };
   const tracked = await trackWrites(page);
 
-  // Navigation is the default; Place pin is explicit.
-  await expect(page.getByRole("button", { name: "Navigate" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  // There is no mode to enter (D074): the toolbar holds camera controls
+  // only, and the gesture itself is the intent.
+  await expect(page.getByRole("button", { name: /place pin|navigate/i })).toHaveCount(0);
 
-  // A navigation-mode click creates nothing.
+  // A press that moves past the placement slop pans the camera and creates
+  // nothing.
   let aim = await placeablePoint(page, doc);
-  await page.mouse.click(aim.screen.x, aim.screen.y);
+  const beforePan = await readCamera(page);
+  await page.mouse.move(aim.screen.x, aim.screen.y);
+  await page.mouse.down();
+  await page.mouse.move(aim.screen.x + 80, aim.screen.y + 50, { steps: 6 });
+  await page.mouse.up();
+  const afterPan = await readCamera(page);
+  expect(Math.hypot(afterPan.x - beforePan.x, afterPan.y - beforePan.y)).toBeGreaterThan(40);
+  expect(afterPan.zoom).toBeCloseTo(beforePan.zoom, 6);
   await expect(page.locator(DRAFT)).toHaveCount(0);
+  await expect(page.getByTestId("pin-composer")).toHaveCount(0);
 
-  // 1x: one deliberate click in pin mode creates exactly one draft whose
-  // rendered tip inverse-transforms to the clicked natural pixel. The
-  // seeded plane may already hold persisted pins at the default pane
-  // center (the pins spec writes there), and a tap on a saved pin is
-  // selection, not placement — so pan a pin-free aim into view first.
+  // 1x: one click creates exactly one draft whose rendered tip
+  // inverse-transforms to the clicked natural pixel, and the composer opens
+  // beside it with the comment focused. The seeded plane may already hold
+  // persisted pins at the default pane center (the pins spec writes there),
+  // and a click on a saved pin is selection, not placement — so pan a
+  // pin-free aim into view first.
   await page.getByRole("button", { name: "Natural size" }).click();
   await waitForZoom(page, 1);
   await panUntilNaturalVisible(page, await findClearAim(page, target.captureId, doc));
-  await page.getByRole("button", { name: "Place pin" }).click();
   aim = await placeablePoint(page, doc);
   await page.mouse.click(aim.screen.x, aim.screen.y);
   await expect(page.locator(DRAFT)).toHaveCount(1);
   let measured = await badgeTipNatural(page);
   expect(Math.abs(measured.x - aim.natural.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(measured.y - aim.natural.y)).toBeLessThanOrEqual(1);
-  await expect(page.getByTestId("capture-panel")).toContainText("Draft pin at natural pixel");
+  const composer = page.getByTestId("pin-composer");
+  await expect(composer).toBeVisible();
+  await expect(composer.getByLabel("Comment")).toBeFocused();
+  // Screen-fixed and on screen: the popover box lies inside the window and
+  // outside the transformed plane.
+  const composerBox = await composer.boundingBox();
+  const viewport = page.viewportSize()!;
+  expect(composerBox!.x).toBeGreaterThanOrEqual(0);
+  expect(composerBox!.y).toBeGreaterThanOrEqual(0);
+  expect(composerBox!.x + composerBox!.width).toBeLessThanOrEqual(viewport.width);
+  expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(viewport.height);
+  expect(await composer.evaluate((el) => el.closest(".react-flow") === null)).toBe(true);
+  // The side panel keeps its own job: it never shows the draft.
+  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
 
-  // A second deliberate click moves the same draft; it never stacks.
+  // A second click moves the same draft; it never stacks. The composer
+  // follows the badge.
   const pane = await visiblePane(page);
   const secondScreen = { x: pane.left + pane.width / 3, y: pane.top + pane.height / 3 };
   const camera1x = await readCamera(page);
@@ -201,6 +223,15 @@ test("pin mode places exactly one draft at the tapped natural pixel, at 1x and 8
   measured = await badgeTipNatural(page);
   expect(Math.abs(measured.x - secondNatural.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(measured.y - secondNatural.y)).toBeLessThanOrEqual(1);
+  const movedBox = await composer.boundingBox();
+  expect(movedBox).not.toEqual(composerBox);
+
+  // Escape in the composer cancels the transient draft. (The composer sits
+  // to the right of the badge and would otherwise cover the pane center the
+  // wheel zoom below focuses on.)
+  await page.keyboard.press("Escape");
+  await expect(page.locator(DRAFT)).toHaveCount(0);
+  await expect(composer).toHaveCount(0);
 
   // 8x: same contract at the deepest zoom.
   await zoomToMax(page);
@@ -211,10 +242,12 @@ test("pin mode places exactly one draft at the tapped natural pixel, at 1x and 8
   measured = await badgeTipNatural(page);
   expect(Math.abs(measured.x - aim.natural.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(measured.y - aim.natural.y)).toBeLessThanOrEqual(1);
+  await expect(composer).toBeVisible();
 
   // Escape cancels the transient draft; nothing was ever written.
   await page.keyboard.press("Escape");
   await expect(page.locator(DRAFT)).toHaveCount(0);
+  await expect(composer).toHaveCount(0);
   await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
   await expectNoWrites(page, tracked);
   expect(consoleErrors).toEqual([]);
@@ -242,7 +275,6 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
   const camera = await readCamera(page);
   expect(camera.zoom).toBeGreaterThan(CANVAS_MAX_ZOOM / 2);
 
-  await page.getByRole("button", { name: "Place pin" }).click();
   const aim = await placeablePoint(page, doc);
   await page.mouse.click(aim.screen.x, aim.screen.y);
   await expect(page.locator(DRAFT)).toHaveCount(1);
@@ -292,8 +324,10 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
 
   // Top-left clamp too. The clamped badge sits at the far corner, off pane —
   // and pointer-down outside the browser viewport hits nothing — so pan the
-  // camera (Navigate mode) until the badge is back in view first.
-  await page.getByRole("button", { name: "Navigate" }).click();
+  // camera (a press that moves) until the badge is back in view first. The
+  // press starts in the top-left quarter of the pane: the draft's composer
+  // is clamped into the frame's bottom-right corner while the badge is off
+  // pane, and a press on it would not pan.
   for (let i = 0; i < 12; i += 1) {
     const pane = await visiblePane(page);
     const current = await readCamera(page);
@@ -303,11 +337,10 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
       y: pane.height / 2 - cornerScreen.y,
     };
     if (Math.hypot(delta.x, delta.y) < 40) break;
-    await page.mouse.move(pane.left + pane.width / 2, pane.top + pane.height / 2);
+    const press = { x: pane.left + pane.width / 4, y: pane.top + pane.height / 4 };
+    await page.mouse.move(press.x, press.y);
     await page.mouse.down();
-    await page.mouse.move(pane.left + pane.width / 2 + delta.x, pane.top + pane.height / 2 + delta.y, {
-      steps: 4,
-    });
+    await page.mouse.move(press.x + delta.x, press.y + delta.y, { steps: 4 });
     await page.mouse.up();
   }
   const badge2 = await page.locator(DRAFT).boundingBox();
@@ -356,14 +389,16 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
     page,
     await findClearAim(page, desktop!.captureId, { width: desktop!.width, height: desktop!.height }),
   );
-  await page.getByRole("button", { name: "Place pin" }).click();
   const aim = await placeablePoint(page, { width: desktop!.width, height: desktop!.height });
   await page.mouse.click(aim.screen.x, aim.screen.y);
   await expect(page.locator(DRAFT)).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
 
-  // Mobile (first visit): entire-capture camera, no draft leaked across.
+  // Mobile (first visit): entire-capture camera, no draft or composer
+  // leaked across.
   await openPlane(page, mobile!);
   await expect(page.locator(DRAFT)).toHaveCount(0);
+  await expect(page.getByTestId("pin-composer")).toHaveCount(0);
   await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
   await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
     "aria-pressed",
@@ -475,8 +510,8 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   expect(zoomed.zoom).toBeGreaterThan(before.zoom * 1.5);
   await expect(page.locator(DRAFT)).toHaveCount(0);
 
-  // Pinch in pin mode zooms but creates no mark.
-  await page.getByRole("button", { name: "Place pin" }).click();
+  // A second pinch, narrowing this time, still creates no mark: a gesture
+  // that moves is never a placement.
   pane = await visiblePane(page);
   const mid = { x: pane.left + pane.width / 2, y: pane.top + pane.height / 2 };
   await touch(session, "touchStart", [
@@ -491,8 +526,8 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   await page.waitForTimeout(150);
   await expect(page.locator(DRAFT)).toHaveCount(0);
 
-  // One calibrated tap in pin mode creates exactly one draft at the tapped
-  // natural pixel. Reset to the contain view first so the tap target is a
+  // One calibrated tap creates exactly one draft at the tapped natural
+  // pixel. Reset to the contain view first so the tap target is a
   // deterministic on-document point regardless of where the pinch settled —
   // and pick a pin-free aim, since a tap on a saved pin is selection.
   await page.getByRole("button", { name: "Entire page" }).click();
@@ -510,6 +545,7 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   await page.waitForTimeout(40);
   await touch(session, "touchEnd", []);
   await expect(page.locator(DRAFT)).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
   const tappedTip = await badgeTipNatural(page);
   expect(Math.abs(tappedTip.x - tapNatural.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(tappedTip.y - tapNatural.y)).toBeLessThanOrEqual(1);

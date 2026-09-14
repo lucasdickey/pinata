@@ -9,7 +9,9 @@ import { describe, expect, test } from "vitest";
 import { NEARBY_CANDIDATES_MAX } from "../../src/lib/boundaries";
 import {
   deriveSnapshot,
+  overlapArea,
   rankNearbyCandidates,
+  rankOverlapCandidates,
   type ContextElement,
 } from "../../src/lib/server/annotations/context";
 
@@ -123,5 +125,101 @@ describe("deriveSnapshot", () => {
     expect(deriveSnapshot(elements, "nope")).toBeNull();
     expect(deriveSnapshot(elements, null)).toBeNull();
     expect(deriveSnapshot([], "e1")).toBeNull();
+  });
+});
+
+// The overlap ranking for a draft rectangle (D079): enclosed elements first,
+// the largest enclosed element before its children, partial overlaps by the
+// share of the element covered and then by area, the rest by distance, and
+// the shared tie-breakers after that. Pure overlap area alone would always
+// hand the box to the largest ancestor, so the share comes first.
+describe("rankOverlapCandidates", () => {
+  const box = { x: 100, y: 100, width: 200, height: 100 };
+  const ids = (ranked: ContextElement[]) => ranked.map((candidate) => candidate.id);
+
+  test("overlapArea is the shared area, and zero when boxes only touch or miss", () => {
+    expect(overlapArea(box, { x: 200, y: 150, width: 200, height: 100 })).toBe(100 * 50);
+    expect(overlapArea(box, { x: 300, y: 100, width: 10, height: 10 })).toBe(0);
+    expect(overlapArea(box, { x: 900, y: 900, width: 10, height: 10 })).toBe(0);
+    expect(overlapArea(box, box)).toBe(200 * 100);
+  });
+
+  test("a fully enclosed element beats a partially covered one with more overlap area", () => {
+    // The icon is entirely inside the box (100 px²); the huge section
+    // overlaps the whole box (20 000 px²) but is barely covered itself.
+    const icon = element({ id: "icon", rect: { x: 120, y: 120, width: 10, height: 10 } });
+    const section = element({
+      id: "section",
+      kind: "landmark",
+      rect: { x: 0, y: 0, width: 1440, height: 3000 },
+    });
+    expect(ids(rankOverlapCandidates([section, icon], box))).toEqual(["icon", "section"]);
+  });
+
+  test("among enclosed elements the largest comes first: the card before its caption", () => {
+    const card = element({ id: "card", rect: { x: 110, y: 110, width: 180, height: 80 } });
+    const heading = element({
+      id: "heading",
+      kind: "heading",
+      rect: { x: 120, y: 115, width: 100, height: 20 },
+    });
+    const button = element({
+      id: "button",
+      kind: "control",
+      rect: { x: 120, y: 150, width: 60, height: 20 },
+    });
+    expect(ids(rankOverlapCandidates([button, heading, card], box))).toEqual([
+      "card",
+      "heading",
+      "button",
+    ]);
+  });
+
+  test("partially covered elements rank by the share covered, then by overlap area", () => {
+    // Half of `half` is inside the box; a tenth of `tenth` is, though its
+    // overlap area is larger.
+    const half = element({ id: "half", rect: { x: 200, y: 100, width: 200, height: 100 } });
+    const tenth = element({ id: "tenth", rect: { x: 250, y: 0, width: 500, height: 1000 } });
+    expect(ids(rankOverlapCandidates([tenth, half], box))).toEqual(["half", "tenth"]);
+    // Equal shares: the larger overlap area first.
+    const bigHalf = element({ id: "big-half", rect: { x: 200, y: 100, width: 200, height: 100 } });
+    const smallHalf = element({ id: "small-half", rect: { x: 100, y: 180, width: 40, height: 40 } });
+    expect(ids(rankOverlapCandidates([smallHalf, bigHalf], box))).toEqual(["big-half", "small-half"]);
+  });
+
+  test("elements the box does not touch follow, nearest first", () => {
+    const inside = element({ id: "inside", rect: { x: 120, y: 120, width: 10, height: 10 } });
+    const near = element({ id: "near", rect: { x: 320, y: 100, width: 20, height: 20 } });
+    const far = element({ id: "far", rect: { x: 900, y: 100, width: 20, height: 20 } });
+    expect(ids(rankOverlapCandidates([far, near, inside], box))).toEqual(["inside", "near", "far"]);
+  });
+
+  test("full ties fall through to the existing order: depth, kind, then id", () => {
+    const rect = { x: 120, y: 120, width: 50, height: 50 };
+    const shallow = element({ id: "shallow", rect, path: ["body:0", "p:0"] });
+    const deep = element({ id: "deep", rect, path: ["body:0", "main:0", "section:1", "p:0"] });
+    expect(ids(rankOverlapCandidates([shallow, deep], box))).toEqual(["deep", "shallow"]);
+    const plain = element({ id: "plain", rect, kind: "text" });
+    const control = element({ id: "control", rect, kind: "control", tag: "button" });
+    expect(ids(rankOverlapCandidates([plain, control], box))).toEqual(["control", "plain"]);
+    const b = element({ id: "e2", rect });
+    const a = element({ id: "e10", rect });
+    const c = element({ id: "e1", rect });
+    expect(ids(rankOverlapCandidates([b, a, c], box))).toEqual(["e1", "e10", "e2"]);
+    expect(ids(rankOverlapCandidates([c, b, a], box))).toEqual(["e1", "e10", "e2"]);
+  });
+
+  test("the list is capped, duplicates collapse, and degenerate input yields nothing", () => {
+    const many = Array.from({ length: NEARBY_CANDIDATES_MAX + 4 }, (_, index) =>
+      element({ id: `e${index + 1}`, rect: { x: 100 + index, y: 100, width: 10, height: 10 } }),
+    );
+    many.push(element({ id: "e1", rect: { x: 100, y: 100, width: 10, height: 10 } }));
+    const ranked = rankOverlapCandidates(many, box);
+    expect(ranked).toHaveLength(NEARBY_CANDIDATES_MAX);
+    expect(new Set(ranked.map((candidate) => candidate.id)).size).toBe(ranked.length);
+    expect(rankOverlapCandidates([element()], { ...box, width: 0 })).toHaveLength(0);
+    expect(rankOverlapCandidates([element()], { ...box, x: Number.NaN })).toHaveLength(0);
+    const zero = element({ id: "zero", rect: { x: 110, y: 110, width: 0, height: 0 } });
+    expect(ids(rankOverlapCandidates([zero, element({ id: "real", rect: { x: 110, y: 110, width: 5, height: 5 } })], box))).toEqual(["real"]);
   });
 });

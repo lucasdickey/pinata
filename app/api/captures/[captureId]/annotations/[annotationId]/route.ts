@@ -1,13 +1,15 @@
-// /api/captures/[captureId]/annotations/[annotationId] — move, edit, and
-// delete one pin (VAL-PIN-002, VAL-PIN-008, VAL-PIN-009).
+// /api/captures/[captureId]/annotations/[annotationId] — move, resize, edit,
+// and delete one annotation, pin or rectangle (VAL-PIN-002, VAL-PIN-008,
+// VAL-PIN-009, D079).
 //
-// The route names both the capture and the pin, and the store honors that
-// binding: a pin addressed through another capture's route is simply not
+// The route names both the capture and the annotation, and the store honors
+// that binding: one addressed through another capture's route is simply not
 // found, never rebound to a different plane. Every mutation carries an
 // expectedRevision precondition and commits as one conditional atomic
 // write: a stale or concurrent write loses with a 409 and changes no row,
-// so exactly one authoritative revision ever exists. A move touches only
-// the clamped natural-pixel tip; an edit touches only the original body;
+// so exactly one authoritative revision ever exists. A geometry write
+// touches only the clamped natural-pixel tip (pins) or box (rectangles) and
+// must match the annotation's kind; an edit touches only the original body;
 // number, capture binding, and the immutable context snapshot survive both.
 // Delete is a tombstone: the row stays so its number is never reused.
 //
@@ -23,8 +25,8 @@ import {
   updatePin,
 } from "../../../../../../src/lib/server/annotations/pins";
 import {
-  deletePinBodySchema,
-  updatePinBodySchema,
+  deleteAnnotationBodySchema,
+  updateAnnotationBodySchema,
 } from "../../../../../../src/lib/server/annotations/schemas";
 import { getDatabase } from "../../../../../../src/lib/server/db/client";
 import {
@@ -72,10 +74,10 @@ async function withMutationBoundary(
   return withRenewal(response, auth.renewedToken, secure);
 }
 
-/** Move and/or edit one pin as a single revisioned write. */
+/** Move/resize and/or edit one annotation as a single revisioned write. */
 export async function PATCH(request: Request, context: RouteContext): Promise<Response> {
   return withMutationBoundary(request, async (value, deny) => {
-    const parsed = updatePinBodySchema.safeParse(value);
+    const parsed = updateAnnotationBodySchema.safeParse(value);
     if (!parsed.success) return deny(400, ERRORS.invalidRequest);
 
     const db = getDatabase();
@@ -89,6 +91,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
         annotationId,
         expectedRevision: parsed.data.expectedRevision,
         tip: parsed.data.tip,
+        rect: parsed.data.rect,
         body: parsed.data.body,
       });
     } catch {
@@ -105,10 +108,10 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
   });
 }
 
-/** Tombstone one pin. The row — and its retired number — persist. */
+/** Tombstone one annotation. The row — and its retired number — persist. */
 export async function DELETE(request: Request, context: RouteContext): Promise<Response> {
   return withMutationBoundary(request, async (value, deny) => {
-    const parsed = deletePinBodySchema.safeParse(value);
+    const parsed = deleteAnnotationBodySchema.safeParse(value);
     if (!parsed.success) return deny(400, ERRORS.invalidRequest);
 
     const db = getDatabase();

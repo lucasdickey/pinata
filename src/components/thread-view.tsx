@@ -54,18 +54,31 @@ export function ThreadView({
           </p>
           <p className="thread-body">{originalBody}</p>
         </li>
-        {entries.map((entry) => (
-          <li key={entry.id} className="thread-entry" data-author={entry.authorLabel}>
-            <p className="thread-meta">
-              <strong>{entry.authorLabel}</strong>{" "}
-              <span className="thread-role">({entry.actorRole})</span>{" "}
-              <time dateTime={new Date(entry.createdAt).toISOString()}>
-                {timestamp(entry.createdAt)}
-              </time>
-            </p>
-            <p className="thread-body">{entry.body}</p>
-          </li>
-        ))}
+        {entries.map((entry) =>
+          entry.kind === "status" ? (
+            // A resolve or reopen (D075): one quiet system line in the same
+            // immutable chronology, written by the server, never a message.
+            <li key={entry.id} className="thread-status" data-kind="status">
+              <p className="thread-meta">
+                {entry.body}{" "}
+                <time dateTime={new Date(entry.createdAt).toISOString()}>
+                  {timestamp(entry.createdAt)}
+                </time>
+              </p>
+            </li>
+          ) : (
+            <li key={entry.id} className="thread-entry" data-author={entry.authorLabel}>
+              <p className="thread-meta">
+                <strong>{entry.authorLabel}</strong>{" "}
+                <span className="thread-role">({entry.actorRole})</span>{" "}
+                <time dateTime={new Date(entry.createdAt).toISOString()}>
+                  {timestamp(entry.createdAt)}
+                </time>
+              </p>
+              <p className="thread-body">{entry.body}</p>
+            </li>
+          ),
+        )}
       </ol>
       {status === "loading" ? <p className="panel-note">Loading replies…</p> : null}
       {status === "failed" ? (

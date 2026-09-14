@@ -9,6 +9,7 @@
 // shape is the editor's; the founder client simply never renders editing
 // affordances.
 
+import { founderViewer } from "../../../../src/lib/server/annotations/seen";
 import { getDatabase } from "../../../../src/lib/server/db/client";
 import { founderSessionCookie } from "../../../../src/lib/server/founder/cookies";
 import { requireFounder } from "../../../../src/lib/server/founder/guard";
@@ -38,7 +39,14 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const { publicId } = await context.params;
   let project;
   try {
-    project = await readProjectHierarchy(db, publicId, Date.now());
+    // Feedback counts (D075) are the founder's own: unread means unread by
+    // this capability version, not by the editor.
+    project = await readProjectHierarchy(
+      db,
+      publicId,
+      Date.now(),
+      founderViewer(auth.session.ver),
+    );
   } catch {
     return finish(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
   }

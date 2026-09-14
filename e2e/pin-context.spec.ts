@@ -11,6 +11,8 @@
 // DRAFTS ONLY and cancel every one: the ranking/preview contract is a read
 // surface, and skipping writes keeps the shared store untouched (the
 // choice-persistence half of VAL-PIN-004 is pin-lifecycle.spec.ts's job).
+// Since D074 the composer opens beside the draft with the top candidate
+// pre-selected as a chip; the ranked radio list sits behind "Change".
 
 import { expect, test, type Page } from "@playwright/test";
 import { NEARBY_CANDIDATES_MAX } from "../src/lib/boundaries";
@@ -70,16 +72,15 @@ async function fetchContext(
 }
 
 /**
- * Place a draft at a clear natural point and wait for the context panel's
- * quiescent marker. Never saves; callers cancel when done.
+ * Click a clear natural point to drop a draft (no mode to enter first,
+ * D074) and wait for the composer's quiescent marker. Never saves; callers
+ * cancel when done.
  */
 async function placeDraft(
   page: Page,
   target: ReadyTarget,
   band?: { from: number; to: number },
 ): Promise<{ x: number; y: number }> {
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
   const aim = await findClearAim(page, target.captureId, {
     width: target.width,
     height: target.height,
@@ -88,8 +89,9 @@ async function placeDraft(
   const local = toScreen(aim, camera);
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
-  // Never touch the context panel before its quiescent marker settles: the
-  // async candidates render can detach a radio mid-click under load.
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
+  // Never touch the choice controls before the quiescent marker settles:
+  // the async candidates render can detach a radio mid-click under load.
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
@@ -97,14 +99,24 @@ async function placeDraft(
   return aim;
 }
 
-/** The context panel's candidate rows, in rendered (ranked) order. */
+/**
+ * Open the ranked list behind the pre-selected chip. The composer shows
+ * one chip by default; Change expands the radios, No element last.
+ */
+async function expandCandidates(page: Page): Promise<void> {
+  const change = page.getByRole("button", { name: "Change" });
+  if ((await change.getAttribute("aria-expanded")) !== "true") await change.click();
+  await expect(page.getByTestId("draft-context").getByRole("radio").first()).toBeVisible();
+}
+
+/** The composer's candidate rows, in rendered (ranked) order. */
 function candidateRows(page: Page) {
   return page.getByTestId("draft-context").locator(CANDIDATE_ROW);
 }
 
 async function cancelDraft(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByTestId("panel-draft")).toHaveCount(0);
+  await expect(page.getByTestId("pin-composer")).toHaveCount(0);
 }
 
 test("the pricing plane offers a bounded deterministic candidate list with an explicit last No element (VAL-PIN-004)", async ({
@@ -128,10 +140,22 @@ test("the pricing plane offers a bounded deterministic candidate list with an ex
     "ready",
   );
 
+  // The top-ranked candidate is pre-selected as the chip (D074), and it is
+  // the server's own first result for the same point.
+  const serverOrder = (await fetchContext(page, target!.captureId, aim)).map(
+    (item) => item.id,
+  );
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute(
+    "data-element-id",
+    serverOrder[0]!,
+  );
+
+  await expandCandidates(page);
   const rows = candidateRows(page);
   const count = await rows.count();
   expect(count).toBeGreaterThan(0);
   expect(count).toBeLessThanOrEqual(NEARBY_CANDIDATES_MAX);
+  await expect(rows.first().getByRole("radio")).toBeChecked();
 
   // Every candidate carries a non-empty inert label and a distinct
   // capture-local element id; the server's ranked order for the same point
@@ -143,9 +167,6 @@ test("the pricing plane offers a bounded deterministic candidate list with an ex
   for (let i = 0; i < count; i += 1) {
     await expect(rows.nth(i)).not.toHaveText(/^\s*$/);
   }
-  const serverOrder = (await fetchContext(page, target!.captureId, aim)).map(
-    (item) => item.id,
-  );
   expect(renderedIds).toEqual(serverOrder);
 
   // No element is always the final, explicit choice (VAL-PIN-004).
@@ -153,11 +174,20 @@ test("the pricing plane offers a bounded deterministic candidate list with an ex
   await expect(radios).toHaveCount(count + 1);
   await expect(radios.nth(count)).toHaveAccessibleName("No element");
 
-  // Selection is explicit and exclusive: a candidate, then No element.
-  await rows.first().getByRole("radio").check();
-  await expect(radios.nth(count)).not.toBeChecked();
+  // Selection is explicit and exclusive: No element, then a candidate
+  // again, and the chip follows the choice.
   await radios.nth(count).check();
   await expect(rows.first().getByRole("radio")).not.toBeChecked();
+  await expect(page.getByTestId("draft-choice")).toHaveText("No element");
+  await rows.first().getByRole("radio").check();
+  await expect(radios.nth(count)).not.toBeChecked();
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute(
+    "data-element-id",
+    serverOrder[0]!,
+  );
+  // The one-click override outside the list does the same as its radio.
+  await page.getByRole("button", { name: "No element" }).click();
+  await expect(radios.nth(count)).toBeChecked();
 
   await cancelDraft(page);
   expect(consoleErrors).toEqual([]);
@@ -195,6 +225,7 @@ test("the candidate highlight tracks the persisted manifest rect within one natu
     "data-candidates-state",
     "ready",
   );
+  await expandCandidates(page);
   const rows = candidateRows(page);
   expect(await rows.count()).toBeGreaterThan(0);
 
@@ -309,13 +340,94 @@ test("the mobile pricing plane offers its own bounded candidate list (VAL-PIN-00
     "data-candidates-state",
     "ready",
   );
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute("data-element-id", /.+/);
+  await expandCandidates(page);
   const rows = candidateRows(page);
   const count = await rows.count();
   expect(count).toBeGreaterThan(0);
   expect(count).toBeLessThanOrEqual(NEARBY_CANDIDATES_MAX);
-  await rows.first().getByRole("radio").check();
   await expect(rows.first().getByRole("radio")).toBeChecked();
 
   await cancelDraft(page);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("a drawn box asks for candidates by overlap and pre-selects the server's first result (D079)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(120_000);
+  const consoleErrors = trackConsoleErrors(page);
+  await stubDispatchQuota(page);
+  await signIn(page);
+
+  const target = await findReadyTarget(page, "desktop", "https://chickpea.co/pricing");
+  test.skip(!target, "no ready seeded pricing desktop capture in the local store");
+  await openPlane(page, target!);
+
+  const annotationWrites: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() !== "GET" &&
+      request.method() !== "HEAD" &&
+      request.url().includes("/annotations")
+    ) {
+      annotationWrites.push(`${request.method()} ${request.url()}`);
+    }
+  });
+
+  // Shift-drag a box on the pricing plane; the client's own context request
+  // names the box, so the same URL is what the server is asked to re-rank.
+  const aim = await findClearAim(page, target!.captureId, {
+    width: target!.width,
+    height: target!.height,
+  });
+  const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
+  const local = toScreen(aim, camera);
+  const from = { x: pane.left + local.x, y: pane.top + local.y };
+  const contextRequest = page.waitForRequest(
+    (request) => /\/context\?x=[^&]+&y=[^&]+&width=[^&]+&height=/.test(request.url()),
+  );
+  await page.keyboard.down("Shift");
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 25, { steps: 6 });
+  await page.mouse.move(from.x + 80, from.y + 50, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(1);
+  const requested = new URL((await contextRequest).url());
+  await expect(page.getByTestId("draft-context")).toHaveAttribute(
+    "data-candidates-state",
+    "ready",
+  );
+
+  const serverOrder = (
+    await page.evaluate(async (query) => {
+      const response = await fetch(`/api/captures/${query.captureId}/context?${query.search}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(`context read failed: ${response.status}`);
+      return ((await response.json()) as { candidates: { id: string }[] }).candidates;
+    }, { captureId: encodeURIComponent(target!.captureId), search: requested.searchParams.toString() })
+  ).map((item) => item.id);
+  expect(serverOrder.length).toBeGreaterThan(0);
+  expect(serverOrder.length).toBeLessThanOrEqual(NEARBY_CANDIDATES_MAX);
+  // The largest-overlap element is the pre-selected chip.
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute(
+    "data-element-id",
+    serverOrder[0]!,
+  );
+  await expandCandidates(page);
+  const rows = candidateRows(page);
+  const renderedIds = await rows.evaluateAll((labels) =>
+    labels.map((label) => label.getAttribute("data-element-id")),
+  );
+  expect(renderedIds).toEqual(serverOrder);
+  await expect(page.getByText("Nearby elements, most overlap first")).toBeVisible();
+
+  await cancelDraft(page);
+  await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
+  expect(annotationWrites).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });

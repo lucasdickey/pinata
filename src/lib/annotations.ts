@@ -1,11 +1,28 @@
-// Client-safe wire types for pin annotations (VAL-PIN-001). This module is
+// Client-safe wire types for annotations (VAL-PIN-001, D079). This module is
 // importable from browser code: it carries types only, never server
 // machinery, credentials, or store handles.
+//
+// Two kinds exist today. A pin carries one natural-pixel tip; a rectangle
+// (D079) carries a natural-pixel box. Both share one numbering sequence per
+// capture, one comment, one context snapshot, one revision, one lifecycle
+// status, and one thread.
 
 /** A pin tip in screenshot-natural CSS pixels. */
 export interface PinTipView {
   x: number;
   y: number;
+}
+
+/**
+ * A rectangle's box in screenshot-natural CSS pixels: its top-left corner
+ * and its size. Always inside the capture's document, and at least
+ * MIN_SHAPE_SIZE_PX in each dimension (the server rejects anything else).
+ */
+export interface RectangleGeometryView {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -33,6 +50,13 @@ export interface PinElementSnapshot {
 }
 
 /**
+ * The pin lifecycle (D075): `open` on create, `replied` once the founder has
+ * answered in the thread, `resolved` when either role marks it done. Resolve
+ * and reopen are reversible; each writes a `status` thread entry.
+ */
+export type PinStatus = "open" | "replied" | "resolved";
+
+/**
  * The API view of one persisted pin. Geometry is the canonical natural-pixel
  * tip (never a badge center or a React Flow position); `number` is the
  * server-assigned, monotonically increasing per-capture label.
@@ -47,17 +71,58 @@ export interface PinAnnotationView {
   /** Inert capture-time DOM context snapshot, or the explicit null. */
   elementSnapshot: PinElementSnapshot | null;
   revision: number;
+  status: PinStatus;
+  /**
+   * Replies by the other role that the requesting role has not seen yet
+   * (D075). Computed per request for whoever is asking: the editor's count
+   * on the editor's read, the founder's on the founder's.
+   */
+  unreadReplies: number;
   createdAt: number;
+}
+
+/**
+ * The API view of one persisted rectangle (D079). Everything but the
+ * geometry is the pin's: same numbering sequence, comment, snapshot,
+ * revision, status, unread count, and thread.
+ */
+export interface RectangleAnnotationView {
+  id: string;
+  captureId: string;
+  kind: "rectangle";
+  number: number;
+  rect: RectangleGeometryView;
+  body: string;
+  elementSnapshot: PinElementSnapshot | null;
+  revision: number;
+  status: PinStatus;
+  unreadReplies: number;
+  createdAt: number;
+}
+
+/** Any persisted annotation the routes list or return. */
+export type AnnotationView = PinAnnotationView | RectangleAnnotationView;
+
+/**
+ * Feedback counts for one capture or one project, for the requesting role
+ * (D075). `open` counts pins not yet resolved (status open or replied);
+ * `unreadReplies` is the sum of the pins' unread replies.
+ */
+export interface FeedbackCounts {
+  pins: number;
+  open: number;
+  resolved: number;
+  unreadReplies: number;
 }
 
 /** GET /api/captures/[captureId]/annotations response. */
 export interface PinListResponse {
-  annotations: PinAnnotationView[];
+  annotations: AnnotationView[];
 }
 
 /** POST/PATCH annotation responses. */
 export interface PinMutationResponse {
-  annotation: PinAnnotationView;
+  annotation: AnnotationView;
 }
 
 /** DELETE annotation response: the pin is tombstoned, never row-deleted. */
@@ -65,12 +130,69 @@ export interface PinDeleteResponse {
   deleted: true;
 }
 
+/** The status entry a resolve or reopen writes, as it appears in the thread. */
+export interface PinStatusEntryView {
+  id: string;
+  annotationId: string;
+  actorRole: "editor" | "founder";
+  authorLabel: "Lucas" | "founder";
+  kind: "status";
+  body: string;
+  createdAt: number;
+}
+
 /**
- * GET /api/captures/[captureId]/context?x=&y= response: the deterministically
- * ranked, capped nearby candidates from the capture's own persisted manifest.
- * The client submits only a chosen candidate's capture-local id (or null for
- * "No element"); the server re-derives the snapshot from the manifest.
+ * POST .../annotations/[annotationId]/resolve and .../reopen response: the
+ * pin with its new status plus the `status` thread entry the change wrote,
+ * or `entry: null` when the pin was already in the requested state and
+ * nothing changed.
+ */
+export interface PinStatusResponse {
+  annotation: AnnotationView;
+  entry: PinStatusEntryView | null;
+}
+
+/** POST .../annotations/[annotationId]/seen response. */
+export interface PinSeenResponse {
+  seen: true;
+}
+
+/**
+ * GET /api/captures/[captureId]/context response, for `?x=&y=` (a pin tip:
+ * the point ranking) or `?x=&y=&width=&height=` (a rectangle: the overlap
+ * ranking, D079): the deterministically ranked, capped nearby candidates
+ * from the capture's own persisted manifest. The client submits only a
+ * chosen candidate's capture-local id (or null for "No element"); the server
+ * re-derives the snapshot from the manifest.
  */
 export interface PinContextResponse {
   candidates: PinElementSnapshot[];
+}
+
+// ---- project-scoped read (D077) --------------------------------------------
+
+/** Where an annotation's capture sits in its project. */
+export interface ProjectAnnotationLocation {
+  pageId: string;
+  normalizedUrl: string;
+  /** The capture variant: "desktop" or "mobile". */
+  variant: string;
+  /** The capture attempt (version) the pin lives on. */
+  attempt: number;
+}
+
+/**
+ * One live annotation as the project-scoped read returns it: the per-capture
+ * view (a pin or a rectangle, D079) plus where the capture sits in the
+ * project, so the workspace can order marks across planes (page, then
+ * device, then number) and the table can name the page and device beside a
+ * number that is only unique per capture.
+ */
+export type ProjectPinAnnotationView =
+  | (PinAnnotationView & ProjectAnnotationLocation)
+  | (RectangleAnnotationView & ProjectAnnotationLocation);
+
+/** GET /api/projects/[publicId]/annotations response. */
+export interface ProjectPinListResponse {
+  annotations: ProjectPinAnnotationView[];
 }

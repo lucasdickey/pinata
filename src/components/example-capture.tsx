@@ -7,7 +7,20 @@
 // and reuses the product's pin-badge mark; the thread is depicted as saved
 // content with deliberately no reply control (threads are deferred, D051).
 
-import { EXAMPLE_CAPTURE, EXAMPLE_CAPTURE_FRAME } from "../lib/example-capture";
+import { markLabel } from "../lib/canvas/marks";
+import { EXAMPLE_CAPTURE, EXAMPLE_CAPTURE_FRAME, type ExamplePin } from "../lib/example-capture";
+
+/** The example pin's name, built the way the product names every mark (D078). */
+function examplePinLabel(pin: ExamplePin): string {
+  return markLabel({
+    kind: "pin",
+    number: pin.number,
+    body: pin.body,
+    elementSnapshot: pin.element
+      ? { text: pin.element.text, accessibleName: "", tag: pin.element.tag }
+      : null,
+  });
+}
 
 /**
  * The decorative in-frame page mock: an inline SVG pricing page in warm
@@ -110,7 +123,7 @@ export function ExampleCapture() {
         </figure>
 
         <div className="example-panel">
-          <h3>Pin {selected.number}</h3>
+          <h3>{examplePinLabel(selected)}</h3>
           <h4 className="example-subheading">Comment thread</h4>
           {/* The accessible name avoids the bare word "Comment" so the
               workspace panel's Comment field label stays unambiguous for
@@ -142,7 +155,7 @@ export function ExampleCapture() {
                 <dt>Position</dt>
                 <dd>
                   {selected.element.rect.x}, {selected.element.rect.y} ·{" "}
-                  {selected.element.rect.width} × {selected.element.rect.height} px natural
+                  {selected.element.rect.width} × {selected.element.rect.height} px
                 </dd>
               </dl>
             </>
@@ -154,7 +167,7 @@ export function ExampleCapture() {
                 key={pin.number}
                 aria-current={pin.number === selected.number ? "true" : undefined}
               >
-                Pin {pin.number} — at ({pin.tip.x}, {pin.tip.y})
+                {examplePinLabel(pin)}
               </li>
             ))}
           </ol>

@@ -261,6 +261,65 @@ describe("retryCapture", () => {
     expect(await attemptsFor(pageIds[0]!, "mobile")).toHaveLength(1);
   });
 
+  test("a concurrent writer that takes the attempt slot first yields a conflict, not a throw", async () => {
+    // In production the race is across serverless instances (separate
+    // connections); the in-memory client is single-connection, so we
+    // reproduce the exact window deterministically: another writer commits
+    // the next attempt between this call's read and its own commit. The proxy
+    // injects that winning (page, variant, attempt=2) row just before the
+    // transaction runs, so the loser hits the unique constraint.
+    const [attempt1] = await attemptsFor(pageIds[0]!, "desktop");
+    await markFailed(attempt1!.id);
+
+    let injected = false;
+    const raceDb = new Proxy(testDb.db, {
+      get(base, prop, receiver) {
+        if (prop === "transaction") {
+          return async (fn: Parameters<typeof base.transaction>[0]) => {
+            if (!injected) {
+              injected = true;
+              await base.insert(schema.captures).values({
+                id: "winner-2",
+                pageId: pageIds[0]!,
+                variant: "desktop",
+                attempt: 2,
+                status: "pending",
+                idempotencyKey: "retry:winner",
+                origin: "automatic",
+                requestedUrl: "https://chickpea.co/",
+                viewportWidth: 1440,
+                viewportHeight: 900,
+                deviceScaleFactor: 1,
+                createdAt: T0 + 50,
+                updatedAt: T0 + 50,
+              });
+            }
+            return base.transaction(fn);
+          };
+        }
+        const value = Reflect.get(base, prop, receiver);
+        return typeof value === "function" ? value.bind(base) : value;
+      },
+    }) as typeof testDb.db;
+
+    const result = await retryCapture(
+      raceDb,
+      { pageId: pageIds[0]!, variant: "desktop", idempotencyKey: "loser-key" },
+      retryDeps(T0 + 100),
+    );
+
+    // The benign race is reported as a conflict (the caller re-reads and
+    // re-drives), never surfaced as a throw/5xx.
+    expect(result).toEqual({ ok: false, error: "conflict" });
+    // Only the winner's attempt landed; the loser's row and key rolled back.
+    expect((await attemptsFor(pageIds[0]!, "desktop")).map((r) => r.attempt)).toEqual([1, 2]);
+    const loserKey = await testDb.db
+      .select()
+      .from(schema.idempotencyKeys)
+      .where(eq(schema.idempotencyKeys.key, "loser-key"));
+    expect(loserKey).toHaveLength(0);
+  });
+
   test.each([
     ["pending", "pending"],
     ["in-flight", "capturing"],

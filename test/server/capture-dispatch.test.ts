@@ -486,7 +486,14 @@ describe("unsafe targets fail before provider work", () => {
     await dispatchPOST(build(attempt.id), routeContext(attempt.id));
     expect((await firstAttempt(pageIds[0]!)).status).toBe("failed");
     expect((await firstAttempt(pageIds[1]!)).status).toBe("pending");
-    expect(await attemptsFor(pageIds[0]!, "desktop")).toHaveLength(1);
+    // dns-failed is retryable, so the server has already created its one
+    // automatic retry (D076): the failed row stays, one pending automatic
+    // row follows it, and nothing else was touched.
+    const rows = await attemptsFor(pageIds[0]!, "desktop");
+    expect(rows.map((row) => [row.attempt, row.status, row.origin])).toEqual([
+      [1, "failed", "manual"],
+      [2, "pending", "automatic"],
+    ]);
   });
 });
 

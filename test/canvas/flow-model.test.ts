@@ -16,10 +16,17 @@ import {
   DRAFT_PIN_TYPE,
   draftPinNode,
   draftPinNodeId,
+  DRAFT_RECTANGLE_TYPE,
+  draftRectangleNode,
+  draftRectangleNodeId,
   nodesForCapture,
+  nodesForPlane,
   PIN_TYPE,
   pinNode,
+  RECTANGLE_TYPE,
+  rectangleNode,
   type CanvasPin,
+  type CanvasRectangle,
   type CaptureFrameDomain,
 } from "../../src/lib/canvas/flow-model";
 import { pinHitBox, tipFromPinBox } from "../../src/lib/canvas/geometry";
@@ -206,6 +213,8 @@ describe("persisted pin nodes", () => {
     expect(node.data.selected).toBe(true);
     expect(node.data.label).toContain("Pin 1");
     expect(node.ariaLabel).toBe(node.data.label);
+    // The name never carries coordinates (D078).
+    expect(node.data.label).not.toMatch(/\d+, \d+/);
     expect(node.draggable).toBe(true);
     expect(node.selectable).toBe(false);
     expect(node.connectable).toBe(false);
@@ -297,5 +306,128 @@ describe("context preview node", () => {
     expect(
       nodesForCapture(domain, [], null, 1, { x: 0, y: 0, width: 0, height: 10 }),
     ).toHaveLength(1);
+  });
+});
+
+describe("rectangle nodes (D079)", () => {
+  const rectangle: CanvasRectangle = {
+    id: "ann-uuid-box",
+    number: 2,
+    rect: { x: 100.5, y: 200.25, width: 300, height: 150.75 },
+    selected: false,
+  };
+  const pins: CanvasPin[] = [
+    { id: "ann-uuid-a", number: 1, tip: { x: 812.25, y: 4231.5 }, selected: false },
+    { id: "ann-uuid-c", number: 3, tip: { x: 40, y: 50 }, selected: false },
+  ];
+
+  test("position and size are exactly the persisted natural-pixel box, parented to the frame", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = rectangleNode(domain, rectangle, zoom);
+      expect(node.type).toBe(RECTANGLE_TYPE);
+      expect(node.id).toBe("ann-uuid-box");
+      expect(node.parentId).toBe(captureFrameNodeId(domain.captureId));
+      expect(node.position).toEqual({ x: 100.5, y: 200.25 });
+      expect(node.width).toBe(300);
+      expect(node.height).toBe(150.75);
+      expect(node.data.rectX).toBe(100.5);
+      expect(node.data.rectWidth).toBe(300);
+      // The chrome scales inversely with the zoom so it stays screen-sized.
+      expect(node.data.strokeWidth * zoom).toBeCloseTo(2, 9);
+      expect(node.data.handleSize * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+    }
+  });
+
+  test("nodes are named by comment and element, never by coordinates (D078)", () => {
+    const element = { text: "Annual (save 20%)", accessibleName: "", tag: "button" };
+    const named = rectangleNode(
+      domain,
+      { ...rectangle, body: "More air around these cards", elementSnapshot: element },
+      1,
+    );
+    expect(named.ariaLabel).toBe("Box 2 · “More air around these cards” · Annual (save 20%)");
+    const namedPin = pinNode(
+      domain,
+      { ...pins[0]!, body: "This toggle reads the same", elementSnapshot: null },
+      1,
+    );
+    expect(namedPin.ariaLabel).toBe("Pin 1 · “This toggle reads the same”");
+    // Without a comment the name is the kind and number alone.
+    expect(rectangleNode(domain, rectangle, 1).ariaLabel).toBe("Box 2");
+    // Drafts are named as unsaved, with no coordinates either.
+    expect(draftPinNode(domain, { x: 9, y: 9 }, 1).ariaLabel).toBe("New pin, not saved yet");
+    expect(draftRectangleNode(domain, rectangle.rect, 1).ariaLabel).toBe("New box, not saved yet");
+  });
+
+  test("is draggable with handles on an editable plane, neither on a read-only one", () => {
+    const editable = rectangleNode(domain, rectangle, 1);
+    expect(editable.draggable).toBe(true);
+    expect(editable.data.handles).toBe(true);
+    expect(editable.selectable).toBe(false);
+    expect(editable.connectable).toBe(false);
+    expect(editable.deletable).toBe(false);
+    expect(editable.extent).toBeUndefined();
+    // The wrapper lets the pointer through; the stroke and badge opt back in.
+    expect(editable.style).toEqual({ pointerEvents: "none" });
+    const readOnly = rectangleNode(domain, rectangle, 1, { readOnly: true });
+    expect(readOnly.draggable).toBe(false);
+    expect(readOnly.data.handles).toBe(false);
+    expect("positionAbsolute" in editable).toBe(false);
+    expect("measured" in editable).toBe(false);
+  });
+
+  test("the draft rectangle is namespaced, draggable, and loses its handles while being drawn", () => {
+    const rect = { x: 10, y: 20, width: 30, height: 40 };
+    const draft = draftRectangleNode(domain, rect, 2);
+    expect(draft.type).toBe(DRAFT_RECTANGLE_TYPE);
+    expect(draft.id).toBe(draftRectangleNodeId(domain.captureId));
+    expect(draft.id).toBe("draft-rectangle:cap-root-desktop-v2");
+    expect(draft.position).toEqual({ x: 10, y: 20 });
+    expect(draft.width).toBe(30);
+    expect(draft.height).toBe(40);
+    expect(draft.draggable).toBe(true);
+    expect(draft.data.handles).toBe(true);
+    expect(draft.data.number).toBeNull();
+    const drawing = draftRectangleNode(domain, rect, 2, { drawing: true });
+    expect(drawing.draggable).toBe(false);
+    expect(drawing.data.handles).toBe(false);
+    expect(drawing.data.drawing).toBe(true);
+  });
+
+  test("nodesForPlane interleaves pins and rectangles in one number order, draft last", () => {
+    const nodes = nodesForPlane(domain, {
+      pins,
+      rectangles: [rectangle],
+      draft: { kind: "rectangle", rect: { x: 0, y: 0, width: 8, height: 8 } },
+      zoom: 1,
+    });
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      RECTANGLE_TYPE,
+      PIN_TYPE,
+      DRAFT_RECTANGLE_TYPE,
+    ]);
+    expect(nodes.map((node) => node.id).slice(1, 4)).toEqual([
+      "ann-uuid-a",
+      "ann-uuid-box",
+      "ann-uuid-c",
+    ]);
+    // A pin draft still renders last, and the pin-only builder is unchanged.
+    const pinDraft = nodesForPlane(domain, { pins, draft: { kind: "pin", tip: { x: 1, y: 1 } } });
+    expect(pinDraft.at(-1)!.type).toBe(DRAFT_PIN_TYPE);
+    expect(nodesForCapture(domain, pins, { x: 1, y: 1 }, 1).map((node) => node.type)).toEqual(
+      pinDraft.map((node) => node.type),
+    );
+  });
+
+  test("rejects non-finite or negative boxes and bad zooms rather than rendering a corrupt mark", () => {
+    expect(() =>
+      rectangleNode(domain, { ...rectangle, rect: { ...rectangle.rect, width: -1 } }, 1),
+    ).toThrow(RangeError);
+    expect(() =>
+      draftRectangleNode(domain, { x: Number.NaN, y: 0, width: 10, height: 10 }, 1),
+    ).toThrow(RangeError);
+    expect(() => rectangleNode(domain, rectangle, 0)).toThrow(RangeError);
   });
 });

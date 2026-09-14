@@ -94,13 +94,16 @@ export function EditorHome() {
     return () => clearTimeout(timer);
   }, [list, load]);
 
-  // Capture-dispatch driver: the server deliberately schedules nothing, so
-  // every committed pending attempt is dispatched from here — after a project
-  // is created, after a retry, and on any load or reload that finds pending
-  // work, so navigation can never orphan a pending row. Dispatches go through
-  // the one scoped route, at most MAX_ACTIVE_CAPTURES in flight; a
-  // quota-exceeded answer defers the attempt for one re-drive delay and the
-  // polling loop's next read re-drives it once a slot has had time to free.
+  // Capture-dispatch driver, kept as the fallback (D076): the server now
+  // continues capture work itself after project creation and retry, but any
+  // committed pending attempt this tab can see is still dispatched from here
+  // on any load or reload, so a continuation that never ran leaves nothing
+  // stranded. Dispatches go through the one scoped route, at most
+  // MAX_ACTIVE_CAPTURES in flight; a quota-exceeded answer defers the attempt
+  // for one re-drive delay and the polling loop's next read re-drives it once
+  // a slot has had time to free. When the server and this tab try the same
+  // attempt, the fenced claim answers one of them 409 and the driver treats
+  // that as a conflict: one re-read, one deferral, no retry storm.
   const dispatchInFlight = useRef(new Set<string>());
   const dispatchDeferred = useRef(new Map<string, number>());
   useEffect(() => {

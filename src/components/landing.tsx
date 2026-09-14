@@ -69,6 +69,10 @@ export function AnonymousLanding() {
       <ExampleCapture />
       <LoginForm />
       <LandingLinks />
+      <p className="home-walkthrough">
+        New here? <Link href="/walkthrough">Watch the ten-chapter walkthrough</Link> of what
+        Pinata is and how it works.
+      </p>
     </main>
   );
 }

@@ -11,12 +11,14 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
   FEEDBACK_BODY_MAX_CHARS,
   MAX_ANNOTATIONS_PER_CAPTURE,
+  MIN_SHAPE_SIZE_PX,
 } from "../../src/lib/boundaries";
 import {
   createPinAtomically,
   deletePin,
   listPins,
   updatePin,
+  type AnnotationRecord,
 } from "../../src/lib/server/annotations/pins";
 import { schema } from "../../src/lib/server/db/client";
 import { createTestDb, type TestDb } from "./test-db";
@@ -43,6 +45,11 @@ const SEED_MANIFEST = {
 };
 
 const T0 = 1_800_000_000_000;
+
+/** The tip of a record this suite knows to be a pin (rectangles: D079 suite). */
+function tipOf(record: AnnotationRecord): { x: number; y: number } | undefined {
+  return record.kind === "pin" ? record.tip : undefined;
+}
 
 let testDb: TestDb;
 let readyCaptureId: string;
@@ -292,7 +299,7 @@ describe("createPinAtomically validation", () => {
         createInput({ tip, idempotencyKey: `pin-create-edge-${index}` }),
       );
       expect(result).toMatchObject({ ok: true, created: true });
-      if (result.ok) expect(result.annotation.tip).toEqual(tip);
+      if (result.ok) expect(tipOf(result.annotation)).toEqual(tip);
     }
   });
 
@@ -303,7 +310,7 @@ describe("createPinAtomically validation", () => {
     if (!result.ok) return;
     const [row] = await rowsFor(readyCaptureId);
     expect(row!.geometryJson).toBe(JSON.stringify(tip));
-    expect(result.annotation.tip).toEqual(tip);
+    expect(tipOf(result.annotation)).toEqual(tip);
   });
 
   test("blank and over-limit bodies are rejected before any write", async () => {
@@ -468,7 +475,7 @@ describe("updatePin (VAL-PIN-002, VAL-PIN-008, VAL-PIN-009)", () => {
     expect(moved.annotation.number).toBe(pin.number);
     expect(moved.annotation.body).toBe(pin.body);
     expect(moved.annotation.elementSnapshot).toEqual(pin.elementSnapshot);
-    expect(moved.annotation.tip).toEqual({ x: 1440, y: 8966 });
+    expect(tipOf(moved.annotation)).toEqual({ x: 1440, y: 8966 });
     expect(moved.annotation.revision).toBe(pin.revision + 1);
 
     const [row] = await rowsFor("cap-manifest");
@@ -491,7 +498,7 @@ describe("updatePin (VAL-PIN-002, VAL-PIN-008, VAL-PIN-009)", () => {
     expect(edited.annotation.body).toBe(
       "The whole pricing column needs a clearer hierarchy.",
     );
-    expect(edited.annotation.tip).toEqual(pin.tip);
+    expect(tipOf(edited.annotation)).toEqual(tipOf(pin));
     expect(edited.annotation.number).toBe(pin.number);
     expect(edited.annotation.elementSnapshot).toEqual(pin.elementSnapshot);
     expect(edited.annotation.revision).toBe(pin.revision + 1);
@@ -665,5 +672,246 @@ describe("deletePin (VAL-PIN-009)", () => {
       ok: true,
       annotations: [{ id: pin.id }],
     });
+  });
+});
+
+// Rectangles (D079): the same store, the same numbering sequence, the same
+// idempotency, revision, and tombstone rules; only the geometry validation
+// is new. The box must be finite, at least MIN_SHAPE_SIZE_PX each way, and
+// inside the document — the server rejects, the client clamps.
+describe("rectangles (D079)", () => {
+  const box = { x: 100, y: 200, width: 300, height: 150 };
+  const rectInput = (overrides: Record<string, unknown> = {}) =>
+    createInput({ tip: undefined, rect: box, idempotencyKey: "rect-create-key-0001", ...overrides });
+
+  function rectOf(record: AnnotationRecord) {
+    return record.kind === "rectangle" ? record.rect : undefined;
+  }
+
+  test("a valid box persists as kind rectangle with its box as the geometry", async () => {
+    const result = await createPinAtomically(testDb.db, rectInput());
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (!result.ok) return;
+    expect(result.annotation.kind).toBe("rectangle");
+    expect(rectOf(result.annotation)).toEqual(box);
+    expect(result.annotation.number).toBe(1);
+    expect(result.annotation.status).toBe("open");
+    const [row] = await rowsFor(readyCaptureId);
+    expect(row!.kind).toBe("rectangle");
+    expect(row!.geometryJson).toBe(JSON.stringify(box));
+    expect(row!.geometryVersion).toBe(1);
+  });
+
+  test("the box may touch every edge of the document, inclusively", async () => {
+    const full = { x: 0, y: 0, width: 1440, height: 8966 };
+    const result = await createPinAtomically(testDb.db, rectInput({ rect: full }));
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (result.ok) expect(rectOf(result.annotation)).toEqual(full);
+  });
+
+  test("too-small, out-of-frame, non-finite, and ambiguous geometry writes nothing", async () => {
+    const min = MIN_SHAPE_SIZE_PX;
+    const invalid: Record<string, unknown>[] = [
+      { rect: { ...box, width: min - 0.01 } },
+      { rect: { ...box, height: min - 1 } },
+      { rect: { ...box, width: 0, height: 0 } },
+      { rect: { ...box, x: -1 } },
+      { rect: { ...box, y: -0.5 } },
+      { rect: { x: 1400, y: 10, width: 100, height: 20 } },
+      { rect: { x: 10, y: 8900, width: 100, height: 100 } },
+      { rect: { ...box, x: Number.NaN } },
+      { rect: { ...box, width: Number.POSITIVE_INFINITY } },
+      // Both geometries, or neither, is not a kind.
+      { rect: box, tip: { x: 1, y: 1 } },
+      { rect: undefined },
+    ];
+    for (const [index, overrides] of invalid.entries()) {
+      const result = await createPinAtomically(
+        testDb.db,
+        rectInput({ idempotencyKey: `rect-invalid-${index}`, ...overrides }),
+      );
+      expect(result, JSON.stringify(overrides)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    expect(await rowsFor(readyCaptureId)).toHaveLength(0);
+    // The minimum itself is allowed.
+    const edge = await createPinAtomically(
+      testDb.db,
+      rectInput({ rect: { x: 5, y: 5, width: min, height: min } }),
+    );
+    expect(edge).toMatchObject({ ok: true, created: true });
+  });
+
+  test("pins and boxes share one number sequence per capture, tombstones included", async () => {
+    const pin = await createPinAtomically(testDb.db, createInput());
+    const rect = await createPinAtomically(testDb.db, rectInput());
+    const pin2 = await createPinAtomically(
+      testDb.db,
+      createInput({ idempotencyKey: "pin-create-key-0002", tip: { x: 1, y: 1 } }),
+    );
+    if (!pin.ok || !rect.ok || !pin2.ok) throw new Error("seed creates failed");
+    expect([pin.annotation.number, rect.annotation.number, pin2.annotation.number]).toEqual([
+      1, 2, 3,
+    ]);
+    const removed = await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: rect.annotation.id,
+      expectedRevision: rect.annotation.revision,
+    });
+    expect(removed).toEqual({ ok: true });
+    const next = await createPinAtomically(
+      testDb.db,
+      rectInput({ idempotencyKey: "rect-create-key-0002" }),
+    );
+    if (!next.ok) throw new Error("create after delete failed");
+    expect(next.annotation.number).toBe(4);
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (!listed.ok) throw new Error("list failed");
+    expect(listed.annotations.map((a) => [a.kind, a.number])).toEqual([
+      ["pin", 1],
+      ["pin", 3],
+      ["rectangle", 4],
+    ]);
+  });
+
+  test("the same key replays the box; the same key with another box conflicts", async () => {
+    const first = await createPinAtomically(testDb.db, rectInput());
+    const replay = await createPinAtomically(testDb.db, rectInput());
+    expect(replay).toMatchObject({ ok: true, created: false });
+    if (first.ok && replay.ok) expect(replay.annotation).toEqual(first.annotation);
+    const other = await createPinAtomically(
+      testDb.db,
+      rectInput({ rect: { ...box, width: 301 } }),
+    );
+    expect(other).toMatchObject({ ok: false, error: "conflict" });
+    expect(await rowsFor(readyCaptureId)).toHaveLength(1);
+  });
+
+  test("a box carries the same explicit context decision and server-derived snapshot", async () => {
+    const result = await createPinAtomically(
+      testDb.db,
+      rectInput({ captureId: "cap-manifest", elementId: "cell-2" }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.annotation.elementSnapshot).toMatchObject({ id: "cell-2" });
+    const unknown = await createPinAtomically(
+      testDb.db,
+      rectInput({ captureId: "cap-manifest", elementId: "nope", idempotencyKey: "rect-unknown" }),
+    );
+    expect(unknown).toMatchObject({ ok: false, error: "invalid" });
+  });
+
+  test("a move or resize is one revisioned write that preserves everything else", async () => {
+    const created = await createPinAtomically(
+      testDb.db,
+      rectInput({ captureId: "cap-manifest", elementId: "cell-1" }),
+    );
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const moved = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      rect: { x: 20, y: 30, width: 300, height: 150 },
+    });
+    expect(moved).toMatchObject({ ok: true });
+    if (!moved.ok) return;
+    expect(moved.annotation.kind).toBe("rectangle");
+    expect(rectOf(moved.annotation)).toEqual({ x: 20, y: 30, width: 300, height: 150 });
+    expect(moved.annotation.revision).toBe(saved.revision + 1);
+    expect(moved.annotation.number).toBe(saved.number);
+    expect(moved.annotation.body).toBe(saved.body);
+    expect(moved.annotation.elementSnapshot).toEqual(saved.elementSnapshot);
+
+    const resized = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: moved.annotation.revision,
+      rect: { x: 20, y: 30, width: 8, height: 8000 },
+    });
+    expect(resized).toMatchObject({ ok: true });
+    if (!resized.ok) return;
+    expect(resized.annotation.revision).toBe(saved.revision + 2);
+    const [row] = await rowsFor("cap-manifest");
+    expect(row!.geometryJson).toBe(JSON.stringify({ x: 20, y: 30, width: 8, height: 8000 }));
+    expect(JSON.parse(row!.elementSnapshotJson!)).toEqual(saved.elementSnapshot);
+  });
+
+  test("a stale resize conflicts and changes no row; a bad box or the wrong kind is invalid", async () => {
+    const created = await createPinAtomically(testDb.db, rectInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const ref = { captureId: readyCaptureId, annotationId: saved.id };
+    const first = await updatePin(testDb.db, {
+      ...ref,
+      expectedRevision: saved.revision,
+      rect: { ...box, x: 10 },
+    });
+    expect(first).toMatchObject({ ok: true });
+    const stale = await updatePin(testDb.db, {
+      ...ref,
+      expectedRevision: saved.revision,
+      rect: { ...box, x: 20 },
+    });
+    expect(stale).toMatchObject({ ok: false, error: "conflict" });
+
+    for (const rect of [
+      { ...box, width: MIN_SHAPE_SIZE_PX - 1 },
+      { ...box, x: 1300 },
+      { ...box, y: Number.NaN },
+    ]) {
+      const result = await updatePin(testDb.db, { ...ref, expectedRevision: 2, rect });
+      expect(result, JSON.stringify(rect)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    // A tip on a rectangle, or a rect on a pin, names the wrong kind.
+    expect(
+      await updatePin(testDb.db, { ...ref, expectedRevision: 2, tip: { x: 1, y: 1 } }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const pin = await createPinAtomically(testDb.db, createInput());
+    if (!pin.ok) throw new Error("seed pin failed");
+    expect(
+      await updatePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: pin.annotation.id,
+        expectedRevision: pin.annotation.revision,
+        rect: box,
+      }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const rows = await rowsFor(readyCaptureId);
+    expect(rows.find((row) => row.id === saved.id)).toMatchObject({
+      revision: 2,
+      geometryJson: JSON.stringify({ ...box, x: 10 }),
+    });
+    expect(rows.find((row) => row.id === pin.annotation.id)!.revision).toBe(1);
+  });
+
+  test("a box edit and a stale delete follow the pin rules", async () => {
+    const created = await createPinAtomically(testDb.db, rectInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const edited = await updatePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      body: "Tighter.",
+    });
+    expect(edited).toMatchObject({ ok: true });
+    if (edited.ok) {
+      expect(edited.annotation.body).toBe("Tighter.");
+      expect(rectOf(edited.annotation)).toEqual(box);
+    }
+    const stale = await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+    });
+    expect(stale).toMatchObject({ ok: false, error: "conflict" });
+    const gone = await deletePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: saved.id,
+      expectedRevision: saved.revision + 1,
+    });
+    expect(gone).toEqual({ ok: true });
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (listed.ok) expect(listed.annotations).toHaveLength(0);
   });
 });

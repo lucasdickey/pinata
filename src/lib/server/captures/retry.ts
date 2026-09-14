@@ -17,7 +17,7 @@ import {
   MOBILE_VIEWPORT,
 } from "../../boundaries";
 import { schema, type Database } from "../db/client";
-import { CAPTURE_VARIANTS, type CaptureVariant } from "../db/schema";
+import { CAPTURE_VARIANTS, type CaptureOrigin, type CaptureVariant } from "../db/schema";
 import { summarizeVariant } from "./status";
 
 /** Idempotency scope for scoped capture retries. */
@@ -29,6 +29,11 @@ export interface RetryCaptureTarget {
   pageId: string;
   variant: string;
   idempotencyKey: string;
+  /**
+   * Who asked: the editor (`manual`, the default) or the server's one
+   * automatic retry after a retryable failure or a stale attempt.
+   */
+  origin?: CaptureOrigin;
 }
 
 export interface RetryAttempt {
@@ -158,6 +163,7 @@ export async function retryCapture(
         // Unique per (page, variant): a second row for the same client key or
         // attempt number is rejected by the database, not just by this code.
         idempotencyKey: `retry:${target.idempotencyKey}`,
+        origin: target.origin ?? "manual",
         requestedUrl: page.normalizedUrl,
         viewportWidth: viewport.width,
         viewportHeight: viewport.height,
@@ -167,8 +173,28 @@ export async function retryCapture(
       });
     });
   } catch (error) {
+    // A racing call that shared this key may have written the row first.
     const winner = await findIdempotencyRecord(db, target.idempotencyKey);
     if (winner) return replay(winner, digest);
+    // A concurrent retry of the same (page, variant) with a *different* key
+    // (the server's automatic retry racing an editor's manual one, say) can
+    // win the unique (page, variant, attempt) slot first, which rolls this
+    // transaction — and its idempotency row — back. That is a benign race, not
+    // a failure: the variant already advanced past the attempt we tried to
+    // create, so report a conflict (the caller re-reads and re-drives) rather
+    // than surfacing a spurious 5xx.
+    const raced = await db
+      .select({ attempt: schema.captures.attempt })
+      .from(schema.captures)
+      .where(
+        and(
+          eq(schema.captures.pageId, target.pageId),
+          eq(schema.captures.variant, target.variant),
+        ),
+      );
+    if (raced.some((row) => row.attempt >= attempt.attempt)) {
+      return { ok: false, error: "conflict" };
+    }
     throw error;
   }
 

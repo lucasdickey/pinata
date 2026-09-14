@@ -2,12 +2,15 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 // VAL-REQS-006 regression guard: axe wcag2a/2aa sweep over all five /reqs
-// routes at BOTH desktop and 390 CSS pixels. Round 1 swept desktop only and
-// missed scrollable-region-focusable on the ASCII diagram and wide tables at
+// routes, plus the anonymous landing (D078), at BOTH desktop and 390 CSS
+// pixels. Round 1 swept desktop only and missed
+// scrollable-region-focusable on the ASCII diagram and wide tables at
 // 390px; this spec keeps the narrow sweep from regressing. Runs against
-// `next start` on 127.0.0.1:3100.
+// `next start` on 127.0.0.1:3100 with no editor session, so "/" is the
+// anonymous landing.
 
 const ROUTES = [
+  "/",
   "/reqs",
   "/reqs/architecture",
   "/reqs/milestones",

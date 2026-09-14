@@ -186,6 +186,47 @@ describe("GET /api/captures/[captureId]/context", () => {
     }
   });
 
+  test("a box query (x, y, width, height) ranks by overlap: the enclosed cell first (D079)", async () => {
+    // A box drawn around the pricing cell: the cell is entirely inside it,
+    // the landmark only partly, and the distant heading not at all.
+    const response = await contextGET(
+      contextRequest("cap-ready", "x=790&y=4190&width=140&height=70"),
+      routeContext("cap-ready"),
+    );
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.candidates.map((c: { id: string }) => c.id)).toEqual([
+      "inner-cell",
+      "outer",
+      "distant",
+    ]);
+    // A box that encloses nothing but sits on the landmark still ranks the
+    // landmark first, then the others by distance.
+    const empty = await contextGET(
+      contextRequest("cap-ready", "x=100&y=100&width=50&height=50"),
+      routeContext("cap-ready"),
+    );
+    const emptyPayload = await empty.json();
+    expect(emptyPayload.candidates[0].id).toBe("outer");
+  });
+
+  test("a box with one size parameter, or a non-positive or non-finite size, is a bounded 400", async () => {
+    for (const query of [
+      "x=1&y=1&width=10",
+      "x=1&y=1&height=10",
+      "x=1&y=1&width=0&height=10",
+      "x=1&y=1&width=10&height=-5",
+      "x=1&y=1&width=abc&height=10",
+      "x=1&y=1&width=10&height=Infinity",
+    ]) {
+      const response = await contextGET(
+        contextRequest("cap-ready", query),
+        routeContext("cap-ready"),
+      );
+      expect(response.status, query).toBe(400);
+    }
+  });
+
   test("missing or non-finite query points are a bounded 400", async () => {
     for (const query of ["", "x=1", "y=2", "x=abc&y=1", "x=1&y=Infinity"]) {
       const response = await contextGET(

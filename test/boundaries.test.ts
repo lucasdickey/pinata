@@ -55,6 +55,7 @@ import {
   MANIFEST_SCHEMA_VERSION,
   MAX_ACTIVE_CAPTURES,
   MAX_ANNOTATIONS_PER_CAPTURE,
+  MAX_AUTOMATIC_CAPTURE_RETRIES,
   MAX_CAPTURE_ATTEMPTS_PER_PROJECT,
   MAX_CNAME_HOPS,
   MAX_DOCUMENT_HEIGHT_PX,
@@ -88,6 +89,7 @@ import {
   PERF_PAN_ZOOM_CYCLES,
   PERF_RETAINED_HEAP_MAX_BYTES,
   PERF_SELECTION_CYCLES,
+  PLACEMENT_SLOP_SCREEN_PX,
   POLICY_VERSION,
   PROJECT_REQUEST_MAX_BYTES,
   PROJECT_TITLE_MAX_CHARS,
@@ -158,6 +160,7 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "REDIRECT_PROBE_TIMEOUT_MS", value: fmtMs(REDIRECT_PROBE_TIMEOUT_MS) },
   { name: "MAX_CAPTURE_ATTEMPTS_PER_PROJECT", value: fmtNum(MAX_CAPTURE_ATTEMPTS_PER_PROJECT) },
   { name: "MAX_ACTIVE_CAPTURES", value: fmtNum(MAX_ACTIVE_CAPTURES) },
+  { name: "MAX_AUTOMATIC_CAPTURE_RETRIES", value: fmtNum(MAX_AUTOMATIC_CAPTURE_RETRIES) },
   { name: "STALE_CAPTURE_AGE_MS", value: fmtMs(STALE_CAPTURE_AGE_MS) },
   { name: "CAPTURE_CLEANUP_WINDOW_MS", value: fmtMs(CAPTURE_CLEANUP_WINDOW_MS) },
   { name: "CAPTURE_REQUEST_MAX_BYTES", value: fmtBytes(CAPTURE_REQUEST_MAX_BYTES) },
@@ -210,6 +213,7 @@ const FEEDBACK_ROWS: DocRow[] = [
 const INTERACTION_ROWS: DocRow[] = [
   { name: "CLIENT_REQUEST_TIMEOUT_MS", value: fmtMs(CLIENT_REQUEST_TIMEOUT_MS) },
   { name: "MIN_HIT_TARGET_CSS_PX", value: fmtPx(MIN_HIT_TARGET_CSS_PX) },
+  { name: "PLACEMENT_SLOP_SCREEN_PX", value: fmtPx(PLACEMENT_SLOP_SCREEN_PX) },
 ];
 
 const PERFORMANCE_ROWS: DocRow[] = [
@@ -352,6 +356,8 @@ describe("boundary catalog coverage and consistency", () => {
 
   test("concurrency and manifest caps are the contract values", () => {
     expect(MAX_ACTIVE_CAPTURES).toBe(2);
+    // One automatic retry, then a person decides (D076).
+    expect(MAX_AUTOMATIC_CAPTURE_RETRIES).toBe(1);
     expect(MAX_MANIFEST_ELEMENTS).toBe(500);
     expect(MAX_MANIFEST_BYTES).toBe(256 * 1024);
   });
@@ -369,6 +375,10 @@ describe("boundary catalog coverage and consistency", () => {
   test("hit targets and feedback bounds meet their floors", () => {
     // WCAG 2.2 AA target-size minimum.
     expect(MIN_HIT_TARGET_CSS_PX).toBeGreaterThanOrEqual(24);
+    // The click-versus-drag distance must be a fraction of the smallest hit
+    // target, or a press inside a badge could not end as a click.
+    expect(PLACEMENT_SLOP_SCREEN_PX).toBeGreaterThan(0);
+    expect(PLACEMENT_SLOP_SCREEN_PX).toBeLessThan(MIN_HIT_TARGET_CSS_PX / 2);
     expect(FEEDBACK_BODY_MAX_CHARS).toBeGreaterThan(0);
     expect(MAX_ANNOTATIONS_PER_CAPTURE).toBeGreaterThanOrEqual(NEARBY_CANDIDATES_MAX);
     expect(NEARBY_CANDIDATES_MAX).toBeGreaterThan(0);

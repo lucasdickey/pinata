@@ -13,10 +13,16 @@
 // open `capturing` claim waiting for a second call that may never come, and
 // there is no separate claim endpoint to leave it open.
 //
+// The sequence itself lives in `driveCapture` (D076), which the server also
+// runs on its own after project creation, after a retry, and from the sweep.
+// This route is the client driver's way in, kept as a fallback: when both a
+// browser and the server try the same attempt, the fenced claim lets exactly
+// one through and the other is answered 409.
+//
 // Concurrency is admitted durably: when every Browserless slot is held the
 // attempt is left `pending` and answered 429 with the quota-exceeded
 // outcome's bounded retry guidance, so any later authorized client can
-// resume it. An admitted attempt's lease is released here once execution has
+// resume it. An admitted attempt's lease is released once execution has
 // finalized the row; an abandoned lease expires at the published stale age
 // and is reclaimed by the next claim.
 //
@@ -26,15 +32,16 @@
 import { CAPTURE_REQUEST_MAX_BYTES, captureOutcome } from "../../../../../src/lib/boundaries";
 import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
 import { requireEditorMutation } from "../../../../../src/lib/server/auth/guard";
-import {
-  getAdmissionDeps,
-  getCaptureExecutionDeps,
-} from "../../../../../src/lib/server/captures/deps";
-import { dispatchCapture } from "../../../../../src/lib/server/captures/dispatch";
-import { executeCapture } from "../../../../../src/lib/server/captures/execute";
-import { releaseCaptureLease } from "../../../../../src/lib/server/captures/leases";
+import { getCaptureDriveDeps } from "../../../../../src/lib/server/captures/deps";
+import { driveCapture } from "../../../../../src/lib/server/captures/drive";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
 import { ERRORS, hasSameOrigin, isSecureRequest, jsonError } from "../../../../../src/lib/server/http";
+
+// One capture may run for TOTAL_CAPTURE_TIMEOUT_MS (90 s) after an admission
+// preflight of up to about 30 s, and the continuation that follows the
+// response runs inside the same function budget. Next.js needs this to be a
+// literal; 300 s is the Vercel Hobby ceiling with Fluid compute.
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ captureId: string }>;
@@ -66,12 +73,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   if (!db) return deny(503, ERRORS.unavailable);
 
   const { captureId } = await context.params;
-  let result;
-  try {
-    result = await dispatchCapture(db, { captureId }, getAdmissionDeps());
-  } catch {
-    return deny(503, ERRORS.unavailable);
-  }
+  const result = await driveCapture(db, captureId, getCaptureDriveDeps());
 
   const outcomeResponse = (code: string) => {
     const outcome = captureOutcome(code);
@@ -86,38 +88,17 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   };
 
   if (!result.ok) {
+    if ("outcome" in result) return outcomeResponse(result.outcome);
     if (result.error === "not-found") return deny(404, ERRORS.rejected);
     if (result.error === "not-dispatchable") return deny(409, ERRORS.rejected);
+    if (result.error === "unavailable") return deny(503, ERRORS.unavailable);
     // The shared concurrency limit is full: the attempt stays pending, and
     // the answer is the published quota outcome with its retry guidance.
-    if (result.error === "quota") return outcomeResponse("quota-exceeded");
-    return outcomeResponse(result.outcome);
-  }
-
-  let execution;
-  try {
-    execution = await executeCapture(db, result.capture.captureId, getCaptureExecutionDeps());
-  } catch {
-    // Truly unexpected: the row stays `capturing` and computes stale at the
-    // published age, and the lease expires with it — never released early,
-    // because the provider job may still be running.
-    return deny(503, ERRORS.unavailable);
-  }
-
-  // Execution always closes the claim (ready or failed), so the slot frees
-  // now. The release is conditional on this capture id: it cannot free a
-  // slot a newer attempt reclaimed after this lease expired.
-  await releaseCaptureLease(db, result.capture.captureId).catch(() => {});
-
-  if (!execution.ok) {
-    // "not-executable" means another worker already finalized this attempt
-    // between the claim and here; the row is terminal either way.
-    if ("error" in execution) return deny(409, ERRORS.rejected);
-    return outcomeResponse(execution.outcome);
+    return outcomeResponse("quota-exceeded");
   }
 
   return withRenewal(
-    Response.json({ capture: { ...execution.capture, status: "ready" } }, { status: 200 }),
+    Response.json({ capture: { ...result.capture, status: "ready" } }, { status: 200 }),
     auth.renewedToken,
     secure,
   );

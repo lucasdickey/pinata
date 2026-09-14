@@ -29,6 +29,27 @@
       "when": 1788931276113,
       "tag": "0003_even_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789172967833,
+      "tag": "0004_capture_origin_and_timing",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789174966778,
+      "tag": "0005_feedback_status_and_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789174967651,
+      "tag": "0006_feedback_status_triggers",
+      "breakpoints": true
     }
   ]
 }

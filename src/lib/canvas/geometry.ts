@@ -15,12 +15,12 @@ import { MIN_HIT_TARGET_CSS_PX } from "../boundaries";
 import type { NaturalPoint, PlaneSize } from "./camera";
 
 /**
- * Pointer travel, in screen px, below which a pointer press/release pair is a
- * deliberate placement tap rather than a drag. Only used in placement mode,
- * where panning is disabled, so a slow small wobble still places exactly one
- * draft at the release point.
+ * The click-versus-drag distance is a published interaction boundary (D074):
+ * a press that releases within it is a click (drop a draft, select a pin),
+ * anything past it is a drag (pan, move a pin). Re-exported here so canvas
+ * code keeps one import for its geometry.
  */
-export const PLACEMENT_SLOP_SCREEN_PX = 6;
+export { PLACEMENT_SLOP_SCREEN_PX } from "../boundaries";
 
 /** True when both coordinates are finite numbers. */
 export function isFiniteNaturalPoint(point: NaturalPoint): boolean {

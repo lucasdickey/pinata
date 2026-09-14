@@ -232,7 +232,10 @@ escapes to a human, add the failing test before fixing it.
   demonstrated in a browser or a terminal in under a minute is deprioritized.
 - **No unrequested dependencies.** Application dependencies are limited to the
   mission-approved set pinned exactly in `package.json`
-  (`scripts/lib/approved-deps.mjs` is the allowlist the gate enforces). The docs
+  (`scripts/lib/approved-deps.mjs` is the allowlist the gate enforces). The
+  one addition since planning is Remotion, requested by the user for the
+  walkthrough (`D072`/`D073`): `remotion` and `@remotion/player` in the app,
+  `@remotion/cli` dev-only. The docs
   tooling stays zero-dependency (one Node script, dashboard opens over
   `file://`) so the artifacts survive without a build environment. Keep it that
   way.
@@ -266,6 +269,9 @@ pinata/
 ├── .github/workflows/validate.yml  # CI: Node 24, `npm run validate`
 ├── app/                            # Next.js App Router entry points
 ├── src/                            # application source (components, lib)
+├── remotion/                       # the /walkthrough composition (D072); Studio + render via npm run walkthrough*
+├── public/walkthrough/             # imagery the walkthrough borrows (derived from committed sources)
+├── remotion.config.ts              # Remotion CLI settings; the app never reads it
 ├── e2e/                            # Playwright specs
 ├── scripts/
 │   ├── build-docs.mjs              # CLI: generate, or --check for staleness

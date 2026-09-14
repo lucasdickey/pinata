@@ -73,6 +73,15 @@ export type CaptureVariant = (typeof CAPTURE_VARIANTS)[number];
 export const CAPTURE_STATUSES = ["pending", "capturing", "ready", "failed"] as const;
 export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
 
+/**
+ * Who asked for an attempt: `manual` for the initial attempts a project
+ * submission commits and for a retry the editor pressed; `automatic` for the
+ * one retry the server creates on its own after a retryable failure or a
+ * stale attempt. An automatic attempt is never retried automatically again.
+ */
+export const CAPTURE_ORIGINS = ["manual", "automatic"] as const;
+export type CaptureOrigin = (typeof CAPTURE_ORIGINS)[number];
+
 export const captures = sqliteTable(
   "captures",
   {
@@ -109,6 +118,12 @@ export const captures = sqliteTable(
     errorCode: text("error_code"),
     errorMessage: text("error_message"),
     capturedAt: integer("captured_at"),
+    /** `manual` or `automatic` (see CAPTURE_ORIGINS). */
+    origin: text("origin").notNull().default("manual"),
+    /** When the attempt was claimed (pending → capturing); null before that. */
+    startedAt: integer("started_at"),
+    /** When the attempt reached ready or failed; null while it is open. */
+    finishedAt: integer("finished_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -131,6 +146,25 @@ export const captures = sqliteTable(
 export const ANNOTATION_KINDS = ["pin", "rectangle", "circle", "arrow"] as const;
 export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
 
+/**
+ * The pin lifecycle (D075): `open` on create, `replied` once the founder
+ * has answered, `resolved` when either role marks it done. Resolve and
+ * reopen are reversible and each appends a `status` thread entry, so the
+ * immutable chronology records every change of state.
+ */
+export const ANNOTATION_STATUSES = ["open", "replied", "resolved"] as const;
+export type AnnotationStatus = (typeof ANNOTATION_STATUSES)[number];
+
+/**
+ * The annotation kinds the application reads and writes today (D079): a pin
+ * with one natural-pixel tip, and a rectangle with a natural-pixel box.
+ * ANNOTATION_KINDS above (and the check constraint) also admit circle and
+ * arrow for later; no code path creates or lists those yet, so every
+ * kind-aware read filters on this list.
+ */
+export const BUILT_ANNOTATION_KINDS = ["pin", "rectangle"] as const;
+export type BuiltAnnotationKind = (typeof BUILT_ANNOTATION_KINDS)[number];
+
 export const annotations = sqliteTable(
   "annotations",
   {
@@ -151,6 +185,15 @@ export const annotations = sqliteTable(
     elementSnapshotJson: text("element_snapshot_json"),
     /** Optimistic-concurrency revision; stale writes lose. */
     revision: integer("revision").notNull().default(1),
+    /**
+     * Lifecycle status (D075). The allowed values are enforced by the
+     * triggers in drizzle/0005_feedback_status_triggers.sql: SQLite cannot
+     * add a CHECK constraint to an existing table without recreating it,
+     * and recreating thread_entries would drop its append-only triggers.
+     * Status changes never bump `revision`, which protects tip and body
+     * edits only.
+     */
+    status: text("status").notNull().default("open"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     /** Tombstone; deleting an annotation never mutates its thread entries. */
@@ -173,6 +216,14 @@ export type ThreadActorRole = (typeof THREAD_ACTOR_ROLES)[number];
 export const THREAD_AUTHOR_LABELS = ["Lucas", "founder"] as const;
 export type ThreadAuthorLabel = (typeof THREAD_AUTHOR_LABELS)[number];
 
+/**
+ * Entry kinds (D075): a `message` is a reply or follow-up typed by a person;
+ * a `status` entry is written by the server when a pin is resolved or
+ * reopened, naming the acting role. Both kinds are append-only.
+ */
+export const THREAD_ENTRY_KINDS = ["message", "status"] as const;
+export type ThreadEntryKind = (typeof THREAD_ENTRY_KINDS)[number];
+
 export const threadEntries = sqliteTable(
   "thread_entries",
   {
@@ -182,6 +233,8 @@ export const threadEntries = sqliteTable(
       .references(() => annotations.id),
     actorRole: text("actor_role").notNull(),
     authorLabel: text("author_label").notNull(),
+    /** `message` or `status`; enforced by trigger (see annotations.status). */
+    kind: text("kind").notNull().default("message"),
     body: text("body").notNull(),
     idempotencyKey: text("idempotency_key").notNull(),
     createdAt: integer("created_at").notNull(),
@@ -198,6 +251,30 @@ export const threadEntries = sqliteTable(
     index("thread_entries_annotation_order_idx").on(t.annotationId, t.createdAt, t.id),
     check("thread_entries_actor_role_check", sql`${t.actorRole} in ('editor', 'founder')`),
     check("thread_entries_author_label_check", sql`${t.authorLabel} in ('Lucas', 'founder')`),
+  ],
+);
+
+/**
+ * Per-role last-seen marks for one pin's thread (D075). A reply is unread
+ * for a role when it was written by the other role after that role's
+ * `seen_at` for the pin. The editor is one viewer (`viewer_key` = "editor");
+ * a founder is identified by the capability version the session is bound
+ * to (`viewer_key` = "founder:v<version>"), so a rotated link starts with a
+ * fresh view and the durable store never holds a session id or token.
+ */
+export const annotationViews = sqliteTable(
+  "annotation_views",
+  {
+    annotationId: text("annotation_id")
+      .notNull()
+      .references(() => annotations.id),
+    role: text("role").notNull(),
+    viewerKey: text("viewer_key").notNull(),
+    seenAt: integer("seen_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.annotationId, t.role, t.viewerKey] }),
+    check("annotation_views_role_check", sql`${t.role} in ('editor', 'founder')`),
   ],
 );
 

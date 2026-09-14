@@ -1,7 +1,9 @@
 // The single source of the pinata brand mark (VAL-LANDING-001, D066, D069).
-// It is rendered in exactly two places: inline by <PinataLogo> on the landing
-// page and as the favicon file app/icon.svg. test/brand-mark.test.tsx locks
-// both renderings to this module.
+// It is rendered inline by <PinataLogo> on the landing page, as the favicon
+// file app/icon.svg, and by the walkthrough composition
+// (remotion/walkthrough/ui.tsx, D072). test/brand-mark.test.tsx locks the
+// landing and favicon renderings to this module; the walkthrough imports it
+// directly.
 //
 // Named exception to the token-only rule: a favicon SVG file cannot consume
 // CSS custom properties, so the three brand colors live here once and MUST

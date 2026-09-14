@@ -131,50 +131,79 @@ export async function findReadyTarget(
   }, { wanted: variant, url: preferUrl, title: preferTitle });
 }
 
-/** The navigation button name for a plane in the workspace tree. */
+/**
+ * The device button name for a plane. Since D077 the device is chosen by the
+ * toggle above the canvas, whose buttons keep the names the rail entries
+ * used to have.
+ */
 export function deviceButtonName(target: ReadyTarget): string {
   return `${target.variant === "desktop" ? "Desktop" : "Mobile"} capture of ${target.pageUrl}`;
 }
 
 /**
- * The device button for a plane. Two projects can hold the same page URL
- * (the local Chickpea seed and the production demo project), so when the
- * owning project title is known the button is only unique inside that
- * project's tree entry.
+ * The owning project's entry in the rail. Two projects can hold the same
+ * page URL (the local Chickpea seed and the production demo project), so
+ * when the owning project title is known the page button is only unique
+ * inside that project's tree entry.
  */
-export function planeButton(page: Page, target: ReadyTarget): Locator {
-  const tree = target.projectTitle
-    ? page
-        .getByRole("listitem")
+function projectEntry(page: Page, target: ReadyTarget): Locator {
+  const rail = page.getByRole("navigation", { name: "Projects and pages" });
+  return target.projectTitle
+    ? rail
+        .locator("details.tree-project")
         .filter({ has: page.getByRole("heading", { name: target.projectTitle, exact: true }) })
-    : page;
-  return tree.getByRole("button", { name: deviceButtonName(target), exact: true });
+    : rail;
+}
+
+/** The page's button in the rail (D077); it opens the page on its usable device. */
+export function pageButton(page: Page, target: ReadyTarget): Locator {
+  return projectEntry(page, target).getByRole("button", { name: target.pageUrl, exact: true });
 }
 
 /**
- * Expand whatever the rail has collapsed around this plane (D070) so its
- * device button is reachable. Only the project holding the current selection
- * starts open, so any spec that reaches for a plane in another project has to
- * open that project first — exactly as a reader would.
+ * The device toggle button for a plane (D077). It exists only while the
+ * plane's page is open in the canvas view; revealPlane gets it there.
+ */
+export function planeButton(page: Page, target: ReadyTarget): Locator {
+  return page
+    .getByRole("group", { name: "Device" })
+    .getByRole("button", { name: deviceButtonName(target), exact: true });
+}
+
+/** True when the canvas view is showing this plane's page, in its project. */
+async function pageIsOpen(page: Page, target: ReadyTarget): Promise<boolean> {
+  if (!(await planeButton(page, target).isVisible())) return false;
+  if (!target.projectTitle) return true;
+  const title = page.getByTestId("project-title");
+  return (await title.count()) > 0 && (await title.first().innerText()).trim() === target.projectTitle;
+}
+
+/**
+ * Get a plane's device toggle on screen: expand whatever the rail has
+ * collapsed around its page (D070), then open the page from the rail (D077).
+ * Only the project the detail area shows starts open, so any spec that
+ * reaches for a plane in another project has to open that project first —
+ * exactly as a reader would.
  */
 export async function revealPlane(page: Page, target: ReadyTarget): Promise<void> {
-  const button = planeButton(page, target);
-  if (await button.isVisible()) return;
+  if (await pageIsOpen(page, target)) return;
   const rail = page.locator("details.tree-root").first();
   if ((await rail.count()) > 0 && !(await rail.evaluate((el: HTMLDetailsElement) => el.open))) {
     await rail.locator("> summary").click();
   }
-  const owner = target.projectTitle
-    ? page
-        .locator("details.tree-project")
-        .filter({ has: page.getByRole("heading", { name: target.projectTitle, exact: true }) })
-    : page.locator("details.tree-project").filter({ has: button });
-  const summary = owner.locator("> summary").first();
-  if ((await summary.count()) > 0) await summary.click();
-  await expect(button).toBeVisible();
+  const entry = pageButton(page, target);
+  if (!(await entry.isVisible())) {
+    const owner = target.projectTitle
+      ? projectEntry(page, target)
+      : page.locator("details.tree-project").filter({ has: entry });
+    const summary = owner.locator("> summary").first();
+    if ((await summary.count()) > 0) await summary.click();
+  }
+  await entry.click();
+  await expect(planeButton(page, target)).toBeVisible();
 }
 
-/** Reveal, select, and wait for a plane's screenshot to decode. */
+/** Reveal the plane's page, then choose its device from the toggle. */
 export async function clickPlane(page: Page, target: ReadyTarget): Promise<void> {
   await revealPlane(page, target);
   await planeButton(page, target).click();
@@ -322,10 +351,12 @@ export async function expectEntireCaptureVisible(
 }
 
 /**
- * Pan (the caller must be in Navigate mode) until a natural point sits
- * within 40 screen px of the pane center, then return its fresh screen
- * point. Specs that share a seeded plane with the pins spec use this to
- * bring a pin-free target into view before placing drafts.
+ * Pan (a press that moves well past the placement slop) until a natural
+ * point sits within 40 screen px of the pane center, then return its fresh
+ * screen point. Specs that share a seeded plane with the pins spec use this
+ * to bring a pin-free target into view before placing drafts. The press
+ * lands at the pane center, so callers must not have a pin or an open
+ * composer sitting there.
  */
 export async function panUntilNaturalVisible(
   page: Page,
@@ -353,15 +384,24 @@ export interface PinTipRecord {
   tip: { x: number; y: number };
 }
 
-/** This capture's persisted pin tips, read from the annotations route. */
+/**
+ * This capture's persisted mark anchors, read from the annotations route.
+ * A rectangle (D079) counts by its top-left corner, where its badge sits,
+ * so the clear-aim search below keeps drafts off box badges too.
+ */
 export async function listPinTips(page: Page, captureId: string): Promise<PinTipRecord[]> {
   return page.evaluate(async (id) => {
     const response = await fetch(`/api/captures/${encodeURIComponent(id)}/annotations`, {
       cache: "no-store",
     });
     if (!response.ok) return [];
-    const payload = (await response.json()) as { annotations?: PinTipRecord[] };
-    return Array.isArray(payload.annotations) ? payload.annotations : [];
+    const payload = (await response.json()) as {
+      annotations?: { tip?: { x: number; y: number }; rect?: { x: number; y: number } }[];
+    };
+    if (!Array.isArray(payload.annotations)) return [];
+    return payload.annotations.flatMap((mark) =>
+      mark.tip ? [{ tip: mark.tip }] : mark.rect ? [{ tip: { x: mark.rect.x, y: mark.rect.y } }] : [],
+    );
   }, captureId);
 }
 

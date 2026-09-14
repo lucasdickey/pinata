@@ -9,11 +9,24 @@ _Nothing cut yet. Entries here should link to the decision record that cut them.
 
 ## Would build next
 
-_To be filled in as the shape of the MVP becomes clear._
+- **Voice-over and captions for the walkthrough** (`D072`). The slide table
+  already carries a prose transcript per chapter; Remotion can time captions
+  from it and mix a recorded narration track, which would make the rendered
+  MP4 self-explanatory without the page around it.
 
 ## Known weaknesses
 
 _Honest list. Things a reviewer would find if they looked for five minutes._
+
+- The `/walkthrough` route ships the Remotion runtime to the browser and
+  animates with JavaScript, so it does not honor `prefers-reduced-motion` the
+  way the rest of the app's CSS does (`D073`). The transcript beside the
+  player is the reduced-motion path; a paused-by-default mode keyed to the
+  media query is the obvious follow-up.
+- The walkthrough's imagery is a derived copy of the brand board and two
+  dashboard screenshots under `public/walkthrough/`. If the dashboard
+  screenshots are retaken, the copies do not update on their own; the test
+  only proves the files exist and match their declared sizes.
 
 - `npm audit` reports 4 moderate-severity findings in the drizzle-kit/esbuild
   toolchain (dev-only transitive dependencies). The automated fix is a breaking
@@ -34,13 +47,19 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   provider flake leaves a failed attempt the product cannot recover. Whether
   to distinguish it from an admission-time unsafe target and offer retry is
   deferred (`D054`, pending user answer).
-- Pins cannot yet be edited or deleted (`D059`): the schema already carries
-  tombstones and the non-reuse numbering rule, but no route or UI mutates a
-  pin beyond move. A reviewer looking for comment editing or pin removal
-  will not find them.
+- Circles and arrows are still unbuilt (`D079` adds rectangles only); the
+  schema and geometry minimums already allow them, and the rectangle's
+  resize and geometry path is the one they would reuse.
 - The pins e2e writes real pins to the shared local store by design (the
   corner-fixture pin is reused across runs; the other tests add at most
   three pins per run), so roughly sixty full local `npm run validate` runs
   would approach the 200-per-capture annotation quota on the seeded desktop
   capture (`D059`). Deletion or a scratch capture per run would make this
   free.
+- Rectangle resize handles are rough at low zoom (`D079`): all eight are a
+  fixed screen size, so a near-minimum box renders them overlapping and
+  blanketing its interior, and the top-left handle paints over the number
+  badge, so the corner resizes instead of selecting/grabbing. The fix is
+  screen-size-aware handle rendering (hide or shrink them below a threshold)
+  and stacking the badge above the corner handle; it wants visual iteration
+  in the canvas, so it was left for a pass that can be checked by eye.

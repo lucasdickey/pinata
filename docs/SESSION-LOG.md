@@ -2877,3 +2877,157 @@ are covered by specs that did not execute here.
 - D069 (user-directed): split `/`, `/pins`, `/pins/new`; five per-topic hub links.
 - D070 (user-directed): nested collapsible project rail.
 - D071 (user-directed): all-pins table with Markdown export.
+
+## Session: the interactive walkthrough (2026-09-10)
+
+Elapsed: roughly 1h15 of agent time against no fixed timebox; the original
+4-hour build budget was spent in earlier sessions and this is wrap-phase
+work, done on the branch `remotion-education/pinata-interactive-walkthrough`
+so it can be reviewed as one piece; `D010` (commit straight to `main`) still
+stands for product work.
+
+### The request
+
+"use the remotion library and create an interactive walkthrough on what
+pinata is and how it works. think maybe 10 total slides and borrow from any
+imagery that exists in the repository"
+
+### What was built
+
+- **Ten slides in Remotion** (`D072`): title, the problem, who it is for, the
+  four steps, guardrails, the stack and the gate, the decision trail. One
+  slide table drives the composition, the chapter list, and the transcript.
+- **Played in the app at `/walkthrough`** through `@remotion/player`
+  (`D073`), with chapter buttons that seek and play, Previous/Next, arrow
+  keys, and the chapter's transcript beside the player. The landing page
+  links to it.
+- **Borrowed imagery.** The repository had exactly four images: the favicon
+  SVG, a 1×1 test PNG, the brand exploration board committed at the root, and
+  two dashboard screenshots. The board was cropped into tiles with `sharp`
+  (already present through Next), the screenshots are scrolled inside device
+  frames, and the favicon's shared mark source draws every pin.
+
+### What broke
+
+- **No Node 24 on the machine.** The container ships Node 22; the repository
+  requires 24. Installed 24 through the pre-existing `nvm` in `/opt`.
+- **A React state update outside `act`.** The page test fed the stubbed
+  Player's `frameupdate` listener directly, so the current-chapter state never
+  flushed. Wrapping the emit in `act()` fixed it; the component was right.
+- **Two slides overflowed the frame** on the first render pass. The problem
+  slide's note card was absolutely positioned inside an unpositioned reveal
+  wrapper and landed over the footer; the capture slide's phone frame showed
+  the whole desktop page shrunk instead of a phone-width column. Caught by
+  rendering one still per slide with Remotion's CLI against the pre-installed
+  headless Chromium and looking at them; fixed by positioning the wrapper and
+  adding a horizontal crop to the scrolling-screenshot primitive.
+
+### Decisions
+
+- D072 (user-directed): the Remotion walkthrough, ten slides, borrowed imagery.
+- D073 (agent-autonomous): in-app Player at `/walkthrough`, CLI dev-only,
+  allowlist widened to admit the three Remotion packages.
+
+## Session: the UX overhaul, waves one and two (2026-09-12)
+
+Elapsed: about 5 hours of coordinator time against no fixed timebox, with six agent runs of 25 to 50 minutes each;
+wrap-phase work on the branch `ux-overhaul/pins-loop-capture`, opened as a
+pull request when done, in the same shape as the walkthrough.
+
+### The request
+
+A UX review with the top five functional recommendations, then: "yep let's
+do them, prioritizing 1, 2 and 5 first. then find the feature set associated
+with doing a square bounding box with comments, too. draft the decision
+records, then spin up sub-agents to do the work where parallelization is
+doable"
+
+### How the work was split
+
+Six records were drafted first (D074 to D079) so every agent had a spec and
+none had to invent one. Wave one ran three agents at once in isolated
+worktrees, one each for D074 (one-gesture pin placement), D075 (pin status,
+unread counts, founder pin list, share in the header), and D076
+(server-driven capture with progress and one automatic retry). Each was told
+to keep its edits to the shared workspace component small, to put new logic
+in new files, to run the e2e stage under a file lock because all worktrees
+share port 3100, and not to add decision records, since sequential ids would
+collide. Wave two ran D077 (project overview) and D079 (rectangles) the same
+way; D078 (vocabulary) goes last because it rewrites copy across all of it.
+
+### What was attempted, wave one
+
+- **D074.** Modeless canvas: a press that does not move drops a draft, a
+  drag pans, pins drag by their badge, the composer is a popover anchored at
+  the pin with the top nearby element pre-selected, Enter saves, J/K step,
+  N drops at the viewport center. PLACEMENT_SLOP_SCREEN_PX became a published
+  boundary.
+- **D075.** Annotation status with resolve and reopen written as append-only
+  thread entries, per-role last-seen with unread counts riding the hierarchy
+  read, a founder pin list, and the share control in the project header.
+- **D076.** Capture continues after the response with Next's after(), a
+  secret-protected sweep route with a daily Vercel cron as the backstop, one
+  automatic retry, progress on the hierarchy, and a test-only off switch so
+  credentialed e2e runs do not spend real Browserless captures.
+
+### What broke
+
+- **A migration number collision.** D075 and D076 each generated a
+  migration 0004 from the same base. Rather than keep two 0004 files, the
+  D075 migration was regenerated on top of D076's from the merged schema
+  (the SQL came out byte-identical to the agent's) and its hand-written
+  triggers migration was re-added as 0006 through drizzle-kit's custom
+  migration, so the snapshot chain carries both sets of columns.
+- **A cherry-pick that committed conflict markers.** A resolution script
+  stopped on a failed assertion, the shell went on, and `git add` staged the
+  still-conflicted files. Caught by grepping for markers before the next
+  step; fixed by a union merge of the two appended CSS blocks plus one
+  missing brace, and amended.
+- **Two D076 tests asserting the old two-mode canvas.** They looked for the
+  Place pin button and the long hint; rewritten against the modeless region
+  and the one-line hint.
+- **Credentialed specs cannot run here.** Every canvas, pin, founder, and
+  capture-driver Playwright spec skips without `.env.local`. The agents
+  edited them to the new interactions; only a local run with credentials
+  proves those edits. The list is in the pull request.
+
+### What was attempted, wave two
+
+- **D077.** A project overview of capture cards with thumbnails and counts,
+  Desktop and Mobile as a toggle above the canvas, the rail reduced to
+  projects and pages, Next and Previous pin across every plane in the
+  project, and the pin table and Markdown export at project scope through a
+  new editor-only project annotations read.
+- **D079.** Rectangles: Shift-drag or an armed Box tool draws a box, the same
+  composer opens with the largest-overlap element pre-selected, boxes share
+  numbering, threads, and status with pins, move by their stroke and resize
+  by eight hand-rolled handles, and render read-only for the founder.
+- **D078.** Marks are named by their comment and element through one
+  helper, coordinates and hashes sit behind a Details disclosure and leave
+  the founder view entirely, the founder's list comes first on phones and
+  tapping it centers the mark, and the walkthrough and README follow.
+
+### What broke, wave two
+
+- **D077 and D079 collided in the workspace.** Both changed the draft and
+  save flow: D077 rebuilt selection and stepping around a pending-pin
+  reference and the device toggle, D079 turned the draft from a pin tip into
+  a kind-aware mark and reshaped the table's row type. A dry cherry-pick
+  showed seven hunks that were semantic rather than textual. Instead of
+  resolving them from the outside, the D079 agent rebased its commit onto
+  the D077 tree in its own worktree, layered its changes into D077's
+  structure, fixed the follow-ups the text merge could not see (the project
+  read and stepping order had to carry boxes; a move patched a `.tip` that a
+  box does not have), and reran the full gate before handing back one
+  rebased commit.
+- **Worktrees started one commit behind.** Each agent's worktree was created
+  at main rather than the branch tip and had to be reset to the intended
+  base first; every agent noticed and did so before working.
+
+### Decisions
+
+- D074, D075, D076, D077, D078: agent-proposed, human-approved in one message.
+- D079: user-directed (the bounding box).
+- Consequences added to D074 through D079 for the findings above.
+- The final tree passed the whole gate: 1482 Vitest tests, build, and the
+  20 uncredentialed Playwright tests; 43 credentialed specs skipped here.

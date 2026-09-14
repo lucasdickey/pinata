@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
-// Component tests for the draft context decision panel (VAL-PIN-003,
-// VAL-PIN-004, VAL-PIN-006, VAL-PIN-010): the candidate list carries a
-// quiescent marker the e2e specs wait on before clicking (the radio used to
-// be detached mid-click by the async candidates render); hovering, focusing,
-// or touching a candidate asks the workspace to preview exactly that
-// manifest element's rectangle on the canvas; hostile captured text renders
-// as inert escaped text; and the "No element" radio keeps its DOM identity
-// across the loading → ready transition.
+// Component tests for the selection panel (VAL-PIN-003, VAL-PIN-010): the
+// draft composer moved beside the pin (D074, see pin-composer.test.tsx), so
+// the panel's job is the selected saved pin, the pins list, and the capture
+// facts. Hostile captured text in a saved snapshot renders as inert escaped
+// text, the panel copy names the one gesture that drops a pin, marks are
+// named by comment and element (D078), and the internals sit behind one
+// Details disclosure.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { CapturePanel } from "../../src/components/capture-panel";
 import type { PinElementSnapshot } from "../../src/lib/annotations";
@@ -31,7 +30,7 @@ function candidate(id: string, overrides: Partial<PinElementSnapshot> = {}): Pin
   };
 }
 
-function draftProps(overrides: Record<string, unknown> = {}) {
+function panelProps(overrides: Record<string, unknown> = {}) {
   return {
     attempt: {
       id: "cap-1",
@@ -46,18 +45,6 @@ function draftProps(overrides: Record<string, unknown> = {}) {
     pageUrl: "https://chickpea.co/pricing",
     variant: "desktop",
     ready: true,
-    draftTip: { x: 900, y: 4210 },
-    draftBody: "move this tier",
-    onDraftBodyChange: vi.fn(),
-    draftChoice: undefined as string | null | undefined,
-    onDraftChoiceChange: vi.fn(),
-    draftCandidates: {
-      status: "ready" as const,
-      items: [candidate("cell-1"), candidate("row-1", { kind: "text", tag: "tr" })],
-    },
-    onSaveDraft: vi.fn(),
-    onCancelDraft: vi.fn(),
-    saveState: "idle" as const,
     pinsStatus: "ready" as const,
     pins: [],
     selectedPinId: null,
@@ -75,135 +62,29 @@ function draftProps(overrides: Record<string, unknown> = {}) {
     onCancelDelete: vi.fn(),
     onConfirmDelete: vi.fn(),
     deleteState: "idle" as const,
-    onPreviewCandidate: vi.fn(),
     ...overrides,
   };
 }
 
-const contextFieldset = () => document.querySelector('[data-testid="draft-context"]')!;
-const candidateRow = (id: string) =>
-  document.querySelector(`.panel-candidate[data-element-id="${id}"]`)!;
-
-describe("quiescent marker", () => {
-  test("is loading while candidates are unresolved, settled once rendered", () => {
-    const { rerender } = render(
-      <CapturePanel {...draftProps({ draftCandidates: null })} />,
-    );
-    expect(contextFieldset()).toHaveAttribute("data-candidates-state", "loading");
-
-    rerender(
-      <CapturePanel
-        {...draftProps({ draftCandidates: { status: "loading", items: [] } })}
-      />,
-    );
-    expect(contextFieldset()).toHaveAttribute("data-candidates-state", "loading");
-
-    rerender(<CapturePanel {...draftProps()} />);
-    expect(contextFieldset()).toHaveAttribute("data-candidates-state", "ready");
-
-    rerender(
-      <CapturePanel
-        {...draftProps({ draftCandidates: { status: "failed", items: [] } })}
-      />,
-    );
-    expect(contextFieldset()).toHaveAttribute("data-candidates-state", "failed");
+describe("no draft surface in the panel", () => {
+  test("renders no comment editor, candidate radios, or draft context marker", () => {
+    render(<CapturePanel {...panelProps()} />);
+    expect(screen.queryByLabelText("Comment")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(document.querySelector('[data-testid="draft-context"]')).toBeNull();
+    expect(screen.getByText("Nothing selected.")).toBeInTheDocument();
   });
 
-  test("the No element radio keeps its DOM identity across the loading → ready render", () => {
-    const { rerender } = render(
-      <CapturePanel
-        {...draftProps({ draftCandidates: { status: "loading", items: [] } })}
-      />,
-    );
-    const before = document.querySelector(
-      '[data-testid="draft-context"] input[value=""]',
-    ) as HTMLInputElement;
-    expect(before).not.toBeNull();
-
-    rerender(<CapturePanel {...draftProps()} />);
-    const after = document.querySelector(
-      '[data-testid="draft-context"] input[value=""]',
-    ) as HTMLInputElement;
-    // The async candidate render must not detach the radio mid-click.
-    expect(after).toBe(before);
-  });
-});
-
-describe("candidate preview requests", () => {
-  test("mouse hover previews exactly that candidate, leaving clears", () => {
-    const onPreviewCandidate = vi.fn();
-    render(<CapturePanel {...draftProps({ onPreviewCandidate })} />);
-    const row = candidateRow("cell-1");
-    fireEvent.mouseEnter(row);
-    expect(onPreviewCandidate).toHaveBeenCalledTimes(1);
-    expect(onPreviewCandidate.mock.calls[0]![0]).toMatchObject({ id: "cell-1", rect: {
-      x: 808.5,
-      y: 4202.25,
-      width: 216.75,
-      height: 98.5,
-    } });
-    fireEvent.mouseLeave(row);
-    expect(onPreviewCandidate).toHaveBeenLastCalledWith(null);
-  });
-
-  test("keyboard focus previews and blur clears", () => {
-    const onPreviewCandidate = vi.fn();
-    render(<CapturePanel {...draftProps({ onPreviewCandidate })} />);
-    const input = candidateRow("row-1").querySelector("input")!;
-    fireEvent.focus(input);
-    expect(onPreviewCandidate).toHaveBeenCalledTimes(1);
-    expect((onPreviewCandidate.mock.calls[0]![0] as PinElementSnapshot).id).toBe("row-1");
-    fireEvent.blur(input);
-    expect(onPreviewCandidate).toHaveBeenLastCalledWith(null);
-  });
-
-  test("the documented touch action — a finger held on a candidate — previews while down", () => {
-    const onPreviewCandidate = vi.fn();
-    render(<CapturePanel {...draftProps({ onPreviewCandidate })} />);
-    const row = candidateRow("cell-1");
-    fireEvent.touchStart(row);
-    expect(onPreviewCandidate).toHaveBeenCalledTimes(1);
-    expect((onPreviewCandidate.mock.calls[0]![0] as PinElementSnapshot).id).toBe("cell-1");
-    fireEvent.touchEnd(row);
-    expect(onPreviewCandidate).toHaveBeenLastCalledWith(null);
-    fireEvent.touchStart(row);
-    fireEvent.touchCancel(row);
-    expect(onPreviewCandidate).toHaveBeenLastCalledWith(null);
-  });
-
-  test("preview requests never fire for the No element row", () => {
-    const onPreviewCandidate = vi.fn();
-    render(<CapturePanel {...draftProps({ onPreviewCandidate })} />);
-    const noElement = document.querySelector(
-      '[data-testid="draft-context"] .panel-candidate:not([data-element-id])',
-    )!;
-    fireEvent.mouseEnter(noElement);
-    fireEvent.mouseLeave(noElement);
-    expect(onPreviewCandidate).not.toHaveBeenCalled();
+  test("the empty-list note names the one gesture, with no mode to switch to", () => {
+    render(<CapturePanel {...panelProps()} />);
+    const note = screen.getByText(/No pins yet/);
+    expect(note).toHaveTextContent(/click or tap the page/i);
+    expect(note.textContent?.toLowerCase()).not.toContain("place pin");
   });
 });
 
 describe("hostile captured content", () => {
-  test("markup, controls, and bidi text render as inert escaped text", () => {
-    const hostile = candidate("evil-1", {
-      text: '<img src=x onerror="alert(1)"> ‮reversed‬ <button>click</button>',
-      accessibleName: '<svg onload="alert(2)">',
-    });
-    render(
-      <CapturePanel
-        {...draftProps({ draftCandidates: { status: "ready", items: [hostile] } })}
-      />,
-    );
-    const row = candidateRow("evil-1");
-    // The raw markup survives as text content…
-    expect(row.textContent).toContain('<img src=x onerror="alert(1)">');
-    // …but no element it describes is ever created.
-    expect(row.querySelector("img")).toBeNull();
-    expect(row.querySelector("button")).toBeNull();
-    expect(row.querySelector("svg")).toBeNull();
-  });
-
-  test("a saved pin's snapshot renders the same inert way", () => {
+  test("a saved pin's snapshot renders as inert escaped text", () => {
     const pin = {
       id: "ann-1",
       captureId: "cap-1",
@@ -217,13 +98,143 @@ describe("hostile captured content", () => {
       revision: 1,
       createdAt: 1,
     };
-    render(
-      <CapturePanel
-        {...draftProps({ draftTip: null, pins: [pin], selectedPinId: "ann-1" })}
-      />,
-    );
+    render(<CapturePanel {...panelProps({ pins: [pin], selectedPinId: "ann-1" })} />);
     const snapshot = document.querySelector('[data-testid="panel-snapshot"]')!;
     expect(snapshot.textContent).toContain('<form action="https://evil.invalid">x</form>');
     expect(snapshot.querySelector("form")).toBeNull();
+    // The move instruction no longer names a mode.
+    expect(screen.getByText(/Drag the pin on the screenshot/).textContent).not.toMatch(
+      /place pin/i,
+    );
+  });
+});
+
+describe("rectangles in the panel (D079)", () => {
+  const box = {
+    id: "box-4",
+    captureId: "cap-1",
+    kind: "rectangle" as const,
+    number: 4,
+    rect: { x: 100.4, y: 200.6, width: 300.2, height: 150.5 },
+    body: "This whole card needs more air.",
+    elementSnapshot: null,
+    revision: 2,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 2,
+  };
+  const pin = {
+    id: "ann-1",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 1,
+    tip: { x: 10, y: 10 },
+    body: "the comment",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+
+  test("the selected box is named by its comment, keeps its bounds behind Details, and has box controls", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "box-4" })} />);
+    const name = screen.getByTestId("panel-mark-name");
+    expect(name).toHaveAttribute("data-kind", "rectangle");
+    expect(name).toHaveTextContent("Box 4 · “This whole card needs more air.”");
+    const position = within(screen.getByTestId("panel-details")).getByTestId("panel-position");
+    expect(position).toHaveAttribute("data-kind", "rectangle");
+    expect(position).toHaveTextContent("100, 201 · 300 × 151 px");
+    expect(screen.getByRole("button", { name: "Delete box" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete pin" })).toBeNull();
+    expect(screen.getByText(/Drag the box's edge or badge/)).toBeInTheDocument();
+  });
+
+  test("the list names both kinds in number order by comment, never by position", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box] })} />);
+    const list = screen.getByRole("list", { name: "Saved pins" });
+    const buttons = within(list).getAllByRole("button");
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      "Pin 1 · “the comment”",
+      "Box 4 · “This whole card needs more air.”",
+    ]);
+  });
+
+  test("a selected pin is named the same way", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "ann-1" })} />);
+    expect(screen.getByTestId("panel-mark-name")).toHaveTextContent("Pin 1 · “the comment”");
+    expect(within(screen.getByTestId("panel-details")).getByTestId("panel-position")).toHaveTextContent(
+      "10, 10 px",
+    );
+    expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
+  });
+});
+
+// The internals behind one disclosure (D078): closed by default, a real
+// <summary>, the capture facts and coordinates inside, and the keyboard list.
+describe("Details disclosure (D078)", () => {
+  const pin = {
+    id: "ann-1",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 1,
+    tip: { x: 10.4, y: 10.6 },
+    body: "the comment",
+    elementSnapshot: candidate("el-1", { text: "Starter plan" }),
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+
+  test("is a native details element, closed by default, with a summary that says Details", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin], selectedPinId: "ann-1" })} />);
+    const details = screen.getByTestId("panel-details") as HTMLDetailsElement;
+    expect(details.tagName.toLowerCase()).toBe("details");
+    expect(details.open).toBe(false);
+    const summary = details.querySelector(":scope > summary")!;
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent("Details");
+    // Not a heading: the panel's heading order is the h4s alone.
+    expect(within(details).queryByRole("heading")).toBeNull();
+  });
+
+  test("holds the coordinates, version, state, size, and hash, and nothing outside it prints them", () => {
+    render(<CapturePanel {...panelProps({ pins: [pin], selectedPinId: "ann-1" })} />);
+    const details = screen.getByTestId("panel-details");
+    expect(details).toHaveTextContent("Position");
+    expect(within(details).getByTestId("panel-position")).toHaveTextContent("10, 11 px");
+    expect(details).toHaveTextContent("v1");
+    expect(details).toHaveTextContent("Ready");
+    expect(details).toHaveTextContent("1440 × 8966 px");
+    expect(details).toHaveTextContent("hash");
+    // The selection block itself names the pin without coordinates.
+    const selection = screen.getByTestId("panel-pin");
+    expect(selection).toHaveTextContent("Pin 1 · “the comment” · Starter plan");
+    expect(selection.textContent).not.toMatch(/\d+, \d+/);
+    expect(selection.textContent).not.toMatch(/natural pixel/i);
+    // Page and device stay in plain view under Capture.
+    const panel = screen.getByTestId("capture-panel");
+    const visible = panel.textContent!.replace(details.textContent!, "");
+    expect(visible).toContain("https://chickpea.co/pricing");
+    expect(visible).toContain("Desktop");
+    expect(visible).not.toContain("Image hash");
+    expect(visible).not.toContain("Version");
+  });
+
+  test("lists the keyboard shortcuts", () => {
+    render(<CapturePanel {...panelProps()} />);
+    const details = screen.getByTestId("panel-details");
+    const keys = within(details).getByTestId("panel-keys");
+    const items = within(keys).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items).toEqual([
+      "Enter saves a comment; Shift+Enter starts a new line",
+      "Escape cancels",
+      "J and K, or the arrow keys, step through the marks",
+      "N drops a pin at the center of the view",
+      "Shift-drag, or the Box tool, draws a box",
+    ]);
+    // With nothing selected there is no position row.
+    expect(within(details).queryByTestId("panel-position")).toBeNull();
   });
 });

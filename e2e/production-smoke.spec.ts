@@ -71,7 +71,7 @@ async function listPins(page: Page, captureId: string): Promise<PinRecord[]> {
 }
 
 async function waitPinsLoaded(page: Page): Promise<void> {
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|Pin \d+ — at \(/);
+  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ · “/);
 }
 
 /** Probe the context route for a declared dense pricing cell (td/th). */
@@ -147,10 +147,8 @@ test("editor signs in on production and a dense-cell pin with a comment survives
   await waitForZoom(page, 8);
   await panUntilNaturalVisible(page, cell.point);
 
-  // Enter placement mode, THEN recompute the screen point: clicking the
-  // toolbar scrolls the page, which stales any earlier screen coordinate.
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
+  // Recompute the screen point right before the click (no mode to enter
+  // first, D074): a click on the screenshot drops the draft.
   const pane = await visiblePane(page);
   const camera = await readCamera(page);
   const local = toScreen(cell.point, camera);
@@ -160,13 +158,17 @@ test("editor signs in on production and a dense-cell pin with a comment survives
   expect(local.y, "placement y maps on-pane").toBeLessThanOrEqual(pane.height);
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
   );
-  // The explicit context decision: this run's declared cell, never the
-  // implicit default and never a client-authored snapshot.
+  // The explicit context decision: this run's declared cell, chosen from
+  // the ranked list behind Change rather than whatever was pre-selected,
+  // and never a client-authored snapshot.
+  await page.getByRole("button", { name: "Change" }).click();
   await page.locator(`.panel-candidate[data-element-id="${cell.elementId}"] input`).click();
+  await expect(page.getByTestId("draft-choice")).toHaveAttribute("data-element-id", cell.elementId);
   const body = `Production UI smoke: dense cell ${cell.label} reads cramped at a glance.`;
   await page.getByLabel("Comment").fill(body);
   await page.getByRole("button", { name: "Save pin" }).click();
@@ -225,19 +227,20 @@ test("a Mobile home pin with an explicit No-element choice stays on its own plan
     { from: 0.0, to: 0.05 },
   );
   await panUntilNaturalVisible(page, aim);
-  const pinButton = page.getByRole("button", { name: "Place pin" });
-  if ((await pinButton.getAttribute("aria-pressed")) !== "true") await pinButton.click();
-  // Recompute after the toolbar click: it can scroll the page.
+  // Recompute right before the click (no mode to enter first, D074).
   const pane = await visiblePane(page);
   const camera = await readCamera(page);
   const local = toScreen(aim, camera);
   await page.mouse.click(pane.left + local.x, pane.top + local.y);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(1);
+  await expect(page.getByTestId("pin-composer")).toBeVisible();
   await expect(page.getByTestId("draft-context")).toHaveAttribute(
     "data-candidates-state",
     /ready|failed/,
   );
-  await page.getByRole("radio", { name: "No element" }).click();
+  // Override the pre-selected element with the explicit No element.
+  await page.getByRole("button", { name: "No element" }).click();
+  await expect(page.getByTestId("draft-choice")).toHaveText("No element");
   const body = "Production UI smoke: mobile header pin, deliberately element-free.";
   await page.getByLabel("Comment").fill(body);
   await page.getByRole("button", { name: "Save pin" }).click();

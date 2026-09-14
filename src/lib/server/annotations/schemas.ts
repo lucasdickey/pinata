@@ -1,7 +1,12 @@
-// Server-only request schemas for pin annotation mutations. Strict: unknown
-// fields, non-finite coordinates, blank or over-limit bodies, and
-// out-of-bounds idempotency keys are rejected before any lookup or
-// persistence, and nothing is echoed back on failure.
+// Server-only request schemas for annotation mutations (pins and, since
+// D079, rectangles). Strict: unknown fields, non-finite coordinates, blank or
+// over-limit bodies, and out-of-bounds idempotency keys are rejected before
+// any lookup or persistence, and nothing is echoed back on failure.
+//
+// The geometry key names the kind: `tip` is a pin, `rect` is a rectangle. A
+// body carrying both, or neither, is invalid. Capture-bound checks (inside
+// the document, at least the minimum size) happen in the store, which is the
+// only place the capture's dimensions are known.
 
 import { z } from "zod";
 import {
@@ -20,6 +25,17 @@ export const pinTipSchema = z.strictObject({
 });
 
 /**
+ * A rectangle's box in screenshot-natural CSS pixels. The shape is checked
+ * here; the size minimum and the capture bounds are checked in the store.
+ */
+export const rectangleSchema = z.strictObject({
+  x: finiteNumber,
+  y: finiteNumber,
+  width: finiteNumber,
+  height: finiteNumber,
+});
+
+/**
  * The explicit context decision every create must carry: the capture-local
  * id of one manifest element, or null for "No element". The key is required
  * — an undecided draft cannot save — and the server derives the snapshot
@@ -28,39 +44,60 @@ export const pinTipSchema = z.strictObject({
  */
 const elementDecisionSchema = z.union([z.string().min(1).max(64), z.null()]);
 
+const bodySchema = z.string().min(1).max(FEEDBACK_BODY_MAX_CHARS);
+const idempotencyKeySchema = z
+  .string()
+  .min(IDEMPOTENCY_KEY_MIN_CHARS)
+  .max(IDEMPOTENCY_KEY_MAX_CHARS);
+
 /**
- * POST /api/captures/[captureId]/annotations body: one pin, one bounded
- * comment, one explicit context decision, one intent key.
+ * POST /api/captures/[captureId]/annotations body: one geometry (a pin tip
+ * or a rectangle), one bounded comment, one explicit context decision, one
+ * intent key.
  */
-export const createPinBodySchema = z.strictObject({
-  tip: pinTipSchema,
-  body: z.string().min(1).max(FEEDBACK_BODY_MAX_CHARS),
-  elementId: elementDecisionSchema,
-  idempotencyKey: z.string().min(IDEMPOTENCY_KEY_MIN_CHARS).max(IDEMPOTENCY_KEY_MAX_CHARS),
-});
+export const createAnnotationBodySchema = z.union([
+  z.strictObject({
+    tip: pinTipSchema,
+    body: bodySchema,
+    elementId: elementDecisionSchema,
+    idempotencyKey: idempotencyKeySchema,
+  }),
+  z.strictObject({
+    rect: rectangleSchema,
+    body: bodySchema,
+    elementId: elementDecisionSchema,
+    idempotencyKey: idempotencyKeySchema,
+  }),
+]);
 
-export type CreatePinBody = z.infer<typeof createPinBodySchema>;
+export type CreateAnnotationBody = z.infer<typeof createAnnotationBodySchema>;
 
-/** The optimistic-concurrency precondition every pin mutation carries. */
+/** The optimistic-concurrency precondition every annotation mutation carries. */
 const expectedRevisionSchema = z.number().int().positive();
 
 /**
- * PATCH .../annotations/[annotationId] body: a moved tip, a new original
- * body, or both — always with the revision the write is based on.
+ * PATCH .../annotations/[annotationId] body: new geometry (a moved tip for a
+ * pin, a moved or resized box for a rectangle), a new original body, or
+ * both — always with the revision the write is based on. The geometry key
+ * must match the annotation's kind; the store rejects a mismatch.
  */
-export const updatePinBodySchema = z
+export const updateAnnotationBodySchema = z
   .strictObject({
     tip: pinTipSchema.optional(),
-    body: z.string().min(1).max(FEEDBACK_BODY_MAX_CHARS).optional(),
+    rect: rectangleSchema.optional(),
+    body: bodySchema.optional(),
     expectedRevision: expectedRevisionSchema,
   })
-  .refine((value) => value.tip !== undefined || value.body !== undefined);
+  .refine(
+    (value) => value.tip !== undefined || value.rect !== undefined || value.body !== undefined,
+  )
+  .refine((value) => value.tip === undefined || value.rect === undefined);
 
-export type UpdatePinBody = z.infer<typeof updatePinBodySchema>;
+export type UpdateAnnotationBody = z.infer<typeof updateAnnotationBodySchema>;
 
 /** DELETE .../annotations/[annotationId] body: the revision precondition. */
-export const deletePinBodySchema = z.strictObject({
+export const deleteAnnotationBodySchema = z.strictObject({
   expectedRevision: expectedRevisionSchema,
 });
 
-export type DeletePinBody = z.infer<typeof deletePinBodySchema>;
+export type DeleteAnnotationBody = z.infer<typeof deleteAnnotationBodySchema>;
