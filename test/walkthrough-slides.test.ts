@@ -105,6 +105,8 @@ describe("the walkthrough palette", () => {
     expect(THEME.accentSoft).toBe(token("--accent-soft"));
     expect(THEME.line).toBe(token("--line"));
     expect(THEME.codeBg).toBe(token("--code-bg"));
-    expect(THEME.accent).toBe(BRAND_MARK.tileFill);
+    // The mark's tile is the surface colour since the llama mark (D069); it no
+    // longer sits on an accent tile.
+    expect(BRAND_MARK.tileFill).toBe(token("--surface"));
   });
 });
