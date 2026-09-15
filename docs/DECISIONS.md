@@ -17,10 +17,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 21 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081 |
-| Agent proposed, human approved | 14 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078 |
+| Agent proposed, human approved | 16 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083 |
 | Agent decided alone | 44 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **81** | |
+| **Total** | **83** | |
 
 ## Index
 
@@ -107,6 +107,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D079](#d079--rectangle-marks-drag-to-draw-a-box-comment-and-context-like-a-pin-shared-numbering-resizable-readable-by-the-founder) | build | Rectangle marks: drag to draw a box, comment and context like a pin, shared numbering, resizable, readable by the founder | Human directed | accepted |
 | [D080](#d080--project-header-feedback-counts-the-current-version-matching-the-rail-badges) | build | Project header feedback counts the current version, matching the rail badges | Agent decided alone | accepted |
 | [D081](#d081--restate-the-milestones-against-what-is-actually-built-add-a-fourth-slice-for-depth-on-the-loop-and-hold-accounts-and-multiple-users-until-last) | wrap | Restate the milestones against what is actually built, add a fourth slice for depth on the loop, and hold accounts and multiple users until last | Human directed | accepted |
+| [D082](#d082--circle-marks-a-square-constrained-ellipse-drawn-with-an-armed-tool-sharing-every-rule-rectangles-already-follow) | build | Circle marks: a square-constrained ellipse drawn with an armed tool, sharing every rule rectangles already follow | Agent proposed, human approved | accepted |
+| [D083](#d083--arrow-marks-a-two-endpoint-straight-arrow-whose-head-carries-the-meaning-and-the-element-context) | build | Arrow marks: a two-endpoint straight arrow whose head carries the meaning and the element context | Agent proposed, human approved | accepted |
 
 ---
 
@@ -3193,4 +3195,83 @@ Human instruction:
 
 ---
 
-<sub>Generated from 81 record(s) as of 2026-09-15 · source `3e962beb1d97`</sub>
+## D082 — Circle marks: a square-constrained ellipse drawn with an armed tool, sharing every rule rectangles already follow
+
+*2026-09-15 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The published architecture and the geometry catalog have described circles since mission planning (MIN_SHAPE_SIZE_PX names them, 'circles stay square'), the annotations table has allowed kind='circle' since the first migration, and D079 made the whole annotation path kind-generic. Nothing drew one. A circle is the right mark for 'this region', where a rectangle's corners imply an alignment that is not being asserted.
+
+**Decision**
+
+A circle is a rectangle whose geometry is constrained square and whose renderer is an ellipse inscribed in that square. Geometry is {x, y, size} at geometry_version 1, where size is both the width and the height in screenshot-natural pixels, no smaller than MIN_SHAPE_SIZE_PX, clamped inside the frame. Drawing: an armed Circle tool in the mark-tool group beside the existing Box tool; the drag's larger dimension sets the size, so an off-square drag still yields a circle, and the tool disarms after one gesture or on Escape. Everything else is what a rectangle already does: the same anchored composer, nearby elements ranked by overlap with the circle's bounding square, shared per-capture numbering, the badge at the bounding square's top-left, move by the stroke, resize by the same handles constrained to stay square, one revisioned write per gesture, threads and status and unread exactly as pins and boxes have them, and a read-only rendering with no handles for the founder.
+
+**Alternatives considered**
+
+- *A free ellipse with independent width and height* — The geometry catalog published 'circles stay square' before any of this was built, and a free ellipse adds a second resize contract for no expressive gain over a rectangle.
+- *Reuse the rectangle kind and render round when width equals height* — The kind is what the author meant, not a coincidence of dimensions; a resize that happened to equalise the sides would silently change the mark's meaning.
+
+**Rationale**
+
+Proposed by the agent as the cheap half of finishing the mark vocabulary, approved by the human in the same message that ordered the milestones. Constraining to a square keeps one resize contract, honours a boundary published before implementation, and makes the circle a renderer and a clamp rather than a new geometry family.
+
+**Consequences**
+
+- The mark-tool group grows from one toggle to several; each arms exactly one gesture and disarms afterwards, so D074's no-modes rule still holds.
+- The square constraint means a corner drag governs both dimensions, so the eight-handle set collapses to a meaningful four for circles; the implementing session decides whether to hide the edge handles or make them resize the square.
+- Circles inherit the resize-handle ergonomics weakness recorded for rectangles at low zoom.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.
+
+Human approved:
+
+> Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality.
+
+---
+
+## D083 — Arrow marks: a two-endpoint straight arrow whose head carries the meaning and the element context
+
+*2026-09-15 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Every mark the product has is a place: a pin is a point, a rectangle and a circle are regions. None of them can say 'move this there', 'this should point at that', or 'these two are out of order' — the instructions that make feedback directional rather than merely located. The architecture has described arrows as straight edges between two draggable endpoints since mission planning, and MIN_ARROW_LENGTH_PX has been published since, but nothing drew one.
+
+**Decision**
+
+An arrow is two points and a direction. Geometry is {start: {x, y}, end: {x, y}} in screenshot-natural pixels at geometry_version 1, with the straight-line distance between them no smaller than MIN_ARROW_LENGTH_PX and both endpoints clamped inside the frame. The head is at `end`: that is where the arrow points, so that is what the mark is about. Nearby elements are ranked from the head point using the existing point ranking, not the overlap ranking, and the pre-selected candidate is the element under the head. Drawing: an armed Arrow tool; press sets the tail, release sets the head. Each endpoint is independently draggable after save and the whole arrow moves by its shaft, each gesture committing one revisioned write. The badge rides at the tail so it never covers the thing being pointed at. Rendering is a line with a filled head whose stroke and head scale with zoom to stay visible without changing the stored geometry, and the founder sees it read-only with no endpoint handles.
+
+**Alternatives considered**
+
+- *Anchor the element context at the tail, or at the midpoint* — The tail is where the reader's eye starts and the head is what the note is about. Attaching the captured element to the tail would file 'move this into the header' under whatever the arrow happened to start on top of.
+- *Curved or elbowed arrows* — Freehand and curved arrows are a published non-goal; a straight arrow is unambiguous and needs no control points.
+- *Render as a React Flow edge between two endpoint nodes* — Edges are a graph abstraction the canvas does not otherwise use, and the capture frame is a single parent node. Two child nodes plus a drawn line keeps one clamping authority and matches how rectangles already work.
+
+**Rationale**
+
+Proposed by the agent and approved by the human as the item that most changes what the product can say. The straight-line constraint and the head-anchored context are what keep an arrow a directional instruction rather than a decoration.
+
+**Consequences**
+
+- The context route is asked for a point ranking for arrows and an overlap ranking for regions, so the caller now chooses the ranking by mark kind; the route already accepts both shapes since D079.
+- An arrow has no area, so hit-testing is a distance-to-segment test with a screen-space tolerance rather than a box test, and the table's Position column reports two points rather than a rectangle.
+- Arrows complete the mark vocabulary the requirements named, so milestone 3's rich-mark line closes with this record; freehand and curved arrows remain non-goals.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.
+
+Human approved:
+
+> Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality.
+
+---
+
+<sub>Generated from 83 record(s) as of 2026-09-15 · source `15d533b6dd24`</sub>

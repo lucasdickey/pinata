@@ -3617,8 +3617,78 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D082",
+      "date": "2026-09-15",
+      "phase": "build",
+      "title": "Circle marks: a square-constrained ellipse drawn with an armed tool, sharing every rule rectangles already follow",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The published architecture and the geometry catalog have described circles since mission planning (MIN_SHAPE_SIZE_PX names them, 'circles stay square'), the annotations table has allowed kind='circle' since the first migration, and D079 made the whole annotation path kind-generic. Nothing drew one. A circle is the right mark for 'this region', where a rectangle's corners imply an alignment that is not being asserted.",
+      "decision": "A circle is a rectangle whose geometry is constrained square and whose renderer is an ellipse inscribed in that square. Geometry is {x, y, size} at geometry_version 1, where size is both the width and the height in screenshot-natural pixels, no smaller than MIN_SHAPE_SIZE_PX, clamped inside the frame. Drawing: an armed Circle tool in the mark-tool group beside the existing Box tool; the drag's larger dimension sets the size, so an off-square drag still yields a circle, and the tool disarms after one gesture or on Escape. Everything else is what a rectangle already does: the same anchored composer, nearby elements ranked by overlap with the circle's bounding square, shared per-capture numbering, the badge at the bounding square's top-left, move by the stroke, resize by the same handles constrained to stay square, one revisioned write per gesture, threads and status and unread exactly as pins and boxes have them, and a read-only rendering with no handles for the founder.",
+      "alternatives": [
+        {
+          "option": "A free ellipse with independent width and height",
+          "why_not": "The geometry catalog published 'circles stay square' before any of this was built, and a free ellipse adds a second resize contract for no expressive gain over a rectangle."
+        },
+        {
+          "option": "Reuse the rectangle kind and render round when width equals height",
+          "why_not": "The kind is what the author meant, not a coincidence of dimensions; a resize that happened to equalise the sides would silently change the mark's meaning."
+        }
+      ],
+      "rationale": "Proposed by the agent as the cheap half of finishing the mark vocabulary, approved by the human in the same message that ordered the milestones. Constraining to a square keeps one resize contract, honours a boundary published before implementation, and makes the circle a renderer and a clamp rather than a new geometry family.",
+      "consequences": [
+        "The mark-tool group grows from one toggle to several; each arms exactly one gesture and disarms afterwards, so D074's no-modes rule still holds.",
+        "The square constraint means a corner drag governs both dimensions, so the eight-handle set collapses to a meaningful four for circles; the implementing session decides whether to hide the edge handles or make them resize the square.",
+        "Circles inherit the resize-handle ergonomics weakness recorded for rectangles at low zoom."
+      ],
+      "transcript": {
+        "proposal": "Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.",
+        "approval": "Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D083",
+      "date": "2026-09-15",
+      "phase": "build",
+      "title": "Arrow marks: a two-endpoint straight arrow whose head carries the meaning and the element context",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Every mark the product has is a place: a pin is a point, a rectangle and a circle are regions. None of them can say 'move this there', 'this should point at that', or 'these two are out of order' — the instructions that make feedback directional rather than merely located. The architecture has described arrows as straight edges between two draggable endpoints since mission planning, and MIN_ARROW_LENGTH_PX has been published since, but nothing drew one.",
+      "decision": "An arrow is two points and a direction. Geometry is {start: {x, y}, end: {x, y}} in screenshot-natural pixels at geometry_version 1, with the straight-line distance between them no smaller than MIN_ARROW_LENGTH_PX and both endpoints clamped inside the frame. The head is at `end`: that is where the arrow points, so that is what the mark is about. Nearby elements are ranked from the head point using the existing point ranking, not the overlap ranking, and the pre-selected candidate is the element under the head. Drawing: an armed Arrow tool; press sets the tail, release sets the head. Each endpoint is independently draggable after save and the whole arrow moves by its shaft, each gesture committing one revisioned write. The badge rides at the tail so it never covers the thing being pointed at. Rendering is a line with a filled head whose stroke and head scale with zoom to stay visible without changing the stored geometry, and the founder sees it read-only with no endpoint handles.",
+      "alternatives": [
+        {
+          "option": "Anchor the element context at the tail, or at the midpoint",
+          "why_not": "The tail is where the reader's eye starts and the head is what the note is about. Attaching the captured element to the tail would file 'move this into the header' under whatever the arrow happened to start on top of."
+        },
+        {
+          "option": "Curved or elbowed arrows",
+          "why_not": "Freehand and curved arrows are a published non-goal; a straight arrow is unambiguous and needs no control points."
+        },
+        {
+          "option": "Render as a React Flow edge between two endpoint nodes",
+          "why_not": "Edges are a graph abstraction the canvas does not otherwise use, and the capture frame is a single parent node. Two child nodes plus a drawn line keeps one clamping authority and matches how rectangles already work."
+        }
+      ],
+      "rationale": "Proposed by the agent and approved by the human as the item that most changes what the product can say. The straight-line constraint and the head-anchored context are what keep an arrow a directional instruction rather than a decoration.",
+      "consequences": [
+        "The context route is asked for a point ranking for arrows and an overlap ranking for regions, so the caller now chooses the ranking by mark kind; the route already accepts both shapes since D079.",
+        "An arrow has no area, so hit-testing is a distance-to-segment test with a screen-space tolerance rather than a box test, and the table's Position column reports two points rather than a rectangle.",
+        "Arrows complete the mark vocabulary the requirements named, so milestone 3's rich-mark line closes with this record; freehand and curved arrows remain non-goals."
+      ],
+      "transcript": {
+        "proposal": "Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.",
+        "approval": "Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-15",
-  "source_hash": "3e962beb1d97"
+  "source_hash": "15d533b6dd24"
 };
