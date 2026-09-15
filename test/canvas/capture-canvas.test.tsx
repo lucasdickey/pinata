@@ -16,9 +16,11 @@
 // square-constrained drag, an ellipse renderer, and four corner handles. jsdom proves structure and state, not
 // pixels — pixel transforms are covered by the pure camera/geometry oracles
 // and the real-browser measurements in e2e/canvas-interactions.spec.ts.
-// React Flow node drags (a saved box moved by its edge) cannot run under
-// jsdom either; the pure moveRect oracle and the credentialed e2e cover that
-// commit.
+// React Flow node drags (a saved box moved by its edge, a saved arrow moved
+// by its shaft) cannot run under jsdom either; the pure moveRect,
+// moveCircle, and translateArrow oracles and the credentialed e2e cover
+// those commits. The gestures the canvas owns end to end — drawing, region
+// resizes, and arrow endpoint drags — are proven here.
 
 import "@testing-library/jest-dom/vitest";
 import { cleanup, createEvent, fireEvent, render, waitFor, within } from "@testing-library/react";
@@ -26,7 +28,11 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { CaptureCanvas, type CaptureCameraState } from "../../src/components/capture-canvas";
 import type { PinComposerProps } from "../../src/components/pin-composer";
-import { MIN_SHAPE_SIZE_PX } from "../../src/lib/boundaries";
+import {
+  ARROW_HIT_TOLERANCE_CSS_PX,
+  MIN_ARROW_LENGTH_PX,
+  MIN_SHAPE_SIZE_PX,
+} from "../../src/lib/boundaries";
 import { flowToScreen } from "../../src/lib/canvas/camera";
 import { PLACEMENT_SLOP_SCREEN_PX } from "../../src/lib/canvas/geometry";
 import { installReactFlowMocks, triggerObservedResize } from "../helpers/react-flow";
@@ -1117,12 +1123,13 @@ describe("circles (D082)", () => {
     fireEvent.pointerUp(target, { clientX: to.x, clientY: to.y, isPrimary: true, ...init });
   }
 
-  test("the tools are one labelled group of one-gesture toggles, Box beside Circle", () => {
+  test("the tools are one labelled group of one-gesture toggles", () => {
     render(<CaptureCanvas {...props} />);
     const group = within(stage()).getByRole("group", { name: "Mark tools" });
     expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Draw a box",
       "Draw a circle",
+      "Draw an arrow",
     ]);
     for (const button of within(group).getAllByRole("button")) {
       expect(button).toHaveAttribute("aria-pressed", "false");
@@ -1352,6 +1359,270 @@ describe("circles (D082)", () => {
     fireEvent.keyDown(region(), { key: "c" });
     drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 380 });
     expect(draftCircleNodes()).toHaveLength(0);
+  });
+});
+
+// Arrows (D083): the one mark with no area. An armed tool draws one from
+// tail to head, the head carries the meaning, each endpoint drags on its own
+// and the shaft drags the whole arrow, and hit-testing is a band around the
+// shaft rather than a box.
+describe("arrows (D083)", () => {
+  const zoomed: CaptureCameraState = {
+    camera: { x: -1000, y: -20_000, zoom: 4 },
+    mode: "natural",
+    follow: false,
+  };
+  const ZOOM = zoomed.camera.zoom;
+
+  type Point = { x: number; y: number };
+  type Arrow = { start: Point; end: Point };
+  type Draft = { kind: string; arrow?: Arrow };
+
+  const arrows = [
+    { id: "arrow-2", number: 2, arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } } },
+  ];
+
+  function arrowNodes(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".react-flow__node-arrow"));
+  }
+  function draftArrowNodes(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".react-flow__node-draftArrow"));
+  }
+  function arrowHandles(root: ParentNode = document): HTMLElement[] {
+    return Array.from(root.querySelectorAll('[data-testid="arrow-handle"]'));
+  }
+  function endpointHandle(root: ParentNode, name: string): HTMLElement {
+    return root.querySelector(`[data-testid="arrow-handle"][data-endpoint="${name}"]`)!;
+  }
+  function tool(name: string): HTMLElement {
+    return within(stage()).getByRole("button", { name });
+  }
+
+  async function renderZoomed(extra: Record<string, unknown> = {}) {
+    const result = render(<CaptureCanvas {...props} savedCamera={zoomed} {...extra} />);
+    await waitFor(() =>
+      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    return result;
+  }
+
+  function drag(
+    target: Element,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+  ): void {
+    fireEvent.pointerDown(target, { clientX: from.x, clientY: from.y, isPrimary: true });
+    fireEvent.pointerMove(target, { clientX: to.x, clientY: to.y, isPrimary: true });
+    fireEvent.pointerUp(target, { clientX: to.x, clientY: to.y, isPrimary: true });
+  }
+
+  test("the Arrow tool arms one gesture: the press sets the tail and the release the head", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    const onDraftSettled = vi.fn();
+    await renderZoomed({ onDraftChange, onDraftSettled, composer: composerProps() });
+    await user.click(tool("Draw an arrow"));
+    expect(region()).toHaveAttribute("data-draw-tool", "arrow");
+
+    drag(frameImage(), { x: 400, y: 300 }, { x: 560, y: 460 });
+    expect(draftArrowNodes()).toHaveLength(1);
+    const draft = onDraftChange.mock.calls.at(-1)![0] as Draft;
+    expect(draft.kind).toBe("arrow");
+    const arrow = draft.arrow!;
+    // The press point is the tail and the release point is the head, in
+    // natural pixels; they are never reordered.
+    expect(arrow.start.x).toBeCloseTo((400 - zoomed.camera.x) / ZOOM, 5);
+    expect(arrow.start.y).toBeCloseTo((300 - zoomed.camera.y) / ZOOM, 5);
+    expect(arrow.end.x).toBeCloseTo((560 - zoomed.camera.x) / ZOOM, 5);
+    expect(arrow.end.y).toBeCloseTo((460 - zoomed.camera.y) / ZOOM, 5);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    // The tool armed exactly that drag.
+    expect(tool("Draw an arrow")).toHaveAttribute("aria-pressed", "false");
+
+    // The same composer, labelled for an arrow.
+    const dialog = within(stage()).getByRole("dialog", { name: "New arrow" });
+    expect(dialog).toHaveAttribute("data-draft-kind", "arrow");
+    expect(within(dialog).getByRole("button", { name: "Save arrow" })).toBeInTheDocument();
+  });
+
+  test("a drag drawn backwards keeps its direction: the release is still the head", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(tool("Draw an arrow"));
+    drag(frameImage(), { x: 560, y: 460 }, { x: 400, y: 300 });
+    const arrow = (onDraftChange.mock.calls.at(-1)![0] as Draft).arrow!;
+    expect(arrow.start.x).toBeGreaterThan(arrow.end.x);
+    expect(arrow.start.y).toBeGreaterThan(arrow.end.y);
+  });
+
+  test("a drag below MIN_ARROW_LENGTH_PX draws nothing, and still spends the tool", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(tool("Draw an arrow"));
+    // At 4x, 16 natural px is 64 screen px: 20 by 20 is far too short.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 420, y: 320 });
+    expect(draftArrowNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(tool("Draw an arrow")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("A arms the arrow tool from the keyboard, and Escape disarms it", () => {
+    render(<CaptureCanvas {...props} />);
+    fireEvent.keyDown(region(), { key: "a" });
+    expect(tool("Draw an arrow")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(tool("Draw an arrow")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a saved arrow draws its shaft and head at the persisted points, badge at the tail", async () => {
+    await renderZoomed({ arrows });
+    const nodes = arrowNodes();
+    expect(nodes).toHaveLength(1);
+    const node = nodes[0]!;
+    // The wrapper lets the pointer through to the screenshot; only the
+    // shaft band, badge, and handles take it.
+    expect(node.style.pointerEvents).toBe("none");
+    const shaft = node.querySelector('[data-testid="arrow-shaft"]')!;
+    expect(shaft.tagName.toLowerCase()).toBe("line");
+    // The band is the published tolerance on each side, in natural pixels.
+    expect(Number(shaft.getAttribute("stroke-width"))).toBeCloseTo(
+      (ARROW_HIT_TOLERANCE_CSS_PX * 2) / ZOOM,
+      5,
+    );
+    expect(node.querySelector('[data-testid="arrow-head"]')).not.toBeNull();
+    const badge = node.querySelector('[data-testid="arrow-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "2");
+    // The badge rides at the tail, never at the head it points to. The node
+    // box is padded, so the tail's offset inside it is the padding.
+    const nodeLeft = Number.parseFloat(node.style.transform.match(/translate\(([-\d.]+)px/)![1]!);
+    const badgeLeft = Number.parseFloat((badge as HTMLElement).style.left);
+    expect(nodeLeft + badgeLeft).toBeCloseTo(arrows[0]!.arrow.start.x, 4);
+    // Two endpoint handles on an editable plane.
+    expect(arrowHandles(node).map((element) => element.dataset.endpoint)).toEqual([
+      "start",
+      "end",
+    ]);
+  });
+
+  test("dragging the head moves only the head, in exactly one write", async () => {
+    const onMoveArrow = vi.fn();
+    await renderZoomed({ arrows, onMoveArrow });
+    const node = arrowNodes()[0]!;
+    fireEvent.pointerDown(endpointHandle(node, "end"), {
+      clientX: 600,
+      clientY: 600,
+      isPrimary: true,
+    });
+    fireEvent.pointerMove(frameImage(), { clientX: 700, clientY: 700, isPrimary: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 800, clientY: 680, isPrimary: true });
+    expect(onMoveArrow).not.toHaveBeenCalled();
+    fireEvent.pointerUp(frameImage(), { clientX: 800, clientY: 680, isPrimary: true });
+    expect(onMoveArrow).toHaveBeenCalledTimes(1);
+    const [id, moved] = onMoveArrow.mock.calls[0]! as [string, Arrow];
+    expect(id).toBe("arrow-2");
+    // The tail did not move at all.
+    expect(moved.start).toEqual(arrows[0]!.arrow.start);
+    expect(moved.end.x).toBeCloseTo(arrows[0]!.arrow.end.x + 200 / ZOOM, 5);
+    expect(moved.end.y).toBeCloseTo(arrows[0]!.arrow.end.y + 80 / ZOOM, 5);
+  });
+
+  test("dragging the tail moves only the tail, in exactly one write", async () => {
+    const onMoveArrow = vi.fn();
+    await renderZoomed({ arrows, onMoveArrow });
+    const node = arrowNodes()[0]!;
+    drag(endpointHandle(node, "start"), { x: 500, y: 500 }, { x: 420, y: 460 });
+    expect(onMoveArrow).toHaveBeenCalledTimes(1);
+    const moved = onMoveArrow.mock.calls[0]![1] as Arrow;
+    expect(moved.end).toEqual(arrows[0]!.arrow.end);
+    expect(moved.start.x).toBeCloseTo(arrows[0]!.arrow.start.x - 80 / ZOOM, 5);
+    expect(moved.start.y).toBeCloseTo(arrows[0]!.arrow.start.y - 40 / ZOOM, 5);
+  });
+
+  test("an endpoint drag can never shorten the arrow past the minimum", async () => {
+    const onMoveArrow = vi.fn();
+    await renderZoomed({ arrows, onMoveArrow });
+    const node = arrowNodes()[0]!;
+    // Drag the head right on top of the tail: 300 by 400 natural pixels back
+    // at 4x is 1200 by 1600 screen pixels.
+    drag(endpointHandle(node, "end"), { x: 2000, y: 2000 }, { x: 800, y: 400 });
+    expect(onMoveArrow).toHaveBeenCalledTimes(1);
+    const moved = onMoveArrow.mock.calls[0]![1] as Arrow;
+    const length = Math.hypot(moved.end.x - moved.start.x, moved.end.y - moved.start.y);
+    expect(length).toBeGreaterThanOrEqual(MIN_ARROW_LENGTH_PX - 1e-6);
+    expect(moved.start).toEqual(arrows[0]!.arrow.start);
+  });
+
+  test("a press and release on an endpoint handle writes nothing", async () => {
+    const onMoveArrow = vi.fn();
+    await renderZoomed({ arrows, onMoveArrow });
+    const node = arrowNodes()[0]!;
+    fireEvent.pointerDown(endpointHandle(node, "end"), {
+      clientX: 600,
+      clientY: 600,
+      isPrimary: true,
+    });
+    fireEvent.pointerUp(frameImage(), { clientX: 600, clientY: 600, isPrimary: true });
+    expect(onMoveArrow).not.toHaveBeenCalled();
+    expect(draftNodes()).toHaveLength(0);
+  });
+
+  test("a click near but off the shaft drops a pin instead of selecting the arrow", async () => {
+    const onDraftChange = vi.fn();
+    const onSelectPin = vi.fn();
+    await renderZoomed({ arrows, onDraftChange, onSelectPin });
+    // The wrapper is pointer-transparent, so a press that lands on the
+    // screenshot inside the arrow's bounding box is a placement, not a
+    // selection: an arrow has no interior to click into.
+    tap(frameImage(), 640, 860);
+    expect(onSelectPin).not.toHaveBeenCalledWith("arrow-2");
+    expect(onDraftChange).toHaveBeenCalledTimes(1);
+    expect((onDraftChange.mock.calls[0]![0] as Draft).kind).toBe("pin");
+  });
+
+  test("clicking the arrow selects it and marks it", () => {
+    const onSelectPin = vi.fn();
+    const { rerender } = render(
+      <CaptureCanvas {...props} arrows={arrows} onSelectPin={onSelectPin} />,
+    );
+    fireEvent.click(arrowNodes()[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("arrow-2");
+    rerender(<CaptureCanvas {...props} arrows={arrows} selectedPinId="arrow-2" />);
+    expect(arrowNodes()[0]!.querySelector('[data-testid="arrow"]')).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+  });
+
+  test("J and K step through every kind in one number order", () => {
+    const onSelectPin = vi.fn();
+    const pins = [{ id: "ann-1", number: 1, tip: { x: 720, y: 4000 } }];
+    const circles = [{ id: "circle-3", number: 3, circle: { x: 10, y: 20, size: 30 } }];
+    const shared = { pins, circles, arrows, onSelectPin };
+    const { rerender } = render(<CaptureCanvas {...props} {...shared} selectedPinId={null} />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("ann-1");
+    rerender(<CaptureCanvas {...props} {...shared} selectedPinId="ann-1" />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("arrow-2");
+    rerender(<CaptureCanvas {...props} {...shared} selectedPinId="arrow-2" />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("circle-3");
+  });
+
+  test("the read-only plane renders arrows with no handles, no drag, and no tools", () => {
+    render(<CaptureCanvas {...props} readOnly arrows={arrows} />);
+    expect(arrowNodes()).toHaveLength(1);
+    expect(arrowHandles()).toHaveLength(0);
+    expect(arrowNodes()[0]!.className).not.toMatch(/draggable/);
+    expect(within(stage()).queryByRole("button", { name: "Draw an arrow" })).toBeNull();
+    fireEvent.keyDown(region(), { key: "a" });
+    drag(frameImage(), { x: 400, y: 300 }, { x: 560, y: 460 });
+    expect(draftArrowNodes()).toHaveLength(0);
   });
 });
 

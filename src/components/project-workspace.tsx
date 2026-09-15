@@ -36,6 +36,7 @@ import type {
   ProjectPinListResponse,
 } from "../lib/annotations";
 import {
+  arrowsOf,
   circlesOf,
   contextQuery,
   markKindNoun,
@@ -192,8 +193,8 @@ export function ProjectWorkspace({
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
   const cameras = useRef(new Map<string, CaptureCameraState>());
-  // The active plane's transient draft (a pin tip, a rectangle, or a
-  // circle),
+  // The active plane's transient draft (a pin tip, a rectangle, a circle, or
+  // an arrow),
   // mirrored here so the save can carry it and the composer state below can
   // follow it. The canvas remains the source of truth and clears it on
   // switch via the keyed remount.
@@ -841,7 +842,7 @@ export function ProjectWorkspace({
             [EDITOR_CSRF_HEADER]: readCsrfProof(),
           },
           body: JSON.stringify({
-            // `tip`, `rect`, or `circle`: the key names the kind.
+            // `tip`, `rect`, `circle`, or `arrow`: the key names the kind.
             ...markPayload(draft),
             body: draftBody,
             elementId: draftChoice,
@@ -1351,8 +1352,8 @@ export function ProjectWorkspace({
                   with. A paragraph, never a heading. */}
               {selectedReady ? (
                 <p className="workspace-verbs" data-testid="workspace-verbs">
-                  drop a pin: click the page · draw a box or circle: pick a tool, then drag ·
-                  move: drag it · read or reply: click a mark
+                  drop a pin: click the page · draw a box, circle, or arrow: pick a tool, then
+                  drag · move: drag it · read: click a mark
                 </p>
               ) : null}
             </div>
@@ -1401,6 +1402,7 @@ export function ProjectWorkspace({
                   pins={pinsOf(activePins)}
                   rectangles={rectanglesOf(activePins)}
                   circles={circlesOf(activePins)}
+                  arrows={arrowsOf(activePins)}
                   previewRect={previewRect}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
@@ -1412,6 +1414,9 @@ export function ProjectWorkspace({
                   }
                   onMoveCircle={(annotationId, circle) =>
                     void movePin(annotationId, { kind: "circle", circle })
+                  }
+                  onMoveArrow={(annotationId, arrow) =>
+                    void movePin(annotationId, { kind: "arrow", arrow })
                   }
                   savedCamera={cameras.current.get(selectedReady.id) ?? null}
                   onCameraChange={handleCameraChange}

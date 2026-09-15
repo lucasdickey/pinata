@@ -1,6 +1,6 @@
 // /api/captures/[captureId]/annotations/[annotationId] — move, resize, edit,
 // and delete one annotation of any kind (VAL-PIN-002, VAL-PIN-008,
-// VAL-PIN-009, D079, D082).
+// VAL-PIN-009, D079, D082, D083).
 //
 // The route names both the capture and the annotation, and the store honors
 // that binding: one addressed through another capture's route is simply not
@@ -8,10 +8,10 @@
 // expectedRevision precondition and commits as one conditional atomic
 // write: a stale or concurrent write loses with a 409 and changes no row,
 // so exactly one authoritative revision ever exists. A geometry write
-// touches only the clamped natural-pixel tip (pins), box (rectangles), or
-// bounding square (circles) and must match the annotation's kind; an edit
-// touches only the original body; number, capture binding, and the
-// immutable context snapshot survive both.
+// touches only the clamped natural-pixel tip (pins), box (rectangles),
+// bounding square (circles), or endpoints (arrows) and must match the
+// annotation's kind; an edit touches only the original body; number, capture
+// binding, and the immutable context snapshot survive both.
 // Delete is a tombstone: the row stays so its number is never reused.
 //
 // Boundary order matches every other mutation: same-origin Origin, session +
@@ -94,6 +94,7 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
         tip: parsed.data.tip,
         rect: parsed.data.rect,
         circle: parsed.data.circle,
+        arrow: parsed.data.arrow,
         body: parsed.data.body,
       });
     } catch {

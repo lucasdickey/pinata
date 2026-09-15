@@ -355,6 +355,16 @@ describe("the box draft (D079)", () => {
     expect(screen.getByText("Nearby elements, most overlap first")).toBeInTheDocument();
   });
 
+  test("an arrow draft names the arrow, and its candidates are ranked by point (D083)", async () => {
+    const user = userEvent.setup();
+    render(<PinComposer {...props({ draftKind: "arrow" })} />);
+    expect(screen.getByText(/^New arrow/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save arrow" })).toBeEnabled();
+    // The head is a point, so the candidates read the way a pin's do.
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByText("Nearby elements, closest first")).toBeInTheDocument();
+  });
+
   test("defaults to a pin when no kind is given", () => {
     render(<PinComposer {...props()} />);
     expect(screen.getByText(/^New pin/)).toBeInTheDocument();

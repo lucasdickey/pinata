@@ -196,6 +196,33 @@ describe("rectangles in the panel (D079)", () => {
     expect(screen.queryByRole("button", { name: "Delete box" })).toBeNull();
     expect(screen.getByText(/Drag the circle's edge or badge/)).toBeInTheDocument();
   });
+
+  test("a selected arrow is named Arrow, keeps both points behind Details, and has arrow controls", () => {
+    const pointer = {
+      id: "arrow-6",
+      captureId: "cap-1",
+      kind: "arrow" as const,
+      number: 6,
+      arrow: { start: { x: 100.4, y: 200.6 }, end: { x: 400.2, y: 600.9 } },
+      body: "Move this up into the header.",
+      elementSnapshot: null,
+      revision: 1,
+      status: "open" as const,
+      unreadReplies: 0,
+      createdAt: 4,
+    };
+    render(<CapturePanel {...panelProps({ pins: [pin, pointer], selectedPinId: "arrow-6" })} />);
+    const name = screen.getByTestId("panel-mark-name");
+    expect(name).toHaveAttribute("data-kind", "arrow");
+    expect(name).toHaveTextContent("Arrow 6 · “Move this up into the header.”");
+    const details = screen.getByTestId("panel-details");
+    expect(within(details).getByText("Arrow")).toBeInTheDocument();
+    const position = within(details).getByTestId("panel-position");
+    expect(position).toHaveAttribute("data-kind", "arrow");
+    expect(position).toHaveTextContent("100, 201 → 400, 601 px");
+    expect(screen.getByRole("button", { name: "Delete arrow" })).toBeInTheDocument();
+    expect(screen.getByText(/Drag the arrow's shaft or badge/)).toBeInTheDocument();
+  });
 });
 
 // The internals behind one disclosure (D078): closed by default, a real
@@ -260,7 +287,7 @@ describe("Details disclosure (D078)", () => {
       "Escape cancels",
       "J and K, or the arrow keys, step through the marks",
       "N drops a pin at the center of the view",
-      "B arms the box tool, C the circle tool, for the next drag",
+      "B, C, or A arms the box, circle, or arrow tool for the next drag",
       "Shift-drag also draws a box",
     ]);
     // With nothing selected there is no position row.

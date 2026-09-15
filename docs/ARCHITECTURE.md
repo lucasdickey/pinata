@@ -153,14 +153,14 @@ left as an open `capturing` claim waiting for a second call (`D035`).
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-12.1`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-15.1`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-12.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-15.1 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -226,23 +226,38 @@ coordinate plane rendered at natural screenshot dimensions:
   same minimum and frame clamp;
 - every kind shares one number sequence per capture, and the founder's
   read-only plane renders them all with no handles, no drag, and no tools;
-- arrows (straight edges between two draggable endpoint nodes) are allowed
-  by the schema and not built yet;
+- arrows are the one mark with no area (`{start, end}` in natural pixels,
+  `geometry_version` 1, at least `MIN_ARROW_LENGTH_PX` apart, both endpoints
+  clamped inside the frame). The head is at `end`: that is where the arrow
+  points, so that is what the mark is about. The press sets the tail and the
+  release sets the head, and the two are never reordered. After a save each
+  endpoint drags on its own and the shaft drags the whole arrow, each gesture
+  committing one revisioned write. Because an arrow has no interior,
+  selecting and moving it is a distance-to-segment test at
+  `ARROW_HIT_TOLERANCE_CSS_PX` rather than a box test: a click near but off
+  the line falls through to the screenshot and drops a pin. The badge rides
+  at the tail so it never covers what is being pointed at, and the stroke and
+  head scale with the zoom without the stored endpoints changing;
 - desktop and mobile planes are fully independent;
 - pan, zoom, and browser resizing never change persisted geometry.
 
-The mark tools sit in one group under the camera controls: Box and Circle,
-each arming exactly the next drag and disarming after it or on Escape, with
-`B` and `C` as their keys. A tool is a one-gesture arming, never a mode.
+The mark tools sit in one group under the camera controls: Box, Circle, and
+Arrow, each arming exactly the next drag and disarming after it or on Escape,
+with `B`, `C`, and `A` as their keys. A tool is a one-gesture arming, never a
+mode, and Shift-drag stays the pointer shortcut for a box.
 
 When the editor places a mark, nearby manifest elements are ranked and the
 top result is pre-selected; the editor keeps or changes that choice, or picks
 "no element", and the chosen snapshot is stored with the annotation. For a pin
 the ranking is by containment of the tip, distance, area, depth, and semantic
-value. For a region — a rectangle's box, or a circle's bounding square — it is
-by overlap: the share of each element inside the region first (an enclosed
-element beats a partly covered one), then the overlap area (the enclosed card
-beats its caption), then the same tie-breakers.
+value, and an arrow asks the same way from its head, so "move this into the
+header" is filed under the header rather than under whatever the arrow
+happened to start on top of. For a region — a rectangle's box, or a circle's
+bounding square — it is by overlap: the share of each element inside the
+region first (an enclosed element beats a partly covered one), then the
+overlap area (the enclosed card beats its caption), then the same
+tie-breakers. The caller picks the ranking by mark kind; the context route
+serves both.
 
 ## Security boundaries
 

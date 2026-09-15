@@ -26,7 +26,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import type { AnnotationView, PinListResponse, PinStatusResponse } from "../lib/annotations";
-import { circlesOf, markKindNoun, markLabel, pinsOf, rectanglesOf } from "../lib/canvas/marks";
+import {
+  arrowsOf,
+  circlesOf,
+  markKindNoun,
+  markLabel,
+  pinsOf,
+  rectanglesOf,
+} from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS, pinFeedbackPath } from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
@@ -72,8 +79,8 @@ function firstReadable(project: WorkspaceProject): Selection | null {
 export function FounderView({ publicId }: { publicId: string }) {
   const [phase, setPhase] = useState<Phase>({ status: "exchanging" });
   const [selection, setSelection] = useState<Selection | null>(null);
-  // Every live mark on the capture: pins, rectangles (D079), and circles
-  // (D082) alike.
+  // Every live mark on the capture: pins, rectangles (D079), circles (D082),
+  // and arrows (D083) alike.
   const [pinsState, setPinsState] = useState<{
     captureId: string;
     status: "loading" | "ready" | "failed";
@@ -525,6 +532,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                   pins={pinsOf(activePins)}
                   rectangles={rectanglesOf(activePins)}
                   circles={circlesOf(activePins)}
+                  arrows={arrowsOf(activePins)}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
                   savedCamera={cameras.current.get(attempt.id) ?? null}

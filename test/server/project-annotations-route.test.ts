@@ -352,3 +352,36 @@ describe("circles in the project read (D082)", () => {
     expect(ids.at(-1)).toBe("root-d1-circle");
   });
 });
+
+describe("arrows in the project read (D083)", () => {
+  test("an arrow is listed with its kind and both endpoints, head last", async () => {
+    await testDb.db.insert(schema.annotations).values({
+      id: "root-d1-arrow",
+      captureId: "root-d1",
+      kind: "arrow",
+      number: 6,
+      geometryJson: JSON.stringify({ start: { x: 100, y: 200 }, end: { x: 400, y: 600 } }),
+      originalBody: "Move this up here.",
+      createdAt: T0 + 5,
+      updatedAt: T0 + 5,
+    });
+    const response = await annotationsGET(request("pub-1"), context("pub-1"));
+    expect(response.status).toBe(200);
+    const { annotations } = await response.json();
+    const arrow = annotations.find((mark: { id: string }) => mark.id === "root-d1-arrow");
+    expect(arrow).toMatchObject({
+      kind: "arrow",
+      number: 6,
+      arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } },
+      captureId: "root-d1",
+      pageId: "page-root",
+      normalizedUrl: "https://chickpea.co/",
+      variant: "desktop",
+      attempt: 1,
+      status: "open",
+      unreadReplies: 0,
+    });
+    expect(arrow.tip).toBeUndefined();
+    expect(arrow.rect).toBeUndefined();
+  });
+});

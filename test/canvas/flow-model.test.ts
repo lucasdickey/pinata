@@ -6,8 +6,13 @@
 // domain.
 
 import { describe, expect, test } from "vitest";
-import { MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
+import { ARROW_HIT_TOLERANCE_CSS_PX, MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
 import {
+  ARROW_HEAD_SCREEN_PX,
+  ARROW_STROKE_SCREEN_PX,
+  ARROW_TYPE,
+  arrowNode,
+  arrowNodeBox,
   CAPTURE_FRAME_TYPE,
   captureFrameNodeId,
   CIRCLE_TYPE,
@@ -15,6 +20,9 @@ import {
   CONTEXT_PREVIEW_TYPE,
   contextPreviewNode,
   contextPreviewNodeId,
+  DRAFT_ARROW_TYPE,
+  draftArrowNode,
+  draftArrowNodeId,
   DRAFT_CIRCLE_TYPE,
   draftCircleNode,
   draftCircleNodeId,
@@ -30,6 +38,7 @@ import {
   pinNode,
   RECTANGLE_TYPE,
   rectangleNode,
+  type CanvasArrow,
   type CanvasCircle,
   type CanvasPin,
   type CanvasRectangle,
@@ -527,5 +536,105 @@ describe("rectangle nodes (D079)", () => {
       draftRectangleNode(domain, { x: Number.NaN, y: 0, width: 10, height: 10 }, 1),
     ).toThrow(RangeError);
     expect(() => rectangleNode(domain, rectangle, 0)).toThrow(RangeError);
+  });
+});
+
+describe("arrow nodes (D083)", () => {
+  const arrow: CanvasArrow = {
+    id: "ann-uuid-arrow",
+    number: 7,
+    arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } },
+    selected: false,
+  };
+
+  test("the endpoints are exact inside a padded node box, at every zoom", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = arrowNode(domain, arrow, zoom);
+      expect(node.type).toBe(ARROW_TYPE);
+      expect(node.id).toBe("ann-uuid-arrow");
+      expect(node.parentId).toBe(captureFrameNodeId(domain.captureId));
+      // An arrow has no area, so the box is padded chrome; the geometry is
+      // recovered exactly as position + the local offsets.
+      expect(node.position.x + node.data.localStartX).toBeCloseTo(arrow.arrow.start.x, 9);
+      expect(node.position.y + node.data.localStartY).toBeCloseTo(arrow.arrow.start.y, 9);
+      expect(node.position.x + node.data.localEndX).toBeCloseTo(arrow.arrow.end.x, 9);
+      expect(node.position.y + node.data.localEndY).toBeCloseTo(arrow.arrow.end.y, 9);
+      expect(node.data.startX).toBe(arrow.arrow.start.x);
+      expect(node.data.endY).toBe(arrow.arrow.end.y);
+      // The chrome keeps its screen size: the band around the shaft is the
+      // shared minimum hit target wide, and the stroke and head follow.
+      expect(node.data.grabWidth * zoom).toBeCloseTo(ARROW_HIT_TOLERANCE_CSS_PX * 2, 9);
+      expect(node.data.grabWidth * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+      expect(node.data.strokeWidth * zoom).toBeCloseTo(ARROW_STROKE_SCREEN_PX, 9);
+      expect(node.data.headLength * zoom).toBeCloseTo(ARROW_HEAD_SCREEN_PX, 9);
+    }
+  });
+
+  test("a flat arrow still gets a box with room for the shaft band", () => {
+    const flat: CanvasArrow = {
+      ...arrow,
+      arrow: { start: { x: 100, y: 300 }, end: { x: 500, y: 300 } },
+    };
+    const node = arrowNode(domain, flat, 1);
+    expect(node.height).toBeGreaterThan(0);
+    expect(node.width).toBeGreaterThan(400);
+    // arrowNodeBox is the same padding the node uses.
+    const box = arrowNodeBox(flat.arrow, ARROW_HIT_TOLERANCE_CSS_PX);
+    expect(box.x).toBe(100 - ARROW_HIT_TOLERANCE_CSS_PX);
+    expect(box.height).toBe(ARROW_HIT_TOLERANCE_CSS_PX * 2);
+  });
+
+  test("has two endpoint handles and a drag on an editable plane, neither read-only", () => {
+    const editable = arrowNode(domain, arrow, 1);
+    expect(editable.draggable).toBe(true);
+    expect(editable.data.handles).toBe(true);
+    expect(editable.selectable).toBe(false);
+    expect(editable.extent).toBeUndefined();
+    // The wrapper lets the pointer through; the shaft band and badge opt in.
+    expect(editable.style).toEqual({ pointerEvents: "none" });
+    const readOnly = arrowNode(domain, arrow, 1, { readOnly: true });
+    expect(readOnly.draggable).toBe(false);
+    expect(readOnly.data.handles).toBe(false);
+  });
+
+  test("is named Arrow by comment and element, never by coordinates (D078)", () => {
+    expect(arrowNode(domain, arrow, 1).ariaLabel).toBe("Arrow 7");
+    expect(arrowNode(domain, { ...arrow, body: "Move this up here" }, 1).ariaLabel).toBe(
+      "Arrow 7 · “Move this up here”",
+    );
+    expect(draftArrowNode(domain, arrow.arrow, 1).ariaLabel).toBe("New arrow, not saved yet");
+  });
+
+  test("the draft arrow is namespaced and loses its handles while being drawn", () => {
+    const draft = draftArrowNode(domain, arrow.arrow, 2);
+    expect(draft.type).toBe(DRAFT_ARROW_TYPE);
+    expect(draft.id).toBe(draftArrowNodeId(domain.captureId));
+    expect(draft.id).toBe("draft-arrow:cap-root-desktop-v2");
+    expect(draft.data.number).toBeNull();
+    const drawing = draftArrowNode(domain, arrow.arrow, 2, { drawing: true });
+    expect(drawing.draggable).toBe(false);
+    expect(drawing.data.handles).toBe(false);
+  });
+
+  test("nodesForPlane interleaves arrows into the same number order", () => {
+    const nodes = nodesForPlane(domain, {
+      pins: [{ id: "ann-uuid-a", number: 1, tip: { x: 10, y: 10 }, selected: false }],
+      arrows: [{ ...arrow, number: 2 }],
+      draft: { kind: "arrow", arrow: arrow.arrow },
+      zoom: 1,
+    });
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      ARROW_TYPE,
+      DRAFT_ARROW_TYPE,
+    ]);
+  });
+
+  test("rejects non-finite endpoints and a bad zoom", () => {
+    expect(() =>
+      arrowNode(domain, { ...arrow, arrow: { start: { x: Number.NaN, y: 0 }, end: { x: 1, y: 1 } } }, 1),
+    ).toThrow(RangeError);
+    expect(() => draftArrowNode(domain, arrow.arrow, 0)).toThrow(RangeError);
   });
 });

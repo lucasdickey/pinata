@@ -12,6 +12,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type {
+  ArrowAnnotationView,
   CircleAnnotationView,
   PinAnnotationView,
   PinElementSnapshot,
@@ -329,5 +330,47 @@ describe("circles in the table (D082)", () => {
     await user.click(screen.getByRole("button", { name: "Copy all as Markdown" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status")).toHaveTextContent("Copied 2 pins · 1 circle as Markdown.");
+  });
+});
+
+describe("arrows in the table (D083)", () => {
+  const pointer: ArrowAnnotationView = {
+    id: "a5",
+    captureId: "cap-1",
+    kind: "arrow",
+    number: 5,
+    arrow: { start: { x: 120.4, y: 640.6 }, end: { x: 420.2, y: 300.9 } },
+    body: "Move this up into the header.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 4,
+  };
+  const mixed: PinTableRow[] = [
+    ...rows,
+    { pin: pointer, pageUrl: "https://chickpea.co/", variant: "Mobile", attempt: 3 },
+  ];
+
+  test("an arrow row names the kind and shows both of its points", async () => {
+    const user = userEvent.setup();
+    const { onSelectPin } = renderTable({ rows: mixed, heading: "All pins in this project" });
+    const row = screen.getAllByRole("row").slice(1)[2]!;
+    const name = "Arrow 5 · “Move this up into the header.”";
+    expect(within(row).getByRole("button", { name })).toBeInTheDocument();
+    const position = row.querySelector(".pin-table-position")!;
+    expect(position).toHaveAttribute("data-kind", "arrow");
+    expect(position).toHaveTextContent("120, 641 → 420, 301");
+    await user.click(within(row).getByRole("button", { name }));
+    expect(onSelectPin).toHaveBeenCalledWith("a5");
+  });
+
+  test("Copy all counts the arrow among the rows", async () => {
+    const user = userEvent.setup();
+    installClipboard();
+    renderTable({ rows: mixed, heading: "All pins in this project" });
+    await user.click(screen.getByRole("button", { name: "Copy all as Markdown" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("status")).toHaveTextContent("Copied 2 pins · 1 arrow as Markdown.");
   });
 });

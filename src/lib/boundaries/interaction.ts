@@ -14,3 +14,12 @@ export const MIN_HIT_TARGET_CSS_PX = 24;
  * modes, so this one number is what tells the two intents apart.
  */
 export const PLACEMENT_SLOP_SCREEN_PX = 6;
+
+/**
+ * Half the width, in screen px, of the band around an arrow's shaft that
+ * takes the pointer (D083). An arrow has no area, so selecting and moving it
+ * is a distance-to-segment test rather than a box test, and this is the
+ * distance. Twice it is the shared minimum hit target, so the band is a
+ * full-size target at every zoom without the stored geometry changing.
+ */
+export const ARROW_HIT_TOLERANCE_CSS_PX = 12;

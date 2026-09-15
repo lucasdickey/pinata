@@ -1,15 +1,18 @@
-// The client-safe mark helpers (D079, D082): the request shapes each kind sends,
+// The client-safe mark helpers (D079, D082, D083): the request shapes each kind sends,
 // the context query each kind asks, and the labels every surface prints,
 // including the one name a mark goes by everywhere (markLabel, D078).
 
 import { describe, expect, test } from "vitest";
 import type {
+  ArrowAnnotationView,
   CircleAnnotationView,
   PinAnnotationView,
   PinElementSnapshot,
   RectangleAnnotationView,
 } from "../../src/lib/annotations";
 import {
+  arrowPosition,
+  arrowsOf,
   circlePosition,
   circlesOf,
   contextQuery,
@@ -73,6 +76,20 @@ const round: CircleAnnotationView = {
   status: "open",
   unreadReplies: 0,
   createdAt: 2,
+};
+
+const pointer: ArrowAnnotationView = {
+  id: "a6",
+  captureId: "cap-1",
+  kind: "arrow",
+  number: 6,
+  arrow: { start: { x: 100.4, y: 200.6 }, end: { x: 400.2, y: 600.9 } },
+  body: "Arrow body",
+  elementSnapshot: null,
+  revision: 1,
+  status: "open",
+  unreadReplies: 0,
+  createdAt: 3,
 };
 
 describe("payloads and queries", () => {
@@ -276,5 +293,74 @@ describe("mark names (D078)", () => {
     expect(markLabel({ ...round, body: "Draw the eye here" })).toBe(
       "Circle 4 · “Draw the eye here”",
     );
+  });
+});
+
+// An arrow is two points and a direction (D083): the head is what the mark
+// is about, so it is the point the context ranking is taken from and the
+// tail is where the badge and the reading order start.
+describe("arrows (D083)", () => {
+  test("an arrow sends both endpoints and asks around its head, by point", () => {
+    const arrow = { start: { x: 1, y: 2 }, end: { x: 30, y: 40 } };
+    expect(markPayload({ kind: "arrow", arrow })).toEqual({ arrow });
+    // The point ranking, not the overlap ranking: no width or height.
+    expect(contextQuery({ kind: "arrow", arrow })).toBe("x=30&y=40");
+  });
+
+  test("markOf and withMark round-trip the endpoints and copy them", () => {
+    const mark = markOf(pointer);
+    expect(mark).toEqual({ kind: "arrow", arrow: pointer.arrow });
+    if (mark.kind === "arrow") {
+      mark.arrow.end.x = 0;
+      expect(pointer.arrow.end.x).toBe(400.2);
+    }
+    const aimed = withMark(pointer, {
+      kind: "arrow",
+      arrow: { start: { x: 5, y: 6 }, end: { x: 7, y: 8 } },
+    });
+    if (aimed.kind === "arrow") {
+      expect(aimed.arrow).toEqual({ start: { x: 5, y: 6 }, end: { x: 7, y: 8 } });
+    }
+    // Geometry of another kind changes nothing.
+    expect(withMark(pointer, { kind: "rectangle", rect: box.rect })).toBe(pointer);
+  });
+
+  test("marksEqual compares both endpoints and the direction", () => {
+    expect(marksEqual(markOf(pointer), markOf(pointer))).toBe(true);
+    expect(
+      marksEqual(markOf(pointer), { kind: "arrow", arrow: { start: pointer.arrow.end, end: pointer.arrow.start } }),
+    ).toBe(false);
+    expect(marksEqual(markOf(pointer), markOf(box))).toBe(false);
+  });
+
+  test("names, counts and nouns know the kind", () => {
+    expect(markTitle(pointer)).toBe("Arrow 6");
+    expect(markKindLabel("arrow")).toBe("Arrow");
+    expect(markKindNoun("arrow")).toBe("arrow");
+    expect(markLabel({ ...pointer, body: "Move this up here" })).toBe(
+      "Arrow 6 · “Move this up here”",
+    );
+    expect(markCountLabel([pointer])).toBe("1 arrow");
+    expect(markCountLabel([pointer, { ...pointer, id: "a7" }])).toBe("2 arrows");
+    expect(markCountLabel([pin, box, round, pointer])).toBe(
+      "1 pin · 1 box · 1 circle · 1 arrow",
+    );
+    expect(arrowsOf([box, pin, round, pointer])).toEqual([pointer]);
+  });
+
+  test("the position is both points, tail first, and the name never shows them", () => {
+    expect(markPosition(pointer)).toBe("100, 201 → 400, 601");
+    expect(arrowPosition({ start: { x: 0, y: 0 }, end: { x: 8, y: 9 } })).toBe("0, 0 → 8, 9");
+    expect(markLabel(pointer)).not.toMatch(/\d+, \d+/);
+  });
+
+  test("a camera centers the shaft's middle and fits the whole arrow", () => {
+    expect(markCenter(markOf(pointer))).toEqual({ x: 250.3, y: 400.75 });
+    expect(markExtent(markOf(pointer))).toEqual({
+      x: 100.4,
+      y: 200.6,
+      width: 299.79999999999995,
+      height: 400.29999999999995,
+    });
   });
 });

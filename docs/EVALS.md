@@ -217,7 +217,7 @@ closing statement:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-12.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-15.1`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -225,7 +225,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-12.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-15.1 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -567,6 +567,7 @@ clears the bucket.
 | `CLIENT_REQUEST_TIMEOUT_MS` | 15,000 ms | Every client request reaches a terminal state within this budget. |
 | `MIN_HIT_TARGET_CSS_PX` | 24 px | Shared minimum pointer/touch hit target (WCAG 2.2 AA, 2.5.8). |
 | `PLACEMENT_SLOP_SCREEN_PX` | 6 px | Pointer travel at or below this between press and release is a click (drop a pin, select a pin); more is a drag (pan the camera, move a pin). |
+| `ARROW_HIT_TOLERANCE_CSS_PX` | 12 px | Half the width of the band around an arrow shaft that takes the pointer; an arrow has no area, so selecting one is a distance-to-segment test, and twice this is the shared minimum hit target. |
 
 ### Performance protocol and budgets
 

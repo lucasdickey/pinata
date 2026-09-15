@@ -10,6 +10,7 @@
 
 import type { AnnotationView, PinElementSnapshot } from "./annotations";
 import {
+  arrowPosition,
   circlePosition,
   markCountLabel,
   markLabel,
@@ -88,6 +89,16 @@ export function circleBoundsLine(annotation: AnnotationView): string | null {
 }
 
 /**
+ * The extra detail line an arrow carries (D083): its tail and its head, in
+ * natural pixels. The head is what the note is about, so it is named last
+ * and the reading order matches the arrow's own direction.
+ */
+export function arrowPointsLine(annotation: AnnotationView): string | null {
+  if (annotation.kind !== "arrow") return null;
+  return `- Arrow: ${arrowPosition(annotation.arrow)} px natural (tail to head)`;
+}
+
+/**
  * The whole capture as one Markdown block. Pin bodies are emitted verbatim
  * inside a blockquote: a comment can contain any character, and quoting is
  * the one Markdown construct that survives arbitrary text without needing
@@ -118,11 +129,11 @@ export function formatPinsAsMarkdown(
     // the paste can skip what is already done.
     lines.push(`- Status: ${PIN_STATUS_LABELS[pin.status] ?? pin.status}`);
     // Where the mark sits, as data rather than in its name (D078): a pin's
-    // tip, a box's corner and size, or a circle's center and width, in the
-    // screenshot's own pixels.
+    // tip, a box's corner and size, a circle's center and width, or an
+    // arrow's two points, in the screenshot's own pixels.
     const position = pinPositionLine(pin);
     if (position) lines.push(position);
-    const bounds = rectangleBoundsLine(pin) ?? circleBoundsLine(pin);
+    const bounds = rectangleBoundsLine(pin) ?? circleBoundsLine(pin) ?? arrowPointsLine(pin);
     if (bounds) lines.push(bounds);
     lines.push(`- Element: ${snapshotSummary(pin.elementSnapshot)}`);
     const path = snapshotPath(pin.elementSnapshot);

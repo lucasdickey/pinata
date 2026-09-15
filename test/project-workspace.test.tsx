@@ -19,7 +19,7 @@ import {
   type DeviceView,
   type WorkspaceProject,
 } from "../src/components/project-workspace";
-import { MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
+import { MIN_ARROW_LENGTH_PX, MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
 
 installReactFlowMocks();
@@ -488,7 +488,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     const strip = within(detail()).getByTestId("workspace-verbs");
     expect(strip.tagName.toLowerCase()).toBe("p");
     expect(strip).toHaveTextContent(
-      "drop a pin: click the page · draw a box or circle: pick a tool, then drag · move: drag it · read or reply: click a mark",
+      "drop a pin: click the page · draw a box, circle, or arrow: pick a tool, then drag · move: drag it · read: click a mark",
     );
     expect(strip.textContent!.length).toBeLessThan(120);
     const lower = strip.textContent!.toLowerCase();
@@ -1627,7 +1627,7 @@ describe("rectangle drafts (D079)", () => {
     expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1 · “This whole card");
     // The verb strip names the gesture.
     expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
-      "draw a box or circle: pick a tool, then drag",
+      "draw a box, circle, or arrow: pick a tool, then drag",
     );
   });
 });
@@ -1731,6 +1731,114 @@ describe("circle drafts (D082)", () => {
     expect(within(detail()).getByRole("table")).toHaveTextContent("Circle 1 · “Draw the eye");
     // The tool disarmed itself after the one gesture it armed.
     expect(within(detail()).getByRole("button", { name: "Draw a circle" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+});
+
+describe("arrow drafts (D083)", () => {
+  test("the Arrow tool draws one: the context query asks from the head, by point, and the save posts arrow", async () => {
+    const user = userEvent.setup();
+    const writes: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    const contextUrls: string[] = [];
+    const saved = () => ({
+      id: "arrow-1",
+      captureId: "root-d1",
+      kind: "arrow",
+      number: 1,
+      arrow: writes[0]?.body.arrow,
+      body: writes[0]?.body.body,
+      elementSnapshot: null,
+      revision: 1,
+      status: "open",
+      unreadReplies: 0,
+      createdAt: 1,
+    });
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes("/context")) {
+        contextUrls.push(target);
+        return Promise.resolve(json({ candidates: [] }));
+      }
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        return Promise.resolve(
+          json({
+            annotations: writes.map(() => ({
+              ...saved(),
+              pageId: "page-root",
+              normalizedUrl: "https://chickpea.co/",
+              variant: "desktop",
+              attempt: 1,
+            })),
+          }),
+        );
+      }
+      if (target.includes("/annotations") && init?.method === "POST") {
+        writes.push({
+          method: "POST",
+          url: target,
+          body: JSON.parse(String(init.body)) as Record<string, unknown>,
+        });
+        return Promise.resolve(json({ annotation: saved() }, 201));
+      }
+      if (target.includes("/annotations")) {
+        return Promise.resolve(json({ annotations: writes.map(() => saved()) }));
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${target}`));
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+
+    await user.click(within(detail()).getByRole("button", { name: "Draw an arrow" }));
+    const image = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image, { clientX: 300, clientY: 200, isPrimary: true });
+    fireEvent.pointerMove(image, { clientX: 500, clientY: 420, isPrimary: true });
+    fireEvent.pointerUp(image, { clientX: 500, clientY: 420, isPrimary: true });
+
+    const dialog = await within(detail()).findByRole("dialog", { name: "New arrow" });
+    // The caller chose the ranking by kind (D083): an arrow asks for the
+    // point ranking, from its head, so the query carries no size at all.
+    await waitFor(() => expect(contextUrls).toHaveLength(1));
+    expect(contextUrls[0]).toMatch(/\/api\/captures\/root-d1\/context\?x=[\d.]+&y=[\d.]+$/);
+    expect(contextUrls[0]).not.toContain("width");
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
+      ).toMatch(/^(ready|failed)$/),
+    );
+    await user.type(within(dialog).getByLabelText("Comment"), "Move this up into the header.");
+    await user.click(within(dialog).getByRole("button", { name: "Save arrow" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
+    expect(writes[0]!.body.tip).toBeUndefined();
+    const arrow = writes[0]!.body.arrow as {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    };
+    // The head is where the release landed, and the query asked from it.
+    expect(contextUrls[0]).toContain(`x=${arrow.end.x}&y=${arrow.end.y}`);
+    expect(Math.hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y)).toBeGreaterThanOrEqual(
+      MIN_ARROW_LENGTH_PX,
+    );
+    expect(writes[0]!.body.elementId).toBeNull();
+
+    // The saved arrow renders, and the list and table name it as an arrow.
+    await waitFor(() => expect(within(detail()).queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-arrow")).toHaveLength(1),
+    );
+    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    expect(
+      within(list).getByRole("button", { name: /^Arrow 1 · “Move this up into the header.”/ }),
+    ).toBeInTheDocument();
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Arrow 1 · “Move this up");
+    expect(within(detail()).getByRole("button", { name: "Draw an arrow" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );

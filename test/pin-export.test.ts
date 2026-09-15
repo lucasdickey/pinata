@@ -6,12 +6,14 @@
 
 import { describe, expect, test } from "vitest";
 import type {
+  ArrowAnnotationView,
   CircleAnnotationView,
   PinAnnotationView,
   PinElementSnapshot,
   RectangleAnnotationView,
 } from "../src/lib/annotations";
 import {
+  arrowPointsLine,
   circleBoundsLine,
   formatPinsAsMarkdown,
   formatProjectPinsAsMarkdown,
@@ -336,5 +338,45 @@ describe("circles in the export (D082)", () => {
     expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Circle:"));
     expect(block.indexOf("- Circle:")).toBeLessThan(block.indexOf("- Element: No element"));
     expect(block).toContain("> Draw the eye to this badge.");
+  });
+});
+
+describe("arrows in the export (D083)", () => {
+  const pointer: ArrowAnnotationView = {
+    id: "a5",
+    captureId: "cap-1",
+    kind: "arrow",
+    number: 5,
+    arrow: { start: { x: 120.4, y: 640.6 }, end: { x: 420.2, y: 300.9 } },
+    body: "Move this up into the header.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 4,
+  };
+
+  test("the position is both points, tail first, and the heading is the mark's name", () => {
+    expect(pinPosition(pointer)).toBe("120, 641 → 420, 301");
+    expect(markHeading(pointer)).toBe("## Arrow 5 · “Move this up into the header.”");
+    expect(arrowPointsLine(pointer)).toBe(
+      "- Arrow: 120, 641 → 420, 301 px natural (tail to head)",
+    );
+    expect(arrowPointsLine(pin())).toBeNull();
+    // An arrow has an arrow line and none of the others.
+    expect(pinPositionLine(pointer)).toBeNull();
+    expect(rectangleBoundsLine(pointer)).toBeNull();
+    expect(circleBoundsLine(pointer)).toBeNull();
+  });
+
+  test("an arrow block carries its kind, status, arrow line, element, and comment in order", () => {
+    const markdown = formatPinsAsMarkdown([pin(), pointer], context);
+    expect(markdown).toContain("1 pin · 1 arrow");
+    const block = markdown.slice(markdown.indexOf("## Arrow 5"));
+    expect(block).not.toContain("- Position:");
+    expect(block).not.toContain("- Box:");
+    expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Arrow:"));
+    expect(block.indexOf("- Arrow:")).toBeLessThan(block.indexOf("- Element: No element"));
+    expect(block).toContain("> Move this up into the header.");
   });
 });

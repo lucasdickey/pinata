@@ -50,6 +50,8 @@ const RECTANGLE_NODE = ".react-flow__node-rectangle";
 const DRAFT_RECTANGLE_NODE = ".react-flow__node-draftRectangle";
 const CIRCLE_NODE = ".react-flow__node-circle";
 const DRAFT_CIRCLE_NODE = ".react-flow__node-draftCircle";
+const ARROW_NODE = ".react-flow__node-arrow";
+const DRAFT_ARROW_NODE = ".react-flow__node-draftArrow";
 
 interface ElementSnapshot {
   id: string;
@@ -62,13 +64,15 @@ interface ElementSnapshot {
 interface PinRecord {
   id: string;
   captureId: string;
-  kind?: "pin" | "rectangle" | "circle";
+  kind?: "pin" | "rectangle" | "circle" | "arrow";
   number: number;
   tip: { x: number; y: number };
   /** A rectangle's box (D079); absent on pins. */
   rect?: { x: number; y: number; width: number; height: number };
   /** A circle's bounding square (D082); absent on the other kinds. */
   circle?: { x: number; y: number; size: number };
+  /** An arrow's tail and head (D083); absent on the other kinds. */
+  arrow?: { start: { x: number; y: number }; end: { x: number; y: number } };
   body: string;
   elementSnapshot: ElementSnapshot | null;
   revision: number;
@@ -911,5 +915,192 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(2);
   expect(writes.filter((w) => w.startsWith("DELETE "))).toHaveLength(1);
   expect(writes).toHaveLength(4);
+  expect(consoleErrors).toEqual([]);
+});
+
+/** The saved arrow's node wrapper, by its badge number. */
+function arrowNode(page: Page, number: number) {
+  return page.locator(ARROW_NODE, {
+    has: page.locator(`[data-testid="arrow-badge"][data-mark-number="${number}"]`),
+  });
+}
+
+test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and shaft move in one write each, and it deletes (D083)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(240_000);
+
+  const consoleErrors = trackConsoleErrors(page);
+  const target = await openDesktopPlane(page);
+  const before = await listPins(page, target.captureId);
+  const writes = trackAnnotationWrites(page);
+  const aim = await aimBottomBand(page, target);
+
+  await page.getByRole("button", { name: "Draw an arrow" }).click();
+  await expect(page.getByRole("button", { name: "Draw an arrow" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
+  const zoom = camera.zoom;
+  const local = toScreen(aim, camera);
+  const from = { x: pane.left + local.x, y: pane.top + local.y };
+  const reach = { x: 140, y: 90 };
+  await dragPointer(page, from, reach);
+  await expect(page.locator(DRAFT_ARROW_NODE)).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Draw an arrow" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  // The camera did not move: the drag drew instead of panning.
+  const after = await readCamera(page);
+  expect(Math.abs(after.x - camera.x)).toBeLessThanOrEqual(1);
+
+  const composer = page.getByTestId("pin-composer");
+  await expect(composer).toHaveAttribute("data-draft-kind", "arrow");
+  await expect(page.getByRole("dialog", { name: "New arrow" })).toBeVisible();
+  // An arrow's candidates are the point ranking, taken from its head.
+  await expect(page.getByText("Nearby elements, closest first")).toHaveCount(0);
+
+  await page.getByLabel("Comment").fill("e2e: arrow lifecycle");
+  await waitContextSettled(page);
+  await chooseNoElement(page);
+  await page.getByLabel("Comment").press("Enter");
+  const saved = await awaitNewPin(page, target.captureId, before);
+  const number = saved.number;
+  expect(saved.kind).toBe("arrow");
+  expect(saved.arrow, "an arrow persists both endpoints").toBeDefined();
+  const savedArrow = saved.arrow!;
+  // The press is the tail and the release is the head: never reordered.
+  expect(Math.abs(savedArrow.start.x - aim.x)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedArrow.start.y - aim.y)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedArrow.end.x - (aim.x + reach.x / zoom))).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedArrow.end.y - (aim.y + reach.y / zoom))).toBeLessThanOrEqual(1 + 1 / zoom);
+  await expect(page.locator(DRAFT_ARROW_NODE)).toHaveCount(0);
+  await expect(arrowNode(page, number)).toHaveCount(1);
+  // The head is drawn, and the badge rides at the tail so it never covers
+  // what the arrow points at.
+  await expect(arrowNode(page, number).locator('[data-testid="arrow-head"]')).toHaveCount(1);
+  const paneNow = await visiblePane(page);
+  const cameraNow = await readCamera(page);
+  const badgeBox = (await arrowNode(page, number)
+    .locator('[data-testid="arrow-badge"]')
+    .boundingBox())!;
+  const badgeAt = toNatural(
+    {
+      x: badgeBox.x + badgeBox.width / 2 - paneNow.left,
+      y: badgeBox.y + badgeBox.height - paneNow.top,
+    },
+    cameraNow,
+  );
+  expect(Math.hypot(badgeAt.x - savedArrow.start.x, badgeAt.y - savedArrow.start.y)).toBeLessThan(
+    Math.hypot(badgeAt.x - savedArrow.end.x, badgeAt.y - savedArrow.end.y),
+  );
+
+  // Drag the head: one revisioned PATCH, and the tail does not move.
+  const head = arrowNode(page, number).locator('[data-testid="arrow-handle"][data-endpoint="end"]');
+  const headBox = (await head.boundingBox())!;
+  const reaim = { x: 40, y: 30 };
+  await dragPointer(
+    page,
+    { x: headBox.x + headBox.width / 2, y: headBox.y + headBox.height / 2 },
+    reaim,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 1);
+  const reaimed = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(reaimed.arrow!.start).toEqual(savedArrow.start);
+  expect(Math.abs(reaimed.arrow!.end.x - (savedArrow.end.x + reaim.x / zoom))).toBeLessThanOrEqual(
+    1 + 1 / zoom,
+  );
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(1);
+
+  // Drag the tail: one more PATCH, and the head does not move.
+  await visiblePane(page);
+  const tail = arrowNode(page, number).locator(
+    '[data-testid="arrow-handle"][data-endpoint="start"]',
+  );
+  const tailBox = (await tail.boundingBox())!;
+  const shift = { x: -20, y: -15 };
+  await dragPointer(
+    page,
+    { x: tailBox.x + tailBox.width / 2, y: tailBox.y + tailBox.height / 2 },
+    shift,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 2);
+  const shifted = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(shifted.arrow!.end).toEqual(reaimed.arrow!.end);
+  expect(
+    Math.abs(shifted.arrow!.start.x - (reaimed.arrow!.start.x + shift.x / zoom)),
+  ).toBeLessThanOrEqual(1 + 1 / zoom);
+
+  // Drag the shaft: the whole arrow moves, keeping its length, in one write.
+  await visiblePane(page);
+  const shaftCamera = await readCamera(page);
+  const shaftPane = await visiblePane(page);
+  const middle = {
+    x: (shifted.arrow!.start.x + shifted.arrow!.end.x) / 2,
+    y: (shifted.arrow!.start.y + shifted.arrow!.end.y) / 2,
+  };
+  const onShaft = toScreen(middle, shaftCamera);
+  const step = { x: 25, y: 18 };
+  await dragPointer(page, { x: shaftPane.left + onShaft.x, y: shaftPane.top + onShaft.y }, step);
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 3);
+  const moved = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  const lengthBefore = Math.hypot(
+    shifted.arrow!.end.x - shifted.arrow!.start.x,
+    shifted.arrow!.end.y - shifted.arrow!.start.y,
+  );
+  const lengthAfter = Math.hypot(
+    moved.arrow!.end.x - moved.arrow!.start.x,
+    moved.arrow!.end.y - moved.arrow!.start.y,
+  );
+  expect(Math.abs(lengthAfter - lengthBefore)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(
+    Math.abs(moved.arrow!.start.x - (shifted.arrow!.start.x + step.x / zoom)),
+  ).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(moved.body).toBe(saved.body);
+
+  // The panel names the arrow by its comment (D078) and keeps both points
+  // behind Details; delete is the same two-step revisioned write.
+  await page.getByRole("button", { name: new RegExp(`^Arrow ${number} · “`) }).click();
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Arrow ${number} · “`);
+  const details = page.getByTestId("panel-details");
+  await details.locator("summary").click();
+  await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "arrow");
+  await expect(page.getByTestId("panel-position")).toContainText("→");
+  await page.getByRole("button", { name: "Delete arrow" }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect
+    .poll(
+      async () => (await listPins(page, target.captureId)).some((pin) => pin.number === number),
+      { timeout: 10_000 },
+    )
+    .toBe(false);
+  await expect(arrowNode(page, number)).toHaveCount(0);
+
+  // One create, two endpoint moves, one shaft move, one delete.
+  expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(3);
+  expect(writes.filter((w) => w.startsWith("DELETE "))).toHaveLength(1);
+  expect(writes).toHaveLength(5);
   expect(consoleErrors).toEqual([]);
 });

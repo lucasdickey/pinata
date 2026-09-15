@@ -41,12 +41,25 @@
 // pin as usual. The founder's read-only plane renders regions with no
 // handles, no drag, and no tools.
 //
+// Arrows (D083) are the one mark with no area. An armed Arrow tool draws
+// one: the press sets the tail and the release sets the head, and the head
+// is what the mark is about, so the nearby-element context is taken from it
+// and the badge rides at the tail instead. Selecting or moving an arrow is a
+// distance-to-segment test at ARROW_HIT_TOLERANCE_CSS_PX rather than a box
+// test: the shaft carries an invisible band that wide, so a click near but
+// off the line falls through to the screenshot and drops a pin as usual.
+// After a save each endpoint drags on its own and the shaft drags the whole
+// arrow, each gesture committing exactly one revisioned write. The stroke
+// and the head scale with the zoom so the arrow stays visible without the
+// stored endpoints changing, and the founder sees it with no handles.
+//
 // Keyboard, on the canvas region when focus is not in a text field: J or
 // ArrowDown selects the next saved mark, K or ArrowUp the previous, N drops
-// a draft pin at the viewport center (clamped to the frame), and B or C arms
-// the box or circle tool for the next drag. Escape cancels a draw in
-// progress, then disarms the armed tool, then clears the draft. Inside the
-// composer, Enter saves, Shift+Enter inserts a newline, Escape cancels.
+// a draft pin at the viewport center (clamped to the frame), and B, C, or A
+// arms the box, circle, or arrow tool for the next drag. Escape cancels a
+// draw in progress, then disarms the armed tool, then clears the draft.
+// Inside the composer, Enter saves, Shift+Enter inserts a newline, Escape
+// cancels.
 //
 // Camera state is local UI state only. The three named modes — entire
 // capture (the initial contain view), fit width, and natural size — come
@@ -105,18 +118,23 @@ import {
   type PinBox,
 } from "../lib/canvas/geometry";
 import {
+  ARROW_TYPE,
   CAPTURE_FRAME_TYPE,
   CIRCLE_TYPE,
   CONTEXT_PREVIEW_TYPE,
+  DRAFT_ARROW_TYPE,
   DRAFT_CIRCLE_TYPE,
   DRAFT_PIN_TYPE,
   DRAFT_RECTANGLE_TYPE,
   PIN_TYPE,
   RECTANGLE_TYPE,
+  draftArrowNodeId,
   draftCircleNodeId,
   draftPinNodeId,
   draftRectangleNodeId,
   nodesForPlane,
+  type ArrowNode,
+  type CanvasArrow,
   type CanvasCircle,
   type CanvasPin,
   type CanvasRectangle,
@@ -125,6 +143,7 @@ import {
   type CircleNode,
   type ContextPreviewNode,
   type ContextRect,
+  type DraftArrowNode,
   type DraftCircleNode,
   type DraftPinNode,
   type DraftRectangleNode,
@@ -146,6 +165,14 @@ import {
   type CircleResizeHandle,
   type NaturalCircle,
 } from "../lib/canvas/circle";
+import {
+  arrowFromPoints,
+  dragArrowEndpoint,
+  meetsMinimumArrowLength,
+  translateArrow,
+  type ArrowEndpoint,
+  type NaturalArrow,
+} from "../lib/canvas/arrow";
 import { placePopover, popoverBounds, type ScreenSize } from "../lib/canvas/popover";
 import {
   handleAnchor,
@@ -167,6 +194,7 @@ import { PinComposer, type PinComposerProps } from "./pin-composer";
 export const MARK_TOOLS = [
   { id: "rectangle", label: "Draw a box", key: "b" },
   { id: "circle", label: "Draw a circle", key: "c" },
+  { id: "arrow", label: "Draw an arrow", key: "a" },
 ] as const;
 
 export type MarkTool = (typeof MARK_TOOLS)[number]["id"];
@@ -289,6 +317,12 @@ interface RegionGestures {
   beginResize: (
     target: { draft: true } | { draft: false; id: string },
     handle: string,
+    pointer: { x: number; y: number },
+  ) => void;
+  /** The same for one of an arrow's two endpoints (D083). */
+  beginEndpoint: (
+    target: { draft: true } | { draft: false; id: string },
+    endpoint: ArrowEndpoint,
     pointer: { x: number; y: number },
   ) => void;
 }
@@ -421,6 +455,140 @@ function RegionMark({
   );
 }
 
+/**
+ * One arrow, saved or draft (D083). The node wrapper is pointer-transparent;
+ * what takes the pointer is a wide invisible band along the shaft (so
+ * selecting and moving an arrow is a distance-to-segment test at the
+ * published tolerance, not a box test), the number badge at the tail, and —
+ * on an editable plane — the two endpoint handles. The head is a filled
+ * triangle at `end`, rotated to the shaft; its size and the stroke width are
+ * derived from the zoom, so the arrow stays visible at any camera without
+ * the stored endpoints changing. The badge rides at the tail so it never
+ * covers what the arrow points at.
+ */
+function ArrowMark({ data }: NodeProps<ArrowNode | DraftArrowNode>) {
+  const gestures = useContext(RegionGestureContext);
+  const dx = data.localEndX - data.localStartX;
+  const dy = data.localEndY - data.localStartY;
+  const length = Math.hypot(dx, dy);
+  const unit = length > 0 ? { x: dx / length, y: dy / length } : { x: 1, y: 0 };
+  const normal = { x: -unit.y, y: unit.x };
+  const head = data.headLength;
+  // The shaft stops at the head's base so the line never shows through the
+  // triangle's point.
+  const base = {
+    x: data.localEndX - unit.x * head,
+    y: data.localEndY - unit.y * head,
+  };
+  const wing = head * 0.45;
+  const points = [
+    `${data.localEndX},${data.localEndY}`,
+    `${base.x + normal.x * wing},${base.y + normal.y * wing}`,
+    `${base.x - normal.x * wing},${base.y - normal.y * wing}`,
+  ].join(" ");
+  const dash = data.draft ? `${data.strokeWidth * 3} ${data.strokeWidth * 2}` : undefined;
+  const endpoints: { name: ArrowEndpoint; x: number; y: number }[] = [
+    { name: "start", x: data.localStartX, y: data.localStartY },
+    { name: "end", x: data.localEndX, y: data.localEndY },
+  ];
+  return (
+    <div
+      className={`mark-arrow${data.draft ? " mark-arrow-draft" : ""}`}
+      data-testid={data.draft ? "draft-arrow" : "arrow"}
+      data-mark-number={data.number ?? undefined}
+      data-selected={data.selected ? "true" : undefined}
+      data-drawing={data.drawing ? "true" : undefined}
+    >
+      <svg className="mark-arrow-svg" aria-hidden="true" focusable="false">
+        {data.drawing ? null : (
+          <line
+            className="mark-arrow-grab"
+            data-testid="arrow-shaft"
+            x1={data.localStartX}
+            y1={data.localStartY}
+            x2={data.localEndX}
+            y2={data.localEndY}
+            strokeWidth={data.grabWidth}
+          />
+        )}
+        <line
+          className="mark-arrow-stroke"
+          x1={data.localStartX}
+          y1={data.localStartY}
+          x2={length > head ? base.x : data.localEndX}
+          y2={length > head ? base.y : data.localEndY}
+          strokeWidth={data.strokeWidth}
+          strokeDasharray={dash}
+        />
+        <polygon className="mark-arrow-head" data-testid="arrow-head" points={points} />
+      </svg>
+      {data.drawing ? null : (
+        <div
+          className={`pin-badge ${data.draft ? "pin-badge-draft" : "pin-badge-saved"} mark-arrow-badge`}
+          data-testid={data.draft ? "draft-arrow-badge" : "arrow-badge"}
+          data-mark-number={data.number ?? undefined}
+          data-selected={data.selected ? "true" : undefined}
+          // The badge sits at the tail, never at the head: it must not cover
+          // the thing the arrow is pointing at.
+          style={{
+            left: data.localStartX,
+            top: data.localStartY,
+            width: data.badgeSize,
+            height: data.badgeSize,
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
+            {data.draft ? <circle cx="12" cy="9" r="3.2" /> : null}
+          </svg>
+          {data.number === null ? null : (
+            <span
+              className="pin-badge-number"
+              style={{ fontSize: data.badgeSize * 0.38 }}
+              aria-hidden="true"
+            >
+              {data.number}
+            </span>
+          )}
+        </div>
+      )}
+      {data.handles && gestures
+        ? endpoints.map((endpoint) => (
+            <div
+              key={endpoint.name}
+              className="nodrag nopan mark-rectangle-handle"
+              data-testid="arrow-handle"
+              data-endpoint={endpoint.name}
+              aria-hidden="true"
+              style={{
+                left: endpoint.x - data.handleSize / 2,
+                top: endpoint.y - data.handleSize / 2,
+                width: data.handleSize,
+                height: data.handleSize,
+                cursor: "move",
+              }}
+              onPointerDown={(event) => {
+                if (event.isPrimary === false || event.button > 0) return;
+                event.stopPropagation();
+                event.preventDefault();
+                gestures.beginEndpoint(
+                  data.draft ? { draft: true } : { draft: false, id: data.annotationId },
+                  endpoint.name,
+                  { x: event.clientX, y: event.clientY },
+                );
+              }}
+            >
+              <span
+                className="mark-rectangle-handle-dot"
+                style={{ width: data.handleDotSize, height: data.handleDotSize }}
+              />
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+
 const nodeTypes: NodeTypes = {
   [CAPTURE_FRAME_TYPE]: CaptureFrame,
   [PIN_TYPE]: Pin,
@@ -430,10 +598,23 @@ const nodeTypes: NodeTypes = {
   [DRAFT_RECTANGLE_TYPE]: RegionMark,
   [CIRCLE_TYPE]: RegionMark,
   [DRAFT_CIRCLE_TYPE]: RegionMark,
+  [ARROW_TYPE]: ArrowMark,
+  [DRAFT_ARROW_TYPE]: ArrowMark,
 };
 
 /** The node types a persisted region mark uses. */
 const REGION_TYPES: readonly string[] = [RECTANGLE_TYPE, CIRCLE_TYPE];
+
+/** Every persisted mark that is not a pin: regions and arrows alike. */
+const SHAPE_TYPES: readonly string[] = [...REGION_TYPES, ARROW_TYPE];
+
+/** Every draft node type, for the drag-end branch that only re-settles. */
+const DRAFT_TYPES: readonly string[] = [
+  DRAFT_PIN_TYPE,
+  DRAFT_RECTANGLE_TYPE,
+  DRAFT_CIRCLE_TYPE,
+  DRAFT_ARROW_TYPE,
+];
 
 /** Live zoom percentage, kept inside the provider so it tracks gestures. */
 function ZoomReadout() {
@@ -552,24 +733,35 @@ type Gesture =
       /** The region as it was when the press landed: a box or a circle. */
       startMark: DraftMark;
       startPointer: NaturalPoint;
+    }
+  | {
+      type: "endpoint";
+      target: { draft: true } | { draft: false; id: string };
+      endpoint: ArrowEndpoint;
+      /** The arrow as it was when the press landed. */
+      startArrow: NaturalArrow;
+      startPointer: NaturalPoint;
     };
 
-/** The region a draw produces between two corners, in the tool's own shape. */
-function drawnRegion(
+/** The mark a draw produces between press and release, in the tool's shape. */
+function drawnMark(
   tool: MarkTool,
   start: NaturalPoint,
   end: NaturalPoint,
   doc: { width: number; height: number },
 ): DraftMark {
-  return tool === "circle"
-    ? { kind: "circle", circle: circleFromCorners(start, end, doc) }
-    : { kind: "rectangle", rect: rectFromCorners(start, end, doc) };
+  if (tool === "circle") return { kind: "circle", circle: circleFromCorners(start, end, doc) };
+  // An arrow is drawn, not bounded: the press sets the tail and the release
+  // sets the head, and they are never reordered.
+  if (tool === "arrow") return { kind: "arrow", arrow: arrowFromPoints(start, end, doc) };
+  return { kind: "rectangle", rect: rectFromCorners(start, end, doc) };
 }
 
-/** Whether a drawn region is large enough to become a mark. */
-function regionIsBigEnough(mark: DraftMark): boolean {
+/** Whether a drawn mark reaches its kind's published minimum. */
+function drawnMarkIsBigEnough(mark: DraftMark): boolean {
   if (mark.kind === "rectangle") return meetsMinimumSize(mark.rect);
   if (mark.kind === "circle") return meetsMinimumCircleSize(mark.circle);
+  if (mark.kind === "arrow") return meetsMinimumArrowLength(mark.arrow);
   return false;
 }
 
@@ -590,6 +782,16 @@ function resizedRegion(
     };
   }
   return null;
+}
+
+/**
+ * The point a saved mark's drag is measured from, so drag end can tell a
+ * click from a move: a region's bounding corner, an arrow's tail.
+ */
+function markDragAnchor(mark: DraftMark): NaturalPoint | null {
+  if (mark.kind === "arrow") return mark.arrow.start;
+  const extent = markExtent(mark);
+  return extent ? { x: extent.x, y: extent.y } : null;
 }
 
 /** One region moved so its bounding box's corner lands at `position`. */
@@ -614,12 +816,14 @@ function CaptureCanvasInner({
   pins,
   rectangles,
   circles,
+  arrows,
   previewRect,
   selectedPinId,
   onSelectPin,
   onMovePin,
   onMoveRectangle,
   onMoveCircle,
+  onMoveArrow,
   savedCamera,
   onCameraChange,
   onDraftChange,
@@ -645,6 +849,8 @@ function CaptureCanvasInner({
   rectangles: Omit<CanvasRectangle, "selected">[];
   /** This plane's persisted circles (D082), same numbering again. */
   circles: Omit<CanvasCircle, "selected">[];
+  /** This plane's persisted arrows (D083), same numbering again. */
+  arrows: Omit<CanvasArrow, "selected">[];
   /**
    * The transient nearby-candidate highlight: one manifest rectangle in
    * natural pixels, or null. Local UI state only — never persisted, never
@@ -662,6 +868,11 @@ function CaptureCanvasInner({
   onMoveRectangle?: (annotationId: string, rect: NaturalRect) => void;
   /** The same single commit for a circle move or resize (D082). */
   onMoveCircle?: (annotationId: string, circle: NaturalCircle) => void;
+  /**
+   * The same single commit for an arrow moved by its shaft or by one of its
+   * endpoints (D083): one clamped arrow of at least the minimum length.
+   */
+  onMoveArrow?: (annotationId: string, arrow: NaturalArrow) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (draft: DraftMark | null) => void;
@@ -779,6 +990,18 @@ function CaptureCanvasInner({
       }),
     [circles, regionDrag, selectedPinId],
   );
+  const effectiveArrows = useMemo<CanvasArrow[]>(
+    () =>
+      arrows.map((entry) => {
+        const dragged = regionDrag?.id === entry.id ? regionDrag.mark : null;
+        return {
+          ...entry,
+          arrow: dragged?.kind === "arrow" ? dragged.arrow : entry.arrow,
+          selected: entry.id === selectedPinId,
+        };
+      }),
+    [arrows, regionDrag, selectedPinId],
+  );
   /** Every persisted region by id, in the draft shape the gestures use. */
   const regionById = useMemo(() => {
     const map = new Map<string, DraftMark>();
@@ -786,14 +1009,21 @@ function CaptureCanvasInner({
     for (const entry of circles) map.set(entry.id, { kind: "circle", circle: entry.circle });
     return map;
   }, [rectangles, circles]);
+  /** Every persisted mark that is not a pin, including arrows. */
+  const shapeById = useMemo(() => {
+    const map = new Map<string, DraftMark>(regionById);
+    for (const entry of arrows) map.set(entry.id, { kind: "arrow", arrow: entry.arrow });
+    return map;
+  }, [regionById, arrows]);
   const nodes = useMemo(() => {
     // While a region is being drawn it stands in for the draft; a release
     // below the minimum size brings the previous draft back untouched.
-    const inFlight = drawing ? drawnRegion(drawing.tool, drawing.start, drawing.current, doc) : null;
+    const inFlight = drawing ? drawnMark(drawing.tool, drawing.start, drawing.current, doc) : null;
     const built = nodesForPlane(domain, {
       pins: effectivePins,
       rectangles: effectiveRectangles,
       circles: effectiveCircles,
+      arrows: effectiveArrows,
       draft: inFlight ?? draft,
       drawing: drawing !== null,
       zoom: liveZoom,
@@ -810,6 +1040,7 @@ function CaptureCanvasInner({
     effectivePins,
     effectiveRectangles,
     effectiveCircles,
+    effectiveArrows,
     draft,
     drawing,
     liveZoom,
@@ -941,7 +1172,7 @@ function CaptureCanvasInner({
     const mark: DraftMark | null = pin
       ? { kind: "pin", tip: pin.tip }
       : selectedPinId
-        ? (regionById.get(selectedPinId) ?? null)
+        ? (shapeById.get(selectedPinId) ?? null)
         : null;
     if (!mark) return;
     const viewport = { width: wrapper.clientWidth, height: wrapper.clientHeight };
@@ -960,7 +1191,7 @@ function CaptureCanvasInner({
     liveZoomRef.current = camera.zoom;
     setLiveZoom(camera.zoom);
     reportCamera(camera);
-  }, [instance, pins, regionById, selectedPinId, reportCamera]);
+  }, [instance, pins, shapeById, selectedPinId, reportCamera]);
 
   // Each increment of the signal reveals the selection once; a signal that
   // arrives before React Flow's pane is ready waits for onInit.
@@ -989,6 +1220,16 @@ function CaptureCanvasInner({
     }
     if (gesture?.type === "resize" && gesture.target.draft) {
       setDraft((current) => (current?.kind === gesture.startMark.kind ? gesture.startMark : current));
+    }
+    if (gesture?.type === "endpoint") {
+      if (gesture.target.draft) {
+        setDraft((current) =>
+          current?.kind === "arrow" ? { kind: "arrow", arrow: gesture.startArrow } : current,
+        );
+      } else {
+        regionDragRef.current = null;
+        setRegionDrag(null);
+      }
     }
   }, []);
 
@@ -1046,8 +1287,9 @@ function CaptureCanvasInner({
     (annotationId: string, mark: DraftMark) => {
       if (mark.kind === "rectangle") onMoveRectangle?.(annotationId, mark.rect);
       else if (mark.kind === "circle") onMoveCircle?.(annotationId, mark.circle);
+      else if (mark.kind === "arrow") onMoveArrow?.(annotationId, mark.arrow);
     },
-    [onMoveRectangle, onMoveCircle],
+    [onMoveRectangle, onMoveCircle, onMoveArrow],
   );
 
   // The window listeners for a gesture in flight: movement updates local
@@ -1070,6 +1312,26 @@ function CaptureCanvasInner({
           start: gesture.start,
           current: clampNaturalPointToCapture(natural, doc),
         });
+        return;
+      }
+      if (gesture.type === "endpoint") {
+        // One endpoint follows the pointer; the other stays exactly put.
+        const base = gesture.endpoint === "start" ? gesture.startArrow.start : gesture.startArrow.end;
+        const moved = {
+          x: base.x + (natural.x - gesture.startPointer.x),
+          y: base.y + (natural.y - gesture.startPointer.y),
+        };
+        const next: DraftMark = {
+          kind: "arrow",
+          arrow: dragArrowEndpoint(gesture.startArrow, gesture.endpoint, moved, doc),
+        };
+        if (gesture.target.draft) {
+          setDraft(next);
+        } else {
+          const dragged = { id: gesture.target.id, mark: next };
+          regionDragRef.current = dragged;
+          setRegionDrag(dragged);
+        }
         return;
       }
       const delta = {
@@ -1096,22 +1358,26 @@ function CaptureCanvasInner({
         const end = natural
           ? clampNaturalPointToCapture(natural, doc)
           : (drawingRef.current?.current ?? gesture.start);
-        const mark = drawnRegion(gesture.tool, gesture.start, end, doc);
+        const mark = drawnMark(gesture.tool, gesture.start, end, doc);
         setDrawing(null);
         // The tool armed exactly this drag, whatever it produced.
         setArmed(null);
         // Too small to be a mark: nothing is drafted and nothing changes.
-        if (!regionIsBigEnough(mark)) return;
+        if (!drawnMarkIsBigEnough(mark)) return;
         setDraft(mark);
         onDraftSettled?.(mark);
         syncZoom();
         return;
       }
+      const startMark: DraftMark =
+        gesture.type === "endpoint"
+          ? { kind: "arrow", arrow: gesture.startArrow }
+          : gesture.startMark;
       if (gesture.target.draft) {
-        // A draft resize commits nothing; it re-anchors the nearby context
-        // query on the final geometry.
+        // A draft resize or endpoint drag commits nothing; it re-anchors the
+        // nearby context query on the final geometry.
         const current = draftRef.current;
-        if (current && current.kind === gesture.startMark.kind) onDraftSettled?.(current);
+        if (current && current.kind === startMark.kind) onDraftSettled?.(current);
         return;
       }
       const drop = regionDragRef.current;
@@ -1119,7 +1385,7 @@ function CaptureCanvasInner({
       setRegionDrag(null);
       // The one write of the gesture, and only when the geometry actually
       // changed: a press-and-release on a handle writes nothing.
-      if (drop && drop.id === gesture.target.id && !marksEqual(drop.mark, gesture.startMark)) {
+      if (drop && drop.id === gesture.target.id && !marksEqual(drop.mark, startMark)) {
         commitRegion(drop.id, drop.mark);
       }
     };
@@ -1151,8 +1417,23 @@ function CaptureCanvasInner({
         };
         setGestureActive(true);
       },
+      beginEndpoint: (target, endpoint, pointer) => {
+        if (readOnly || gestureRef.current) return;
+        const startPointer = naturalAt(pointer);
+        if (!startPointer) return;
+        const startMark = target.draft ? draftRef.current : (shapeById.get(target.id) ?? null);
+        if (startMark?.kind !== "arrow") return;
+        gestureRef.current = {
+          type: "endpoint",
+          target: target.draft ? { draft: true } : { draft: false, id: target.id },
+          endpoint,
+          startArrow: startMark.arrow,
+          startPointer,
+        };
+        setGestureActive(true);
+      },
     }),
-    [readOnly, naturalAt, regionById],
+    [readOnly, naturalAt, regionById, shapeById],
   );
 
   // Node dragging: React Flow emits the node's new top-left position; the
@@ -1168,11 +1449,37 @@ function CaptureCanvasInner({
   // Where a saved mark's anchor was when its drag began: drag end compares
   // the final geometry against it to tell a click from a move.
   const dragOrigin = useRef<NaturalPoint | null>(null);
+  // An arrow's node box is padded chrome around its endpoints, so its
+  // emitted position is not its geometry. The box corner and the arrow at
+  // drag start are snapshotted here, and every change applies the difference
+  // to that snapshot, which keeps the shaft's length and direction exact.
+  const arrowDrag = useRef<{ id: string; position: NaturalPoint; arrow: NaturalArrow } | null>(
+    null,
+  );
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
         if (change.type !== "position" || !change.position) continue;
         const position = change.position;
+        const arrowOrigin = arrowDrag.current;
+        if (arrowOrigin && arrowOrigin.id === change.id) {
+          const delta = {
+            x: position.x - arrowOrigin.position.x,
+            y: position.y - arrowOrigin.position.y,
+          };
+          const moved: DraftMark = {
+            kind: "arrow",
+            arrow: translateArrow(arrowOrigin.arrow, delta, doc),
+          };
+          if (change.id === draftArrowNodeId(domain.captureId)) {
+            setDraft((current) => (current?.kind === "arrow" ? moved : current));
+          } else {
+            const next = { id: change.id, mark: moved };
+            regionDragRef.current = next;
+            setRegionDrag(next);
+          }
+          continue;
+        }
         if (change.id === draftPinNodeId(domain.captureId)) {
           setDraft((current) => {
             if (current?.kind !== "pin") return current;
@@ -1262,7 +1569,7 @@ function CaptureCanvasInner({
     // stacked on a saved mark would be invisible and confusing.
     if (
       target?.closest(
-        ".react-flow__node-draftPin, .react-flow__node-pin, .react-flow__node-rectangle, .react-flow__node-draftRectangle, .react-flow__node-circle, .react-flow__node-draftCircle",
+        ".react-flow__node-draftPin, .react-flow__node-pin, .react-flow__node-rectangle, .react-flow__node-draftRectangle, .react-flow__node-circle, .react-flow__node-draftCircle, .react-flow__node-arrow, .react-flow__node-draftArrow",
       )
     ) {
       return;
@@ -1299,7 +1606,9 @@ function CaptureCanvasInner({
   /** J/K: the next or previous saved mark in number order, wrapping around. */
   const stepSelection = useCallback(
     (direction: 1 | -1) => {
-      const ordered = [...pins, ...rectangles, ...circles].sort((a, b) => a.number - b.number);
+      const ordered = [...pins, ...rectangles, ...circles, ...arrows].sort(
+        (a, b) => a.number - b.number,
+      );
       if (ordered.length === 0) return;
       const index = ordered.findIndex((mark) => mark.id === selectedPinId);
       const next =
@@ -1310,7 +1619,7 @@ function CaptureCanvasInner({
           : (index + direction + ordered.length) % ordered.length;
       onSelectPin?.(ordered[next]!.id);
     },
-    [pins, rectangles, circles, selectedPinId, onSelectPin],
+    [pins, rectangles, circles, arrows, selectedPinId, onSelectPin],
   );
 
   /** Arm one tool for the next drag, or disarm it when it is already armed. */
@@ -1408,7 +1717,9 @@ function CaptureCanvasInner({
               title={
                 tool.id === "rectangle"
                   ? "The next drag draws a box (or hold Shift while dragging)"
-                  : "The next drag draws a circle"
+                  : tool.id === "circle"
+                    ? "The next drag draws a circle"
+                    : "The next drag draws an arrow, from the tail to the head"
               }
               onClick={() => toggleTool(tool.id)}
             >
@@ -1425,7 +1736,7 @@ function CaptureCanvasInner({
         // Focusable on an editable plane so the shortcuts have somewhere to
         // land; a click on the pane focuses it, and Tab reaches it.
         tabIndex={readOnly ? undefined : 0}
-        aria-keyshortcuts={readOnly ? undefined : "J K N B C ArrowDown ArrowUp"}
+        aria-keyshortcuts={readOnly ? undefined : "J K N B C A ArrowDown ArrowUp"}
         data-read-only={readOnly ? "true" : undefined}
         data-draw-armed={armed ? "true" : undefined}
         data-draw-tool={armed ?? undefined}
@@ -1476,6 +1787,17 @@ function CaptureCanvasInner({
                 const data = node.data as RectangleNode["data"];
                 dragOrigin.current = { x: data.rectX, y: data.rectY };
                 regionDragRef.current = null;
+              } else if (node.type === ARROW_TYPE || node.type === DRAFT_ARROW_TYPE) {
+                // The emitted position is the padded node box, not the
+                // geometry, so both are snapshotted for the whole drag.
+                const data = node.data as ArrowNode["data"];
+                const arrow = {
+                  start: { x: data.startX, y: data.startY },
+                  end: { x: data.endX, y: data.endY },
+                };
+                arrowDrag.current = { id: node.id, position: { ...node.position }, arrow };
+                dragOrigin.current = { x: data.startX, y: data.startY };
+                regionDragRef.current = null;
               }
             }}
             onNodeDragStop={(_event, node) => {
@@ -1500,36 +1822,35 @@ function CaptureCanvasInner({
                   if (travel <= PLACEMENT_SLOP_SCREEN_PX) onSelectPin?.(node.id);
                   else onMovePin?.(node.id, drop.tip);
                 }
-              } else if (REGION_TYPES.includes(node.type ?? "")) {
-                // Same rule for a region moved by its stroke or badge: a
-                // click selects and writes nothing; a move is one write.
+              } else if (SHAPE_TYPES.includes(node.type ?? "")) {
+                // Same rule for a region or an arrow moved by its stroke,
+                // shaft, or badge: a click selects and writes nothing; a
+                // move is one write.
                 const drop = regionDragRef.current;
                 const origin = dragOrigin.current;
                 regionDragRef.current = null;
                 dragOrigin.current = null;
                 setRegionDrag(null);
-                const extent = drop ? markExtent(drop.mark) : null;
-                if (drop && extent && drop.id === node.id) {
+                // The same anchor the drag start recorded: a region's
+                // bounding corner, an arrow's tail.
+                const anchor = drop ? markDragAnchor(drop.mark) : null;
+                if (drop && anchor && drop.id === node.id) {
                   const travel = origin
-                    ? Math.hypot(extent.x - origin.x, extent.y - origin.y) * liveZoomRef.current
+                    ? Math.hypot(anchor.x - origin.x, anchor.y - origin.y) * liveZoomRef.current
                     : Number.POSITIVE_INFINITY;
                   if (travel <= PLACEMENT_SLOP_SCREEN_PX) onSelectPin?.(node.id);
                   else commitRegion(node.id, drop.mark);
                 }
-              } else if (
-                (node.type === DRAFT_PIN_TYPE ||
-                  node.type === DRAFT_RECTANGLE_TYPE ||
-                  node.type === DRAFT_CIRCLE_TYPE) &&
-                draftRef.current
-              ) {
+              } else if (DRAFT_TYPES.includes(node.type ?? "") && draftRef.current) {
                 // A draft drag commits nothing; it only re-anchors the nearby
                 // context query on the final geometry.
                 onDraftSettled?.(draftRef.current);
               }
               dragGrab.current = null;
+              arrowDrag.current = null;
             }}
             onNodeClick={(_event, node) => {
-              if (node.type === PIN_TYPE || REGION_TYPES.includes(node.type ?? "")) {
+              if (node.type === PIN_TYPE || SHAPE_TYPES.includes(node.type ?? "")) {
                 onSelectPin?.(node.id);
               }
             }}
@@ -1592,12 +1913,14 @@ export function CaptureCanvas({
   pins = [],
   rectangles = [],
   circles = [],
+  arrows = [],
   previewRect = null,
   selectedPinId,
   onSelectPin,
   onMovePin,
   onMoveRectangle,
   onMoveCircle,
+  onMoveArrow,
   savedCamera,
   onCameraChange,
   onDraftChange,
@@ -1626,6 +1949,8 @@ export function CaptureCanvas({
   rectangles?: Omit<CanvasRectangle, "selected">[];
   /** This plane's persisted circles (D082); empty until they load. */
   circles?: Omit<CanvasCircle, "selected">[];
+  /** This plane's persisted arrows (D083); empty until they load. */
+  arrows?: Omit<CanvasArrow, "selected">[];
   /** The transient nearby-candidate highlight rect in natural pixels. */
   previewRect?: ContextRect | null;
   selectedPinId?: string | null;
@@ -1633,6 +1958,7 @@ export function CaptureCanvas({
   onMovePin?: (annotationId: string, tip: NaturalPoint) => void;
   onMoveRectangle?: (annotationId: string, rect: NaturalRect) => void;
   onMoveCircle?: (annotationId: string, circle: NaturalCircle) => void;
+  onMoveArrow?: (annotationId: string, arrow: NaturalArrow) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (draft: DraftMark | null) => void;
@@ -1667,12 +1993,14 @@ export function CaptureCanvas({
         pins={pins}
         rectangles={rectangles}
         circles={circles}
+        arrows={arrows}
         previewRect={previewRect}
         selectedPinId={selectedPinId}
         onSelectPin={onSelectPin}
         onMovePin={onMovePin}
         onMoveRectangle={onMoveRectangle}
         onMoveCircle={onMoveCircle}
+        onMoveArrow={onMoveArrow}
         savedCamera={savedCamera}
         onCameraChange={onCameraChange}
         onDraftChange={onDraftChange}

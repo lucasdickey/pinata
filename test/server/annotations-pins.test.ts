@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
   FEEDBACK_BODY_MAX_CHARS,
   MAX_ANNOTATIONS_PER_CAPTURE,
+  MIN_ARROW_LENGTH_PX,
   MIN_SHAPE_SIZE_PX,
 } from "../../src/lib/boundaries";
 import {
@@ -1163,6 +1164,284 @@ describe("circles (D082)", () => {
     if (edited.ok) {
       expect(edited.annotation.body).toBe("Tighter.");
       expect(circleOf(edited.annotation)).toEqual(square);
+    }
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: saved.id,
+        expectedRevision: saved.revision,
+      }),
+    ).toMatchObject({ ok: false, error: "conflict" });
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: saved.id,
+        expectedRevision: saved.revision + 1,
+      }),
+    ).toEqual({ ok: true });
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (listed.ok) expect(listed.annotations).toHaveLength(0);
+  });
+});
+
+describe("arrows (D083)", () => {
+  const shaft = { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } };
+  const arrowInput = (overrides: Record<string, unknown> = {}) =>
+    createInput({
+      tip: undefined,
+      arrow: shaft,
+      idempotencyKey: "arrow-create-key-0001",
+      ...overrides,
+    });
+
+  function arrowOf(record: AnnotationRecord) {
+    return record.kind === "arrow" ? record.arrow : undefined;
+  }
+
+  test("a valid arrow persists as kind arrow with both endpoints, head last", async () => {
+    const result = await createPinAtomically(testDb.db, arrowInput());
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (!result.ok) return;
+    expect(result.annotation.kind).toBe("arrow");
+    expect(arrowOf(result.annotation)).toEqual(shaft);
+    expect(result.annotation.number).toBe(1);
+    const [row] = await rowsFor(readyCaptureId);
+    expect(row!.kind).toBe("arrow");
+    expect(row!.geometryJson).toBe(JSON.stringify(shaft));
+    expect(row!.geometryVersion).toBe(1);
+  });
+
+  test("direction is preserved: the reverse arrow is a different mark", async () => {
+    const forward = await createPinAtomically(testDb.db, arrowInput());
+    const backward = await createPinAtomically(
+      testDb.db,
+      arrowInput({
+        arrow: { start: shaft.end, end: shaft.start },
+        idempotencyKey: "arrow-create-key-0002",
+      }),
+    );
+    if (!forward.ok || !backward.ok) throw new Error("seed creates failed");
+    expect(arrowOf(backward.annotation)).toEqual({ start: shaft.end, end: shaft.start });
+    expect(backward.annotation.number).toBe(2);
+  });
+
+  test("the endpoints may touch the document's edges, inclusively", async () => {
+    const corners = { start: { x: 0, y: 0 }, end: { x: 1440, y: 8966 } };
+    const result = await createPinAtomically(testDb.db, arrowInput({ arrow: corners }));
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (result.ok) expect(arrowOf(result.annotation)).toEqual(corners);
+  });
+
+  test("too-short, out-of-frame, non-finite, and ambiguous geometry writes nothing", async () => {
+    const min = MIN_ARROW_LENGTH_PX;
+    const invalid: Record<string, unknown>[] = [
+      // Shorter than the minimum straight-line distance.
+      { arrow: { start: { x: 100, y: 100 }, end: { x: 100 + min - 0.01, y: 100 } } },
+      { arrow: { start: { x: 100, y: 100 }, end: { x: 100, y: 100 } } },
+      // Either endpoint outside the frame.
+      { arrow: { start: { x: -1, y: 100 }, end: { x: 400, y: 600 } } },
+      { arrow: { start: { x: 100, y: 100 }, end: { x: 1441, y: 600 } } },
+      { arrow: { start: { x: 100, y: 100 }, end: { x: 400, y: 8967 } } },
+      { arrow: { start: { x: 100, y: -0.5 }, end: { x: 400, y: 600 } } },
+      // Non-finite coordinates are not geometry.
+      { arrow: { start: { x: Number.NaN, y: 100 }, end: { x: 400, y: 600 } } },
+      { arrow: { start: { x: 100, y: 100 }, end: { x: Number.POSITIVE_INFINITY, y: 600 } } },
+      // Two geometries, or none, is not a kind.
+      { arrow: shaft, tip: { x: 1, y: 1 } },
+      { arrow: shaft, circle: { x: 0, y: 0, size: 10 } },
+      { arrow: undefined },
+    ];
+    for (const [index, overrides] of invalid.entries()) {
+      const result = await createPinAtomically(
+        testDb.db,
+        arrowInput({ idempotencyKey: `arrow-invalid-${index}`, ...overrides }),
+      );
+      expect(result, JSON.stringify(overrides)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    expect(await rowsFor(readyCaptureId)).toHaveLength(0);
+    // Exactly the minimum length is allowed.
+    const edge = await createPinAtomically(
+      testDb.db,
+      arrowInput({ arrow: { start: { x: 100, y: 100 }, end: { x: 100 + min, y: 100 } } }),
+    );
+    expect(edge).toMatchObject({ ok: true, created: true });
+  });
+
+  test("all four kinds share one number sequence per capture, tombstones included", async () => {
+    const pin = await createPinAtomically(testDb.db, createInput());
+    const rect = await createPinAtomically(
+      testDb.db,
+      createInput({
+        tip: undefined,
+        rect: { x: 100, y: 200, width: 300, height: 150 },
+        idempotencyKey: "rect-key-0001",
+      }),
+    );
+    const circle = await createPinAtomically(
+      testDb.db,
+      createInput({
+        tip: undefined,
+        circle: { x: 100, y: 200, size: 300 },
+        idempotencyKey: "circle-key-0001",
+      }),
+    );
+    const arrow = await createPinAtomically(testDb.db, arrowInput());
+    if (!pin.ok || !rect.ok || !circle.ok || !arrow.ok) throw new Error("seed creates failed");
+    expect([
+      pin.annotation.number,
+      rect.annotation.number,
+      circle.annotation.number,
+      arrow.annotation.number,
+    ]).toEqual([1, 2, 3, 4]);
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: arrow.annotation.id,
+        expectedRevision: arrow.annotation.revision,
+      }),
+    ).toEqual({ ok: true });
+    const next = await createPinAtomically(
+      testDb.db,
+      arrowInput({ idempotencyKey: "arrow-create-key-0003" }),
+    );
+    if (!next.ok) throw new Error("create after delete failed");
+    expect(next.annotation.number).toBe(5);
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (!listed.ok) throw new Error("list failed");
+    expect(listed.annotations.map((a) => [a.kind, a.number])).toEqual([
+      ["pin", 1],
+      ["rectangle", 2],
+      ["circle", 3],
+      ["arrow", 5],
+    ]);
+  });
+
+  test("the same key replays the arrow; the same key with other endpoints conflicts", async () => {
+    const first = await createPinAtomically(testDb.db, arrowInput());
+    const replay = await createPinAtomically(testDb.db, arrowInput());
+    expect(replay).toMatchObject({ ok: true, created: false });
+    if (first.ok && replay.ok) expect(replay.annotation).toEqual(first.annotation);
+    const other = await createPinAtomically(
+      testDb.db,
+      arrowInput({ arrow: { start: shaft.start, end: { x: 401, y: 600 } } }),
+    );
+    expect(other).toMatchObject({ ok: false, error: "conflict" });
+    expect(await rowsFor(readyCaptureId)).toHaveLength(1);
+  });
+
+  test("an arrow carries the same explicit context decision and server-derived snapshot", async () => {
+    const result = await createPinAtomically(
+      testDb.db,
+      arrowInput({ captureId: "cap-manifest", elementId: "cell-2" }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.annotation.elementSnapshot).toMatchObject({ id: "cell-2" });
+    const unknown = await createPinAtomically(
+      testDb.db,
+      arrowInput({ captureId: "cap-manifest", elementId: "nope", idempotencyKey: "arrow-unknown" }),
+    );
+    expect(unknown).toMatchObject({ ok: false, error: "invalid" });
+  });
+
+  test("moving the whole arrow or one endpoint is one revisioned write", async () => {
+    const created = await createPinAtomically(
+      testDb.db,
+      arrowInput({ captureId: "cap-manifest", elementId: "cell-1" }),
+    );
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const shifted = { start: { x: 120, y: 230 }, end: { x: 420, y: 630 } };
+    const moved = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      arrow: shifted,
+    });
+    expect(moved).toMatchObject({ ok: true });
+    if (!moved.ok) return;
+    expect(arrowOf(moved.annotation)).toEqual(shifted);
+    expect(moved.annotation.revision).toBe(saved.revision + 1);
+    expect(moved.annotation.number).toBe(saved.number);
+    expect(moved.annotation.body).toBe(saved.body);
+    // The snapshot is immutable: re-aiming the head never rebinds it.
+    expect(moved.annotation.elementSnapshot).toEqual(saved.elementSnapshot);
+
+    const reaimed = { start: shifted.start, end: { x: 900, y: 1200 } };
+    const second = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: moved.annotation.revision,
+      arrow: reaimed,
+    });
+    expect(second).toMatchObject({ ok: true });
+    if (!second.ok) return;
+    expect(second.annotation.revision).toBe(saved.revision + 2);
+    expect(second.annotation.elementSnapshot).toEqual(saved.elementSnapshot);
+    const [row] = await rowsFor("cap-manifest");
+    expect(row!.geometryJson).toBe(JSON.stringify(reaimed));
+  });
+
+  test("a stale move conflicts and changes no row; the wrong kind of geometry is invalid", async () => {
+    const created = await createPinAtomically(testDb.db, arrowInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const ref = { captureId: readyCaptureId, annotationId: saved.id };
+    const first = { start: { x: 110, y: 200 }, end: { x: 410, y: 600 } };
+    expect(
+      await updatePin(testDb.db, { ...ref, expectedRevision: saved.revision, arrow: first }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await updatePin(testDb.db, {
+        ...ref,
+        expectedRevision: saved.revision,
+        arrow: { start: { x: 120, y: 200 }, end: { x: 420, y: 600 } },
+      }),
+    ).toMatchObject({ ok: false, error: "conflict" });
+
+    for (const arrow of [
+      { start: { x: 100, y: 100 }, end: { x: 105, y: 100 } },
+      { start: { x: -1, y: 100 }, end: { x: 400, y: 600 } },
+      { start: { x: 100, y: Number.NaN }, end: { x: 400, y: 600 } },
+    ]) {
+      const result = await updatePin(testDb.db, { ...ref, expectedRevision: 2, arrow });
+      expect(result, JSON.stringify(arrow)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    // A tip on an arrow, and an arrow on a pin, name the wrong kind.
+    expect(
+      await updatePin(testDb.db, { ...ref, expectedRevision: 2, tip: { x: 1, y: 1 } }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const pin = await createPinAtomically(testDb.db, createInput());
+    if (!pin.ok) throw new Error("seed pin failed");
+    expect(
+      await updatePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: pin.annotation.id,
+        expectedRevision: pin.annotation.revision,
+        arrow: shaft,
+      }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const rows = await rowsFor(readyCaptureId);
+    expect(rows.find((row) => row.id === saved.id)).toMatchObject({
+      revision: 2,
+      geometryJson: JSON.stringify(first),
+    });
+    expect(rows.find((row) => row.id === pin.annotation.id)!.revision).toBe(1);
+  });
+
+  test("an arrow edit and a stale delete follow the pin rules", async () => {
+    const created = await createPinAtomically(testDb.db, arrowInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const edited = await updatePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      body: "Move this up here.",
+    });
+    expect(edited).toMatchObject({ ok: true });
+    if (edited.ok) {
+      expect(edited.annotation.body).toBe("Move this up here.");
+      expect(arrowOf(edited.annotation)).toEqual(shaft);
     }
     expect(
       await deletePin(testDb.db, {

@@ -1,6 +1,6 @@
 // /api/captures/[captureId]/annotations — list and create annotations (pins,
-// rectangles since D079, circles since D082) on one immutable ready capture
-// (VAL-PIN-001, VAL-CANVAS-001).
+// rectangles since D079, circles since D082, arrows since D083) on one
+// immutable ready capture (VAL-PIN-001, VAL-CANVAS-001).
 //
 // Annotations bind to exactly one capture's coordinate plane: the route
 // names the capture, and the store refuses pending/failed/missing captures
@@ -9,7 +9,7 @@
 // per-capture number inside the transaction — one sequence shared by every
 // kind; cancelled or failed drafts consume no number, and deleted numbers
 // are never reused. The body's geometry key names the kind: `tip` creates a
-// pin, `rect` a rectangle, `circle` a circle.
+// pin, `rect` a rectangle, `circle` a circle, `arrow` an arrow.
 //
 // Boundary order matches every other mutation: same-origin Origin, session +
 // CSRF, content type and hard byte cap, strict schema, then the durable
@@ -75,8 +75,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 }
 
 /**
- * Create one annotation: one geometry (tip, rect, or circle), one bounded
- * comment, one explicit context decision, one idempotency key.
+ * Create one annotation: one geometry (tip, rect, circle, or arrow), one
+ * bounded comment, one explicit context decision, one idempotency key.
  */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   if (!hasSameOrigin(request)) return jsonError(403, ERRORS.rejected);
@@ -107,7 +107,9 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
         ? { tip: parsed.data.tip }
         : "rect" in parsed.data
           ? { rect: parsed.data.rect }
-          : { circle: parsed.data.circle }),
+          : "circle" in parsed.data
+            ? { circle: parsed.data.circle }
+            : { arrow: parsed.data.arrow }),
       body: parsed.data.body,
       elementId: parsed.data.elementId,
       idempotencyKey: parsed.data.idempotencyKey,

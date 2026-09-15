@@ -197,7 +197,9 @@ export function PinComposer({
         {expanded ? (
           <fieldset id={listId} className="panel-candidates">
             <legend>
-              {draftKind === "pin"
+              {/* Point-anchored kinds (a pin's tip, an arrow's head) rank by
+                  distance; regions rank by overlap. */}
+              {draftKind === "pin" || draftKind === "arrow"
                 ? "Nearby elements, closest first"
                 : "Nearby elements, most overlap first"}
             </legend>

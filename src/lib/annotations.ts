@@ -2,11 +2,11 @@
 // importable from browser code: it carries types only, never server
 // machinery, credentials, or store handles.
 //
-// Three kinds exist today. A pin carries one natural-pixel tip; a rectangle
-// (D079) carries a natural-pixel box; a circle (D082) carries a natural-pixel
-// bounding square. They share one numbering sequence per capture, one
-// comment, one context snapshot, one revision, one lifecycle status, and one
-// thread.
+// Four kinds exist. A pin carries one natural-pixel tip; a rectangle (D079)
+// carries a natural-pixel box; a circle (D082) carries a natural-pixel
+// bounding square; an arrow (D083) carries two natural-pixel endpoints, the
+// head at `end`. They share one numbering sequence per capture, one comment,
+// one context snapshot, one revision, one lifecycle status, and one thread.
 
 /** A pin tip in screenshot-natural CSS pixels. */
 export interface PinTipView {
@@ -36,6 +36,17 @@ export interface CircleGeometryView {
   x: number;
   y: number;
   size: number;
+}
+
+/**
+ * An arrow's two endpoints in screenshot-natural CSS pixels (D083): the tail
+ * it is drawn from, and the head it points at. The head is what the mark is
+ * about. Both are inside the capture's document and at least
+ * MIN_ARROW_LENGTH_PX apart (the server rejects anything else).
+ */
+export interface ArrowGeometryView {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
 }
 
 /**
@@ -132,11 +143,30 @@ export interface CircleAnnotationView {
   createdAt: number;
 }
 
+/**
+ * The API view of one persisted arrow (D083). Everything but the geometry is
+ * the pin's, and the element snapshot is the one under the head.
+ */
+export interface ArrowAnnotationView {
+  id: string;
+  captureId: string;
+  kind: "arrow";
+  number: number;
+  arrow: ArrowGeometryView;
+  body: string;
+  elementSnapshot: PinElementSnapshot | null;
+  revision: number;
+  status: PinStatus;
+  unreadReplies: number;
+  createdAt: number;
+}
+
 /** Any persisted annotation the routes list or return. */
 export type AnnotationView =
   | PinAnnotationView
   | RectangleAnnotationView
-  | CircleAnnotationView;
+  | CircleAnnotationView
+  | ArrowAnnotationView;
 
 /**
  * Feedback counts for one capture or one project, for the requesting role
@@ -193,9 +223,11 @@ export interface PinSeenResponse {
 }
 
 /**
- * GET /api/captures/[captureId]/context response, for `?x=&y=` (a pin tip:
- * the point ranking) or `?x=&y=&width=&height=` (a rectangle, or a circle's
- * bounding square: the overlap ranking, D079/D082): the deterministically
+ * GET /api/captures/[captureId]/context response. The caller picks the
+ * ranking by mark kind: `?x=&y=` is the point ranking, used for a pin tip
+ * and for an arrow's head (D083), and `?x=&y=&width=&height=` is the overlap
+ * ranking, used for a rectangle's box and a circle's bounding square
+ * (D079/D082). Either way it returns the deterministically
  * ranked, capped nearby candidates
  * from the capture's own persisted manifest. The client submits only a
  * chosen candidate's capture-local id (or null for "No element"); the server
@@ -219,7 +251,7 @@ export interface ProjectAnnotationLocation {
 
 /**
  * One live annotation as the project-scoped read returns it: the per-capture
- * view (a pin, a rectangle, or a circle) plus where the capture sits in the
+ * view (a pin, a rectangle, a circle, or an arrow) plus where the capture sits in the
  * project, so the workspace can order marks across planes (page, then
  * device, then number) and the table can name the page and device beside a
  * number that is only unique per capture.
@@ -227,7 +259,8 @@ export interface ProjectAnnotationLocation {
 export type ProjectPinAnnotationView =
   | (PinAnnotationView & ProjectAnnotationLocation)
   | (RectangleAnnotationView & ProjectAnnotationLocation)
-  | (CircleAnnotationView & ProjectAnnotationLocation);
+  | (CircleAnnotationView & ProjectAnnotationLocation)
+  | (ArrowAnnotationView & ProjectAnnotationLocation);
 
 /** GET /api/projects/[publicId]/annotations response. */
 export interface ProjectPinListResponse {

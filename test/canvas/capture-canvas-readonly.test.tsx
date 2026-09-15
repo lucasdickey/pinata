@@ -191,3 +191,27 @@ describe("readOnly circles (D082)", () => {
     expect(document.querySelectorAll(".react-flow__node-draftCircle")).toHaveLength(0);
   });
 });
+
+describe("readOnly arrows (D083)", () => {
+  const arrows = [
+    { id: "arrow-5", number: 5, arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } } },
+  ];
+
+  test("arrows render with no endpoint handles and no drag; selecting one still works", () => {
+    const onSelectPin = vi.fn();
+    render(
+      <CaptureCanvas {...props} readOnly pins={pins} arrows={arrows} onSelectPin={onSelectPin} />,
+    );
+    const nodes = Array.from(document.querySelectorAll(".react-flow__node-arrow"));
+    expect(nodes).toHaveLength(1);
+    expect(document.querySelectorAll('[data-testid="arrow-handle"]')).toHaveLength(0);
+    expect(nodes[0]!.className).not.toMatch(/draggable/);
+    expect(within(stage()).queryByRole("button", { name: "Draw an arrow" })).toBeNull();
+    // The shaft and the head are still drawn, and the badge rides at the tail.
+    expect(nodes[0]!.querySelector('[data-testid="arrow-head"]')).not.toBeNull();
+    const badge = nodes[0]!.querySelector('[data-testid="arrow-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "5");
+    fireEvent.click(nodes[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("arrow-5");
+  });
+});

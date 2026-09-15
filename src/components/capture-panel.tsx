@@ -5,8 +5,8 @@
 // panning and zooming never move it. Exactly one saved pin can be selected
 // at a time:
 //
-// - A saved mark (a pin, a rectangle since D079, a circle since D082) is
-//   named by what it says
+// - A saved mark (a pin, a rectangle since D079, a circle since D082, an
+//   arrow since D083) is named by what it says
 //   and what it points at (markLabel, D078), shows its status, comment, and
 //   immutable context snapshot (or the explicit "No element"), and offers
 //   Edit comment and Delete. Both carry the mark's current revision; a
@@ -52,6 +52,7 @@ const MARK_DETAIL_LABELS: Record<AnnotationView["kind"], string> = {
   pin: "Position",
   rectangle: "Box",
   circle: "Circle",
+  arrow: "Arrow",
 };
 
 export function CapturePanel({
@@ -238,7 +239,9 @@ export function CapturePanel({
               ? "Drag the box's edge or badge to move it and its handles to resize it. Deleting a box retires its number forever."
               : selectedPin.kind === "circle"
                 ? "Drag the circle's edge or badge to move it and its corner handles to resize it. Deleting a circle retires its number forever."
-                : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
+                : selectedPin.kind === "arrow"
+                  ? "Drag the arrow's shaft or badge to move it and either end to re-aim it. Deleting an arrow retires its number forever."
+                  : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
           </p>
           {thread ? (
             <>
@@ -344,7 +347,7 @@ export function CapturePanel({
           <li>Escape cancels</li>
           <li>J and K, or the arrow keys, step through the marks</li>
           <li>N drops a pin at the center of the view</li>
-          <li>B arms the box tool, C the circle tool, for the next drag</li>
+          <li>B, C, or A arms the box, circle, or arrow tool for the next drag</li>
           <li>Shift-drag also draws a box</li>
         </ul>
       </details>

@@ -1,11 +1,12 @@
 // Server-only request schemas for annotation mutations (pins, rectangles
-// since D079, circles since D082). Strict: unknown fields, non-finite
-// coordinates, blank or over-limit bodies, and out-of-bounds idempotency keys
-// are rejected before any lookup or persistence, and nothing is echoed back
-// on failure.
+// since D079, circles since D082, arrows since D083). Strict: unknown fields,
+// non-finite coordinates, blank or over-limit bodies, and out-of-bounds
+// idempotency keys are rejected before any lookup or persistence, and nothing
+// is echoed back on failure.
 //
 // The geometry key names the kind: `tip` is a pin, `rect` is a rectangle,
-// `circle` is a circle. A body carrying more than one, or none, is invalid.
+// `circle` is a circle, `arrow` is an arrow. A body carrying more than one,
+// or none, is invalid.
 // Capture-bound checks (inside the document, at least the minimum size)
 // happen in the store, which is the only place the capture's dimensions are
 // known.
@@ -50,6 +51,16 @@ export const circleSchema = z.strictObject({
 });
 
 /**
+ * An arrow's two endpoints in screenshot-natural CSS pixels (D083): the tail
+ * at `start` and the head at `end`. The shape is checked here; the minimum
+ * length and the capture bounds are checked in the store.
+ */
+export const arrowSchema = z.strictObject({
+  start: z.strictObject({ x: finiteNumber, y: finiteNumber }),
+  end: z.strictObject({ x: finiteNumber, y: finiteNumber }),
+});
+
+/**
  * The explicit context decision every create must carry: the capture-local
  * id of one manifest element, or null for "No element". The key is required
  * — an undecided draft cannot save — and the server derives the snapshot
@@ -66,8 +77,8 @@ const idempotencyKeySchema = z
 
 /**
  * POST /api/captures/[captureId]/annotations body: one geometry (a pin tip,
- * a rectangle, or a circle), one bounded comment, one explicit context
- * decision, one intent key.
+ * a rectangle, a circle, or an arrow), one bounded comment, one explicit
+ * context decision, one intent key.
  */
 export const createAnnotationBodySchema = z.union([
   z.strictObject({
@@ -88,6 +99,12 @@ export const createAnnotationBodySchema = z.union([
     elementId: elementDecisionSchema,
     idempotencyKey: idempotencyKeySchema,
   }),
+  z.strictObject({
+    arrow: arrowSchema,
+    body: bodySchema,
+    elementId: elementDecisionSchema,
+    idempotencyKey: idempotencyKeySchema,
+  }),
 ]);
 
 export type CreateAnnotationBody = z.infer<typeof createAnnotationBodySchema>;
@@ -98,7 +115,8 @@ const expectedRevisionSchema = z.number().int().positive();
 /**
  * PATCH .../annotations/[annotationId] body: new geometry (a moved tip for a
  * pin, a moved or resized box for a rectangle, a moved or resized bounding
- * square for a circle), a new original body, or both — always with the
+ * square for a circle, moved endpoints for an arrow), a new original body,
+ * or both — always with the
  * revision the write is based on. At most one geometry key may appear, and
  * it must match the annotation's kind; the store rejects a mismatch.
  */
@@ -107,6 +125,7 @@ export const updateAnnotationBodySchema = z
     tip: pinTipSchema.optional(),
     rect: rectangleSchema.optional(),
     circle: circleSchema.optional(),
+    arrow: arrowSchema.optional(),
     body: bodySchema.optional(),
     expectedRevision: expectedRevisionSchema,
   })
@@ -115,12 +134,14 @@ export const updateAnnotationBodySchema = z
       value.tip !== undefined ||
       value.rect !== undefined ||
       value.circle !== undefined ||
+      value.arrow !== undefined ||
       value.body !== undefined,
   )
   .refine(
     (value) =>
-      [value.tip, value.rect, value.circle].filter((geometry) => geometry !== undefined).length <=
-      1,
+      [value.tip, value.rect, value.circle, value.arrow].filter(
+        (geometry) => geometry !== undefined,
+      ).length <= 1,
   );
 
 export type UpdateAnnotationBody = z.infer<typeof updateAnnotationBodySchema>;
