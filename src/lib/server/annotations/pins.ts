@@ -1,10 +1,11 @@
-// Server-only annotation store for pins and rectangles (VAL-PIN-001,
-// VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009, VAL-CANVAS-001,
-// VAL-CANVAS-003, VAL-CANVAS-004, D079).
+// Server-only annotation store for pins, rectangles, and circles
+// (VAL-PIN-001, VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009,
+// VAL-CANVAS-001, VAL-CANVAS-003, VAL-CANVAS-004, D079, D082).
 //
 // The annotation is the canonical domain record: its geometry is stored as
 // exact screenshot-natural CSS pixels in geometry_json — a tip for a pin, a
-// box for a rectangle — bound to one immutable ready capture. Numbers are
+// box for a rectangle, a bounding square for a circle — bound to one
+// immutable ready capture. Numbers are
 // server-determined and monotonically increasing per capture across both
 // kinds: the next number is derived from every row the capture has —
 // including tombstoned ones — inside the same transaction as the insert, so
@@ -77,10 +78,21 @@ export interface RectangleGeometry {
   height: number;
 }
 
+/**
+ * A circle's bounding square in screenshot-natural CSS pixels (D082): one
+ * corner, and the one size that is both its width and its height.
+ */
+export interface CircleGeometry {
+  x: number;
+  y: number;
+  size: number;
+}
+
 /** The geometry of one annotation, named by kind. */
 export type AnnotationGeometry =
   | { kind: "pin"; tip: PinTip }
-  | { kind: "rectangle"; rect: RectangleGeometry };
+  | { kind: "rectangle"; rect: RectangleGeometry }
+  | { kind: "circle"; circle: CircleGeometry };
 
 interface AnnotationRecordBase {
   id: string;
@@ -109,7 +121,16 @@ export interface RectangleAnnotationRecord extends AnnotationRecordBase {
   rect: RectangleGeometry;
 }
 
-export type AnnotationRecord = PinAnnotationRecord | RectangleAnnotationRecord;
+/** The canonical domain view of one persisted circle (D082). */
+export interface CircleAnnotationRecord extends AnnotationRecordBase {
+  kind: "circle";
+  circle: CircleGeometry;
+}
+
+export type AnnotationRecord =
+  | PinAnnotationRecord
+  | RectangleAnnotationRecord
+  | CircleAnnotationRecord;
 
 export type ListPinsResult =
   | { ok: true; annotations: AnnotationRecord[] }
@@ -123,6 +144,7 @@ export interface CreatePinInput {
   captureId: string;
   tip?: PinTip;
   rect?: RectangleGeometry;
+  circle?: CircleGeometry;
   body: string;
   /** Explicit context decision: a manifest element id, or null = No element. */
   elementId: string | null;
@@ -142,6 +164,8 @@ export interface UpdatePinInput {
   tip?: PinTip;
   /** A moved or resized box (rectangles only). */
   rect?: RectangleGeometry;
+  /** A moved or resized bounding square (circles only). */
+  circle?: CircleGeometry;
   /** A new original body. */
   body?: string;
 }
@@ -184,24 +208,33 @@ function annotatable(capture: CaptureRow | undefined): capture is CaptureRow {
   );
 }
 
-/** The geometry a create or update names, or null when it names none or both. */
+/**
+ * The geometry a create or update names, or null when it names none or more
+ * than one. Exactly one key may be present, and that key is the kind.
+ */
 export function geometryOf(input: {
   tip?: PinTip;
   rect?: RectangleGeometry;
+  circle?: CircleGeometry;
 }): AnnotationGeometry | null {
-  if (input.tip !== undefined && input.rect === undefined) {
-    return { kind: "pin", tip: { x: input.tip.x, y: input.tip.y } };
-  }
-  if (input.rect !== undefined && input.tip === undefined) {
+  const named = [input.tip, input.rect, input.circle].filter(
+    (geometry) => geometry !== undefined,
+  ).length;
+  if (named !== 1) return null;
+  if (input.tip !== undefined) return { kind: "pin", tip: { x: input.tip.x, y: input.tip.y } };
+  if (input.rect !== undefined) {
     const { x, y, width, height } = input.rect;
     return { kind: "rectangle", rect: { x, y, width, height } };
   }
-  return null;
+  const { x, y, size } = input.circle!;
+  return { kind: "circle", circle: { x, y, size } };
 }
 
-/** What geometry_json holds for one geometry: the tip or the box itself. */
+/** What geometry_json holds for one geometry: the tip, the box, or the square. */
 function geometryJson(geometry: AnnotationGeometry): string {
-  return JSON.stringify(geometry.kind === "pin" ? geometry.tip : geometry.rect);
+  if (geometry.kind === "pin") return JSON.stringify(geometry.tip);
+  if (geometry.kind === "rectangle") return JSON.stringify(geometry.rect);
+  return JSON.stringify(geometry.circle);
 }
 
 /** The domain record for one annotation row, with the viewer's unread count. */
@@ -221,6 +254,9 @@ export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): 
   };
   if (row.kind === "rectangle") {
     return { ...base, kind: "rectangle", rect: JSON.parse(row.geometryJson) as RectangleGeometry };
+  }
+  if (row.kind === "circle") {
+    return { ...base, kind: "circle", circle: JSON.parse(row.geometryJson) as CircleGeometry };
   }
   return { ...base, kind: "pin", tip: JSON.parse(row.geometryJson) as PinTip };
 }
@@ -274,11 +310,28 @@ function rectWithinCapture(rect: RectangleGeometry, capture: CaptureRow): boolea
   );
 }
 
+/**
+ * True when the bounding square is finite, at least MIN_SHAPE_SIZE_PX, and
+ * entirely inside the capture's document (inclusive edges). A circle is a
+ * square-constrained region (D082), so one size governs both dimensions.
+ */
+function circleWithinCapture(circle: CircleGeometry, capture: CaptureRow): boolean {
+  const values = [circle.x, circle.y, circle.size];
+  if (!values.every((value) => Number.isFinite(value))) return false;
+  return (
+    circle.size >= MIN_SHAPE_SIZE_PX &&
+    circle.x >= 0 &&
+    circle.y >= 0 &&
+    circle.x + circle.size <= (capture.documentWidth ?? -1) &&
+    circle.y + circle.size <= (capture.documentHeight ?? -1)
+  );
+}
+
 /** Geometry validation by kind against one ready capture. */
 function geometryWithinCapture(geometry: AnnotationGeometry, capture: CaptureRow): boolean {
-  return geometry.kind === "pin"
-    ? tipWithinCapture(geometry.tip, capture)
-    : rectWithinCapture(geometry.rect, capture);
+  if (geometry.kind === "pin") return tipWithinCapture(geometry.tip, capture);
+  if (geometry.kind === "rectangle") return rectWithinCapture(geometry.rect, capture);
+  return circleWithinCapture(geometry.circle, capture);
 }
 
 /** True when the original body is bounded directional plain text. */
@@ -320,10 +373,12 @@ function createDigest(input: CreatePinInput, geometry: AnnotationGeometry | null
       JSON.stringify({
         captureId: input.captureId,
         // A pin digest keeps the shape it always had, so keys recorded
-        // before rectangles existed still replay.
+        // before the other kinds existed still replay.
         ...(geometry?.kind === "rectangle"
           ? { kind: "rectangle", rect: geometry.rect }
-          : { tip: geometry?.tip ?? null }),
+          : geometry?.kind === "circle"
+            ? { kind: "circle", circle: geometry.circle }
+            : { tip: geometry?.kind === "pin" ? geometry.tip : null }),
         body: input.body,
         elementId: input.elementId,
       }),
@@ -447,7 +502,9 @@ export async function createPinAtomically(
     const annotation: AnnotationRecord =
       geometry.kind === "pin"
         ? { ...base, kind: "pin", tip: geometry.tip }
-        : { ...base, kind: "rectangle", rect: geometry.rect };
+        : geometry.kind === "rectangle"
+          ? { ...base, kind: "rectangle", rect: geometry.rect }
+          : { ...base, kind: "circle", circle: geometry.circle };
     try {
       await db.transaction(async (tx) => {
         // The idempotency row goes first: its primary key is what makes two
@@ -554,7 +611,8 @@ export async function updatePin(
   const capture = await loadCapture(db, pin.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
 
-  const wantsGeometry = input.tip !== undefined || input.rect !== undefined;
+  const wantsGeometry =
+    input.tip !== undefined || input.rect !== undefined || input.circle !== undefined;
   const geometry = wantsGeometry ? geometryOf(input) : null;
   if (wantsGeometry) {
     // Exactly one geometry, of the annotation's own kind, inside the frame.

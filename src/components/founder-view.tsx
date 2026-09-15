@@ -12,7 +12,7 @@
 // asset, and the per-pin thread.
 //
 // There is no editing surface here at all: the canvas mounts read-only (no
-// drafts, no drags, no box tool), the panel offers no edit, move, or delete
+// drafts, no drags, no mark tools), the panel offers no edit, move, or delete
 // control, and the only writes are the founder's own reply and resolve. A
 // denied exchange or a session that stopped verifying (rotation, revocation)
 // is one generic message with no project data.
@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import type { AnnotationView, PinListResponse, PinStatusResponse } from "../lib/annotations";
-import { markKindNoun, markLabel, pinsOf, rectanglesOf } from "../lib/canvas/marks";
+import { circlesOf, markKindNoun, markLabel, pinsOf, rectanglesOf } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS, pinFeedbackPath } from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
@@ -72,7 +72,8 @@ function firstReadable(project: WorkspaceProject): Selection | null {
 export function FounderView({ publicId }: { publicId: string }) {
   const [phase, setPhase] = useState<Phase>({ status: "exchanging" });
   const [selection, setSelection] = useState<Selection | null>(null);
-  // Every live mark on the capture: pins and rectangles (D079) alike.
+  // Every live mark on the capture: pins, rectangles (D079), and circles
+  // (D082) alike.
   const [pinsState, setPinsState] = useState<{
     captureId: string;
     status: "loading" | "ready" | "failed";
@@ -523,6 +524,7 @@ export function FounderView({ publicId }: { publicId: string }) {
                   height={attempt.documentHeight!}
                   pins={pinsOf(activePins)}
                   rectangles={rectanglesOf(activePins)}
+                  circles={circlesOf(activePins)}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
                   savedCamera={cameras.current.get(attempt.id) ?? null}

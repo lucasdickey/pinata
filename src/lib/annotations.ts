@@ -2,10 +2,11 @@
 // importable from browser code: it carries types only, never server
 // machinery, credentials, or store handles.
 //
-// Two kinds exist today. A pin carries one natural-pixel tip; a rectangle
-// (D079) carries a natural-pixel box. Both share one numbering sequence per
-// capture, one comment, one context snapshot, one revision, one lifecycle
-// status, and one thread.
+// Three kinds exist today. A pin carries one natural-pixel tip; a rectangle
+// (D079) carries a natural-pixel box; a circle (D082) carries a natural-pixel
+// bounding square. They share one numbering sequence per capture, one
+// comment, one context snapshot, one revision, one lifecycle status, and one
+// thread.
 
 /** A pin tip in screenshot-natural CSS pixels. */
 export interface PinTipView {
@@ -23,6 +24,18 @@ export interface RectangleGeometryView {
   y: number;
   width: number;
   height: number;
+}
+
+/**
+ * A circle's bounding square in screenshot-natural CSS pixels (D082): its
+ * top-left corner and the one `size` that is both its width and its height.
+ * Always inside the capture's document, and at least MIN_SHAPE_SIZE_PX (the
+ * server rejects anything else). The drawn ellipse is inscribed in it.
+ */
+export interface CircleGeometryView {
+  x: number;
+  y: number;
+  size: number;
 }
 
 /**
@@ -100,8 +113,30 @@ export interface RectangleAnnotationView {
   createdAt: number;
 }
 
+/**
+ * The API view of one persisted circle (D082). Everything but the geometry
+ * is the pin's: same numbering sequence, comment, snapshot, revision,
+ * status, unread count, and thread.
+ */
+export interface CircleAnnotationView {
+  id: string;
+  captureId: string;
+  kind: "circle";
+  number: number;
+  circle: CircleGeometryView;
+  body: string;
+  elementSnapshot: PinElementSnapshot | null;
+  revision: number;
+  status: PinStatus;
+  unreadReplies: number;
+  createdAt: number;
+}
+
 /** Any persisted annotation the routes list or return. */
-export type AnnotationView = PinAnnotationView | RectangleAnnotationView;
+export type AnnotationView =
+  | PinAnnotationView
+  | RectangleAnnotationView
+  | CircleAnnotationView;
 
 /**
  * Feedback counts for one capture or one project, for the requesting role
@@ -159,8 +194,9 @@ export interface PinSeenResponse {
 
 /**
  * GET /api/captures/[captureId]/context response, for `?x=&y=` (a pin tip:
- * the point ranking) or `?x=&y=&width=&height=` (a rectangle: the overlap
- * ranking, D079): the deterministically ranked, capped nearby candidates
+ * the point ranking) or `?x=&y=&width=&height=` (a rectangle, or a circle's
+ * bounding square: the overlap ranking, D079/D082): the deterministically
+ * ranked, capped nearby candidates
  * from the capture's own persisted manifest. The client submits only a
  * chosen candidate's capture-local id (or null for "No element"); the server
  * re-derives the snapshot from the manifest.
@@ -183,14 +219,15 @@ export interface ProjectAnnotationLocation {
 
 /**
  * One live annotation as the project-scoped read returns it: the per-capture
- * view (a pin or a rectangle, D079) plus where the capture sits in the
+ * view (a pin, a rectangle, or a circle) plus where the capture sits in the
  * project, so the workspace can order marks across planes (page, then
  * device, then number) and the table can name the page and device beside a
  * number that is only unique per capture.
  */
 export type ProjectPinAnnotationView =
   | (PinAnnotationView & ProjectAnnotationLocation)
-  | (RectangleAnnotationView & ProjectAnnotationLocation);
+  | (RectangleAnnotationView & ProjectAnnotationLocation)
+  | (CircleAnnotationView & ProjectAnnotationLocation);
 
 /** GET /api/projects/[publicId]/annotations response. */
 export interface ProjectPinListResponse {

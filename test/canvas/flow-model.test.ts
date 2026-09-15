@@ -10,9 +10,14 @@ import { MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
 import {
   CAPTURE_FRAME_TYPE,
   captureFrameNodeId,
+  CIRCLE_TYPE,
+  circleNode,
   CONTEXT_PREVIEW_TYPE,
   contextPreviewNode,
   contextPreviewNodeId,
+  DRAFT_CIRCLE_TYPE,
+  draftCircleNode,
+  draftCircleNodeId,
   DRAFT_PIN_TYPE,
   draftPinNode,
   draftPinNodeId,
@@ -25,6 +30,7 @@ import {
   pinNode,
   RECTANGLE_TYPE,
   rectangleNode,
+  type CanvasCircle,
   type CanvasPin,
   type CanvasRectangle,
   type CaptureFrameDomain,
@@ -309,6 +315,70 @@ describe("context preview node", () => {
   });
 });
 
+describe("circle nodes (D082)", () => {
+  const circle: CanvasCircle = {
+    id: "ann-uuid-circle",
+    number: 5,
+    circle: { x: 100.5, y: 200.25, size: 300 },
+    selected: false,
+  };
+
+  test("position and size are exactly the persisted bounding square, parented to the frame", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = circleNode(domain, circle, zoom);
+      expect(node.type).toBe(CIRCLE_TYPE);
+      expect(node.id).toBe("ann-uuid-circle");
+      expect(node.parentId).toBe(captureFrameNodeId(domain.captureId));
+      expect(node.position).toEqual({ x: 100.5, y: 200.25 });
+      expect(node.width).toBe(300);
+      expect(node.height).toBe(300);
+      expect(node.data.shape).toBe("circle");
+      expect(node.data.rectWidth).toBe(node.data.rectHeight);
+      expect(node.data.handleSize * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+    }
+  });
+
+  test("offers the four corner handles only, and none at all read-only", () => {
+    expect([...circleNode(domain, circle, 1).data.handleNames]).toEqual(["nw", "ne", "se", "sw"]);
+    const readOnly = circleNode(domain, circle, 1, { readOnly: true });
+    expect(readOnly.draggable).toBe(false);
+    expect(readOnly.data.handles).toBe(false);
+    // The wrapper lets the pointer through; the stroke and badge opt back in.
+    expect(readOnly.style).toEqual({ pointerEvents: "none" });
+  });
+
+  test("is named Circle by comment and element, never by coordinates (D078)", () => {
+    expect(circleNode(domain, circle, 1).ariaLabel).toBe("Circle 5");
+    expect(
+      circleNode(domain, { ...circle, body: "Draw the eye here" }, 1).ariaLabel,
+    ).toBe("Circle 5 · “Draw the eye here”");
+    expect(draftCircleNode(domain, circle.circle, 1).ariaLabel).toBe(
+      "New circle, not saved yet",
+    );
+  });
+
+  test("the draft circle is namespaced and loses its handles while being drawn", () => {
+    const draft = draftCircleNode(domain, { x: 10, y: 20, size: 30 }, 2);
+    expect(draft.type).toBe(DRAFT_CIRCLE_TYPE);
+    expect(draft.id).toBe(draftCircleNodeId(domain.captureId));
+    expect(draft.id).toBe("draft-circle:cap-root-desktop-v2");
+    expect(draft.width).toBe(30);
+    expect(draft.height).toBe(30);
+    expect(draft.data.number).toBeNull();
+    const drawing = draftCircleNode(domain, { x: 10, y: 20, size: 30 }, 2, { drawing: true });
+    expect(drawing.draggable).toBe(false);
+    expect(drawing.data.handles).toBe(false);
+  });
+
+  test("rejects a non-finite or negative square and a bad zoom", () => {
+    expect(() => circleNode(domain, { ...circle, circle: { x: 0, y: 0, size: -1 } }, 1)).toThrow(
+      RangeError,
+    );
+    expect(() => draftCircleNode(domain, { x: Number.NaN, y: 0, size: 10 }, 1)).toThrow(RangeError);
+    expect(() => circleNode(domain, circle, 0)).toThrow(RangeError);
+  });
+});
+
 describe("rectangle nodes (D079)", () => {
   const rectangle: CanvasRectangle = {
     id: "ann-uuid-box",
@@ -419,6 +489,34 @@ describe("rectangle nodes (D079)", () => {
     expect(nodesForCapture(domain, pins, { x: 1, y: 1 }, 1).map((node) => node.type)).toEqual(
       pinDraft.map((node) => node.type),
     );
+  });
+
+  test("nodesForPlane interleaves circles into the same number order (D082)", () => {
+    const circle: CanvasCircle = {
+      id: "ann-uuid-circle",
+      number: 2,
+      circle: { x: 10, y: 20, size: 60 },
+      selected: false,
+    };
+    const nodes = nodesForPlane(domain, {
+      pins,
+      rectangles: [{ ...rectangle, number: 4 }],
+      circles: [circle],
+      zoom: 1,
+    });
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      CIRCLE_TYPE,
+      PIN_TYPE,
+      RECTANGLE_TYPE,
+    ]);
+    // A circle draft renders last, like every other draft.
+    const drafted = nodesForPlane(domain, {
+      circles: [circle],
+      draft: { kind: "circle", circle: { x: 0, y: 0, size: 8 } },
+    });
+    expect(drafted.at(-1)!.type).toBe(DRAFT_CIRCLE_TYPE);
   });
 
   test("rejects non-finite or negative boxes and bad zooms rather than rendering a corrupt mark", () => {

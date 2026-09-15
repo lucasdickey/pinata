@@ -6,11 +6,13 @@
 
 import { describe, expect, test } from "vitest";
 import type {
+  CircleAnnotationView,
   PinAnnotationView,
   PinElementSnapshot,
   RectangleAnnotationView,
 } from "../src/lib/annotations";
 import {
+  circleBoundsLine,
   formatPinsAsMarkdown,
   formatProjectPinsAsMarkdown,
   markHeading,
@@ -297,5 +299,42 @@ describe("rectangles in the project export (D077 + D079)", () => {
     expect(markdown).toContain("### Box 2 · “This whole card needs more air.”");
     expect(markdown).toContain("- Box: 120, 641 · 300 × 181 px natural");
     expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
+  });
+});
+
+describe("circles in the export (D082)", () => {
+  const round: CircleAnnotationView = {
+    id: "a4",
+    captureId: "cap-1",
+    kind: "circle",
+    number: 4,
+    circle: { x: 120.4, y: 640.6, size: 300.2 },
+    body: "Draw the eye to this badge.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 3,
+  };
+
+  test("the position is the center and the width, and the heading is the mark's name", () => {
+    expect(pinPosition(round)).toBe("271, 791 · 300 wide");
+    expect(markHeading(round)).toBe("## Circle 4 · “Draw the eye to this badge.”");
+    expect(circleBoundsLine(round)).toBe("- Circle: 271, 791 · 300 wide px natural");
+    expect(circleBoundsLine(pin())).toBeNull();
+    // A circle has a circle line and no position or box line.
+    expect(pinPositionLine(round)).toBeNull();
+    expect(rectangleBoundsLine(round)).toBeNull();
+  });
+
+  test("a circle block carries its kind, status, circle line, element, and comment in order", () => {
+    const markdown = formatPinsAsMarkdown([pin(), round], context);
+    expect(markdown).toContain("1 pin · 1 circle");
+    const block = markdown.slice(markdown.indexOf("## Circle 4"));
+    expect(block).not.toContain("- Position:");
+    expect(block).not.toContain("- Box:");
+    expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Circle:"));
+    expect(block.indexOf("- Circle:")).toBeLessThan(block.indexOf("- Element: No element"));
+    expect(block).toContain("> Draw the eye to this badge.");
   });
 });

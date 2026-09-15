@@ -168,6 +168,34 @@ describe("rectangles in the panel (D079)", () => {
     );
     expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
   });
+
+  test("a selected circle is named Circle, keeps its center and width behind Details, and has circle controls", () => {
+    const circle = {
+      id: "circle-5",
+      captureId: "cap-1",
+      kind: "circle" as const,
+      number: 5,
+      circle: { x: 100.4, y: 200.6, size: 300.2 },
+      body: "Draw the eye to this badge.",
+      elementSnapshot: null,
+      revision: 1,
+      status: "open" as const,
+      unreadReplies: 0,
+      createdAt: 3,
+    };
+    render(<CapturePanel {...panelProps({ pins: [pin, circle], selectedPinId: "circle-5" })} />);
+    const name = screen.getByTestId("panel-mark-name");
+    expect(name).toHaveAttribute("data-kind", "circle");
+    expect(name).toHaveTextContent("Circle 5 · “Draw the eye to this badge.”");
+    const details = screen.getByTestId("panel-details");
+    expect(within(details).getByText("Circle")).toBeInTheDocument();
+    const position = within(details).getByTestId("panel-position");
+    expect(position).toHaveAttribute("data-kind", "circle");
+    expect(position).toHaveTextContent("251, 351 · 300 wide px");
+    expect(screen.getByRole("button", { name: "Delete circle" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete box" })).toBeNull();
+    expect(screen.getByText(/Drag the circle's edge or badge/)).toBeInTheDocument();
+  });
 });
 
 // The internals behind one disclosure (D078): closed by default, a real
@@ -232,7 +260,8 @@ describe("Details disclosure (D078)", () => {
       "Escape cancels",
       "J and K, or the arrow keys, step through the marks",
       "N drops a pin at the center of the view",
-      "Shift-drag, or the Box tool, draws a box",
+      "B arms the box tool, C the circle tool, for the next drag",
+      "Shift-drag also draws a box",
     ]);
     // With nothing selected there is no position row.
     expect(within(details).queryByTestId("panel-position")).toBeNull();

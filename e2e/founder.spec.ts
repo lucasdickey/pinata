@@ -328,7 +328,10 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     "Delete box",
     "Save pin",
     "Save box",
+    "Delete circle",
+    "Save circle",
     "Draw a box",
+    "Draw a circle",
     "Share with founder",
   ]) {
     await expect(founder.getByRole("button", { name })).toHaveCount(0);

@@ -209,26 +209,40 @@ coordinate plane rendered at natural screenshot dimensions:
   drag pans;
 - rectangles are child nodes placed at exactly their persisted box
   (`{x, y, width, height}` in natural pixels, `geometry_version` 1). A drag
-  with Shift held, or the next drag after the "Draw a box" toggle in the
-  camera toolbar, draws one from press to release; a saved box moves by its
-  stroke or badge and resizes by eight handles, each gesture committing one
-  revisioned write. Boxes are clamped to the frame and never smaller than
-  `MIN_SHAPE_SIZE_PX`; the server rejects anything else. Pins and boxes
-  share one number sequence per capture, and the founder's read-only plane
-  renders boxes with no handles and no drag;
-- circles (resizable child nodes) and arrows (straight edges between two
-  draggable endpoint nodes) are allowed by the schema and not built yet;
+  with Shift held, or the next drag after the Box tool is armed, draws one
+  from press to release; a saved box moves by its stroke or badge and
+  resizes by eight handles, each gesture committing one revisioned write.
+  Boxes are clamped to the frame and never smaller than `MIN_SHAPE_SIZE_PX`;
+  the server rejects anything else;
+- circles are the same child node under a square constraint
+  (`{x, y, size}` in natural pixels, `geometry_version` 1, `size` both the
+  width and the height of the bounding square): the renderer is an ellipse
+  inscribed in that square, the drag's larger dimension sets the size so an
+  off-square drag still yields a circle, and one drag governs both
+  dimensions, so a circle offers its four corner handles and no edge
+  handles. Everything else is the rectangle's: the badge at the bounding
+  square's top-left, a pointer-transparent interior so a click inside still
+  drops a pin, move by the stroke, one revisioned write per gesture, and the
+  same minimum and frame clamp;
+- every kind shares one number sequence per capture, and the founder's
+  read-only plane renders them all with no handles, no drag, and no tools;
+- arrows (straight edges between two draggable endpoint nodes) are allowed
+  by the schema and not built yet;
 - desktop and mobile planes are fully independent;
 - pan, zoom, and browser resizing never change persisted geometry.
+
+The mark tools sit in one group under the camera controls: Box and Circle,
+each arming exactly the next drag and disarming after it or on Escape, with
+`B` and `C` as their keys. A tool is a one-gesture arming, never a mode.
 
 When the editor places a mark, nearby manifest elements are ranked and the
 top result is pre-selected; the editor keeps or changes that choice, or picks
 "no element", and the chosen snapshot is stored with the annotation. For a pin
 the ranking is by containment of the tip, distance, area, depth, and semantic
-value. For a rectangle it is by overlap with the box: the share of each
-element inside the box first (an enclosed element beats a partly covered
-one), then the overlap area (the enclosed card beats its caption), then the
-same tie-breakers.
+value. For a region — a rectangle's box, or a circle's bounding square — it is
+by overlap: the share of each element inside the region first (an enclosed
+element beats a partly covered one), then the overlap area (the enclosed card
+beats its caption), then the same tie-breakers.
 
 ## Security boundaries
 

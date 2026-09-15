@@ -344,6 +344,17 @@ describe("the box draft (D079)", () => {
     expect(context()).toHaveAttribute("data-candidates-state", "ready");
   });
 
+  test("a circle draft names the circle in the title and the save button (D082)", async () => {
+    const user = userEvent.setup();
+    render(<PinComposer {...props({ draftKind: "circle" })} />);
+    expect(screen.getByText(/^New circle/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save circle" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Save pin" })).toBeNull();
+    // A circle is a region, so its candidates are ranked by overlap too.
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByText("Nearby elements, most overlap first")).toBeInTheDocument();
+  });
+
   test("defaults to a pin when no kind is given", () => {
     render(<PinComposer {...props()} />);
     expect(screen.getByText(/^New pin/)).toBeInTheDocument();

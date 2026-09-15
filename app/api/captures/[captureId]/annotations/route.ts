@@ -1,15 +1,15 @@
-// /api/captures/[captureId]/annotations — list and create annotations (pins
-// and rectangles, D079) on one immutable ready capture (VAL-PIN-001,
-// VAL-CANVAS-001).
+// /api/captures/[captureId]/annotations — list and create annotations (pins,
+// rectangles since D079, circles since D082) on one immutable ready capture
+// (VAL-PIN-001, VAL-CANVAS-001).
 //
 // Annotations bind to exactly one capture's coordinate plane: the route
 // names the capture, and the store refuses pending/failed/missing captures
 // with the same generic 404, so non-ready attempts are never annotatable.
 // Create is durable-idempotent and assigns the server-side monotonic
-// per-capture number inside the transaction — one sequence shared by both
-// kinds; cancelled or failed drafts consume no number, and deleted numbers
+// per-capture number inside the transaction — one sequence shared by every
+// kind; cancelled or failed drafts consume no number, and deleted numbers
 // are never reused. The body's geometry key names the kind: `tip` creates a
-// pin, `rect` creates a rectangle.
+// pin, `rect` a rectangle, `circle` a circle.
 //
 // Boundary order matches every other mutation: same-origin Origin, session +
 // CSRF, content type and hard byte cap, strict schema, then the durable
@@ -75,8 +75,8 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
 }
 
 /**
- * Create one annotation: one geometry (tip or rect), one bounded comment,
- * one explicit context decision, one idempotency key.
+ * Create one annotation: one geometry (tip, rect, or circle), one bounded
+ * comment, one explicit context decision, one idempotency key.
  */
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
   if (!hasSameOrigin(request)) return jsonError(403, ERRORS.rejected);
@@ -103,7 +103,11 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   try {
     result = await createPinAtomically(db, {
       captureId,
-      ...("tip" in parsed.data ? { tip: parsed.data.tip } : { rect: parsed.data.rect }),
+      ...("tip" in parsed.data
+        ? { tip: parsed.data.tip }
+        : "rect" in parsed.data
+          ? { rect: parsed.data.rect }
+          : { circle: parsed.data.circle }),
       body: parsed.data.body,
       elementId: parsed.data.elementId,
       idempotencyKey: parsed.data.idempotencyKey,

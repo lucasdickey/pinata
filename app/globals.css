@@ -924,13 +924,14 @@ pre code {
   border-radius: 2px;
 }
 
-/* Rectangle marks (D079). The node wrapper is pointer-transparent (set
-   inline by the adapter) so a click inside a box still lands on the
-   screenshot; the stroke, the badge, and the handles take the pointer. The
-   svg has no viewBox, so its user units are the node's natural pixels and
-   the visible stroke sits centered on the exact persisted edge. Every
-   width here is set inline from the zoom so the chrome keeps its screen
-   size while the box stays exact. */
+/* Region marks: rectangles (D079) and circles (D082). The node wrapper is
+   pointer-transparent (set inline by the adapter) so a click inside a region
+   still lands on the screenshot; the stroke, the badge, and the handles take
+   the pointer. The svg has no viewBox, so its user units are the node's
+   natural pixels and the visible stroke sits centered on the exact persisted
+   edge; a circle is the ellipse inscribed in that same box. Every width here
+   is set inline from the zoom so the chrome keeps its screen size while the
+   geometry stays exact. */
 .mark-rectangle {
   position: absolute;
   inset: 0;
@@ -980,7 +981,15 @@ pre code {
 .mark-rectangle[data-selected="true"] .mark-rectangle-handle-dot {
   border-color: var(--ink);
 }
-/* The box toggle: pressed while it waits for the next drag. */
+/* The mark tools (D079, D082): one row of toggles, each pressed while it
+   waits for the next drag. */
+.capture-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+  margin: 0 0 0.5rem;
+}
 .capture-draw-toggle[aria-pressed="true"] {
   border-color: var(--accent);
   font-weight: 700;

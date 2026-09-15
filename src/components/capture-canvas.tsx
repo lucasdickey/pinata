@@ -24,26 +24,29 @@
 // and re-positioned from the draft's projected screen point on every pan
 // and zoom, so it never leaves the visible frame.
 //
-// Rectangles (D079) share the plane and the numbering. A press that moves
-// while Shift is held, or after the "Draw a box" toggle armed the next
-// drag, draws a box from press to release in natural pixels, clamped to
-// the frame; a release below MIN_SHAPE_SIZE_PX in either dimension draws
-// nothing. The drawn box is the one draft (the same composer opens at its
-// top-right corner, with candidates ranked by overlap), draggable and
-// resizable by eight handles before it is saved. Saved boxes drag by their
-// stroke or badge and resize by their handles; each gesture commits exactly
-// one revisioned geometry write at its end (onMoveRectangle), clamped to
-// the frame and never below the minimum size. A click on a box's stroke or
-// badge selects it; a click inside a box lands on the screenshot and drops a
-// pin as usual. The founder's read-only plane renders boxes with no handles
-// and no drag.
+// Region marks share the plane and the numbering: rectangles (D079) and
+// circles (D082). A press that moves while Shift is held, or after one of
+// the mark tools armed the next drag, draws a region from press to release
+// in natural pixels, clamped to the frame; a release below MIN_SHAPE_SIZE_PX
+// draws nothing. A circle is square-constrained: the drag's larger dimension
+// sets its size, and it renders as an ellipse inscribed in that bounding
+// square. The drawn region is the one draft (the same composer opens at its
+// top-right corner, with candidates ranked by overlap with the bounding
+// box), draggable and resizable before it is saved. Saved regions drag by
+// their stroke or badge and resize by their handles — eight for a box, the
+// four corners for a circle; each gesture commits exactly one revisioned
+// geometry write at its end (onMoveRectangle / onMoveCircle), clamped to the
+// frame and never below the minimum size. A click on a region's stroke or
+// badge selects it; a click inside one lands on the screenshot and drops a
+// pin as usual. The founder's read-only plane renders regions with no
+// handles, no drag, and no tools.
 //
 // Keyboard, on the canvas region when focus is not in a text field: J or
 // ArrowDown selects the next saved mark, K or ArrowUp the previous, N drops
-// a draft pin at the viewport center (clamped to the frame). Escape cancels
-// a draw in progress, then disarms the box toggle, then clears the draft.
-// Inside the composer, Enter saves, Shift+Enter inserts a newline, Escape
-// cancels.
+// a draft pin at the viewport center (clamped to the frame), and B or C arms
+// the box or circle tool for the next drag. Escape cancels a draw in
+// progress, then disarms the armed tool, then clears the draft. Inside the
+// composer, Enter saves, Shift+Enter inserts a newline, Escape cancels.
 //
 // Camera state is local UI state only. The three named modes — entire
 // capture (the initial contain view), fit width, and natural size — come
@@ -103,26 +106,46 @@ import {
 } from "../lib/canvas/geometry";
 import {
   CAPTURE_FRAME_TYPE,
+  CIRCLE_TYPE,
   CONTEXT_PREVIEW_TYPE,
+  DRAFT_CIRCLE_TYPE,
   DRAFT_PIN_TYPE,
   DRAFT_RECTANGLE_TYPE,
   PIN_TYPE,
   RECTANGLE_TYPE,
+  draftCircleNodeId,
   draftPinNodeId,
   draftRectangleNodeId,
   nodesForPlane,
+  type CanvasCircle,
   type CanvasPin,
   type CanvasRectangle,
   type CaptureFrameDomain,
   type CaptureFrameNode,
+  type CircleNode,
   type ContextPreviewNode,
   type ContextRect,
+  type DraftCircleNode,
   type DraftPinNode,
   type DraftRectangleNode,
   type PinNode,
   type RectangleNode,
 } from "../lib/canvas/flow-model";
-import { markCenter, markKindNoun, type DraftMark } from "../lib/canvas/marks";
+import {
+  markCenter,
+  markExtent,
+  markKindNoun,
+  marksEqual,
+  type DraftMark,
+} from "../lib/canvas/marks";
+import {
+  circleFromCorners,
+  meetsMinimumCircleSize,
+  moveCircle,
+  resizeCircle,
+  type CircleResizeHandle,
+  type NaturalCircle,
+} from "../lib/canvas/circle";
 import { placePopover, popoverBounds, type ScreenSize } from "../lib/canvas/popover";
 import {
   handleAnchor,
@@ -130,13 +153,23 @@ import {
   meetsMinimumSize,
   moveRect,
   rectFromCorners,
-  rectsEqual,
   resizeRect,
-  RESIZE_HANDLES,
   type NaturalRect,
   type ResizeHandle,
 } from "../lib/canvas/rectangle";
 import { PinComposer, type PinComposerProps } from "./pin-composer";
+
+/**
+ * The mark tools (D079, D082): each arms exactly the next drag and disarms
+ * itself afterwards, so a tool is a one-gesture arming, never a mode you
+ * live in (D074). Shift-drag stays the pointer shortcut for a box.
+ */
+export const MARK_TOOLS = [
+  { id: "rectangle", label: "Draw a box", key: "b" },
+  { id: "circle", label: "Draw a circle", key: "c" },
+] as const;
+
+export type MarkTool = (typeof MARK_TOOLS)[number]["id"];
 
 /** The named camera modes; "entire" is the initial view of every capture. */
 export const CAMERA_MODES = [
@@ -246,68 +279,87 @@ function ContextPreview(_: NodeProps<ContextPreviewNode>) {
 }
 
 /**
- * What a rectangle's resize handle reports when pressed. The node
- * component cannot see the canvas state, so the canvas provides this
- * through context and owns the whole gesture (window pointer listeners,
- * the pure resize math, and the single commit at release).
+ * What a region's resize handle reports when pressed. The node component
+ * cannot see the canvas state, so the canvas provides this through context
+ * and owns the whole gesture (window pointer listeners, the pure resize
+ * math, and the single commit at release). The canvas looks the region's
+ * starting geometry up itself, so nothing geometric crosses this boundary.
  */
-interface RectangleGestures {
+interface RegionGestures {
   beginResize: (
-    target: { draft: true } | { draft: false; id: string; rect: NaturalRect },
-    handle: ResizeHandle,
+    target: { draft: true } | { draft: false; id: string },
+    handle: string,
     pointer: { x: number; y: number },
   ) => void;
 }
 
-const RectangleGestureContext = createContext<RectangleGestures | null>(null);
+const RegionGestureContext = createContext<RegionGestures | null>(null);
 
 /**
- * One rectangle, saved or draft (D079). The node wrapper is
- * pointer-transparent (see rectangleNode); the parts that take the pointer
- * are the stroke (a wide invisible grab stroke over the visible one, so
- * dragging the edge moves the box), the number badge at the top-left
- * corner, and — on an editable plane — the eight resize handles. The
- * handles carry React Flow's `nodrag` class so a press on one resizes
- * instead of starting a node drag. Every size is derived from the zoom so
- * the chrome stays the same on screen while the box stays exact.
+ * One region mark, saved or draft: a box (D079) or the ellipse inscribed in
+ * a circle's bounding square (D082). The node wrapper is pointer-transparent
+ * (see rectangleNode); the parts that take the pointer are the stroke (a
+ * wide invisible grab stroke over the visible one, so dragging the edge
+ * moves the mark), the number badge at the bounding box's top-left corner,
+ * and — on an editable plane — the resize handles the kind offers: eight for
+ * a box, the four corners for a circle, whose square constraint makes one
+ * drag govern both dimensions. The handles carry React Flow's `nodrag` class
+ * so a press on one resizes instead of starting a node drag. Every size is
+ * derived from the zoom so the chrome stays the same on screen while the
+ * geometry stays exact.
  */
-function RectangleMark({ data }: NodeProps<RectangleNode | DraftRectangleNode>) {
-  const gestures = useContext(RectangleGestureContext);
+function RegionMark({
+  data,
+}: NodeProps<RectangleNode | DraftRectangleNode | CircleNode | DraftCircleNode>) {
+  const gestures = useContext(RegionGestureContext);
   const dash = data.draft ? `${data.strokeWidth * 4} ${data.strokeWidth * 3}` : undefined;
+  const round = data.shape === "circle";
+  // One helper for both outlines: the grab stroke and the visible stroke
+  // differ only in class and width, and a circle swaps the rect for an
+  // ellipse inscribed in the very same box.
+  const outline = (className: string, testId: string | undefined, strokeWidth: number) =>
+    round ? (
+      <ellipse
+        className={className}
+        data-testid={testId}
+        cx="50%"
+        cy="50%"
+        rx="50%"
+        ry="50%"
+        strokeWidth={strokeWidth}
+        strokeDasharray={className.endsWith("stroke") ? dash : undefined}
+      />
+    ) : (
+      <rect
+        className={className}
+        data-testid={testId}
+        x={0}
+        y={0}
+        width="100%"
+        height="100%"
+        strokeWidth={strokeWidth}
+        strokeDasharray={className.endsWith("stroke") ? dash : undefined}
+      />
+    );
   return (
     <div
       className={`mark-rectangle${data.draft ? " mark-rectangle-draft" : ""}`}
-      data-testid={data.draft ? "draft-rectangle" : "rectangle"}
+      data-testid={data.draft ? `draft-${data.shape}` : data.shape}
+      data-shape={data.shape}
       data-mark-number={data.number ?? undefined}
       data-selected={data.selected ? "true" : undefined}
       data-drawing={data.drawing ? "true" : undefined}
     >
       <svg className="mark-rectangle-svg" aria-hidden="true" focusable="false">
-        {data.drawing ? null : (
-          <rect
-            className="mark-rectangle-grab"
-            data-testid="rectangle-edge"
-            x={0}
-            y={0}
-            width="100%"
-            height="100%"
-            strokeWidth={data.grabWidth}
-          />
-        )}
-        <rect
-          className="mark-rectangle-stroke"
-          x={0}
-          y={0}
-          width="100%"
-          height="100%"
-          strokeWidth={data.strokeWidth}
-          strokeDasharray={dash}
-        />
+        {data.drawing
+          ? null
+          : outline("mark-rectangle-grab", `${data.shape}-edge`, data.grabWidth)}
+        {outline("mark-rectangle-stroke", undefined, data.strokeWidth)}
       </svg>
       {data.drawing ? null : (
         <div
           className={`pin-badge ${data.draft ? "pin-badge-draft" : "pin-badge-saved"} mark-rectangle-badge`}
-          data-testid={data.draft ? "draft-rectangle-badge" : "rectangle-badge"}
+          data-testid={data.draft ? `draft-${data.shape}-badge` : `${data.shape}-badge`}
           data-mark-number={data.number ?? undefined}
           data-selected={data.selected ? "true" : undefined}
           style={{ left: 0, top: 0, width: data.badgeSize, height: data.badgeSize }}
@@ -328,13 +380,13 @@ function RectangleMark({ data }: NodeProps<RectangleNode | DraftRectangleNode>) 
         </div>
       )}
       {data.handles && gestures
-        ? RESIZE_HANDLES.map((handle) => {
-            const anchor = handleAnchor(handle);
+        ? data.handleNames.map((handle) => {
+            const anchor = handleAnchor(handle as ResizeHandle);
             return (
               <div
                 key={handle}
                 className="nodrag nopan mark-rectangle-handle"
-                data-testid="rectangle-handle"
+                data-testid={`${data.shape}-handle`}
                 data-handle={handle}
                 aria-hidden="true"
                 style={{
@@ -342,7 +394,7 @@ function RectangleMark({ data }: NodeProps<RectangleNode | DraftRectangleNode>) 
                   top: anchor.y * data.rectHeight - data.handleSize / 2,
                   width: data.handleSize,
                   height: data.handleSize,
-                  cursor: handleCursor(handle),
+                  cursor: handleCursor(handle as ResizeHandle),
                 }}
                 onPointerDown={(event) => {
                   // Only the primary pointer resizes, and the press is the
@@ -351,18 +403,7 @@ function RectangleMark({ data }: NodeProps<RectangleNode | DraftRectangleNode>) 
                   event.stopPropagation();
                   event.preventDefault();
                   gestures.beginResize(
-                    data.draft
-                      ? { draft: true }
-                      : {
-                          draft: false,
-                          id: data.annotationId,
-                          rect: {
-                            x: data.rectX,
-                            y: data.rectY,
-                            width: data.rectWidth,
-                            height: data.rectHeight,
-                          },
-                        },
+                    data.draft ? { draft: true } : { draft: false, id: data.annotationId },
                     handle,
                     { x: event.clientX, y: event.clientY },
                   );
@@ -385,9 +426,14 @@ const nodeTypes: NodeTypes = {
   [PIN_TYPE]: Pin,
   [DRAFT_PIN_TYPE]: DraftPin,
   [CONTEXT_PREVIEW_TYPE]: ContextPreview,
-  [RECTANGLE_TYPE]: RectangleMark,
-  [DRAFT_RECTANGLE_TYPE]: RectangleMark,
+  [RECTANGLE_TYPE]: RegionMark,
+  [DRAFT_RECTANGLE_TYPE]: RegionMark,
+  [CIRCLE_TYPE]: RegionMark,
+  [DRAFT_CIRCLE_TYPE]: RegionMark,
 };
+
+/** The node types a persisted region mark uses. */
+const REGION_TYPES: readonly string[] = [RECTANGLE_TYPE, CIRCLE_TYPE];
 
 /** Live zoom percentage, kept inside the provider so it tracks gestures. */
 function ZoomReadout() {
@@ -457,12 +503,11 @@ function DraftComposerPopover({
     }
   });
 
-  // A pin anchors at its tip with the badge rising above it; a box anchors
-  // at its top-right corner with nothing to clear.
+  // A pin anchors at its tip with the badge rising above it; a region
+  // anchors at its bounding box's top-right corner with nothing to clear.
+  const extent = markExtent(draft);
   const anchorNatural =
-    draft.kind === "pin"
-      ? draft.tip
-      : { x: draft.rect.x + draft.rect.width, y: draft.rect.y };
+    draft.kind === "pin" || !extent ? markCenter(draft) : { x: extent.x + extent.width, y: extent.y };
   const anchor = instance.flowToScreenPosition(anchorNatural);
   const frame = frameRef.current?.getBoundingClientRect();
   const viewport = {
@@ -499,14 +544,68 @@ function DraftComposerPopover({
 
 /** A pointer gesture the canvas owns from press to release. */
 type Gesture =
-  | { type: "draw"; start: NaturalPoint }
+  | { type: "draw"; tool: MarkTool; start: NaturalPoint }
   | {
       type: "resize";
       target: { draft: true } | { draft: false; id: string };
-      handle: ResizeHandle;
-      startRect: NaturalRect;
+      handle: string;
+      /** The region as it was when the press landed: a box or a circle. */
+      startMark: DraftMark;
       startPointer: NaturalPoint;
     };
+
+/** The region a draw produces between two corners, in the tool's own shape. */
+function drawnRegion(
+  tool: MarkTool,
+  start: NaturalPoint,
+  end: NaturalPoint,
+  doc: { width: number; height: number },
+): DraftMark {
+  return tool === "circle"
+    ? { kind: "circle", circle: circleFromCorners(start, end, doc) }
+    : { kind: "rectangle", rect: rectFromCorners(start, end, doc) };
+}
+
+/** Whether a drawn region is large enough to become a mark. */
+function regionIsBigEnough(mark: DraftMark): boolean {
+  if (mark.kind === "rectangle") return meetsMinimumSize(mark.rect);
+  if (mark.kind === "circle") return meetsMinimumCircleSize(mark.circle);
+  return false;
+}
+
+/** One region resized by dragging a handle, in its own shape's math. */
+function resizedRegion(
+  start: DraftMark,
+  handle: string,
+  delta: NaturalPoint,
+  doc: { width: number; height: number },
+): DraftMark | null {
+  if (start.kind === "rectangle") {
+    return { kind: "rectangle", rect: resizeRect(start.rect, handle as ResizeHandle, delta, doc) };
+  }
+  if (start.kind === "circle") {
+    return {
+      kind: "circle",
+      circle: resizeCircle(start.circle, handle as CircleResizeHandle, delta, doc),
+    };
+  }
+  return null;
+}
+
+/** One region moved so its bounding box's corner lands at `position`. */
+function movedRegion(
+  mark: DraftMark,
+  position: NaturalPoint,
+  doc: { width: number; height: number },
+): DraftMark | null {
+  if (mark.kind === "rectangle") {
+    return { kind: "rectangle", rect: moveRect(mark.rect, position, doc) };
+  }
+  if (mark.kind === "circle") {
+    return { kind: "circle", circle: moveCircle(mark.circle, position, doc) };
+  }
+  return null;
+}
 
 function CaptureCanvasInner({
   domain,
@@ -514,11 +613,13 @@ function CaptureCanvasInner({
   readOnly,
   pins,
   rectangles,
+  circles,
   previewRect,
   selectedPinId,
   onSelectPin,
   onMovePin,
   onMoveRectangle,
+  onMoveCircle,
   savedCamera,
   onCameraChange,
   onDraftChange,
@@ -542,6 +643,8 @@ function CaptureCanvasInner({
   pins: Omit<CanvasPin, "selected">[];
   /** This plane's persisted rectangles (D079), same numbering as the pins. */
   rectangles: Omit<CanvasRectangle, "selected">[];
+  /** This plane's persisted circles (D082), same numbering again. */
+  circles: Omit<CanvasCircle, "selected">[];
   /**
    * The transient nearby-candidate highlight: one manifest rectangle in
    * natural pixels, or null. Local UI state only — never persisted, never
@@ -557,6 +660,8 @@ function CaptureCanvasInner({
    * box of at least the minimum size, one write.
    */
   onMoveRectangle?: (annotationId: string, rect: NaturalRect) => void;
+  /** The same single commit for a circle move or resize (D082). */
+  onMoveCircle?: (annotationId: string, circle: NaturalCircle) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (draft: DraftMark | null) => void;
@@ -618,18 +723,22 @@ function CaptureCanvasInner({
   // without going through a state updater.
   const [pinDrag, setPinDrag] = useState<{ id: string; tip: NaturalPoint } | null>(null);
   const pinDragRef = useRef<{ id: string; tip: NaturalPoint } | null>(null);
-  // A persisted rectangle being moved or resized, the same way.
-  const [rectDrag, setRectDrag] = useState<{ id: string; rect: NaturalRect } | null>(null);
-  const rectDragRef = useRef<{ id: string; rect: NaturalRect } | null>(null);
-  // The box being drawn right now: press point and current pointer point,
-  // both clamped to the frame. Rendered as the draft box without handles.
-  const [drawing, setDrawing] = useState<{ start: NaturalPoint; current: NaturalPoint } | null>(
-    null,
-  );
+  // A persisted region (a box or a circle) being moved or resized, the same
+  // way: local movement, one write at the end of the gesture.
+  const [regionDrag, setRegionDrag] = useState<{ id: string; mark: DraftMark } | null>(null);
+  const regionDragRef = useRef<{ id: string; mark: DraftMark } | null>(null);
+  // The region being drawn right now: the tool, the press point, and the
+  // current pointer point, both clamped to the frame. Rendered as the draft
+  // without handles.
+  const [drawing, setDrawing] = useState<{
+    tool: MarkTool;
+    start: NaturalPoint;
+    current: NaturalPoint;
+  } | null>(null);
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
-  // "Draw a box": arms exactly the next drag, then disarms itself.
-  const [armed, setArmed] = useState(false);
+  // The armed mark tool: it arms exactly the next drag, then disarms itself.
+  const [armed, setArmed] = useState<MarkTool | null>(null);
   const armedRef = useRef(armed);
   armedRef.current = armed;
   // The gesture in flight (a draw or a resize) and a state mirror that
@@ -648,26 +757,44 @@ function CaptureCanvasInner({
   );
   const effectiveRectangles = useMemo<CanvasRectangle[]>(
     () =>
-      rectangles.map((rectangle) => ({
-        ...rectangle,
-        rect: rectDrag?.id === rectangle.id ? rectDrag.rect : rectangle.rect,
-        selected: rectangle.id === selectedPinId,
-      })),
-    [rectangles, rectDrag, selectedPinId],
+      rectangles.map((rectangle) => {
+        const dragged = regionDrag?.id === rectangle.id ? regionDrag.mark : null;
+        return {
+          ...rectangle,
+          rect: dragged?.kind === "rectangle" ? dragged.rect : rectangle.rect,
+          selected: rectangle.id === selectedPinId,
+        };
+      }),
+    [rectangles, regionDrag, selectedPinId],
   );
-  const rectangleById = useMemo(
-    () => new Map(rectangles.map((rectangle) => [rectangle.id, rectangle])),
-    [rectangles],
+  const effectiveCircles = useMemo<CanvasCircle[]>(
+    () =>
+      circles.map((entry) => {
+        const dragged = regionDrag?.id === entry.id ? regionDrag.mark : null;
+        return {
+          ...entry,
+          circle: dragged?.kind === "circle" ? dragged.circle : entry.circle,
+          selected: entry.id === selectedPinId,
+        };
+      }),
+    [circles, regionDrag, selectedPinId],
   );
+  /** Every persisted region by id, in the draft shape the gestures use. */
+  const regionById = useMemo(() => {
+    const map = new Map<string, DraftMark>();
+    for (const rectangle of rectangles) map.set(rectangle.id, { kind: "rectangle", rect: rectangle.rect });
+    for (const entry of circles) map.set(entry.id, { kind: "circle", circle: entry.circle });
+    return map;
+  }, [rectangles, circles]);
   const nodes = useMemo(() => {
+    // While a region is being drawn it stands in for the draft; a release
+    // below the minimum size brings the previous draft back untouched.
+    const inFlight = drawing ? drawnRegion(drawing.tool, drawing.start, drawing.current, doc) : null;
     const built = nodesForPlane(domain, {
       pins: effectivePins,
       rectangles: effectiveRectangles,
-      // While a box is being drawn it stands in for the draft; a release
-      // below the minimum size brings the previous draft back untouched.
-      draft: drawing
-        ? { kind: "rectangle", rect: rectFromCorners(drawing.start, drawing.current, doc) }
-        : draft,
+      circles: effectiveCircles,
+      draft: inFlight ?? draft,
       drawing: drawing !== null,
       zoom: liveZoom,
       preview: previewRect ?? null,
@@ -677,7 +804,18 @@ function CaptureCanvasInner({
     // off. There is no mode that could.
     if (!readOnly) return built;
     return built.map((node) => (node.type === PIN_TYPE ? { ...node, draggable: false } : node));
-  }, [domain, doc, effectivePins, effectiveRectangles, draft, drawing, liveZoom, previewRect, readOnly]);
+  }, [
+    domain,
+    doc,
+    effectivePins,
+    effectiveRectangles,
+    effectiveCircles,
+    draft,
+    drawing,
+    liveZoom,
+    previewRect,
+    readOnly,
+  ]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
   const modeRef = useRef(mode);
@@ -792,27 +930,27 @@ function CaptureCanvasInner({
 
   /**
    * Bring the selected mark into the middle of the frame (D078): a pin's
-   * tip or a box's middle, at the zoom the reader already has, except that
-   * a box that would not fit zooms out until it does. A deliberate camera
-   * move like a gesture, so it ends any named mode's resize-follow.
+   * tip or a region's middle, at the zoom the reader already has, except
+   * that a region that would not fit zooms out until it does. A deliberate
+   * camera move like a gesture, so it ends any named mode's resize-follow.
    */
   const revealSelection = useCallback(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper || wrapper.clientWidth <= 0 || wrapper.clientHeight <= 0) return;
     const pin = pins.find((candidate) => candidate.id === selectedPinId);
-    const rectangle = pin ? null : rectangles.find((candidate) => candidate.id === selectedPinId);
     const mark: DraftMark | null = pin
       ? { kind: "pin", tip: pin.tip }
-      : rectangle
-        ? { kind: "rectangle", rect: rectangle.rect }
+      : selectedPinId
+        ? (regionById.get(selectedPinId) ?? null)
         : null;
     if (!mark) return;
     const viewport = { width: wrapper.clientWidth, height: wrapper.clientHeight };
     let zoom = cameraRef.current?.zoom ?? instance.getViewport().zoom;
-    if (mark.kind === "rectangle") {
+    const extent = markExtent(mark);
+    if (extent) {
       const fit = Math.min(
-        (viewport.width - 2 * CANVAS_PADDING_PX) / mark.rect.width,
-        (viewport.height - 2 * CANVAS_PADDING_PX) / mark.rect.height,
+        (viewport.width - 2 * CANVAS_PADDING_PX) / extent.width,
+        (viewport.height - 2 * CANVAS_PADDING_PX) / extent.height,
       );
       if (Number.isFinite(fit) && fit > 0) zoom = Math.min(zoom, fit);
     }
@@ -822,7 +960,7 @@ function CaptureCanvasInner({
     liveZoomRef.current = camera.zoom;
     setLiveZoom(camera.zoom);
     reportCamera(camera);
-  }, [instance, pins, rectangles, selectedPinId, reportCamera]);
+  }, [instance, pins, regionById, selectedPinId, reportCamera]);
 
   // Each increment of the signal reveals the selection once; a signal that
   // arrives before React Flow's pane is ready waits for onInit.
@@ -846,13 +984,11 @@ function CaptureCanvasInner({
     setGestureActive(false);
     setDrawing(null);
     if (gesture?.type === "resize" && !gesture.target.draft) {
-      rectDragRef.current = null;
-      setRectDrag(null);
+      regionDragRef.current = null;
+      setRegionDrag(null);
     }
     if (gesture?.type === "resize" && gesture.target.draft) {
-      setDraft((current) =>
-        current?.kind === "rectangle" ? { kind: "rectangle", rect: gesture.startRect } : current,
-      );
+      setDraft((current) => (current?.kind === gesture.startMark.kind ? gesture.startMark : current));
     }
   }, []);
 
@@ -868,11 +1004,11 @@ function CaptureCanvasInner({
       if (isTextEntry(event.target)) return;
       if (gestureRef.current) {
         cancelGesture();
-        setArmed(false);
+        setArmed(null);
         return;
       }
       if (armedRef.current) {
-        setArmed(false);
+        setArmed(null);
         return;
       }
       setDraft(null);
@@ -890,10 +1026,12 @@ function CaptureCanvasInner({
     const wrapper = wrapperRef.current;
     if (!wrapper || readOnly) return;
     const onMouseDown = (event: MouseEvent) => {
-      if (event.button === 0 && (event.shiftKey || armedRef.current)) event.stopPropagation();
+      if (event.button === 0 && (event.shiftKey || armedRef.current !== null)) {
+        event.stopPropagation();
+      }
     };
     const onTouchStart = (event: TouchEvent) => {
-      if (armedRef.current) event.stopPropagation();
+      if (armedRef.current !== null) event.stopPropagation();
     };
     wrapper.addEventListener("mousedown", onMouseDown, true);
     wrapper.addEventListener("touchstart", onTouchStart, true);
@@ -903,10 +1041,19 @@ function CaptureCanvasInner({
     };
   }, [readOnly]);
 
+  /** The one revisioned write a finished region gesture commits, by kind. */
+  const commitRegion = useCallback(
+    (annotationId: string, mark: DraftMark) => {
+      if (mark.kind === "rectangle") onMoveRectangle?.(annotationId, mark.rect);
+      else if (mark.kind === "circle") onMoveCircle?.(annotationId, mark.circle);
+    },
+    [onMoveRectangle, onMoveCircle],
+  );
+
   // The window listeners for a gesture in flight: movement updates local
   // state through the pure geometry; the release is the one moment anything
   // settles (a draft for a draw, a context re-query for a draft resize, one
-  // revisioned write for a saved-box resize). Attached in a layout effect, not
+  // revisioned write for a saved region's resize). Attached in a layout effect, not
   // a passive one, so they are in place before the browser can dispatch the
   // matching pointerup — a very fast tap that begins and ends a gesture in one
   // frame would otherwise strand it with a passive effect that runs after paint.
@@ -918,20 +1065,25 @@ function CaptureCanvasInner({
       const natural = naturalAt({ x: event.clientX, y: event.clientY });
       if (!natural) return;
       if (gesture.type === "draw") {
-        setDrawing({ start: gesture.start, current: clampNaturalPointToCapture(natural, doc) });
+        setDrawing({
+          tool: gesture.tool,
+          start: gesture.start,
+          current: clampNaturalPointToCapture(natural, doc),
+        });
         return;
       }
       const delta = {
         x: natural.x - gesture.startPointer.x,
         y: natural.y - gesture.startPointer.y,
       };
-      const rect = resizeRect(gesture.startRect, gesture.handle, delta, doc);
+      const resized = resizedRegion(gesture.startMark, gesture.handle, delta, doc);
+      if (!resized) return;
       if (gesture.target.draft) {
-        setDraft({ kind: "rectangle", rect });
+        setDraft(resized);
       } else {
-        const next = { id: gesture.target.id, rect };
-        rectDragRef.current = next;
-        setRectDrag(next);
+        const next = { id: gesture.target.id, mark: resized };
+        regionDragRef.current = next;
+        setRegionDrag(next);
       }
     };
     const onUp = (event: PointerEvent) => {
@@ -944,13 +1096,12 @@ function CaptureCanvasInner({
         const end = natural
           ? clampNaturalPointToCapture(natural, doc)
           : (drawingRef.current?.current ?? gesture.start);
-        const rect = rectFromCorners(gesture.start, end, doc);
+        const mark = drawnRegion(gesture.tool, gesture.start, end, doc);
         setDrawing(null);
-        // The toggle armed exactly this drag, whatever it produced.
-        setArmed(false);
-        // Too small to be a box: nothing is drafted and nothing changes.
-        if (!meetsMinimumSize(rect)) return;
-        const mark: DraftMark = { kind: "rectangle", rect };
+        // The tool armed exactly this drag, whatever it produced.
+        setArmed(null);
+        // Too small to be a mark: nothing is drafted and nothing changes.
+        if (!regionIsBigEnough(mark)) return;
         setDraft(mark);
         onDraftSettled?.(mark);
         syncZoom();
@@ -958,18 +1109,18 @@ function CaptureCanvasInner({
       }
       if (gesture.target.draft) {
         // A draft resize commits nothing; it re-anchors the nearby context
-        // query on the final box.
+        // query on the final geometry.
         const current = draftRef.current;
-        if (current?.kind === "rectangle") onDraftSettled?.(current);
+        if (current && current.kind === gesture.startMark.kind) onDraftSettled?.(current);
         return;
       }
-      const drop = rectDragRef.current;
-      rectDragRef.current = null;
-      setRectDrag(null);
-      // The one write of the gesture, and only when the box actually
+      const drop = regionDragRef.current;
+      regionDragRef.current = null;
+      setRegionDrag(null);
+      // The one write of the gesture, and only when the geometry actually
       // changed: a press-and-release on a handle writes nothing.
-      if (drop && drop.id === gesture.target.id && !rectsEqual(drop.rect, gesture.startRect)) {
-        onMoveRectangle?.(drop.id, drop.rect);
+      if (drop && drop.id === gesture.target.id && !marksEqual(drop.mark, gesture.startMark)) {
+        commitRegion(drop.id, drop.mark);
       }
     };
     const onCancel = () => cancelGesture();
@@ -981,31 +1132,27 @@ function CaptureCanvasInner({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
     };
-  }, [gestureActive, doc, naturalAt, cancelGesture, onDraftSettled, onMoveRectangle, syncZoom]);
+  }, [gestureActive, doc, naturalAt, cancelGesture, onDraftSettled, commitRegion, syncZoom]);
 
-  const gestures = useMemo<RectangleGestures>(
+  const gestures = useMemo<RegionGestures>(
     () => ({
       beginResize: (target, handle, pointer) => {
         if (readOnly || gestureRef.current) return;
         const startPointer = naturalAt(pointer);
         if (!startPointer) return;
-        const startRect = target.draft
-          ? draftRef.current?.kind === "rectangle"
-            ? draftRef.current.rect
-            : null
-          : target.rect;
-        if (!startRect) return;
+        const startMark = target.draft ? draftRef.current : (regionById.get(target.id) ?? null);
+        if (!startMark || startMark.kind === "pin") return;
         gestureRef.current = {
           type: "resize",
           target: target.draft ? { draft: true } : { draft: false, id: target.id },
           handle,
-          startRect,
+          startMark,
           startPointer,
         };
         setGestureActive(true);
       },
     }),
-    [readOnly, naturalAt],
+    [readOnly, naturalAt, regionById],
   );
 
   // Node dragging: React Flow emits the node's new top-left position; the
@@ -1033,19 +1180,19 @@ function CaptureCanvasInner({
             const grab = dragGrab.current ?? pinHitBox(current.tip, doc, zoom);
             return { kind: "pin", tip: tipFromPinBox(dragPinBox(position, grab, doc, zoom)) };
           });
-        } else if (change.id === draftRectangleNodeId(domain.captureId)) {
-          setDraft((current) =>
-            current?.kind === "rectangle"
-              ? { kind: "rectangle", rect: moveRect(current.rect, position, doc) }
-              : current,
-          );
-        } else if (rectangleById.has(change.id)) {
-          // A persisted rectangle: track the clamped box locally; the single
-          // revisioned write fires at drag stop.
-          const base = rectangleById.get(change.id)!.rect;
-          const next = { id: change.id, rect: moveRect(base, position, doc) };
-          rectDragRef.current = next;
-          setRectDrag(next);
+        } else if (
+          change.id === draftRectangleNodeId(domain.captureId) ||
+          change.id === draftCircleNodeId(domain.captureId)
+        ) {
+          setDraft((current) => (current ? (movedRegion(current, position, doc) ?? current) : current));
+        } else if (regionById.has(change.id)) {
+          // A persisted region: track the clamped geometry locally; the
+          // single revisioned write fires at drag stop.
+          const moved = movedRegion(regionById.get(change.id)!, position, doc);
+          if (!moved) continue;
+          const next = { id: change.id, mark: moved };
+          regionDragRef.current = next;
+          setRegionDrag(next);
         } else {
           // A persisted pin: track the clamped tip locally; the single
           // revisioned write fires at drag stop.
@@ -1057,7 +1204,7 @@ function CaptureCanvasInner({
         }
       }
     },
-    [domain.captureId, doc, rectangleById],
+    [domain.captureId, doc, regionById],
   );
 
   // Put the one draft pin at a natural point and let the workspace resolve
@@ -1084,13 +1231,15 @@ function CaptureCanvasInner({
     // isPrimary is undefined on some synthetic event surfaces; only an
     // explicit non-primary pointer is ignored.
     if (event.isPrimary === false) return;
-    if (!readOnly && !gestureRef.current && (event.shiftKey || armedRef.current)) {
+    if (!readOnly && !gestureRef.current && (event.shiftKey || armedRef.current !== null)) {
       // A draw begins: the press point, clamped to the frame, is one corner.
+      // Shift is the box shortcut (D079); otherwise the armed tool decides.
       const natural = naturalAt({ x: event.clientX, y: event.clientY });
       if (!natural) return;
+      const tool: MarkTool = armedRef.current ?? "rectangle";
       const start = clampNaturalPointToCapture(natural, doc);
-      gestureRef.current = { type: "draw", start };
-      setDrawing({ start, current: start });
+      gestureRef.current = { type: "draw", tool, start };
+      setDrawing({ tool, start, current: start });
       setGestureActive(true);
       pressStart.current = null;
       event.preventDefault();
@@ -1113,7 +1262,7 @@ function CaptureCanvasInner({
     // stacked on a saved mark would be invisible and confusing.
     if (
       target?.closest(
-        ".react-flow__node-draftPin, .react-flow__node-pin, .react-flow__node-rectangle, .react-flow__node-draftRectangle",
+        ".react-flow__node-draftPin, .react-flow__node-pin, .react-flow__node-rectangle, .react-flow__node-draftRectangle, .react-flow__node-circle, .react-flow__node-draftCircle",
       )
     ) {
       return;
@@ -1150,7 +1299,7 @@ function CaptureCanvasInner({
   /** J/K: the next or previous saved mark in number order, wrapping around. */
   const stepSelection = useCallback(
     (direction: 1 | -1) => {
-      const ordered = [...pins, ...rectangles].sort((a, b) => a.number - b.number);
+      const ordered = [...pins, ...rectangles, ...circles].sort((a, b) => a.number - b.number);
       if (ordered.length === 0) return;
       const index = ordered.findIndex((mark) => mark.id === selectedPinId);
       const next =
@@ -1161,14 +1310,27 @@ function CaptureCanvasInner({
           : (index + direction + ordered.length) % ordered.length;
       onSelectPin?.(ordered[next]!.id);
     },
-    [pins, rectangles, selectedPinId, onSelectPin],
+    [pins, rectangles, circles, selectedPinId, onSelectPin],
   );
+
+  /** Arm one tool for the next drag, or disarm it when it is already armed. */
+  const toggleTool = useCallback((tool: MarkTool) => {
+    setArmed((current) => (current === tool ? null : tool));
+  }, []);
 
   const onRegionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (readOnly) return;
     // Never while typing, and never as part of a browser or OS shortcut.
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     if (isTextEntry(event.target)) return;
+    // One key per mark tool (D082): it arms the next drag exactly as the
+    // button does, and pressing it again disarms.
+    const tool = MARK_TOOLS.find((candidate) => candidate.key === event.key.toLowerCase());
+    if (tool) {
+      event.preventDefault();
+      toggleTool(tool.id);
+      return;
+    }
     switch (event.key) {
       case "j":
       case "J":
@@ -1230,21 +1392,31 @@ function CaptureCanvasInner({
           +
         </button>
         <ZoomReadout />
-        {readOnly ? null : (
-          // Arms exactly the next drag to draw a box (the pointer equivalent
-          // of holding Shift), then disarms itself; a second click or Escape
-          // disarms it early.
-          <button
-            type="button"
-            className="capture-draw-toggle"
-            aria-pressed={armed}
-            title="The next drag draws a box (or hold Shift while dragging)"
-            onClick={() => setArmed((value) => !value)}
-          >
-            Draw a box
-          </button>
-        )}
       </p>
+      {readOnly ? null : (
+        // The mark tools (D079, D082). Each arms exactly the next drag, then
+        // disarms itself; pressing it again, or Escape, disarms it early.
+        // Shift-drag stays the pointer shortcut for a box.
+        <p className="capture-tools" role="group" aria-label="Mark tools">
+          {MARK_TOOLS.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              className="capture-draw-toggle"
+              aria-pressed={armed === tool.id}
+              aria-keyshortcuts={tool.key.toUpperCase()}
+              title={
+                tool.id === "rectangle"
+                  ? "The next drag draws a box (or hold Shift while dragging)"
+                  : "The next drag draws a circle"
+              }
+              onClick={() => toggleTool(tool.id)}
+            >
+              {tool.label}
+            </button>
+          ))}
+        </p>
+      )}
       <div
         className="capture-canvas"
         ref={wrapperRef}
@@ -1253,15 +1425,16 @@ function CaptureCanvasInner({
         // Focusable on an editable plane so the shortcuts have somewhere to
         // land; a click on the pane focuses it, and Tab reaches it.
         tabIndex={readOnly ? undefined : 0}
-        aria-keyshortcuts={readOnly ? undefined : "J K N ArrowDown ArrowUp"}
+        aria-keyshortcuts={readOnly ? undefined : "J K N B C ArrowDown ArrowUp"}
         data-read-only={readOnly ? "true" : undefined}
         data-draw-armed={armed ? "true" : undefined}
+        data-draw-tool={armed ?? undefined}
         data-drawing={drawing ? "true" : undefined}
         onKeyDown={onRegionKeyDown}
         onPointerDown={onWrapperPointerDown}
         onPointerUp={onWrapperPointerUp}
       >
-        <RectangleGestureContext.Provider value={readOnly ? null : gestures}>
+        <RegionGestureContext.Provider value={readOnly ? null : gestures}>
           <ReactFlow
             nodes={nodes}
             nodeTypes={nodeTypes}
@@ -1299,10 +1472,10 @@ function CaptureCanvasInner({
                 dragGrab.current = { tipOffsetX: data.tipOffsetX, tipOffsetY: data.tipOffsetY };
                 dragOrigin.current = { x: data.tipX, y: data.tipY };
                 pinDragRef.current = null;
-              } else if (node.type === RECTANGLE_TYPE) {
+              } else if (REGION_TYPES.includes(node.type ?? "")) {
                 const data = node.data as RectangleNode["data"];
                 dragOrigin.current = { x: data.rectX, y: data.rectY };
-                rectDragRef.current = null;
+                regionDragRef.current = null;
               }
             }}
             onNodeDragStop={(_event, node) => {
@@ -1327,24 +1500,26 @@ function CaptureCanvasInner({
                   if (travel <= PLACEMENT_SLOP_SCREEN_PX) onSelectPin?.(node.id);
                   else onMovePin?.(node.id, drop.tip);
                 }
-              } else if (node.type === RECTANGLE_TYPE) {
-                // Same rule for a box moved by its stroke or badge: a click
-                // selects and writes nothing; a move is one write.
-                const drop = rectDragRef.current;
+              } else if (REGION_TYPES.includes(node.type ?? "")) {
+                // Same rule for a region moved by its stroke or badge: a
+                // click selects and writes nothing; a move is one write.
+                const drop = regionDragRef.current;
                 const origin = dragOrigin.current;
-                rectDragRef.current = null;
+                regionDragRef.current = null;
                 dragOrigin.current = null;
-                setRectDrag(null);
-                if (drop && drop.id === node.id) {
+                setRegionDrag(null);
+                const extent = drop ? markExtent(drop.mark) : null;
+                if (drop && extent && drop.id === node.id) {
                   const travel = origin
-                    ? Math.hypot(drop.rect.x - origin.x, drop.rect.y - origin.y) *
-                      liveZoomRef.current
+                    ? Math.hypot(extent.x - origin.x, extent.y - origin.y) * liveZoomRef.current
                     : Number.POSITIVE_INFINITY;
                   if (travel <= PLACEMENT_SLOP_SCREEN_PX) onSelectPin?.(node.id);
-                  else onMoveRectangle?.(node.id, drop.rect);
+                  else commitRegion(node.id, drop.mark);
                 }
               } else if (
-                (node.type === DRAFT_PIN_TYPE || node.type === DRAFT_RECTANGLE_TYPE) &&
+                (node.type === DRAFT_PIN_TYPE ||
+                  node.type === DRAFT_RECTANGLE_TYPE ||
+                  node.type === DRAFT_CIRCLE_TYPE) &&
                 draftRef.current
               ) {
                 // A draft drag commits nothing; it only re-anchors the nearby
@@ -1354,7 +1529,9 @@ function CaptureCanvasInner({
               dragGrab.current = null;
             }}
             onNodeClick={(_event, node) => {
-              if (node.type === PIN_TYPE || node.type === RECTANGLE_TYPE) onSelectPin?.(node.id);
+              if (node.type === PIN_TYPE || REGION_TYPES.includes(node.type ?? "")) {
+                onSelectPin?.(node.id);
+              }
             }}
             onPaneClick={() => onSelectPin?.(null)}
             nodesDraggable={false}
@@ -1389,7 +1566,7 @@ function CaptureCanvasInner({
             }}
             onMoveEnd={(_event, viewport) => reportCamera(viewport)}
           />
-        </RectangleGestureContext.Provider>
+        </RegionGestureContext.Provider>
       </div>
       {/* The composer sits beside the draft but outside the transformed
           plane, so it never scales with the zoom and never leaves the
@@ -1414,11 +1591,13 @@ export function CaptureCanvas({
   readOnly = false,
   pins = [],
   rectangles = [],
+  circles = [],
   previewRect = null,
   selectedPinId,
   onSelectPin,
   onMovePin,
   onMoveRectangle,
+  onMoveCircle,
   savedCamera,
   onCameraChange,
   onDraftChange,
@@ -1445,12 +1624,15 @@ export function CaptureCanvas({
   pins?: Omit<CanvasPin, "selected">[];
   /** This plane's persisted rectangles (D079); empty until they load. */
   rectangles?: Omit<CanvasRectangle, "selected">[];
+  /** This plane's persisted circles (D082); empty until they load. */
+  circles?: Omit<CanvasCircle, "selected">[];
   /** The transient nearby-candidate highlight rect in natural pixels. */
   previewRect?: ContextRect | null;
   selectedPinId?: string | null;
   onSelectPin?: (annotationId: string | null) => void;
   onMovePin?: (annotationId: string, tip: NaturalPoint) => void;
   onMoveRectangle?: (annotationId: string, rect: NaturalRect) => void;
+  onMoveCircle?: (annotationId: string, circle: NaturalCircle) => void;
   savedCamera?: CaptureCameraState | null;
   onCameraChange?: (state: CaptureCameraState) => void;
   onDraftChange?: (draft: DraftMark | null) => void;
@@ -1484,11 +1666,13 @@ export function CaptureCanvas({
         readOnly={readOnly}
         pins={pins}
         rectangles={rectangles}
+        circles={circles}
         previewRect={previewRect}
         selectedPinId={selectedPinId}
         onSelectPin={onSelectPin}
         onMovePin={onMovePin}
         onMoveRectangle={onMoveRectangle}
+        onMoveCircle={onMoveCircle}
         savedCamera={savedCamera}
         onCameraChange={onCameraChange}
         onDraftChange={onDraftChange}

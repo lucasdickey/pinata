@@ -717,3 +717,127 @@ describe("rectangles over the routes (D079)", () => {
     expect((await next.json()).annotation.number).toBe(2);
   });
 });
+
+// Circles over the wire (D082): `circle` in place of `tip` or `rect` creates
+// one, the same PATCH moves or resizes it with the revision precondition,
+// and the list carries all three kinds in one number order.
+describe("circles over the routes (D082)", () => {
+  const circle = { x: 100, y: 200, size: 300 };
+  const circleBody = (overrides: Record<string, unknown> = {}) => {
+    const { tip: _tip, ...rest } = createBody({ idempotencyKey: "circle-route-key-0001" });
+    return { ...rest, circle, ...overrides };
+  };
+
+  test("creates a circle with 201, lists it in number order, and resizes it in one write", async () => {
+    await annotationsPOST(createRequest("cap-ready", { body: createBody() }), listContext("cap-ready"));
+    const created = await annotationsPOST(
+      createRequest("cap-ready", { body: circleBody() }),
+      listContext("cap-ready"),
+    );
+    expect(created.status).toBe(201);
+    const { annotation } = await created.json();
+    expect(annotation).toMatchObject({ kind: "circle", number: 2, circle, revision: 1 });
+    expect(annotation.tip).toBeUndefined();
+    expect(annotation.rect).toBeUndefined();
+
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    const payload = await listed.json();
+    expect(
+      payload.annotations.map((a: { kind: string; number: number }) => [a.kind, a.number]),
+    ).toEqual([
+      ["pin", 1],
+      ["circle", 2],
+    ]);
+
+    const resized = await annotationPATCH(
+      moveRequest("cap-ready", annotation.id, {
+        body: { circle: { ...circle, size: 400 }, expectedRevision: 1 },
+      }),
+      pinContext("cap-ready", annotation.id),
+    );
+    expect(resized.status).toBe(200);
+    expect((await resized.json()).annotation).toMatchObject({
+      kind: "circle",
+      circle: { ...circle, size: 400 },
+      revision: 2,
+      number: 2,
+    });
+    const stale = await annotationPATCH(
+      moveRequest("cap-ready", annotation.id, { body: { circle, expectedRevision: 1 } }),
+      pinContext("cap-ready", annotation.id),
+    );
+    expect(stale.status).toBe(409);
+  });
+
+  test("rejects too-small, out-of-frame, non-finite, and ambiguous squares with a bounded 400", async () => {
+    for (const body of [
+      circleBody({ circle: { ...circle, size: 7.5 } }),
+      circleBody({ circle: { ...circle, x: 1300 } }),
+      circleBody({ circle: { ...circle, y: Number.NaN } }),
+      circleBody({ circle: { x: 1, y: 2 } }),
+      circleBody({ circle, tip: { x: 1, y: 1 } }),
+      circleBody({ circle, rect: { x: 0, y: 0, width: 10, height: 10 } }),
+      circleBody({ circle: { ...circle, extra: 1 } }),
+    ]) {
+      const response = await annotationsPOST(
+        createRequest("cap-ready", { body }),
+        listContext("cap-ready"),
+      );
+      expect(response.status, JSON.stringify(body)).toBe(400);
+      expect(JSON.stringify(await response.json())).not.toContain("circle");
+    }
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    expect((await listed.json()).annotations).toHaveLength(0);
+  });
+
+  test("a circle on a pin, or a rect on a circle, is a 400 with no write", async () => {
+    const pinResponse = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody() }),
+      listContext("cap-ready"),
+    );
+    const pin = (await pinResponse.json()).annotation;
+    expect(
+      (
+        await annotationPATCH(
+          moveRequest("cap-ready", pin.id, { body: { circle, expectedRevision: 1 } }),
+          pinContext("cap-ready", pin.id),
+        )
+      ).status,
+    ).toBe(400);
+    const created = await annotationsPOST(
+      createRequest("cap-ready", { body: circleBody() }),
+      listContext("cap-ready"),
+    );
+    const round = (await created.json()).annotation;
+    expect(
+      (
+        await annotationPATCH(
+          moveRequest("cap-ready", round.id, {
+            body: { rect: { x: 1, y: 1, width: 20, height: 20 }, expectedRevision: 1 },
+          }),
+          pinContext("cap-ready", round.id),
+        )
+      ).status,
+    ).toBe(400);
+    const listed = await annotationsGET(listRequest("cap-ready"), listContext("cap-ready"));
+    for (const item of (await listed.json()).annotations) expect(item.revision).toBe(1);
+  });
+
+  test("a circle tombstones like a pin and its number stays retired", async () => {
+    const created = await annotationsPOST(
+      createRequest("cap-ready", { body: circleBody() }),
+      listContext("cap-ready"),
+    );
+    const round = (await created.json()).annotation;
+    const removed = await annotationDELETE(
+      deleteRequest("cap-ready", round.id, { body: { expectedRevision: 1 } }),
+      pinContext("cap-ready", round.id),
+    );
+    expect(removed.status).toBe(200);
+    const next = await annotationsPOST(
+      createRequest("cap-ready", { body: createBody({ idempotencyKey: "pin-after-circle" }) }),
+      listContext("cap-ready"),
+    );
+    expect((await next.json()).annotation.number).toBe(2);
+  });
+});

@@ -488,7 +488,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     const strip = within(detail()).getByTestId("workspace-verbs");
     expect(strip.tagName.toLowerCase()).toBe("p");
     expect(strip).toHaveTextContent(
-      "drop a pin: click the page · draw a box: shift-drag · move: drag it · read or reply: click a mark",
+      "drop a pin: click the page · draw a box or circle: pick a tool, then drag · move: drag it · read or reply: click a mark",
     );
     expect(strip.textContent!.length).toBeLessThan(120);
     const lower = strip.textContent!.toLowerCase();
@@ -1627,7 +1627,112 @@ describe("rectangle drafts (D079)", () => {
     expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1 · “This whole card");
     // The verb strip names the gesture.
     expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
-      "draw a box: shift-drag",
+      "draw a box or circle: pick a tool, then drag",
+    );
+  });
+});
+
+describe("circle drafts (D082)", () => {
+  test("the Circle tool draws one: the context query carries its square and the save posts circle", async () => {
+    const user = userEvent.setup();
+    const writes: { method: string; url: string; body: Record<string, unknown> }[] = [];
+    const contextUrls: string[] = [];
+    const saved = () => ({
+      id: "circle-1",
+      captureId: "root-d1",
+      kind: "circle",
+      number: 1,
+      circle: writes[0]?.body.circle,
+      body: writes[0]?.body.body,
+      elementSnapshot: null,
+      revision: 1,
+      status: "open",
+      unreadReplies: 0,
+      createdAt: 1,
+    });
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (target.includes("/context")) {
+        contextUrls.push(target);
+        return Promise.resolve(json({ candidates: [] }));
+      }
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        return Promise.resolve(
+          json({
+            annotations: writes.map(() => ({
+              ...saved(),
+              pageId: "page-root",
+              normalizedUrl: "https://chickpea.co/",
+              variant: "desktop",
+              attempt: 1,
+            })),
+          }),
+        );
+      }
+      if (target.includes("/annotations") && init?.method === "POST") {
+        writes.push({
+          method: "POST",
+          url: target,
+          body: JSON.parse(String(init.body)) as Record<string, unknown>,
+        });
+        return Promise.resolve(json({ annotation: saved() }, 201));
+      }
+      if (target.includes("/annotations")) {
+        return Promise.resolve(json({ annotations: writes.map(() => saved()) }));
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${target}`));
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+
+    await user.click(within(detail()).getByRole("button", { name: "Draw a circle" }));
+    const image = document.querySelector(".capture-frame-image")!;
+    fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerMove(image, { clientX: 460, clientY: 380, isPrimary: true });
+    fireEvent.pointerUp(image, { clientX: 460, clientY: 380, isPrimary: true });
+
+    const dialog = await within(detail()).findByRole("dialog", { name: "New circle" });
+    // The candidates were asked for by overlap with the bounding square.
+    await waitFor(() => expect(contextUrls).toHaveLength(1));
+    expect(contextUrls[0]).toMatch(
+      /\/api\/captures\/root-d1\/context\?x=[\d.]+&y=[\d.]+&width=([\d.]+)&height=\1$/,
+    );
+    await waitFor(() =>
+      expect(
+        within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
+      ).toMatch(/^(ready|failed)$/),
+    );
+    await user.type(within(dialog).getByLabelText("Comment"), "Draw the eye to this badge.");
+    await user.click(within(dialog).getByRole("button", { name: "Save circle" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
+    expect(writes[0]!.body.tip).toBeUndefined();
+    expect(writes[0]!.body.rect).toBeUndefined();
+    const circle = writes[0]!.body.circle as { x: number; y: number; size: number };
+    expect(circle.size).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    expect(circle.x).toBeGreaterThanOrEqual(0);
+    expect(circle.x + circle.size).toBeLessThanOrEqual(1440);
+    expect(writes[0]!.body.elementId).toBeNull();
+
+    // The saved circle renders, and the list and table name it as a circle.
+    await waitFor(() => expect(within(detail()).queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-circle")).toHaveLength(1),
+    );
+    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    expect(
+      within(list).getByRole("button", { name: /^Circle 1 · “Draw the eye to this badge.”/ }),
+    ).toBeInTheDocument();
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Circle 1 · “Draw the eye");
+    // The tool disarmed itself after the one gesture it armed.
+    expect(within(detail()).getByRole("button", { name: "Draw a circle" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
     );
   });
 });

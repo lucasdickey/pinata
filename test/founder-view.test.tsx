@@ -525,6 +525,50 @@ describe("rectangles for the founder (D079)", () => {
   });
 });
 
+// Circles (D082) reach the founder the same way: listed by kind and number,
+// drawn read-only with no handles, readable, resolvable, never editable.
+describe("circles for the founder (D082)", () => {
+  const round = {
+    id: "circle-4",
+    captureId: "root-d1",
+    kind: "circle",
+    number: 4,
+    circle: { x: 100.4, y: 200.6, size: 300.2 },
+    body: "Draw the eye to this badge.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open",
+    unreadReplies: 0,
+    createdAt: 1_800_000_000_300,
+  };
+
+  test("a circle is listed as a circle and rendered with no handles or tools", async () => {
+    const user = userEvent.setup();
+    extraAnnotations = [round];
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    const items = within(list).getAllByRole("button");
+    expect(items).toHaveLength(3);
+    expect(items[2]).toHaveTextContent(/^Circle 4 · “Draw the eye to this badge.” · Open/);
+    await waitFor(() =>
+      expect(document.querySelectorAll(".react-flow__node-circle")).toHaveLength(1),
+    );
+    expect(document.querySelectorAll('[data-testid="circle-handle"]')).toHaveLength(0);
+    expect(screen.queryByRole("group", { name: "Mark tools" })).toBeNull();
+
+    await user.click(items[2]!);
+    const panel = screen.getByTestId("founder-panel");
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
+      "Circle 4 · “Draw the eye to this badge.”",
+    );
+    // The founder never sees the circle's coordinates (D078).
+    expect(within(panel).queryByTestId("panel-position")).toBeNull();
+    expect(panel.textContent).not.toMatch(/\d+, \d+/);
+    expect(within(panel).getByRole("button", { name: "Resolve circle" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
+  });
+});
+
 // Reading first (D078): marks are named by what they say and point at, no
 // internals reach the founder, the list precedes the canvas, and a tap on
 // an entry brings the screenshot to the mark.

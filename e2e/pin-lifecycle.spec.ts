@@ -48,6 +48,8 @@ const PIN_NODE = ".react-flow__node-pin";
 const PIN_BADGE = '[data-testid="pin-badge"]';
 const RECTANGLE_NODE = ".react-flow__node-rectangle";
 const DRAFT_RECTANGLE_NODE = ".react-flow__node-draftRectangle";
+const CIRCLE_NODE = ".react-flow__node-circle";
+const DRAFT_CIRCLE_NODE = ".react-flow__node-draftCircle";
 
 interface ElementSnapshot {
   id: string;
@@ -60,11 +62,13 @@ interface ElementSnapshot {
 interface PinRecord {
   id: string;
   captureId: string;
-  kind?: "pin" | "rectangle";
+  kind?: "pin" | "rectangle" | "circle";
   number: number;
   tip: { x: number; y: number };
   /** A rectangle's box (D079); absent on pins. */
   rect?: { x: number; y: number; width: number; height: number };
+  /** A circle's bounding square (D082); absent on the other kinds. */
+  circle?: { x: number; y: number; size: number };
   body: string;
   elementSnapshot: ElementSnapshot | null;
   revision: number;
@@ -740,6 +744,167 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
     )
     .toBe(false);
   await expect(rectangleNode(page, number)).toHaveCount(0);
+
+  // One create, one resize, one move, one delete — nothing else ever wrote.
+  expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(2);
+  expect(writes.filter((w) => w.startsWith("DELETE "))).toHaveLength(1);
+  expect(writes).toHaveLength(4);
+  expect(consoleErrors).toEqual([]);
+});
+
+/** The saved circle's node wrapper, by its badge number. */
+function circleNode(page: Page, number: number) {
+  return page.locator(CIRCLE_NODE, {
+    has: page.locator(`[data-testid="circle-badge"][data-mark-number="${number}"]`),
+  });
+}
+
+test("a circle is drawn by the armed Circle tool, stays square, resizes and moves in one write each, and deletes (D082)", async ({
+  page,
+}) => {
+  test.skip(!gate.ready, gate.reason);
+  test.setTimeout(240_000);
+
+  const consoleErrors = trackConsoleErrors(page);
+  const target = await openDesktopPlane(page);
+  const before = await listPins(page, target.captureId);
+  const writes = trackAnnotationWrites(page);
+  const aim = await aimBottomBand(page, target);
+
+  // Arm the Circle tool, then drag 120 by 80 screen px: the larger
+  // dimension sets the size, so the square is 120 on a side at 1x.
+  await page.getByRole("button", { name: "Draw a circle" }).click();
+  await expect(page.getByRole("button", { name: "Draw a circle" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const [pane, camera] = await Promise.all([visiblePane(page), readCamera(page)]);
+  const zoom = camera.zoom;
+  const local = toScreen(aim, camera);
+  const from = { x: pane.left + local.x, y: pane.top + local.y };
+  const drawn = { x: 120, y: 80 };
+  await dragPointer(page, from, drawn);
+  await expect(page.locator(DRAFT_CIRCLE_NODE)).toHaveCount(1);
+  await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
+  // The tool armed exactly that one gesture.
+  await expect(page.getByRole("button", { name: "Draw a circle" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  // The camera did not move: the drag drew instead of panning.
+  const after = await readCamera(page);
+  expect(Math.abs(after.x - camera.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.y - camera.y)).toBeLessThanOrEqual(1);
+
+  // The same composer, labelled for a circle.
+  const composer = page.getByTestId("pin-composer");
+  await expect(composer).toBeVisible();
+  await expect(composer).toHaveAttribute("data-draft-kind", "circle");
+  await expect(page.getByRole("dialog", { name: "New circle" })).toBeVisible();
+
+  await page.getByLabel("Comment").fill("e2e: circle lifecycle");
+  await waitContextSettled(page);
+  await chooseNoElement(page);
+  await page.getByLabel("Comment").press("Enter");
+  const saved = await awaitNewPin(page, target.captureId, before);
+  const number = saved.number;
+  expect(saved.kind).toBe("circle");
+  expect(saved.circle, "a circle persists its bounding square").toBeDefined();
+  const savedCircle = saved.circle!;
+  expect(Math.abs(savedCircle.x - aim.x)).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(Math.abs(savedCircle.y - aim.y)).toBeLessThanOrEqual(1 + 1 / zoom);
+  // The drag was 120 by 80: the larger dimension is the size.
+  expect(Math.abs(savedCircle.size - drawn.x / zoom)).toBeLessThanOrEqual(1 + 1 / zoom);
+  await expect(page.locator(DRAFT_CIRCLE_NODE)).toHaveCount(0);
+  await expect(circleNode(page, number)).toHaveCount(1);
+
+  // The rendered node is the bounding square, and it draws an ellipse.
+  const paneNow = await visiblePane(page);
+  const cameraNow = await readCamera(page);
+  const nodeBox = (await circleNode(page, number).boundingBox())!;
+  const renderedTopLeft = toNatural(
+    { x: nodeBox.x - paneNow.left, y: nodeBox.y - paneNow.top },
+    cameraNow,
+  );
+  expect(Math.abs(renderedTopLeft.x - savedCircle.x)).toBeLessThanOrEqual(1 + 1 / cameraNow.zoom);
+  expect(Math.abs(renderedTopLeft.y - savedCircle.y)).toBeLessThanOrEqual(1 + 1 / cameraNow.zoom);
+  expect(Math.abs(nodeBox.width - nodeBox.height)).toBeLessThanOrEqual(1);
+  await expect(circleNode(page, number).locator("ellipse").first()).toHaveCount(1);
+  // Four corner handles, no edge handles (D082).
+  await expect(circleNode(page, number).locator('[data-testid="circle-handle"]')).toHaveCount(4);
+
+  // Resize by the south-east corner: exactly one revisioned PATCH, the
+  // opposite corner untouched, and the mark still square.
+  const handle = circleNode(page, number).locator(
+    '[data-testid="circle-handle"][data-handle="se"]',
+  );
+  const handleBox = (await handle.boundingBox())!;
+  const grow = { x: 30, y: 12 };
+  await dragPointer(
+    page,
+    { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 },
+    grow,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 1);
+  const resized = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(resized.circle!.x).toBe(savedCircle.x);
+  expect(resized.circle!.y).toBe(savedCircle.y);
+  expect(
+    Math.abs(resized.circle!.size - (savedCircle.size + grow.x / zoom)),
+  ).toBeLessThanOrEqual(1 + 1 / zoom);
+  expect(writes.filter((w) => w.startsWith("PATCH "))).toHaveLength(1);
+
+  // Move by the badge: one more PATCH, the size untouched.
+  await visiblePane(page);
+  const badge = circleNode(page, number).locator('[data-testid="circle-badge"]');
+  const badgeBox = (await badge.boundingBox())!;
+  const step = { x: 25, y: 15 };
+  await dragPointer(
+    page,
+    { x: badgeBox.x + badgeBox.width / 2, y: badgeBox.y + badgeBox.height * 0.4 },
+    step,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await listPins(page, target.captureId)).find((pin) => pin.number === number)?.revision,
+      { timeout: 10_000 },
+    )
+    .toBe(saved.revision + 2);
+  const moved = (await listPins(page, target.captureId)).find((pin) => pin.number === number)!;
+  expect(Math.abs(moved.circle!.x - (resized.circle!.x + step.x / zoom))).toBeLessThanOrEqual(
+    1 + 1 / zoom,
+  );
+  expect(Math.abs(moved.circle!.y - (resized.circle!.y + step.y / zoom))).toBeLessThanOrEqual(
+    1 + 1 / zoom,
+  );
+  expect(moved.circle!.size).toBe(resized.circle!.size);
+  expect(moved.body).toBe(saved.body);
+
+  // The panel names the circle by its comment (D078) and keeps its center
+  // and width behind Details; delete is the same two-step revisioned write.
+  await page.getByRole("button", { name: new RegExp(`^Circle ${number} · “`) }).click();
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Circle ${number} · “`);
+  const details = page.getByTestId("panel-details");
+  await details.locator("summary").click();
+  await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "circle");
+  await expect(page.getByTestId("panel-position")).toContainText("wide");
+  await page.getByRole("button", { name: "Delete circle" }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect
+    .poll(
+      async () => (await listPins(page, target.captureId)).some((pin) => pin.number === number),
+      { timeout: 10_000 },
+    )
+    .toBe(false);
+  await expect(circleNode(page, number)).toHaveCount(0);
 
   // One create, one resize, one move, one delete — nothing else ever wrote.
   expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(1);

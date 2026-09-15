@@ -1,4 +1,4 @@
-// Client-safe helpers for the two mark kinds (D079): the draft shape the
+// Client-safe helpers for the mark kinds (D079, D082): the draft shape the
 // canvas reports to the workspace, the request shapes each kind sends, and
 // the labels the panel, table, and export print. Since D078 the one name a
 // mark goes by everywhere (markLabel) lives here too, so the wording cannot
@@ -7,32 +7,38 @@
 
 import type {
   AnnotationView,
+  CircleAnnotationView,
   PinAnnotationView,
   PinElementSnapshot,
   RectangleAnnotationView,
 } from "../annotations";
 import { pinExcerpt } from "../feedback-counts";
 import type { NaturalPoint } from "./camera";
+import { circleBounds, circleCenter, type NaturalCircle } from "./circle";
 import type { NaturalRect } from "./rectangle";
 
-/** A transient, unsaved mark: one pin tip or one rectangle, natural pixels. */
+/** A transient, unsaved mark: one pin tip, one rectangle, or one circle. */
 export type DraftMark =
   | { kind: "pin"; tip: NaturalPoint }
-  | { kind: "rectangle"; rect: NaturalRect };
+  | { kind: "rectangle"; rect: NaturalRect }
+  | { kind: "circle"; circle: NaturalCircle };
 
 export type MarkKind = DraftMark["kind"];
 
 /** The persisted geometry of one annotation, in the draft's shape. */
 export function markOf(annotation: AnnotationView): DraftMark {
-  return annotation.kind === "rectangle"
-    ? { kind: "rectangle", rect: { ...annotation.rect } }
-    : { kind: "pin", tip: { ...annotation.tip } };
+  if (annotation.kind === "rectangle") return { kind: "rectangle", rect: { ...annotation.rect } };
+  if (annotation.kind === "circle") return { kind: "circle", circle: { ...annotation.circle } };
+  return { kind: "pin", tip: { ...annotation.tip } };
 }
 
 /** The same annotation with new geometry (an optimistic local move). */
 export function withMark(annotation: AnnotationView, mark: DraftMark): AnnotationView {
   if (annotation.kind === "rectangle" && mark.kind === "rectangle") {
     return { ...annotation, rect: { ...mark.rect } };
+  }
+  if (annotation.kind === "circle" && mark.kind === "circle") {
+    return { ...annotation, circle: { ...mark.circle } };
   }
   if (annotation.kind === "pin" && mark.kind === "pin") {
     return { ...annotation, tip: { ...mark.tip } };
@@ -41,17 +47,26 @@ export function withMark(annotation: AnnotationView, mark: DraftMark): Annotatio
 }
 
 /** The geometry fields a create or PATCH body carries for one mark. */
-export function markPayload(mark: DraftMark): { tip: NaturalPoint } | { rect: NaturalRect } {
-  return mark.kind === "rectangle" ? { rect: { ...mark.rect } } : { tip: { ...mark.tip } };
+export function markPayload(
+  mark: DraftMark,
+): { tip: NaturalPoint } | { rect: NaturalRect } | { circle: NaturalCircle } {
+  if (mark.kind === "rectangle") return { rect: { ...mark.rect } };
+  if (mark.kind === "circle") return { circle: { ...mark.circle } };
+  return { tip: { ...mark.tip } };
 }
 
 /**
  * The context route's query for one mark: `x=&y=` around a pin tip, or
- * `x=&y=&width=&height=` for the overlap ranking of a rectangle.
+ * `x=&y=&width=&height=` for the overlap ranking of a region — a rectangle's
+ * box, or a circle's bounding square (D082).
  */
 export function contextQuery(mark: DraftMark): string {
   if (mark.kind === "rectangle") {
     const { x, y, width, height } = mark.rect;
+    return `x=${x}&y=${y}&width=${width}&height=${height}`;
+  }
+  if (mark.kind === "circle") {
+    const { x, y, width, height } = circleBounds(mark.circle);
     return `x=${x}&y=${y}&width=${width}&height=${height}`;
   }
   return `x=${mark.tip.x}&y=${mark.tip.y}`;
@@ -70,6 +85,11 @@ export function marksEqual(a: DraftMark | null, b: DraftMark | null): boolean {
       a.rect.height === b.rect.height
     );
   }
+  if (a.kind === "circle" && b.kind === "circle") {
+    return (
+      a.circle.x === b.circle.x && a.circle.y === b.circle.y && a.circle.size === b.circle.size
+    );
+  }
   return false;
 }
 
@@ -83,6 +103,10 @@ export function isRectangleView(
   return annotation.kind === "rectangle";
 }
 
+export function isCircleView(annotation: AnnotationView): annotation is CircleAnnotationView {
+  return annotation.kind === "circle";
+}
+
 /** Only the pins of a list, in the order given. */
 export function pinsOf(annotations: readonly AnnotationView[]): PinAnnotationView[] {
   return annotations.filter(isPinView);
@@ -93,34 +117,51 @@ export function rectanglesOf(annotations: readonly AnnotationView[]): RectangleA
   return annotations.filter(isRectangleView);
 }
 
-/** The kind's reader-facing word: "Pin" or "Box". */
-export function markKindLabel(kind: MarkKind): "Pin" | "Box" {
-  return kind === "rectangle" ? "Box" : "Pin";
+/** Only the circles of a list, in the order given. */
+export function circlesOf(annotations: readonly AnnotationView[]): CircleAnnotationView[] {
+  return annotations.filter(isCircleView);
+}
+
+/** The kind's reader-facing word: "Pin", "Box", or "Circle". */
+export function markKindLabel(kind: MarkKind): "Pin" | "Box" | "Circle" {
+  if (kind === "rectangle") return "Box";
+  if (kind === "circle") return "Circle";
+  return "Pin";
 }
 
 /** The kind's reader-facing word in lower case, for sentences and buttons. */
-export function markKindNoun(kind: MarkKind): "pin" | "box" {
-  return kind === "rectangle" ? "box" : "pin";
+export function markKindNoun(kind: MarkKind): "pin" | "box" | "circle" {
+  if (kind === "rectangle") return "box";
+  if (kind === "circle") return "circle";
+  return "pin";
 }
+
+/** The kinds a mixed count names, in the order it names them. */
+const COUNTED_KINDS: readonly { kind: MarkKind; one: string; many: string }[] = [
+  { kind: "pin", one: "pin", many: "pins" },
+  { kind: "rectangle", one: "box", many: "boxes" },
+  { kind: "circle", one: "circle", many: "circles" },
+];
 
 /**
- * A reader-facing count of a mixed list of marks (D078/D079): "3 pins" when
- * they are all pins, "2 boxes" when all boxes, and "2 pins · 1 box" when both.
- * An empty list reads "0 pins". Keeps summaries (the export headers, the copy
- * toast) honest once a capture holds boxes as well as pins, instead of calling
- * every mark a "pin".
+ * A reader-facing count of a mixed list of marks (D078/D079/D082): "3 pins"
+ * when they are all pins, "2 boxes" when all boxes, and "2 pins · 1 box"
+ * when several kinds are present, in pin, box, circle order. An empty list
+ * reads "0 pins". Keeps summaries (the export headers, the copy toast)
+ * honest once a capture holds more than pins, instead of calling every mark
+ * a "pin".
  */
 export function markCountLabel(marks: readonly Pick<AnnotationView, "kind">[]): string {
-  const pins = marks.filter((mark) => mark.kind === "pin").length;
-  const boxes = marks.length - pins;
-  const pinPart = `${pins} pin${pins === 1 ? "" : "s"}`;
-  const boxPart = `${boxes} box${boxes === 1 ? "" : "es"}`;
-  if (boxes === 0) return pinPart;
-  if (pins === 0) return boxPart;
-  return `${pinPart} · ${boxPart}`;
+  const parts: string[] = [];
+  for (const counted of COUNTED_KINDS) {
+    const total = marks.filter((mark) => mark.kind === counted.kind).length;
+    if (total === 0) continue;
+    parts.push(`${total} ${total === 1 ? counted.one : counted.many}`);
+  }
+  return parts.length === 0 ? "0 pins" : parts.join(" · ");
 }
 
-/** "Pin 3" or "Box 4": the kind and number that open every mark's name. */
+/** "Pin 3", "Box 4", or "Circle 5": the kind and number every name opens with. */
 export function markTitle(annotation: Pick<AnnotationView, "kind" | "number">): string {
   return `${markKindLabel(annotation.kind)} ${annotation.number}`;
 }
@@ -176,12 +217,26 @@ export function markLabel(mark: MarkLabelSource): string {
   return parts.join(" · ");
 }
 
-/** The point a camera centers on to show a mark: a pin's tip, a box's middle. */
+/**
+ * The point a camera centers on to show a mark: a pin's tip, a box's middle,
+ * or a circle's center.
+ */
 export function markCenter(mark: DraftMark): NaturalPoint {
   if (mark.kind === "rectangle") {
     return { x: mark.rect.x + mark.rect.width / 2, y: mark.rect.y + mark.rect.height / 2 };
   }
+  if (mark.kind === "circle") return circleCenter(mark.circle);
   return { x: mark.tip.x, y: mark.tip.y };
+}
+
+/**
+ * The box a reveal must fit on screen, or null for a mark with no area (a
+ * pin), which only needs centering.
+ */
+export function markExtent(mark: DraftMark): NaturalRect | null {
+  if (mark.kind === "rectangle") return mark.rect;
+  if (mark.kind === "circle") return circleBounds(mark.circle);
+  return null;
 }
 
 /** A rectangle's position and size, rounded for reading: "x, y · w × h". */
@@ -191,11 +246,18 @@ export function rectanglePosition(rect: NaturalRect): string {
   )}`;
 }
 
+/** A circle's center and size, rounded for reading: "x, y · 80 wide". */
+export function circlePosition(circle: NaturalCircle): string {
+  const center = circleCenter(circle);
+  return `${Math.round(center.x)}, ${Math.round(center.y)} · ${Math.round(circle.size)} wide`;
+}
+
 /**
  * Natural-pixel position of a mark, rounded for reading: "x, y" for a pin
- * tip, "x, y · w × h" for a rectangle.
+ * tip, "x, y · w × h" for a rectangle, and the center and width for a circle.
  */
 export function markPosition(annotation: AnnotationView): string {
   if (annotation.kind === "rectangle") return rectanglePosition(annotation.rect);
+  if (annotation.kind === "circle") return circlePosition(annotation.circle);
   return `${Math.round(annotation.tip.x)}, ${Math.round(annotation.tip.y)}`;
 }

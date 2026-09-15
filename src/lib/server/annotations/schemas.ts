@@ -1,12 +1,14 @@
-// Server-only request schemas for annotation mutations (pins and, since
-// D079, rectangles). Strict: unknown fields, non-finite coordinates, blank or
-// over-limit bodies, and out-of-bounds idempotency keys are rejected before
-// any lookup or persistence, and nothing is echoed back on failure.
+// Server-only request schemas for annotation mutations (pins, rectangles
+// since D079, circles since D082). Strict: unknown fields, non-finite
+// coordinates, blank or over-limit bodies, and out-of-bounds idempotency keys
+// are rejected before any lookup or persistence, and nothing is echoed back
+// on failure.
 //
-// The geometry key names the kind: `tip` is a pin, `rect` is a rectangle. A
-// body carrying both, or neither, is invalid. Capture-bound checks (inside
-// the document, at least the minimum size) happen in the store, which is the
-// only place the capture's dimensions are known.
+// The geometry key names the kind: `tip` is a pin, `rect` is a rectangle,
+// `circle` is a circle. A body carrying more than one, or none, is invalid.
+// Capture-bound checks (inside the document, at least the minimum size)
+// happen in the store, which is the only place the capture's dimensions are
+// known.
 
 import { z } from "zod";
 import {
@@ -36,6 +38,18 @@ export const rectangleSchema = z.strictObject({
 });
 
 /**
+ * A circle's bounding square in screenshot-natural CSS pixels (D082): one
+ * corner and the one size that is both its width and its height. The shape
+ * is checked here; the size minimum and the capture bounds are checked in
+ * the store.
+ */
+export const circleSchema = z.strictObject({
+  x: finiteNumber,
+  y: finiteNumber,
+  size: finiteNumber,
+});
+
+/**
  * The explicit context decision every create must carry: the capture-local
  * id of one manifest element, or null for "No element". The key is required
  * — an undecided draft cannot save — and the server derives the snapshot
@@ -51,9 +65,9 @@ const idempotencyKeySchema = z
   .max(IDEMPOTENCY_KEY_MAX_CHARS);
 
 /**
- * POST /api/captures/[captureId]/annotations body: one geometry (a pin tip
- * or a rectangle), one bounded comment, one explicit context decision, one
- * intent key.
+ * POST /api/captures/[captureId]/annotations body: one geometry (a pin tip,
+ * a rectangle, or a circle), one bounded comment, one explicit context
+ * decision, one intent key.
  */
 export const createAnnotationBodySchema = z.union([
   z.strictObject({
@@ -68,6 +82,12 @@ export const createAnnotationBodySchema = z.union([
     elementId: elementDecisionSchema,
     idempotencyKey: idempotencyKeySchema,
   }),
+  z.strictObject({
+    circle: circleSchema,
+    body: bodySchema,
+    elementId: elementDecisionSchema,
+    idempotencyKey: idempotencyKeySchema,
+  }),
 ]);
 
 export type CreateAnnotationBody = z.infer<typeof createAnnotationBodySchema>;
@@ -77,21 +97,31 @@ const expectedRevisionSchema = z.number().int().positive();
 
 /**
  * PATCH .../annotations/[annotationId] body: new geometry (a moved tip for a
- * pin, a moved or resized box for a rectangle), a new original body, or
- * both — always with the revision the write is based on. The geometry key
- * must match the annotation's kind; the store rejects a mismatch.
+ * pin, a moved or resized box for a rectangle, a moved or resized bounding
+ * square for a circle), a new original body, or both — always with the
+ * revision the write is based on. At most one geometry key may appear, and
+ * it must match the annotation's kind; the store rejects a mismatch.
  */
 export const updateAnnotationBodySchema = z
   .strictObject({
     tip: pinTipSchema.optional(),
     rect: rectangleSchema.optional(),
+    circle: circleSchema.optional(),
     body: bodySchema.optional(),
     expectedRevision: expectedRevisionSchema,
   })
   .refine(
-    (value) => value.tip !== undefined || value.rect !== undefined || value.body !== undefined,
+    (value) =>
+      value.tip !== undefined ||
+      value.rect !== undefined ||
+      value.circle !== undefined ||
+      value.body !== undefined,
   )
-  .refine((value) => value.tip === undefined || value.rect === undefined);
+  .refine(
+    (value) =>
+      [value.tip, value.rect, value.circle].filter((geometry) => geometry !== undefined).length <=
+      1,
+  );
 
 export type UpdateAnnotationBody = z.infer<typeof updateAnnotationBodySchema>;
 

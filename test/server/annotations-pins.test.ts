@@ -915,3 +915,270 @@ describe("rectangles (D079)", () => {
     if (listed.ok) expect(listed.annotations).toHaveLength(0);
   });
 });
+
+describe("circles (D082)", () => {
+  const square = { x: 100, y: 200, size: 300 };
+  const circleInput = (overrides: Record<string, unknown> = {}) =>
+    createInput({
+      tip: undefined,
+      circle: square,
+      idempotencyKey: "circle-create-key-0001",
+      ...overrides,
+    });
+
+  function circleOf(record: AnnotationRecord) {
+    return record.kind === "circle" ? record.circle : undefined;
+  }
+
+  test("a valid square persists as kind circle with its square as the geometry", async () => {
+    const result = await createPinAtomically(testDb.db, circleInput());
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (!result.ok) return;
+    expect(result.annotation.kind).toBe("circle");
+    expect(circleOf(result.annotation)).toEqual(square);
+    expect(result.annotation.number).toBe(1);
+    expect(result.annotation.status).toBe("open");
+    const [row] = await rowsFor(readyCaptureId);
+    expect(row!.kind).toBe("circle");
+    expect(row!.geometryJson).toBe(JSON.stringify(square));
+    expect(row!.geometryVersion).toBe(1);
+  });
+
+  test("the square may touch the document's edges, inclusively", async () => {
+    const full = { x: 0, y: 0, size: 1440 };
+    const result = await createPinAtomically(testDb.db, circleInput({ circle: full }));
+    expect(result).toMatchObject({ ok: true, created: true });
+    if (result.ok) expect(circleOf(result.annotation)).toEqual(full);
+  });
+
+  test("too-small, out-of-frame, non-finite, and ambiguous geometry writes nothing", async () => {
+    const min = MIN_SHAPE_SIZE_PX;
+    const invalid: Record<string, unknown>[] = [
+      { circle: { ...square, size: min - 0.01 } },
+      { circle: { ...square, size: 0 } },
+      { circle: { ...square, size: -10 } },
+      { circle: { ...square, x: -1 } },
+      { circle: { ...square, y: -0.5 } },
+      // Past the right edge, then past the bottom.
+      { circle: { x: 1400, y: 10, size: 100 } },
+      { circle: { x: 10, y: 8900, size: 100 } },
+      // A square wider than the document can never fit.
+      { circle: { x: 0, y: 0, size: 2000 } },
+      { circle: { ...square, x: Number.NaN } },
+      { circle: { ...square, size: Number.POSITIVE_INFINITY } },
+      // Two geometries, or none, is not a kind.
+      { circle: square, tip: { x: 1, y: 1 } },
+      { circle: square, rect: { x: 0, y: 0, width: 10, height: 10 } },
+      { circle: undefined },
+    ];
+    for (const [index, overrides] of invalid.entries()) {
+      const result = await createPinAtomically(
+        testDb.db,
+        circleInput({ idempotencyKey: `circle-invalid-${index}`, ...overrides }),
+      );
+      expect(result, JSON.stringify(overrides)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    expect(await rowsFor(readyCaptureId)).toHaveLength(0);
+    // The minimum itself is allowed.
+    const edge = await createPinAtomically(
+      testDb.db,
+      circleInput({ circle: { x: 5, y: 5, size: min } }),
+    );
+    expect(edge).toMatchObject({ ok: true, created: true });
+  });
+
+  test("every kind shares one number sequence per capture, tombstones included", async () => {
+    const pin = await createPinAtomically(testDb.db, createInput());
+    const rect = await createPinAtomically(
+      testDb.db,
+      createInput({
+        tip: undefined,
+        rect: { x: 100, y: 200, width: 300, height: 150 },
+        idempotencyKey: "rect-key-0001",
+      }),
+    );
+    const circle = await createPinAtomically(testDb.db, circleInput());
+    if (!pin.ok || !rect.ok || !circle.ok) throw new Error("seed creates failed");
+    expect([pin.annotation.number, rect.annotation.number, circle.annotation.number]).toEqual([
+      1, 2, 3,
+    ]);
+    // A tombstoned circle keeps its number retired forever.
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: circle.annotation.id,
+        expectedRevision: circle.annotation.revision,
+      }),
+    ).toEqual({ ok: true });
+    const next = await createPinAtomically(
+      testDb.db,
+      circleInput({ idempotencyKey: "circle-create-key-0002" }),
+    );
+    if (!next.ok) throw new Error("create after delete failed");
+    expect(next.annotation.number).toBe(4);
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (!listed.ok) throw new Error("list failed");
+    expect(listed.annotations.map((a) => [a.kind, a.number])).toEqual([
+      ["pin", 1],
+      ["rectangle", 2],
+      ["circle", 4],
+    ]);
+  });
+
+  test("the same key replays the circle; the same key with another square conflicts", async () => {
+    const first = await createPinAtomically(testDb.db, circleInput());
+    const replay = await createPinAtomically(testDb.db, circleInput());
+    expect(replay).toMatchObject({ ok: true, created: false });
+    if (first.ok && replay.ok) expect(replay.annotation).toEqual(first.annotation);
+    const other = await createPinAtomically(
+      testDb.db,
+      circleInput({ circle: { ...square, size: 301 } }),
+    );
+    expect(other).toMatchObject({ ok: false, error: "conflict" });
+    expect(await rowsFor(readyCaptureId)).toHaveLength(1);
+  });
+
+  test("a circle carries the same explicit context decision and server-derived snapshot", async () => {
+    const result = await createPinAtomically(
+      testDb.db,
+      circleInput({ captureId: "cap-manifest", elementId: "cell-2" }),
+    );
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.annotation.elementSnapshot).toMatchObject({ id: "cell-2" });
+    const unknown = await createPinAtomically(
+      testDb.db,
+      circleInput({
+        captureId: "cap-manifest",
+        elementId: "nope",
+        idempotencyKey: "circle-unknown",
+      }),
+    );
+    expect(unknown).toMatchObject({ ok: false, error: "invalid" });
+  });
+
+  test("a move or resize is one revisioned write that preserves everything else", async () => {
+    const created = await createPinAtomically(
+      testDb.db,
+      circleInput({ captureId: "cap-manifest", elementId: "cell-1" }),
+    );
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const moved = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      circle: { x: 20, y: 30, size: 300 },
+    });
+    expect(moved).toMatchObject({ ok: true });
+    if (!moved.ok) return;
+    expect(moved.annotation.kind).toBe("circle");
+    expect(circleOf(moved.annotation)).toEqual({ x: 20, y: 30, size: 300 });
+    expect(moved.annotation.revision).toBe(saved.revision + 1);
+    expect(moved.annotation.number).toBe(saved.number);
+    expect(moved.annotation.body).toBe(saved.body);
+    expect(moved.annotation.elementSnapshot).toEqual(saved.elementSnapshot);
+
+    const resized = await updatePin(testDb.db, {
+      captureId: "cap-manifest",
+      annotationId: saved.id,
+      expectedRevision: moved.annotation.revision,
+      circle: { x: 20, y: 30, size: 8 },
+    });
+    expect(resized).toMatchObject({ ok: true });
+    if (!resized.ok) return;
+    expect(resized.annotation.revision).toBe(saved.revision + 2);
+    const [row] = await rowsFor("cap-manifest");
+    expect(row!.geometryJson).toBe(JSON.stringify({ x: 20, y: 30, size: 8 }));
+    expect(JSON.parse(row!.elementSnapshotJson!)).toEqual(saved.elementSnapshot);
+  });
+
+  test("a stale resize conflicts and changes no row; the wrong kind of geometry is invalid", async () => {
+    const created = await createPinAtomically(testDb.db, circleInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const ref = { captureId: readyCaptureId, annotationId: saved.id };
+    expect(
+      await updatePin(testDb.db, {
+        ...ref,
+        expectedRevision: saved.revision,
+        circle: { ...square, x: 10 },
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await updatePin(testDb.db, {
+        ...ref,
+        expectedRevision: saved.revision,
+        circle: { ...square, x: 20 },
+      }),
+    ).toMatchObject({ ok: false, error: "conflict" });
+
+    for (const circle of [
+      { ...square, size: MIN_SHAPE_SIZE_PX - 1 },
+      { ...square, x: 1300 },
+      { ...square, y: Number.NaN },
+    ]) {
+      const result = await updatePin(testDb.db, { ...ref, expectedRevision: 2, circle });
+      expect(result, JSON.stringify(circle)).toMatchObject({ ok: false, error: "invalid" });
+    }
+    // A tip or a box on a circle, and a circle on a pin, name the wrong kind.
+    expect(
+      await updatePin(testDb.db, { ...ref, expectedRevision: 2, tip: { x: 1, y: 1 } }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    expect(
+      await updatePin(testDb.db, {
+        ...ref,
+        expectedRevision: 2,
+        rect: { x: 1, y: 1, width: 20, height: 20 },
+      }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const pin = await createPinAtomically(testDb.db, createInput());
+    if (!pin.ok) throw new Error("seed pin failed");
+    expect(
+      await updatePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: pin.annotation.id,
+        expectedRevision: pin.annotation.revision,
+        circle: square,
+      }),
+    ).toMatchObject({ ok: false, error: "invalid" });
+    const rows = await rowsFor(readyCaptureId);
+    expect(rows.find((row) => row.id === saved.id)).toMatchObject({
+      revision: 2,
+      geometryJson: JSON.stringify({ ...square, x: 10 }),
+    });
+    expect(rows.find((row) => row.id === pin.annotation.id)!.revision).toBe(1);
+  });
+
+  test("a circle edit and a stale delete follow the pin rules", async () => {
+    const created = await createPinAtomically(testDb.db, circleInput());
+    if (!created.ok) throw new Error("seed create failed");
+    const saved = created.annotation;
+    const edited = await updatePin(testDb.db, {
+      captureId: readyCaptureId,
+      annotationId: saved.id,
+      expectedRevision: saved.revision,
+      body: "Tighter.",
+    });
+    expect(edited).toMatchObject({ ok: true });
+    if (edited.ok) {
+      expect(edited.annotation.body).toBe("Tighter.");
+      expect(circleOf(edited.annotation)).toEqual(square);
+    }
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: saved.id,
+        expectedRevision: saved.revision,
+      }),
+    ).toMatchObject({ ok: false, error: "conflict" });
+    expect(
+      await deletePin(testDb.db, {
+        captureId: readyCaptureId,
+        annotationId: saved.id,
+        expectedRevision: saved.revision + 1,
+      }),
+    ).toEqual({ ok: true });
+    const listed = await listPins(testDb.db, readyCaptureId);
+    if (listed.ok) expect(listed.annotations).toHaveLength(0);
+  });
+});

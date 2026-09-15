@@ -12,7 +12,8 @@
 // drag draws one, a plain drag pans, a release below the minimum draws
 // nothing, the draft box is resizable, a saved box resize commits one
 // clamped write, the read-only plane has no handles, and J/K step through
-// boxes and pins in one number order. jsdom proves structure and state, not
+// boxes and pins in one number order. Circles (D082) do all of that with a
+// square-constrained drag, an ellipse renderer, and four corner handles. jsdom proves structure and state, not
 // pixels — pixel transforms are covered by the pure camera/geometry oracles
 // and the real-browser measurements in e2e/canvas-interactions.spec.ts.
 // React Flow node drags (a saved box moved by its edge) cannot run under
@@ -1057,6 +1058,300 @@ describe("rectangles (D079)", () => {
     // Shift-drag draws nothing here.
     drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 }, { shiftKey: true });
     expect(draftRectangleNodes()).toHaveLength(0);
+  });
+});
+
+// Circles (D082): a square-constrained region drawn by an armed tool, an
+// ellipse inscribed in that bounding square, resized by its four corners.
+describe("circles (D082)", () => {
+  const zoomed: CaptureCameraState = {
+    camera: { x: -1000, y: -20_000, zoom: 4 },
+    mode: "natural",
+    follow: false,
+  };
+  const ZOOM = zoomed.camera.zoom;
+
+  const circles = [{ id: "circle-2", number: 2, circle: { x: 100, y: 200, size: 300 } }];
+
+  type Circle = { x: number; y: number; size: number };
+  type Draft =
+    | { kind: "pin"; tip: { x: number; y: number } }
+    | { kind: "rectangle"; rect: { x: number; y: number; width: number; height: number } }
+    | { kind: "circle"; circle: Circle };
+
+  function circleNodes(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".react-flow__node-circle"));
+  }
+  function draftCircleNodes(): HTMLElement[] {
+    return Array.from(document.querySelectorAll(".react-flow__node-draftCircle"));
+  }
+  function circleHandles(root: ParentNode = document): HTMLElement[] {
+    return Array.from(root.querySelectorAll('[data-testid="circle-handle"]'));
+  }
+  function circleHandle(root: ParentNode, name: string): HTMLElement {
+    return root.querySelector(`[data-testid="circle-handle"][data-handle="${name}"]`)!;
+  }
+  function tool(name: string): HTMLElement {
+    return within(stage()).getByRole("button", { name });
+  }
+
+  async function renderZoomed(extra: Record<string, unknown> = {}) {
+    const result = render(<CaptureCanvas {...props} savedCamera={zoomed} {...extra} />);
+    await waitFor(() =>
+      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      ),
+    );
+    return result;
+  }
+
+  function drag(
+    target: Element,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    init: Record<string, unknown> = {},
+  ): void {
+    fireEvent.pointerDown(target, { clientX: from.x, clientY: from.y, isPrimary: true, ...init });
+    fireEvent.pointerMove(target, { clientX: to.x, clientY: to.y, isPrimary: true, ...init });
+    fireEvent.pointerUp(target, { clientX: to.x, clientY: to.y, isPrimary: true, ...init });
+  }
+
+  test("the tools are one labelled group of one-gesture toggles, Box beside Circle", () => {
+    render(<CaptureCanvas {...props} />);
+    const group = within(stage()).getByRole("group", { name: "Mark tools" });
+    expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "Draw a box",
+      "Draw a circle",
+    ]);
+    for (const button of within(group).getAllByRole("button")) {
+      expect(button).toHaveAttribute("aria-pressed", "false");
+    }
+  });
+
+  test("the Circle tool arms exactly the next drag, then disarms itself", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(tool("Draw a circle"));
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "true");
+    expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "false");
+    expect(region()).toHaveAttribute("data-draw-tool", "circle");
+
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 });
+    expect(draftCircleNodes()).toHaveLength(1);
+    expect((onDraftChange.mock.calls.at(-1)![0] as Draft).kind).toBe("circle");
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
+    expect(region()).not.toHaveAttribute("data-draw-tool");
+
+    // Disarmed: the next plain drag pans again and the circle stays as it was.
+    const calls = onDraftChange.mock.calls.length;
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 });
+    expect(onDraftChange.mock.calls.length).toBe(calls);
+    expect(draftCircleNodes()).toHaveLength(1);
+  });
+
+  test("an off-square drag still yields a square, sized by the larger dimension", async () => {
+    const onDraftChange = vi.fn();
+    const onDraftSettled = vi.fn();
+    const user = userEvent.setup();
+    await renderZoomed({ onDraftChange, onDraftSettled, composer: composerProps() });
+    await user.click(tool("Draw a circle"));
+    // 80 by 240 screen px at 4x: 20 by 60 natural, so the square is 60.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 540 });
+    const draft = onDraftChange.mock.calls.at(-1)![0] as Draft;
+    expect(draft.kind).toBe("circle");
+    if (draft.kind !== "circle") return;
+    expect(draft.circle.size).toBeCloseTo(240 / ZOOM, 5);
+    expect(draft.circle.x).toBeCloseTo((400 - zoomed.camera.x) / ZOOM, 5);
+    expect(draft.circle.y).toBeCloseTo((300 - zoomed.camera.y) / ZOOM, 5);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    expect(onDraftSettled).toHaveBeenLastCalledWith(draft);
+    // The node is the bounding square, and it draws an ellipse in it.
+    const node = draftCircleNodes()[0]!;
+    expect(node.style.width).toBe(node.style.height);
+    expect(node.querySelector("ellipse")).not.toBeNull();
+    // The same composer, labelled for a circle.
+    const dialog = within(stage()).getByRole("dialog", { name: "New circle" });
+    expect(dialog).toHaveAttribute("data-draft-kind", "circle");
+    expect(within(dialog).getByRole("button", { name: "Save circle" })).toBeInTheDocument();
+  });
+
+  test("a drag below the minimum draws nothing, and still spends the armed tool", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(tool("Draw a circle"));
+    // At 4x, 8 natural px is 32 screen px.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 410, y: 310 });
+    expect(draftCircleNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("C arms the circle tool from the keyboard, B the box tool, and Escape disarms", () => {
+    render(<CaptureCanvas {...props} />);
+    fireEvent.keyDown(region(), { key: "c" });
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.keyDown(region(), { key: "b" });
+    expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "true");
+    // The same key again disarms, and one tool is armed at a time.
+    fireEvent.keyDown(region(), { key: "c" });
+    expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "false");
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the tool keys never fire while a comment is being typed", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} composer={composerProps()} />);
+    tap(frameImage(), 400, 300);
+    const dialog = within(stage()).getByRole("dialog", { name: "New pin" });
+    await user.type(within(dialog).getByLabelText("Comment"), "back of the card");
+    expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
+    expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("the draft circle offers four corner handles, and a resize keeps it square", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    const onDraftSettled = vi.fn();
+    await renderZoomed({ onDraftChange, onDraftSettled, composer: composerProps() });
+    await user.click(tool("Draw a circle"));
+    drag(frameImage(), { x: 400, y: 300 }, { x: 560, y: 460 });
+    const before = onDraftChange.mock.calls.at(-1)![0] as Draft;
+    if (before.kind !== "circle") throw new Error("expected a circle draft");
+    const node = draftCircleNodes()[0]!;
+    expect(circleHandles(node).map((element) => element.dataset.handle)).toEqual([
+      "nw",
+      "ne",
+      "se",
+      "sw",
+    ]);
+
+    // Drag the south-east corner 40 by 8 screen px: the larger span wins.
+    drag(circleHandle(node, "se"), { x: 560, y: 460 }, { x: 600, y: 468 });
+    const after = onDraftChange.mock.calls.at(-1)![0] as Draft;
+    if (after.kind !== "circle") throw new Error("expected a circle draft");
+    expect(after.circle.x).toBe(before.circle.x);
+    expect(after.circle.y).toBe(before.circle.y);
+    expect(after.circle.size).toBeCloseTo(before.circle.size + 40 / ZOOM, 5);
+    // One settle for the draw, one for the resize — never per frame.
+    expect(onDraftSettled).toHaveBeenCalledTimes(2);
+    expect(onDraftSettled).toHaveBeenLastCalledWith(after);
+    expect(draftCircleNodes()).toHaveLength(1);
+  });
+
+  test("a saved circle renders at its bounding square with a numbered badge", async () => {
+    await renderZoomed({ circles });
+    const nodes = circleNodes();
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]!.style.transform).toContain("translate(100px,200px)");
+    expect(nodes[0]!.style.width).toBe("300px");
+    expect(nodes[0]!.style.height).toBe("300px");
+    const badge = nodes[0]!.querySelector('[data-testid="circle-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "2");
+    expect(badge.textContent).toBe("2");
+    expect(circleHandles(nodes[0]!)).toHaveLength(4);
+    // The wrapper lets the pointer through to the screenshot inside it.
+    expect(nodes[0]!.style.pointerEvents).toBe("none");
+    // The stroke that takes the pointer is the ellipse, not a box.
+    expect(nodes[0]!.querySelector('[data-testid="circle-edge"]')!.tagName.toLowerCase()).toBe(
+      "ellipse",
+    );
+  });
+
+  test("resizing a saved circle commits exactly one clamped write at release", async () => {
+    const onMoveCircle = vi.fn();
+    await renderZoomed({ circles, onMoveCircle });
+    const node = circleNodes()[0]!;
+    // South-east corner dragged far past the frame: the square clamps to the
+    // room left, and three move frames still produce one write.
+    fireEvent.pointerDown(circleHandle(node, "se"), { clientX: 600, clientY: 600, isPrimary: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 2600, clientY: 700, isPrimary: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 5600, clientY: 800, isPrimary: true });
+    expect(onMoveCircle).not.toHaveBeenCalled();
+    fireEvent.pointerMove(frameImage(), { clientX: 8600, clientY: 1000, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 8600, clientY: 1000, isPrimary: true });
+    expect(onMoveCircle).toHaveBeenCalledTimes(1);
+    const [id, circle] = onMoveCircle.mock.calls[0]! as [string, Circle];
+    expect(id).toBe("circle-2");
+    expect(circle.x).toBe(100);
+    expect(circle.y).toBe(200);
+    expect(circle.x + circle.size).toBeCloseTo(props.width, 5);
+    // The local square snaps back to the persisted geometry until the
+    // parent reloads it, and no draft was created by the handle press.
+    expect(circleNodes()[0]!.style.width).toBe("300px");
+    expect(draftNodes()).toHaveLength(0);
+  });
+
+  test("a resize can never push a circle below the minimum size", async () => {
+    const onMoveCircle = vi.fn();
+    await renderZoomed({ circles, onMoveCircle });
+    const node = circleNodes()[0]!;
+    drag(circleHandle(node, "nw"), { x: 0, y: 0 }, { x: 9000, y: 9000 });
+    expect(onMoveCircle).toHaveBeenCalledTimes(1);
+    const circle = onMoveCircle.mock.calls[0]![1] as Circle;
+    expect(circle.size).toBeCloseTo(MIN_SHAPE_SIZE_PX, 5);
+    expect(circle.x + circle.size).toBe(400);
+    expect(circle.y + circle.size).toBe(500);
+  });
+
+  test("a press and release on a circle handle writes nothing", async () => {
+    const onMoveCircle = vi.fn();
+    await renderZoomed({ circles, onMoveCircle });
+    const node = circleNodes()[0]!;
+    fireEvent.pointerDown(circleHandle(node, "ne"), { clientX: 600, clientY: 600, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 600, clientY: 600, isPrimary: true });
+    expect(onMoveCircle).not.toHaveBeenCalled();
+    expect(draftNodes()).toHaveLength(0);
+  });
+
+  test("clicking a saved circle selects it and marks it", () => {
+    const onSelectPin = vi.fn();
+    const { rerender } = render(
+      <CaptureCanvas {...props} circles={circles} onSelectPin={onSelectPin} />,
+    );
+    fireEvent.click(circleNodes()[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("circle-2");
+    rerender(<CaptureCanvas {...props} circles={circles} selectedPinId="circle-2" />);
+    expect(circleNodes()[0]!.querySelector('[data-testid="circle"]')).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+  });
+
+  test("J and K step through pins, boxes, and circles in one number order", () => {
+    const onSelectPin = vi.fn();
+    const pins = [{ id: "ann-1", number: 1, tip: { x: 720, y: 4000 } }];
+    const rectangles = [{ id: "box-3", number: 3, rect: { x: 10, y: 20, width: 30, height: 40 } }];
+    const shared = { pins, rectangles, circles, onSelectPin };
+    const { rerender } = render(<CaptureCanvas {...props} {...shared} selectedPinId={null} />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("ann-1");
+    rerender(<CaptureCanvas {...props} {...shared} selectedPinId="ann-1" />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("circle-2");
+    rerender(<CaptureCanvas {...props} {...shared} selectedPinId="circle-2" />);
+    fireEvent.keyDown(region(), { key: "j" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("box-3");
+    fireEvent.keyDown(region(), { key: "k" });
+    expect(onSelectPin).toHaveBeenLastCalledWith("ann-1");
+  });
+
+  test("the read-only plane renders circles with no handles, no drag, and no tools", () => {
+    render(<CaptureCanvas {...props} readOnly circles={circles} />);
+    expect(circleNodes()).toHaveLength(1);
+    expect(circleHandles()).toHaveLength(0);
+    expect(circleNodes()[0]!.className).not.toMatch(/\bdraggable\b/);
+    expect(within(stage()).queryByRole("group", { name: "Mark tools" })).toBeNull();
+    expect(within(stage()).queryByRole("button", { name: "Draw a circle" })).toBeNull();
+    // The tool keys do nothing here either.
+    fireEvent.keyDown(region(), { key: "c" });
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 380 });
+    expect(draftCircleNodes()).toHaveLength(0);
   });
 });
 

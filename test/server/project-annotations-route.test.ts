@@ -314,3 +314,41 @@ describe("rectangles in the project read (D079)", () => {
     expect(annotations[2].tip).toBeUndefined();
   });
 });
+
+describe("circles in the project read (D082)", () => {
+  test("a circle is listed in the same order with its kind and bounding square", async () => {
+    await testDb.db.insert(schema.annotations).values({
+      id: "root-d1-circle",
+      captureId: "root-d1",
+      kind: "circle",
+      number: 5,
+      geometryJson: JSON.stringify({ x: 100, y: 200, size: 300 }),
+      originalBody: "Draw the eye to this badge.",
+      createdAt: T0 + 4,
+      updatedAt: T0 + 4,
+    });
+    const response = await annotationsGET(request("pub-1"), context("pub-1"));
+    expect(response.status).toBe(200);
+    const { annotations } = await response.json();
+    const circle = annotations.find((mark: { id: string }) => mark.id === "root-d1-circle");
+    expect(circle).toMatchObject({
+      kind: "circle",
+      number: 5,
+      circle: { x: 100, y: 200, size: 300 },
+      captureId: "root-d1",
+      pageId: "page-root",
+      normalizedUrl: "https://chickpea.co/",
+      variant: "desktop",
+      attempt: 1,
+      status: "open",
+      unreadReplies: 0,
+    });
+    expect(circle.tip).toBeUndefined();
+    expect(circle.rect).toBeUndefined();
+    // It sorts by number inside its own capture, after the pins.
+    const ids = annotations
+      .filter((mark: { captureId: string }) => mark.captureId === "root-d1")
+      .map((mark: { id: string }) => mark.id);
+    expect(ids.at(-1)).toBe("root-d1-circle");
+  });
+});
