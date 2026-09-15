@@ -3218,9 +3218,10 @@ Proposed by the agent as the cheap half of finishing the mark vocabulary, approv
 
 **Consequences**
 
-- The mark-tool group grows from one toggle to several; each arms exactly one gesture and disarms afterwards, so D074's no-modes rule still holds.
-- The square constraint means a corner drag governs both dimensions, so the eight-handle set collapses to a meaningful four for circles; the implementing session decides whether to hide the edge handles or make them resize the square.
-- Circles inherit the resize-handle ergonomics weakness recorded for rectangles at low zoom.
+- The mark-tool group grows from one toggle to three (box, circle, arrow) inside a labelled group; each arms exactly one gesture and disarms after it or on Escape, and B, C, and A arm them from the keyboard, so D074's no-modes rule still holds. An armed tool wins over Shift; Shift with nothing armed still draws a box, unchanged from D079.
+- A circle offers four corner handles and no edge handles, published as CIRCLE_RESIZE_HANDLES. With a square constraint an edge handle would have to move the two perpendicular edges as well, which is not what a north or east handle shows.
+- Circles inherit the low-zoom handle ergonomics weakness: four fixed-screen-size corners still crowd a near-minimum circle and the top-left one paints over the badge. Four is less crowded than a rectangle's eight, not fixed, and NEXT.md records it.
+- No migration was needed: annotations.kind has admitted circle and arrow since the first migration, and the 0006 triggers constrain status and thread-entry kind rather than the annotation kind. Only BUILT_ANNOTATION_KINDS widened.
 
 **Provenance evidence**
 
@@ -3258,9 +3259,13 @@ Proposed by the agent and approved by the human as the item that most changes wh
 
 **Consequences**
 
-- The context route is asked for a point ranking for arrows and an overlap ranking for regions, so the caller now chooses the ranking by mark kind; the route already accepts both shapes since D079.
-- An arrow has no area, so hit-testing is a distance-to-segment test with a screen-space tolerance rather than a box test, and the table's Position column reports two points rather than a rectangle.
-- Arrows complete the mark vocabulary the requirements named, so milestone 3's rich-mark line closes with this record; freehand and curved arrows remain non-goals.
+- The context route is unchanged: the caller picks the ranking by mark kind, so a circle asks for the overlap ranking with its bounding square and an arrow asks for the point ranking at its head. The route has served both shapes since D079.
+- A new published boundary, ARROW_HIT_TOLERANCE_CSS_PX of 12, with POLICY_VERSION bumped to 2026-09-15.1. It is exactly half MIN_HIT_TARGET_CSS_PX, so the band around the shaft is a full-size target; the drift test asserts both that relationship and that the tolerance exceeds the placement slop.
+- Hit-testing is the browser's own stroke test rather than a hand-written one: a transparent line of twice the tolerance takes the pointer while the wrapper stays transparent, so distance-to-segment falls out of rendering. The pure oracle exists anyway because jsdom does no hit-testing.
+- An arrow has no area, so its React Flow node box is the endpoints' bounds padded by the chrome, and a shaft drag applies the difference from a drag-start snapshot rather than re-deriving geometry from the padded box, which keeps length and direction exact.
+- The badge rides at the tail and reveal centres on the shaft's midpoint while the extent stays the endpoints' bounds, so a long arrow zooms out to fit rather than centring on something off screen.
+- Arrow endpoint handles share the low-zoom crowding problem; the wide shaft band means the arrow is still grabbable. Recorded in NEXT.md.
+- The mark vocabulary the requirements named is now complete. Freehand and curved arrows remain non-goals.
 
 **Provenance evidence**
 
@@ -3274,4 +3279,4 @@ Human approved:
 
 ---
 
-<sub>Generated from 83 record(s) as of 2026-09-15 · source `15d533b6dd24`</sub>
+<sub>Generated from 83 record(s) as of 2026-09-15 · source `4fa3ddf6044b`</sub>
