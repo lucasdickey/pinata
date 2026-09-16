@@ -16,6 +16,7 @@ import { join } from "node:path";
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
   ANNOTATION_REQUEST_MAX_BYTES,
+  ARROW_HIT_TOLERANCE_CSS_PX,
   ASSET_CACHE_CONTROL,
   ASSET_RANGE_UNIT,
   ASSET_VARY,
@@ -214,6 +215,7 @@ const INTERACTION_ROWS: DocRow[] = [
   { name: "CLIENT_REQUEST_TIMEOUT_MS", value: fmtMs(CLIENT_REQUEST_TIMEOUT_MS) },
   { name: "MIN_HIT_TARGET_CSS_PX", value: fmtPx(MIN_HIT_TARGET_CSS_PX) },
   { name: "PLACEMENT_SLOP_SCREEN_PX", value: fmtPx(PLACEMENT_SLOP_SCREEN_PX) },
+  { name: "ARROW_HIT_TOLERANCE_CSS_PX", value: fmtPx(ARROW_HIT_TOLERANCE_CSS_PX) },
 ];
 
 const PERFORMANCE_ROWS: DocRow[] = [
@@ -383,6 +385,10 @@ describe("boundary catalog coverage and consistency", () => {
     expect(MAX_ANNOTATIONS_PER_CAPTURE).toBeGreaterThanOrEqual(NEARBY_CANDIDATES_MAX);
     expect(NEARBY_CANDIDATES_MAX).toBeGreaterThan(0);
     expect(MIN_ARROW_LENGTH_PX).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    // An arrow has no area, so the band around its shaft is the whole hit
+    // target: twice the tolerance must reach the shared minimum.
+    expect(ARROW_HIT_TOLERANCE_CSS_PX * 2).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX);
+    expect(ARROW_HIT_TOLERANCE_CSS_PX).toBeGreaterThan(PLACEMENT_SLOP_SCREEN_PX);
     // The annotation request cap must comfortably hold a maximal comment
     // plus its tip, key, and JSON envelope.
     expect(ANNOTATION_REQUEST_MAX_BYTES).toBeGreaterThan(FEEDBACK_BODY_MAX_CHARS * 4);

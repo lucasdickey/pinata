@@ -165,3 +165,53 @@ describe("readOnly rectangles (D079)", () => {
     expect(document.querySelectorAll(".react-flow__node-draftRectangle")).toHaveLength(0);
   });
 });
+
+describe("readOnly circles (D082)", () => {
+  const circles = [{ id: "circle-4", number: 4, circle: { x: 100, y: 200, size: 300 } }];
+
+  test("circles render with no handles, no drag, and no mark tools; selecting one still works", () => {
+    const onSelectPin = vi.fn();
+    render(
+      <CaptureCanvas {...props} readOnly pins={pins} circles={circles} onSelectPin={onSelectPin} />,
+    );
+    const nodes = Array.from(document.querySelectorAll(".react-flow__node-circle"));
+    expect(nodes).toHaveLength(1);
+    expect(document.querySelectorAll('[data-testid="circle-handle"]')).toHaveLength(0);
+    expect(nodes[0]!.className).not.toMatch(/draggable/);
+    expect(within(stage()).queryByRole("group", { name: "Mark tools" })).toBeNull();
+    const badge = nodes[0]!.querySelector('[data-testid="circle-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "4");
+    fireEvent.click(nodes[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("circle-4");
+    // The tool key does nothing here, and no drag draws anything.
+    fireEvent.keyDown(within(stage()).getByRole("region"), { key: "c" });
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 520, clientY: 420, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 520, clientY: 420, isPrimary: true });
+    expect(document.querySelectorAll(".react-flow__node-draftCircle")).toHaveLength(0);
+  });
+});
+
+describe("readOnly arrows (D083)", () => {
+  const arrows = [
+    { id: "arrow-5", number: 5, arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } } },
+  ];
+
+  test("arrows render with no endpoint handles and no drag; selecting one still works", () => {
+    const onSelectPin = vi.fn();
+    render(
+      <CaptureCanvas {...props} readOnly pins={pins} arrows={arrows} onSelectPin={onSelectPin} />,
+    );
+    const nodes = Array.from(document.querySelectorAll(".react-flow__node-arrow"));
+    expect(nodes).toHaveLength(1);
+    expect(document.querySelectorAll('[data-testid="arrow-handle"]')).toHaveLength(0);
+    expect(nodes[0]!.className).not.toMatch(/draggable/);
+    expect(within(stage()).queryByRole("button", { name: "Draw an arrow" })).toBeNull();
+    // The shaft and the head are still drawn, and the badge rides at the tail.
+    expect(nodes[0]!.querySelector('[data-testid="arrow-head"]')).not.toBeNull();
+    const badge = nodes[0]!.querySelector('[data-testid="arrow-badge"]')!;
+    expect(badge).toHaveAttribute("data-mark-number", "5");
+    fireEvent.click(nodes[0]!);
+    expect(onSelectPin).toHaveBeenCalledWith("arrow-5");
+  });
+});

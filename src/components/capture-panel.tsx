@@ -5,7 +5,8 @@
 // panning and zooming never move it. Exactly one saved pin can be selected
 // at a time:
 //
-// - A saved mark (a pin, or a rectangle since D079) is named by what it says
+// - A saved mark (a pin, a rectangle since D079, a circle since D082, an
+//   arrow since D083) is named by what it says
 //   and what it points at (markLabel, D078), shows its status, comment, and
 //   immutable context snapshot (or the explicit "No element"), and offers
 //   Edit comment and Delete. Both carry the mark's current revision; a
@@ -45,6 +46,14 @@ export const STATE_LABELS: Record<AttemptView["state"], string> = {
 export function variantLabel(variant: string): string {
   return VARIANT_LABELS[variant] ?? variant;
 }
+
+/** What Details calls the selected mark's geometry line, by kind. */
+const MARK_DETAIL_LABELS: Record<AnnotationView["kind"], string> = {
+  pin: "Position",
+  rectangle: "Box",
+  circle: "Circle",
+  arrow: "Arrow",
+};
 
 export function CapturePanel({
   attempt,
@@ -228,7 +237,11 @@ export function CapturePanel({
           <p className="panel-note">
             {selectedPin.kind === "rectangle"
               ? "Drag the box's edge or badge to move it and its handles to resize it. Deleting a box retires its number forever."
-              : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
+              : selectedPin.kind === "circle"
+                ? "Drag the circle's edge or badge to move it and its corner handles to resize it. Deleting a circle retires its number forever."
+                : selectedPin.kind === "arrow"
+                  ? "Drag the arrow's shaft or badge to move it and either end to re-aim it. Deleting an arrow retires its number forever."
+                  : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
           </p>
           {thread ? (
             <>
@@ -299,7 +312,7 @@ export function CapturePanel({
         <dl className="panel-facts">
           {selectedPin ? (
             <>
-              <dt>{selectedPin.kind === "rectangle" ? "Box" : "Position"}</dt>
+              <dt>{MARK_DETAIL_LABELS[selectedPin.kind]}</dt>
               <dd data-testid="panel-position" data-kind={selectedPin.kind}>
                 {markPosition(selectedPin)} px
               </dd>
@@ -334,7 +347,8 @@ export function CapturePanel({
           <li>Escape cancels</li>
           <li>J and K, or the arrow keys, step through the marks</li>
           <li>N drops a pin at the center of the view</li>
-          <li>Shift-drag, or the Box tool, draws a box</li>
+          <li>B, C, or A arms the box, circle, or arrow tool for the next drag</li>
+          <li>Shift-drag also draws a box</li>
         </ul>
       </details>
     </aside>

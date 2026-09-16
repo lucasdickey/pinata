@@ -11,11 +11,13 @@
 // their `parentId` against a frame that precedes them.
 
 import type { Node } from "@xyflow/react";
-import { MIN_HIT_TARGET_CSS_PX } from "../boundaries";
+import { ARROW_HIT_TOLERANCE_CSS_PX, MIN_HIT_TARGET_CSS_PX } from "../boundaries";
 import { pinHitBox, type PinBox } from "./geometry";
 import type { NaturalPoint } from "./camera";
+import { arrowBounds, isFiniteArrow, type NaturalArrow } from "./arrow";
+import { circleBounds, CIRCLE_RESIZE_HANDLES, type NaturalCircle } from "./circle";
 import { markLabel, type DraftMark, type MarkElementSource } from "./marks";
-import { isFiniteRect, type NaturalRect } from "./rectangle";
+import { isFiniteRect, RESIZE_HANDLES, type NaturalRect } from "./rectangle";
 
 /** Custom node type for the one immutable screenshot frame. */
 export const CAPTURE_FRAME_TYPE = "captureFrame";
@@ -34,6 +36,18 @@ export const RECTANGLE_TYPE = "rectangle";
 
 /** Custom node type for the one transient, unsaved draft rectangle. */
 export const DRAFT_RECTANGLE_TYPE = "draftRectangle";
+
+/** Custom node type for one persisted, numbered circle (D082). */
+export const CIRCLE_TYPE = "circle";
+
+/** Custom node type for the one transient, unsaved draft circle. */
+export const DRAFT_CIRCLE_TYPE = "draftCircle";
+
+/** Custom node type for one persisted, numbered arrow (D083). */
+export const ARROW_TYPE = "arrow";
+
+/** Custom node type for the one transient, unsaved draft arrow. */
+export const DRAFT_ARROW_TYPE = "draftArrow";
 
 /** The domain facts a capture frame renders from. */
 export interface CaptureFrameDomain {
@@ -123,48 +137,60 @@ export function nodesForCapture(
 export interface PlaneMarks {
   pins?: CanvasPin[];
   rectangles?: CanvasRectangle[];
-  /** The one transient draft (pin or rectangle), or null. */
+  circles?: CanvasCircle[];
+  arrows?: CanvasArrow[];
+  /** The one transient draft (pin, rectangle, circle, or arrow), or null. */
   draft?: DraftMark | null;
   /**
-   * A draft rectangle still being drawn: it renders without handles and
+   * A draft region still being drawn: it renders without handles and
    * carries a marker so the composer waits for the release.
    */
   drawing?: boolean;
   zoom?: number;
   preview?: ContextRect | null;
   /**
-   * The founder's read-only plane: rectangles render with no handles and
+   * The founder's read-only plane: regions render with no handles and
    * no drag. Pins keep their own read-only handling in the canvas.
    */
   readOnly?: boolean;
 }
 
 /**
- * The controlled node array for one plane with both mark kinds (D079):
- * frame, then the preview highlight, then every persisted pin and rectangle
- * in one stable number order (the shared sequence), then the draft. Node
- * ids for persisted marks are their server annotation ids.
+ * The controlled node array for one plane with every mark kind (D079, D082,
+ * D083): frame, then the preview highlight, then every persisted pin,
+ * rectangle, circle, and arrow in one stable number order (the shared
+ * sequence), then the draft. Node ids for persisted marks are their server
+ * annotation ids.
  */
 export function nodesForPlane(domain: CaptureFrameDomain, marks: PlaneMarks): CanvasNode[] {
   const zoom = marks.zoom ?? 1;
   const frame = captureFrameNode(domain);
   const highlight = marks.preview ? contextPreviewNode(domain, marks.preview) : null;
-  const ordered: (CanvasPin | CanvasRectangle)[] = [
+  const ordered: (CanvasPin | CanvasRectangle | CanvasCircle | CanvasArrow)[] = [
     ...(marks.pins ?? []),
     ...(marks.rectangles ?? []),
+    ...(marks.circles ?? []),
+    ...(marks.arrows ?? []),
   ].sort((a, b) => a.number - b.number);
   const nodes: CanvasNode[] = [frame, ...(highlight ? [highlight] : [])];
+  const readOnly = marks.readOnly ?? false;
   for (const mark of ordered) {
-    nodes.push(
-      "rect" in mark
-        ? rectangleNode(domain, mark, zoom, { readOnly: marks.readOnly ?? false })
-        : pinNode(domain, mark, zoom),
-    );
+    if ("rect" in mark) nodes.push(rectangleNode(domain, mark, zoom, { readOnly }));
+    else if ("circle" in mark) nodes.push(circleNode(domain, mark, zoom, { readOnly }));
+    else if ("arrow" in mark) nodes.push(arrowNode(domain, mark, zoom, { readOnly }));
+    else nodes.push(pinNode(domain, mark, zoom));
   }
   const draft = marks.draft ?? null;
+  const drawing = marks.drawing ?? false;
   if (draft?.kind === "pin") nodes.push(draftPinNode(domain, draft.tip, zoom));
   if (draft?.kind === "rectangle") {
-    nodes.push(draftRectangleNode(domain, draft.rect, zoom, { drawing: marks.drawing ?? false }));
+    nodes.push(draftRectangleNode(domain, draft.rect, zoom, { drawing }));
+  }
+  if (draft?.kind === "circle") {
+    nodes.push(draftCircleNode(domain, draft.circle, zoom, { drawing }));
+  }
+  if (draft?.kind === "arrow") {
+    nodes.push(draftArrowNode(domain, draft.arrow, zoom, { drawing }));
   }
   return nodes;
 }
@@ -288,7 +314,11 @@ export type CanvasNode =
   | DraftPinNode
   | ContextPreviewNode
   | RectangleNode
-  | DraftRectangleNode;
+  | DraftRectangleNode
+  | CircleNode
+  | DraftCircleNode
+  | ArrowNode
+  | DraftArrowNode;
 
 /**
  * The preview node id is a deterministic namespaced derivative of the
@@ -426,8 +456,31 @@ export const RECTANGLE_STROKE_SCREEN_PX = 2;
 export const RECTANGLE_GRAB_SCREEN_PX = 14;
 export const RECTANGLE_HANDLE_DOT_SCREEN_PX = 10;
 
+/** The domain facts one persisted circle renders from (D082). */
+export interface CanvasCircle {
+  /** Server annotation id; the React Flow node id is exactly this. */
+  id: string;
+  /** Server-assigned monotonic per-capture number (shared with every kind). */
+  number: number;
+  /** Canonical bounding square in screenshot-natural pixels. */
+  circle: NaturalCircle;
+  /** Whether the workspace panel currently shows this circle. */
+  selected: boolean;
+  /** The comment and attached element, when known: they name the node (D078). */
+  body?: string;
+  elementSnapshot?: MarkElementSource | null;
+}
+
 export interface RectangleData extends Record<string, unknown> {
-  /** The annotation id for saved rectangles; the namespaced id for a draft. */
+  /**
+   * Which region the node draws: a box, or the ellipse inscribed in the
+   * bounding square of a circle (D082). The geometry fields below are the
+   * bounding box either way.
+   */
+  shape: "rectangle" | "circle";
+  /** The resize handles this region offers; empty when it has none. */
+  handleNames: readonly string[];
+  /** The annotation id for saved regions; the namespaced id for a draft. */
   annotationId: string;
   /** The server number, or null for a draft. */
   number: number | null;
@@ -456,6 +509,8 @@ export interface RectangleData extends Record<string, unknown> {
 
 export type RectangleNode = Node<RectangleData, typeof RECTANGLE_TYPE>;
 export type DraftRectangleNode = Node<RectangleData, typeof DRAFT_RECTANGLE_TYPE>;
+export type CircleNode = Node<RectangleData, typeof CIRCLE_TYPE>;
+export type DraftCircleNode = Node<RectangleData, typeof DRAFT_CIRCLE_TYPE>;
 
 function requireRect(rect: NaturalRect, label: string): void {
   if (!isFiniteRect(rect) || rect.width < 0 || rect.height < 0) {
@@ -514,6 +569,8 @@ export function rectangleNode(
     width: rectangle.rect.width,
     height: rectangle.rect.height,
     data: {
+      shape: "rectangle",
+      handleNames: RESIZE_HANDLES,
       annotationId: rectangle.id,
       number: rectangle.number,
       rectX: rectangle.rect.x,
@@ -571,6 +628,8 @@ export function draftRectangleNode(
     width: rect.width,
     height: rect.height,
     data: {
+      shape: "rectangle",
+      handleNames: RESIZE_HANDLES,
       annotationId: draftRectangleNodeId(domain.captureId),
       number: null,
       rectX: rect.x,
@@ -582,6 +641,352 @@ export function draftRectangleNode(
       selected: false,
       handles: !drawing,
       ...chrome,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !drawing,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    style: { pointerEvents: "none" },
+  };
+}
+
+/**
+ * The draft circle node id, namespaced like every other adapter artifact so
+ * it can never collide with a server-assigned annotation id.
+ */
+export function draftCircleNodeId(captureId: string): string {
+  return `draft-circle:${captureId}`;
+}
+
+/**
+ * One persisted numbered circle as a child of the screenshot frame (D082).
+ * Its position and size ARE the persisted bounding square, and the renderer
+ * inscribes an ellipse in it, so the drawn edge inverse-transforms to the
+ * stored geometry within one natural pixel at any zoom. Everything else
+ * matches a rectangle: a pointer-transparent wrapper so a click inside still
+ * drops a pin, a stroke and a badge that take the pointer, one revisioned
+ * write per gesture, and no handles or drag on a read-only plane. The only
+ * difference is the handle set: four corners, because the square constraint
+ * means one drag governs both dimensions.
+ */
+export function circleNode(
+  domain: CaptureFrameDomain,
+  circle: CanvasCircle,
+  zoom: number,
+  options: { readOnly?: boolean } = {},
+): CircleNode {
+  const bounds = circleBounds(circle.circle);
+  requireRect(bounds, "circle");
+  const chrome = rectangleChrome(domain, zoom);
+  const label = markLabel({
+    kind: "circle",
+    number: circle.number,
+    body: circle.body ?? "",
+    elementSnapshot: circle.elementSnapshot ?? null,
+  });
+  const readOnly = options.readOnly ?? false;
+  return {
+    id: circle.id,
+    type: CIRCLE_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: bounds.x, y: bounds.y },
+    width: bounds.width,
+    height: bounds.height,
+    data: {
+      shape: "circle",
+      handleNames: CIRCLE_RESIZE_HANDLES,
+      annotationId: circle.id,
+      number: circle.number,
+      rectX: bounds.x,
+      rectY: bounds.y,
+      rectWidth: bounds.width,
+      rectHeight: bounds.height,
+      draft: false,
+      drawing: false,
+      selected: circle.selected,
+      handles: !readOnly,
+      ...chrome,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !readOnly,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    style: { pointerEvents: "none" },
+  };
+}
+
+/**
+ * The transient draft circle as a child of the screenshot frame: the square
+ * being drawn (no handles yet) or the drawn square awaiting its comment
+ * (draggable and resizable by its four corners). A draft is local UI state:
+ * never persisted, numbered, or listed as an annotation.
+ */
+export function draftCircleNode(
+  domain: CaptureFrameDomain,
+  circle: NaturalCircle,
+  zoom: number,
+  options: { drawing?: boolean } = {},
+): DraftCircleNode {
+  const bounds = circleBounds(circle);
+  requireRect(bounds, "circle");
+  const chrome = rectangleChrome(domain, zoom);
+  const drawing = options.drawing ?? false;
+  const label = "New circle, not saved yet";
+  return {
+    id: draftCircleNodeId(domain.captureId),
+    type: DRAFT_CIRCLE_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: bounds.x, y: bounds.y },
+    width: bounds.width,
+    height: bounds.height,
+    data: {
+      shape: "circle",
+      handleNames: CIRCLE_RESIZE_HANDLES,
+      annotationId: draftCircleNodeId(domain.captureId),
+      number: null,
+      rectX: bounds.x,
+      rectY: bounds.y,
+      rectWidth: bounds.width,
+      rectHeight: bounds.height,
+      draft: true,
+      drawing,
+      selected: false,
+      handles: !drawing,
+      ...chrome,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !drawing,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    style: { pointerEvents: "none" },
+  };
+}
+
+// ---- arrows (D083) ----------------------------------------------------------
+
+/** The domain facts one persisted arrow renders from (D083). */
+export interface CanvasArrow {
+  /** Server annotation id; the React Flow node id is exactly this. */
+  id: string;
+  /** Server-assigned monotonic per-capture number (shared with every kind). */
+  number: number;
+  /** Canonical tail and head in screenshot-natural pixels. */
+  arrow: NaturalArrow;
+  /** Whether the workspace panel currently shows this arrow. */
+  selected: boolean;
+  /** The comment and attached element, when known: they name the node (D078). */
+  body?: string;
+  elementSnapshot?: MarkElementSource | null;
+}
+
+/** On-screen sizes the arrow chrome keeps constant across zoom. */
+export const ARROW_STROKE_SCREEN_PX = 3;
+export const ARROW_HEAD_SCREEN_PX = 14;
+
+export interface ArrowData extends Record<string, unknown> {
+  /** The annotation id for a saved arrow; the namespaced id for a draft. */
+  annotationId: string;
+  /** The server number, or null for a draft. */
+  number: number | null;
+  /** Canonical endpoints in screenshot-natural pixels: the only domain geometry. */
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  /** The same endpoints as offsets inside the padded node box, for drawing. */
+  localStartX: number;
+  localStartY: number;
+  localEndX: number;
+  localEndY: number;
+  /** Whether this is the transient draft. */
+  draft: boolean;
+  /** Whether the draft is still being drawn (no handles, no composer yet). */
+  drawing: boolean;
+  /** Whether the panel selection is on this arrow (styling only). */
+  selected: boolean;
+  /** Whether the two endpoint handles render (never on a read-only plane). */
+  handles: boolean;
+  /** Natural-pixel sizes derived from the zoom so the chrome stays screen-sized. */
+  strokeWidth: number;
+  /** Full width of the invisible band around the shaft that takes the pointer. */
+  grabWidth: number;
+  headLength: number;
+  badgeSize: number;
+  handleSize: number;
+  handleDotSize: number;
+  /** Accessible name for the node. */
+  label: string;
+}
+
+export type ArrowNode = Node<ArrowData, typeof ARROW_TYPE>;
+export type DraftArrowNode = Node<ArrowData, typeof DRAFT_ARROW_TYPE>;
+
+/**
+ * The padded node box one arrow occupies. An arrow has no area — a
+ * horizontal one has zero height — so the box is its endpoints' bounds grown
+ * by enough room for the stroke, the head, and the pointer band, which is
+ * what makes the shaft hittable at any angle. The padding is chrome, never
+ * geometry: the endpoints are recoverable exactly as `position + local`.
+ */
+export function arrowNodeBox(
+  arrow: NaturalArrow,
+  padding: number,
+): { x: number; y: number; width: number; height: number } {
+  const bounds = arrowBounds(arrow);
+  return {
+    x: bounds.x - padding,
+    y: bounds.y - padding,
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+  };
+}
+
+/** The zoom-derived natural-pixel sizes of the arrow chrome. */
+function arrowChrome(doc: { width: number; height: number }, zoom: number) {
+  if (!Number.isFinite(zoom) || zoom <= 0) {
+    throw new RangeError("zoom must be a positive finite number");
+  }
+  return {
+    strokeWidth: ARROW_STROKE_SCREEN_PX / zoom,
+    grabWidth: (ARROW_HIT_TOLERANCE_CSS_PX * 2) / zoom,
+    headLength: ARROW_HEAD_SCREEN_PX / zoom,
+    badgeSize: Math.min(Math.min(doc.width, doc.height), MIN_HIT_TARGET_CSS_PX / zoom),
+    handleSize: MIN_HIT_TARGET_CSS_PX / zoom,
+    handleDotSize: RECTANGLE_HANDLE_DOT_SCREEN_PX / zoom,
+  };
+}
+
+/** How much room the chrome needs around the shaft, in natural pixels. */
+function arrowPadding(chrome: { grabWidth: number; headLength: number }): number {
+  return Math.max(chrome.grabWidth / 2, chrome.headLength);
+}
+
+function requireArrow(arrow: NaturalArrow, label: string): void {
+  if (!isFiniteArrow(arrow)) throw new RangeError(`${label} must have finite endpoints`);
+}
+
+/** The node box and the geometry-and-chrome half of one arrow's node data. */
+function arrowData(arrow: NaturalArrow, doc: { width: number; height: number }, zoom: number) {
+  const chrome = arrowChrome(doc, zoom);
+  const box = arrowNodeBox(arrow, arrowPadding(chrome));
+  return {
+    box,
+    data: {
+      startX: arrow.start.x,
+      startY: arrow.start.y,
+      endX: arrow.end.x,
+      endY: arrow.end.y,
+      localStartX: arrow.start.x - box.x,
+      localStartY: arrow.start.y - box.y,
+      localEndX: arrow.end.x - box.x,
+      localEndY: arrow.end.y - box.y,
+      ...chrome,
+    },
+  };
+}
+
+/**
+ * One persisted numbered arrow as a child of the screenshot frame (D083).
+ * The node box is padded chrome around the two endpoints, and the endpoints
+ * themselves are exact: `position + (localStartX, localStartY)` is the tail
+ * and `position + (localEndX, localEndY)` is the head, so the drawn shaft
+ * inverse-transforms to the stored geometry within one natural pixel at any
+ * zoom. The wrapper is pointer-transparent; what takes the pointer is a band
+ * around the shaft (ARROW_HIT_TOLERANCE_CSS_PX on each side, so selecting is
+ * a distance-to-segment test rather than a box test), the badge at the tail,
+ * and, on an editable plane, the two endpoint handles. Dragging the shaft
+ * moves the whole arrow and commits one revisioned write; dragging an
+ * endpoint moves that endpoint alone, also one write. A read-only plane
+ * renders no handles and no drag.
+ */
+export function arrowNode(
+  domain: CaptureFrameDomain,
+  arrow: CanvasArrow,
+  zoom: number,
+  options: { readOnly?: boolean } = {},
+): ArrowNode {
+  requireArrow(arrow.arrow, "arrow");
+  const { box, data } = arrowData(arrow.arrow, domain, zoom);
+  const label = markLabel({
+    kind: "arrow",
+    number: arrow.number,
+    body: arrow.body ?? "",
+    elementSnapshot: arrow.elementSnapshot ?? null,
+  });
+  const readOnly = options.readOnly ?? false;
+  return {
+    id: arrow.id,
+    type: ARROW_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: box.x, y: box.y },
+    width: box.width,
+    height: box.height,
+    data: {
+      annotationId: arrow.id,
+      number: arrow.number,
+      draft: false,
+      drawing: false,
+      selected: arrow.selected,
+      handles: !readOnly,
+      ...data,
+      label,
+    },
+    ariaLabel: label,
+    draggable: !readOnly,
+    selectable: false,
+    connectable: false,
+    deletable: false,
+    // See contextPreviewNode: only node.style reliably sets the wrapper's
+    // pointer-events. The shaft band, badge, and handles opt back in.
+    style: { pointerEvents: "none" },
+  };
+}
+
+/**
+ * The draft arrow node id is a deterministic namespaced derivative of the
+ * capture id, so it can never collide with a server-assigned annotation id.
+ */
+export function draftArrowNodeId(captureId: string): string {
+  return `draft-arrow:${captureId}`;
+}
+
+/**
+ * The transient draft arrow as a child of the screenshot frame: the arrow
+ * being drawn (no handles yet) or the drawn arrow awaiting its comment
+ * (draggable, with both endpoints movable). A draft is local UI state:
+ * never persisted, numbered, or listed as an annotation.
+ */
+export function draftArrowNode(
+  domain: CaptureFrameDomain,
+  arrow: NaturalArrow,
+  zoom: number,
+  options: { drawing?: boolean } = {},
+): DraftArrowNode {
+  requireArrow(arrow, "arrow");
+  const { box, data } = arrowData(arrow, domain, zoom);
+  const drawing = options.drawing ?? false;
+  const label = "New arrow, not saved yet";
+  return {
+    id: draftArrowNodeId(domain.captureId),
+    type: DRAFT_ARROW_TYPE,
+    parentId: captureFrameNodeId(domain.captureId),
+    position: { x: box.x, y: box.y },
+    width: box.width,
+    height: box.height,
+    data: {
+      annotationId: draftArrowNodeId(domain.captureId),
+      number: null,
+      draft: true,
+      drawing,
+      selected: false,
+      handles: !drawing,
+      ...data,
       label,
     },
     ariaLabel: label,

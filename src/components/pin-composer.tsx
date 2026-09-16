@@ -1,12 +1,12 @@
 "use client";
 
 // The pin composer (D074): the comment editor for the one transient draft
-// (a pin, or since D079 a rectangle). It opens in a popover beside the
-// draft instead of in the side panel — the canvas renders it outside the
-// transformed React Flow plane, positions it from the draft's projected
-// screen point, and re-positions it on every pan and zoom (see
+// (a pin, a rectangle since D079, a circle since D082). It opens in a
+// popover beside the draft instead of in the side panel — the canvas renders
+// it outside the transformed React Flow plane, positions it from the draft's
+// projected screen point, and re-positions it on every pan and zoom (see
 // DraftComposerPopover in capture-canvas.tsx). The copy names the kind
-// ("Save pin" / "Save box"); everything else is the same for both.
+// ("Save pin" / "Save box" / "Save circle"); everything else is shared.
 //
 // The nearby-element decision stays explicit in the data (VAL-PIN-003,
 // D061): the client still sends one candidate id or null and the server
@@ -197,9 +197,11 @@ export function PinComposer({
         {expanded ? (
           <fieldset id={listId} className="panel-candidates">
             <legend>
-              {draftKind === "rectangle"
-                ? "Nearby elements, most overlap first"
-                : "Nearby elements, closest first"}
+              {/* Point-anchored kinds (a pin's tip, an arrow's head) rank by
+                  distance; regions rank by overlap. */}
+              {draftKind === "pin" || draftKind === "arrow"
+                ? "Nearby elements, closest first"
+                : "Nearby elements, most overlap first"}
             </legend>
             {items.map((candidate) => (
               <label

@@ -3574,8 +3574,126 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D081",
+      "date": "2026-09-15",
+      "phase": "wrap",
+      "title": "Restate the milestones against what is actually built, add a fourth slice for depth on the loop, and hold accounts and multiple users until last",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The milestone document had gone stale enough to mislead. It called milestone 1 in progress and milestones 2 and 3 pending, while the repository had shipped the canvas, pins, element context, founder capability links, append-only threads, a production deployment, a project overview, rectangles, server-driven capture, and a six-record UX overhaul. The document is a graded deliverable rendered live at /reqs/milestones, so a reader checking status was being told something false. It also had no place to put the UX overhaul, which was not in the original three-slice plan, and no statement of what comes after milestone 3.",
+      "decision": "Rewrite the milestone document against the repository as it stands. Milestone 1 is complete and cites its live checkpoint. Milestone 2 is 'built, awaiting checkpoint': every item is implemented and covered by the gate, and none of it has been driven by the owner in a browser, so the document's own completion rule forbids calling it done. Milestone 3 lists what is finished and names three remaining items: circles and arrows, shipping the current build and running the deferred checkpoint against it, and the rectangle resize-handle ergonomics. The UX overhaul gets its own dated section between milestones 2 and 3 rather than being folded silently into either. A new milestone 4 collects depth on the feedback loop: the re-review loop after a founder ships a change, working a project at scale, and the editor on a phone. A new milestone 5 holds accounts, identity, per-user projects, and anything resembling multiplayer until everything above is done.",
+      "alternatives": [
+        {
+          "option": "Mark milestones 2 and 3 complete and move on",
+          "why_not": "The document's own rule is that a milestone is complete only when the owner's live checkpoint has run. It has not run since milestone 1, so the whole feedback loop is machine-validated and human-unvalidated. Calling it complete would hide exactly the risk worth surfacing."
+        },
+        {
+          "option": "Fold the UX overhaul into milestone 3's polish line",
+          "why_not": "It was six records and the largest single body of work in the repository, and it reshaped surfaces milestones 2 and 3 had already delivered. Burying it as 'polish' would misrepresent both its size and the fact that it was unplanned."
+        },
+        {
+          "option": "Leave the roadmap at three milestones and treat anything further as open-ended",
+          "why_not": "The owner asked for an ordering, and an ordering with no place for accounts is how accounts end up half-built early."
+        }
+      ],
+      "rationale": "Directed by the owner, who asked for a review of the log and the app and a decision on how to move forward, and who fixed the one ordering constraint: accounts and multiple users come last. The rest of the ordering follows from what changes whether the tool gets used. Shipping outranks new features because the live deployment is at commit 523dcd9 and everything since is invisible to anyone but a developer running the repository. Arrows outrank the re-review loop because 'move this there' is the one instruction the current mark vocabulary cannot express, and the product exists to make directional feedback unambiguous. The re-review loop outranks scale and mobile because the conversation currently has no ending.",
+      "consequences": [
+        "The deferred live checkpoint now blocks two milestones rather than one, and it cannot run until the current build is deployed: three migrations, two environment variable names, and a function-duration setting stand in the way.",
+        "Accounts, identity, durable session revocation, and per-user projects are explicitly out of scope until milestone 4 closes, so any design pressure toward them is answered by pointing at this record.",
+        "Milestone 4 is named but not specified; each of its three items will want its own record before it is built.",
+        "The status vocabulary now distinguishes 'built, awaiting checkpoint' from 'complete', which applies retroactively to any future slice."
+      ],
+      "transcript": {
+        "request": "Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "docs/MILESTONES.md",
+          "caption": "The restated milestones."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D082",
+      "date": "2026-09-15",
+      "phase": "build",
+      "title": "Circle marks: a square-constrained ellipse drawn with an armed tool, sharing every rule rectangles already follow",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The published architecture and the geometry catalog have described circles since mission planning (MIN_SHAPE_SIZE_PX names them, 'circles stay square'), the annotations table has allowed kind='circle' since the first migration, and D079 made the whole annotation path kind-generic. Nothing drew one. A circle is the right mark for 'this region', where a rectangle's corners imply an alignment that is not being asserted.",
+      "decision": "A circle is a rectangle whose geometry is constrained square and whose renderer is an ellipse inscribed in that square. Geometry is {x, y, size} at geometry_version 1, where size is both the width and the height in screenshot-natural pixels, no smaller than MIN_SHAPE_SIZE_PX, clamped inside the frame. Drawing: an armed Circle tool in the mark-tool group beside the existing Box tool; the drag's larger dimension sets the size, so an off-square drag still yields a circle, and the tool disarms after one gesture or on Escape. Everything else is what a rectangle already does: the same anchored composer, nearby elements ranked by overlap with the circle's bounding square, shared per-capture numbering, the badge at the bounding square's top-left, move by the stroke, resize by the same handles constrained to stay square, one revisioned write per gesture, threads and status and unread exactly as pins and boxes have them, and a read-only rendering with no handles for the founder.",
+      "alternatives": [
+        {
+          "option": "A free ellipse with independent width and height",
+          "why_not": "The geometry catalog published 'circles stay square' before any of this was built, and a free ellipse adds a second resize contract for no expressive gain over a rectangle."
+        },
+        {
+          "option": "Reuse the rectangle kind and render round when width equals height",
+          "why_not": "The kind is what the author meant, not a coincidence of dimensions; a resize that happened to equalise the sides would silently change the mark's meaning."
+        }
+      ],
+      "rationale": "Proposed by the agent as the cheap half of finishing the mark vocabulary, approved by the human in the same message that ordered the milestones. Constraining to a square keeps one resize contract, honours a boundary published before implementation, and makes the circle a renderer and a clamp rather than a new geometry family.",
+      "consequences": [
+        "The mark-tool group grows from one toggle to three (box, circle, arrow) inside a labelled group; each arms exactly one gesture and disarms after it or on Escape, and B, C, and A arm them from the keyboard, so D074's no-modes rule still holds. An armed tool wins over Shift; Shift with nothing armed still draws a box, unchanged from D079.",
+        "A circle offers four corner handles and no edge handles, published as CIRCLE_RESIZE_HANDLES. With a square constraint an edge handle would have to move the two perpendicular edges as well, which is not what a north or east handle shows.",
+        "Circles inherit the low-zoom handle ergonomics weakness: four fixed-screen-size corners still crowd a near-minimum circle and the top-left one paints over the badge. Four is less crowded than a rectangle's eight, not fixed, and NEXT.md records it.",
+        "No migration was needed: annotations.kind has admitted circle and arrow since the first migration, and the 0006 triggers constrain status and thread-entry kind rather than the annotation kind. Only BUILT_ANNOTATION_KINDS widened."
+      ],
+      "transcript": {
+        "proposal": "Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.",
+        "approval": "Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D083",
+      "date": "2026-09-15",
+      "phase": "build",
+      "title": "Arrow marks: a two-endpoint straight arrow whose head carries the meaning and the element context",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Every mark the product has is a place: a pin is a point, a rectangle and a circle are regions. None of them can say 'move this there', 'this should point at that', or 'these two are out of order' — the instructions that make feedback directional rather than merely located. The architecture has described arrows as straight edges between two draggable endpoints since mission planning, and MIN_ARROW_LENGTH_PX has been published since, but nothing drew one.",
+      "decision": "An arrow is two points and a direction. Geometry is {start: {x, y}, end: {x, y}} in screenshot-natural pixels at geometry_version 1, with the straight-line distance between them no smaller than MIN_ARROW_LENGTH_PX and both endpoints clamped inside the frame. The head is at `end`: that is where the arrow points, so that is what the mark is about. Nearby elements are ranked from the head point using the existing point ranking, not the overlap ranking, and the pre-selected candidate is the element under the head. Drawing: an armed Arrow tool; press sets the tail, release sets the head. Each endpoint is independently draggable after save and the whole arrow moves by its shaft, each gesture committing one revisioned write. The badge rides at the tail so it never covers the thing being pointed at. Rendering is a line with a filled head whose stroke and head scale with zoom to stay visible without changing the stored geometry, and the founder sees it read-only with no endpoint handles.",
+      "alternatives": [
+        {
+          "option": "Anchor the element context at the tail, or at the midpoint",
+          "why_not": "The tail is where the reader's eye starts and the head is what the note is about. Attaching the captured element to the tail would file 'move this into the header' under whatever the arrow happened to start on top of."
+        },
+        {
+          "option": "Curved or elbowed arrows",
+          "why_not": "Freehand and curved arrows are a published non-goal; a straight arrow is unambiguous and needs no control points."
+        },
+        {
+          "option": "Render as a React Flow edge between two endpoint nodes",
+          "why_not": "Edges are a graph abstraction the canvas does not otherwise use, and the capture frame is a single parent node. Two child nodes plus a drawn line keeps one clamping authority and matches how rectangles already work."
+        }
+      ],
+      "rationale": "Proposed by the agent and approved by the human as the item that most changes what the product can say. The straight-line constraint and the head-anchored context are what keep an arrow a directional instruction rather than a decoration.",
+      "consequences": [
+        "The context route is unchanged: the caller picks the ranking by mark kind, so a circle asks for the overlap ranking with its bounding square and an arrow asks for the point ranking at its head. The route has served both shapes since D079.",
+        "A new published boundary, ARROW_HIT_TOLERANCE_CSS_PX of 12, with POLICY_VERSION bumped to 2026-09-15.1. It is exactly half MIN_HIT_TARGET_CSS_PX, so the band around the shaft is a full-size target; the drift test asserts both that relationship and that the tolerance exceeds the placement slop.",
+        "Hit-testing is the browser's own stroke test rather than a hand-written one: a transparent line of twice the tolerance takes the pointer while the wrapper stays transparent, so distance-to-segment falls out of rendering. The pure oracle exists anyway because jsdom does no hit-testing.",
+        "An arrow has no area, so its React Flow node box is the endpoints' bounds padded by the chrome, and a shaft drag applies the difference from a drag-start snapshot rather than re-deriving geometry from the padded box, which keeps length and direction exact.",
+        "The badge rides at the tail and reveal centres on the shaft's midpoint while the extent stays the endpoints' bounds, so a long arrow zooms out to fit rather than centring on something off screen.",
+        "Arrow endpoint handles share the low-zoom crowding problem; the wide shaft band means the arrow is still grabbable. Recorded in NEXT.md.",
+        "The mark vocabulary the requirements named is now complete. Freehand and curved arrows remain non-goals."
+      ],
+      "transcript": {
+        "proposal": "Milestone 3's headline item is rich marks, and only rectangles were built. Circles and arrows finish the vocabulary. Arrows are the valuable one: 'move this there' is the one instruction a pin and a box cannot express, and the product exists to make directional feedback unambiguous. The schema, the geometry minimums, and the kind-generic annotation path from D079 already allow both; only the renderers, the gestures, and their geometry validation are missing.",
+        "approval": "Review the decision log, the current app state, and decide how we can move forward on our milestones. I want to save auth/identify and real multi -user support for last, after fleshing out all the high value functionality."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-13",
-  "source_hash": "138c4704a4b2"
+  "as_of": "2026-09-15",
+  "source_hash": "4fa3ddf6044b"
 };

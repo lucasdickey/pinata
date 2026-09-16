@@ -6,13 +6,26 @@
 // domain.
 
 import { describe, expect, test } from "vitest";
-import { MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
+import { ARROW_HIT_TOLERANCE_CSS_PX, MIN_HIT_TARGET_CSS_PX } from "../../src/lib/boundaries";
 import {
+  ARROW_HEAD_SCREEN_PX,
+  ARROW_STROKE_SCREEN_PX,
+  ARROW_TYPE,
+  arrowNode,
+  arrowNodeBox,
   CAPTURE_FRAME_TYPE,
   captureFrameNodeId,
+  CIRCLE_TYPE,
+  circleNode,
   CONTEXT_PREVIEW_TYPE,
   contextPreviewNode,
   contextPreviewNodeId,
+  DRAFT_ARROW_TYPE,
+  draftArrowNode,
+  draftArrowNodeId,
+  DRAFT_CIRCLE_TYPE,
+  draftCircleNode,
+  draftCircleNodeId,
   DRAFT_PIN_TYPE,
   draftPinNode,
   draftPinNodeId,
@@ -25,6 +38,8 @@ import {
   pinNode,
   RECTANGLE_TYPE,
   rectangleNode,
+  type CanvasArrow,
+  type CanvasCircle,
   type CanvasPin,
   type CanvasRectangle,
   type CaptureFrameDomain,
@@ -309,6 +324,70 @@ describe("context preview node", () => {
   });
 });
 
+describe("circle nodes (D082)", () => {
+  const circle: CanvasCircle = {
+    id: "ann-uuid-circle",
+    number: 5,
+    circle: { x: 100.5, y: 200.25, size: 300 },
+    selected: false,
+  };
+
+  test("position and size are exactly the persisted bounding square, parented to the frame", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = circleNode(domain, circle, zoom);
+      expect(node.type).toBe(CIRCLE_TYPE);
+      expect(node.id).toBe("ann-uuid-circle");
+      expect(node.parentId).toBe(captureFrameNodeId(domain.captureId));
+      expect(node.position).toEqual({ x: 100.5, y: 200.25 });
+      expect(node.width).toBe(300);
+      expect(node.height).toBe(300);
+      expect(node.data.shape).toBe("circle");
+      expect(node.data.rectWidth).toBe(node.data.rectHeight);
+      expect(node.data.handleSize * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+    }
+  });
+
+  test("offers the four corner handles only, and none at all read-only", () => {
+    expect([...circleNode(domain, circle, 1).data.handleNames]).toEqual(["nw", "ne", "se", "sw"]);
+    const readOnly = circleNode(domain, circle, 1, { readOnly: true });
+    expect(readOnly.draggable).toBe(false);
+    expect(readOnly.data.handles).toBe(false);
+    // The wrapper lets the pointer through; the stroke and badge opt back in.
+    expect(readOnly.style).toEqual({ pointerEvents: "none" });
+  });
+
+  test("is named Circle by comment and element, never by coordinates (D078)", () => {
+    expect(circleNode(domain, circle, 1).ariaLabel).toBe("Circle 5");
+    expect(
+      circleNode(domain, { ...circle, body: "Draw the eye here" }, 1).ariaLabel,
+    ).toBe("Circle 5 · “Draw the eye here”");
+    expect(draftCircleNode(domain, circle.circle, 1).ariaLabel).toBe(
+      "New circle, not saved yet",
+    );
+  });
+
+  test("the draft circle is namespaced and loses its handles while being drawn", () => {
+    const draft = draftCircleNode(domain, { x: 10, y: 20, size: 30 }, 2);
+    expect(draft.type).toBe(DRAFT_CIRCLE_TYPE);
+    expect(draft.id).toBe(draftCircleNodeId(domain.captureId));
+    expect(draft.id).toBe("draft-circle:cap-root-desktop-v2");
+    expect(draft.width).toBe(30);
+    expect(draft.height).toBe(30);
+    expect(draft.data.number).toBeNull();
+    const drawing = draftCircleNode(domain, { x: 10, y: 20, size: 30 }, 2, { drawing: true });
+    expect(drawing.draggable).toBe(false);
+    expect(drawing.data.handles).toBe(false);
+  });
+
+  test("rejects a non-finite or negative square and a bad zoom", () => {
+    expect(() => circleNode(domain, { ...circle, circle: { x: 0, y: 0, size: -1 } }, 1)).toThrow(
+      RangeError,
+    );
+    expect(() => draftCircleNode(domain, { x: Number.NaN, y: 0, size: 10 }, 1)).toThrow(RangeError);
+    expect(() => circleNode(domain, circle, 0)).toThrow(RangeError);
+  });
+});
+
 describe("rectangle nodes (D079)", () => {
   const rectangle: CanvasRectangle = {
     id: "ann-uuid-box",
@@ -421,6 +500,34 @@ describe("rectangle nodes (D079)", () => {
     );
   });
 
+  test("nodesForPlane interleaves circles into the same number order (D082)", () => {
+    const circle: CanvasCircle = {
+      id: "ann-uuid-circle",
+      number: 2,
+      circle: { x: 10, y: 20, size: 60 },
+      selected: false,
+    };
+    const nodes = nodesForPlane(domain, {
+      pins,
+      rectangles: [{ ...rectangle, number: 4 }],
+      circles: [circle],
+      zoom: 1,
+    });
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      CIRCLE_TYPE,
+      PIN_TYPE,
+      RECTANGLE_TYPE,
+    ]);
+    // A circle draft renders last, like every other draft.
+    const drafted = nodesForPlane(domain, {
+      circles: [circle],
+      draft: { kind: "circle", circle: { x: 0, y: 0, size: 8 } },
+    });
+    expect(drafted.at(-1)!.type).toBe(DRAFT_CIRCLE_TYPE);
+  });
+
   test("rejects non-finite or negative boxes and bad zooms rather than rendering a corrupt mark", () => {
     expect(() =>
       rectangleNode(domain, { ...rectangle, rect: { ...rectangle.rect, width: -1 } }, 1),
@@ -429,5 +536,105 @@ describe("rectangle nodes (D079)", () => {
       draftRectangleNode(domain, { x: Number.NaN, y: 0, width: 10, height: 10 }, 1),
     ).toThrow(RangeError);
     expect(() => rectangleNode(domain, rectangle, 0)).toThrow(RangeError);
+  });
+});
+
+describe("arrow nodes (D083)", () => {
+  const arrow: CanvasArrow = {
+    id: "ann-uuid-arrow",
+    number: 7,
+    arrow: { start: { x: 100, y: 200 }, end: { x: 400, y: 600 } },
+    selected: false,
+  };
+
+  test("the endpoints are exact inside a padded node box, at every zoom", () => {
+    for (const zoom of [0.01, 1, 8]) {
+      const node = arrowNode(domain, arrow, zoom);
+      expect(node.type).toBe(ARROW_TYPE);
+      expect(node.id).toBe("ann-uuid-arrow");
+      expect(node.parentId).toBe(captureFrameNodeId(domain.captureId));
+      // An arrow has no area, so the box is padded chrome; the geometry is
+      // recovered exactly as position + the local offsets.
+      expect(node.position.x + node.data.localStartX).toBeCloseTo(arrow.arrow.start.x, 9);
+      expect(node.position.y + node.data.localStartY).toBeCloseTo(arrow.arrow.start.y, 9);
+      expect(node.position.x + node.data.localEndX).toBeCloseTo(arrow.arrow.end.x, 9);
+      expect(node.position.y + node.data.localEndY).toBeCloseTo(arrow.arrow.end.y, 9);
+      expect(node.data.startX).toBe(arrow.arrow.start.x);
+      expect(node.data.endY).toBe(arrow.arrow.end.y);
+      // The chrome keeps its screen size: the band around the shaft is the
+      // shared minimum hit target wide, and the stroke and head follow.
+      expect(node.data.grabWidth * zoom).toBeCloseTo(ARROW_HIT_TOLERANCE_CSS_PX * 2, 9);
+      expect(node.data.grabWidth * zoom).toBeGreaterThanOrEqual(MIN_HIT_TARGET_CSS_PX - 1e-9);
+      expect(node.data.strokeWidth * zoom).toBeCloseTo(ARROW_STROKE_SCREEN_PX, 9);
+      expect(node.data.headLength * zoom).toBeCloseTo(ARROW_HEAD_SCREEN_PX, 9);
+    }
+  });
+
+  test("a flat arrow still gets a box with room for the shaft band", () => {
+    const flat: CanvasArrow = {
+      ...arrow,
+      arrow: { start: { x: 100, y: 300 }, end: { x: 500, y: 300 } },
+    };
+    const node = arrowNode(domain, flat, 1);
+    expect(node.height).toBeGreaterThan(0);
+    expect(node.width).toBeGreaterThan(400);
+    // arrowNodeBox is the same padding the node uses.
+    const box = arrowNodeBox(flat.arrow, ARROW_HIT_TOLERANCE_CSS_PX);
+    expect(box.x).toBe(100 - ARROW_HIT_TOLERANCE_CSS_PX);
+    expect(box.height).toBe(ARROW_HIT_TOLERANCE_CSS_PX * 2);
+  });
+
+  test("has two endpoint handles and a drag on an editable plane, neither read-only", () => {
+    const editable = arrowNode(domain, arrow, 1);
+    expect(editable.draggable).toBe(true);
+    expect(editable.data.handles).toBe(true);
+    expect(editable.selectable).toBe(false);
+    expect(editable.extent).toBeUndefined();
+    // The wrapper lets the pointer through; the shaft band and badge opt in.
+    expect(editable.style).toEqual({ pointerEvents: "none" });
+    const readOnly = arrowNode(domain, arrow, 1, { readOnly: true });
+    expect(readOnly.draggable).toBe(false);
+    expect(readOnly.data.handles).toBe(false);
+  });
+
+  test("is named Arrow by comment and element, never by coordinates (D078)", () => {
+    expect(arrowNode(domain, arrow, 1).ariaLabel).toBe("Arrow 7");
+    expect(arrowNode(domain, { ...arrow, body: "Move this up here" }, 1).ariaLabel).toBe(
+      "Arrow 7 · “Move this up here”",
+    );
+    expect(draftArrowNode(domain, arrow.arrow, 1).ariaLabel).toBe("New arrow, not saved yet");
+  });
+
+  test("the draft arrow is namespaced and loses its handles while being drawn", () => {
+    const draft = draftArrowNode(domain, arrow.arrow, 2);
+    expect(draft.type).toBe(DRAFT_ARROW_TYPE);
+    expect(draft.id).toBe(draftArrowNodeId(domain.captureId));
+    expect(draft.id).toBe("draft-arrow:cap-root-desktop-v2");
+    expect(draft.data.number).toBeNull();
+    const drawing = draftArrowNode(domain, arrow.arrow, 2, { drawing: true });
+    expect(drawing.draggable).toBe(false);
+    expect(drawing.data.handles).toBe(false);
+  });
+
+  test("nodesForPlane interleaves arrows into the same number order", () => {
+    const nodes = nodesForPlane(domain, {
+      pins: [{ id: "ann-uuid-a", number: 1, tip: { x: 10, y: 10 }, selected: false }],
+      arrows: [{ ...arrow, number: 2 }],
+      draft: { kind: "arrow", arrow: arrow.arrow },
+      zoom: 1,
+    });
+    expect(nodes.map((node) => node.type)).toEqual([
+      CAPTURE_FRAME_TYPE,
+      PIN_TYPE,
+      ARROW_TYPE,
+      DRAFT_ARROW_TYPE,
+    ]);
+  });
+
+  test("rejects non-finite endpoints and a bad zoom", () => {
+    expect(() =>
+      arrowNode(domain, { ...arrow, arrow: { start: { x: Number.NaN, y: 0 }, end: { x: 1, y: 1 } } }, 1),
+    ).toThrow(RangeError);
+    expect(() => draftArrowNode(domain, arrow.arrow, 0)).toThrow(RangeError);
   });
 });

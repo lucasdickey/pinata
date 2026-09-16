@@ -47,9 +47,15 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   provider flake leaves a failed attempt the product cannot recover. Whether
   to distinguish it from an admission-time unsafe target and offer retry is
   deferred (`D054`, pending user answer).
-- Circles and arrows are still unbuilt (`D079` adds rectangles only); the
-  schema and geometry minimums already allow them, and the rectangle's
-  resize and geometry path is the one they would reuse.
+- Arrow endpoint handles have the same low-zoom problem as the other marks
+  (`D083`): both are a fixed screen size, so a near-minimum arrow renders
+  them overlapping each other and the badge at the tail. The shaft band is
+  wide enough to grab either way, so the arrow can still be moved.
+- Circle handles inherit the rectangle's low-zoom ergonomics problem
+  (`D082`): the four corner handles are a fixed screen size, so a
+  near-minimum circle renders them overlapping its interior and the top-left
+  one paints over the number badge. Having only four rather than eight makes
+  it less crowded than a box, not fixed.
 - The pins e2e writes real pins to the shared local store by design (the
   corner-fixture pin is reused across runs; the other tests add at most
   three pins per run), so roughly sixty full local `npm run validate` runs

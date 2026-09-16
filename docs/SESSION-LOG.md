@@ -3031,3 +3031,86 @@ way; D078 (vocabulary) goes last because it rewrites copy across all of it.
 - Consequences added to D074 through D079 for the findings above.
 - The final tree passed the whole gate: 1482 Vitest tests, build, and the
   20 uncredentialed Playwright tests; 43 credentialed specs skipped here.
+
+## Session: restate the milestones, then finish the mark vocabulary (2026-09-15)
+
+Elapsed: about 1h30 of coordinator time plus one agent run of roughly 50
+minutes. Branch `milestone-3/circles-and-arrows`.
+
+### Starting state, after three days away
+
+Work had landed from outside this session while it was idle. The UX overhaul
+branch merged as pull request 5, carrying one extra commit pushed straight to
+it by a Cursor agent that fixed a real bug: the plane-derivation effect keyed
+off object identity, so every poll tick silently deselected the open mark and
+wiped an in-progress comment. Pull request 6, also from that agent, fixed a
+retry race that answered 500 instead of a conflict, corrected a feedback
+count that summed every capture version instead of the selected one (recorded
+as D080), separated pin and box counts in exports, moved a gesture listener
+into a layout effect, and recorded the rectangle handle ergonomics as a known
+weakness. Pull request 3 replaced the placeholder pin teardrop with the llama
+mark from the brand sheet. Main was green on all six stages when this session
+picked it up again.
+
+### The request
+
+"Review the decision log, the current app state, and decide how we can move
+forward on our milestones. I want to save auth/identify and real multi-user
+support for last, after fleshing out all the high value functionality."
+
+### What was attempted
+
+- **The milestone document had gone false** (D081). It called milestone 1 in
+  progress and milestones 2 and 3 pending, while the repository had shipped
+  the canvas, pins, element context, founder links, threads, a deployment, a
+  project overview, rectangles, server-driven capture, and the six-record UX
+  overhaul. Rewritten against the repository: milestone 1 complete with its
+  checkpoint cited, milestone 2 *built, awaiting checkpoint* because the
+  document's own completion rule forbids calling it done before the owner has
+  driven it, milestone 3 in progress. The UX overhaul got its own dated
+  section rather than being buried under "polish". A fourth slice collects
+  depth on the loop and a fifth holds accounts and multiple users until last,
+  at the owner's direction.
+- **Circles and arrows** (D082, D083), specified as records first and then
+  built by one agent in two stages, circles then arrows. Circles are a
+  square-constrained ellipse reusing every rectangle rule. Arrows are two
+  endpoints where the head carries the meaning, so the captured element is
+  ranked from the head rather than the tail or the midpoint. Both gained an
+  armed tool alongside the box tool, keyboard arming, threads, status, the
+  table and export, and a read-only founder rendering.
+
+### What broke, or was decided under the surface
+
+- **An arrow has no area**, so nothing about the rectangle path transferred
+  directly: the React Flow node box had to be padded to be hittable at all,
+  and a shaft drag applies a difference from a drag-start snapshot rather
+  than re-deriving geometry from the padded box, because re-deriving loses
+  length and direction.
+- **Hit-testing became a rendering concern rather than a maths one.** A
+  transparent stroke of twice the published tolerance takes the pointer, so
+  the browser's own stroke test is the distance-to-segment test. The pure
+  oracle still exists because jsdom does no hit-testing at all.
+- **A circle's edge handles were removed**, leaving four corners. With a
+  square constraint a north handle would have to move the east and west edges
+  too, which is not what it shows.
+- The verb strip lost the words "or reply" to stay under the length limit a
+  test enforces, which is a small loss of meaning to a formatting rule worth
+  revisiting.
+
+### What is not proven
+
+Nobody has looked at a circle or an arrow. Both are covered by pure-maths
+oracles, component tests, and edited end-to-end specs, and every one of those
+specs needs credentials this environment does not have, so they skipped. The
+handle ergonomics that the agent recorded as a weakness are exactly the kind
+of thing only an eye catches. That is the same gap the whole of milestone 2
+sits in, and it closes the same way: deploy the current build and run the
+checkpoint.
+
+### Decisions
+
+- D081 (user-directed): restate the milestones, add slices four and five,
+  hold accounts until last.
+- D082, D083 (agent-proposed, human-approved): circle and arrow marks.
+- Consequences recorded on D082 and D083 for the findings above.
+

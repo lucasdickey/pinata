@@ -1,12 +1,13 @@
-// Server-only annotation store for pins and rectangles (VAL-PIN-001,
+// Server-only annotation store for every mark kind (VAL-PIN-001,
 // VAL-PIN-002, VAL-PIN-003, VAL-PIN-008, VAL-PIN-009, VAL-CANVAS-001,
-// VAL-CANVAS-003, VAL-CANVAS-004, D079).
+// VAL-CANVAS-003, VAL-CANVAS-004, D079, D082, D083).
 //
 // The annotation is the canonical domain record: its geometry is stored as
 // exact screenshot-natural CSS pixels in geometry_json — a tip for a pin, a
-// box for a rectangle — bound to one immutable ready capture. Numbers are
-// server-determined and monotonically increasing per capture across both
-// kinds: the next number is derived from every row the capture has —
+// box for a rectangle, a bounding square for a circle, two endpoints for an
+// arrow — bound to one immutable ready capture. Numbers are
+// server-determined and monotonically increasing per capture across every
+// kind: the next number is derived from every row the capture has —
 // including tombstoned ones — inside the same transaction as the insert, so
 // deleted numbers are never reused and cancelled or failed drafts consume
 // none. The unique (capture_id, number) index is the backstop that makes
@@ -32,13 +33,14 @@
 // and the same key with a different payload conflicts.
 //
 // The exported names still say "pin" because the routes and the tests grew
-// up with them; every one of them handles both kinds.
+// up with them; every one of them handles every kind.
 
 import { createHash, randomUUID } from "node:crypto";
 import { and, asc, count, eq, inArray, isNull, max } from "drizzle-orm";
 import {
   FEEDBACK_BODY_MAX_CHARS,
   MAX_ANNOTATIONS_PER_CAPTURE,
+  MIN_ARROW_LENGTH_PX,
   MIN_SHAPE_SIZE_PX,
 } from "../../boundaries";
 import { schema, type Database } from "../db/client";
@@ -57,7 +59,7 @@ import { EDITOR_VIEWER, unreadRepliesByPin, type Viewer } from "./seen";
 /** Idempotency scope for editor annotation creation. */
 export const ANNOTATION_CREATE_SCOPE = "annotation-create";
 
-/** Geometry schema version persisted with every annotation (both kinds). */
+/** Geometry schema version persisted with every annotation, every kind. */
 const GEOMETRY_VERSION = 1;
 
 /** Bounded retries when two concurrent inserts race for the same number. */
@@ -77,10 +79,31 @@ export interface RectangleGeometry {
   height: number;
 }
 
+/**
+ * A circle's bounding square in screenshot-natural CSS pixels (D082): one
+ * corner, and the one size that is both its width and its height.
+ */
+export interface CircleGeometry {
+  x: number;
+  y: number;
+  size: number;
+}
+
+/**
+ * An arrow's two endpoints in screenshot-natural CSS pixels (D083): the tail
+ * at `start` and the head at `end`. The head is what the mark is about.
+ */
+export interface ArrowGeometry {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
 /** The geometry of one annotation, named by kind. */
 export type AnnotationGeometry =
   | { kind: "pin"; tip: PinTip }
-  | { kind: "rectangle"; rect: RectangleGeometry };
+  | { kind: "rectangle"; rect: RectangleGeometry }
+  | { kind: "circle"; circle: CircleGeometry }
+  | { kind: "arrow"; arrow: ArrowGeometry };
 
 interface AnnotationRecordBase {
   id: string;
@@ -109,20 +132,39 @@ export interface RectangleAnnotationRecord extends AnnotationRecordBase {
   rect: RectangleGeometry;
 }
 
-export type AnnotationRecord = PinAnnotationRecord | RectangleAnnotationRecord;
+/** The canonical domain view of one persisted circle (D082). */
+export interface CircleAnnotationRecord extends AnnotationRecordBase {
+  kind: "circle";
+  circle: CircleGeometry;
+}
+
+/** The canonical domain view of one persisted arrow (D083). */
+export interface ArrowAnnotationRecord extends AnnotationRecordBase {
+  kind: "arrow";
+  arrow: ArrowGeometry;
+}
+
+export type AnnotationRecord =
+  | PinAnnotationRecord
+  | RectangleAnnotationRecord
+  | CircleAnnotationRecord
+  | ArrowAnnotationRecord;
 
 export type ListPinsResult =
   | { ok: true; annotations: AnnotationRecord[] }
   | { ok: false; error: "not-found" };
 
 /**
- * A create carries exactly one geometry: `tip` for a pin or `rect` for a
- * rectangle. Both or neither is an invalid input.
+ * A create carries exactly one geometry, and the key names the kind: `tip`
+ * for a pin, `rect` for a rectangle, `circle` for a circle, `arrow` for an
+ * arrow. More than one, or none, is an invalid input.
  */
 export interface CreatePinInput {
   captureId: string;
   tip?: PinTip;
   rect?: RectangleGeometry;
+  circle?: CircleGeometry;
+  arrow?: ArrowGeometry;
   body: string;
   /** Explicit context decision: a manifest element id, or null = No element. */
   elementId: string | null;
@@ -142,6 +184,10 @@ export interface UpdatePinInput {
   tip?: PinTip;
   /** A moved or resized box (rectangles only). */
   rect?: RectangleGeometry;
+  /** A moved or resized bounding square (circles only). */
+  circle?: CircleGeometry;
+  /** Moved endpoints (arrows only). */
+  arrow?: ArrowGeometry;
   /** A new original body. */
   body?: string;
 }
@@ -184,24 +230,42 @@ function annotatable(capture: CaptureRow | undefined): capture is CaptureRow {
   );
 }
 
-/** The geometry a create or update names, or null when it names none or both. */
+/**
+ * The geometry a create or update names, or null when it names none or more
+ * than one. Exactly one key may be present, and that key is the kind.
+ */
 export function geometryOf(input: {
   tip?: PinTip;
   rect?: RectangleGeometry;
+  circle?: CircleGeometry;
+  arrow?: ArrowGeometry;
 }): AnnotationGeometry | null {
-  if (input.tip !== undefined && input.rect === undefined) {
-    return { kind: "pin", tip: { x: input.tip.x, y: input.tip.y } };
-  }
-  if (input.rect !== undefined && input.tip === undefined) {
+  const named = [input.tip, input.rect, input.circle, input.arrow].filter(
+    (geometry) => geometry !== undefined,
+  ).length;
+  if (named !== 1) return null;
+  if (input.tip !== undefined) return { kind: "pin", tip: { x: input.tip.x, y: input.tip.y } };
+  if (input.rect !== undefined) {
     const { x, y, width, height } = input.rect;
     return { kind: "rectangle", rect: { x, y, width, height } };
   }
-  return null;
+  if (input.circle !== undefined) {
+    const { x, y, size } = input.circle;
+    return { kind: "circle", circle: { x, y, size } };
+  }
+  const { start, end } = input.arrow!;
+  return {
+    kind: "arrow",
+    arrow: { start: { x: start.x, y: start.y }, end: { x: end.x, y: end.y } },
+  };
 }
 
-/** What geometry_json holds for one geometry: the tip or the box itself. */
+/** What geometry_json holds: the tip, the box, the square, or the endpoints. */
 function geometryJson(geometry: AnnotationGeometry): string {
-  return JSON.stringify(geometry.kind === "pin" ? geometry.tip : geometry.rect);
+  if (geometry.kind === "pin") return JSON.stringify(geometry.tip);
+  if (geometry.kind === "rectangle") return JSON.stringify(geometry.rect);
+  if (geometry.kind === "circle") return JSON.stringify(geometry.circle);
+  return JSON.stringify(geometry.arrow);
 }
 
 /** The domain record for one annotation row, with the viewer's unread count. */
@@ -221,6 +285,12 @@ export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): 
   };
   if (row.kind === "rectangle") {
     return { ...base, kind: "rectangle", rect: JSON.parse(row.geometryJson) as RectangleGeometry };
+  }
+  if (row.kind === "circle") {
+    return { ...base, kind: "circle", circle: JSON.parse(row.geometryJson) as CircleGeometry };
+  }
+  if (row.kind === "arrow") {
+    return { ...base, kind: "arrow", arrow: JSON.parse(row.geometryJson) as ArrowGeometry };
   }
   return { ...base, kind: "pin", tip: JSON.parse(row.geometryJson) as PinTip };
 }
@@ -274,11 +344,41 @@ function rectWithinCapture(rect: RectangleGeometry, capture: CaptureRow): boolea
   );
 }
 
+/**
+ * True when the bounding square is finite, at least MIN_SHAPE_SIZE_PX, and
+ * entirely inside the capture's document (inclusive edges). A circle is a
+ * square-constrained region (D082), so one size governs both dimensions.
+ */
+function circleWithinCapture(circle: CircleGeometry, capture: CaptureRow): boolean {
+  const values = [circle.x, circle.y, circle.size];
+  if (!values.every((value) => Number.isFinite(value))) return false;
+  return (
+    circle.size >= MIN_SHAPE_SIZE_PX &&
+    circle.x >= 0 &&
+    circle.y >= 0 &&
+    circle.x + circle.size <= (capture.documentWidth ?? -1) &&
+    circle.y + circle.size <= (capture.documentHeight ?? -1)
+  );
+}
+
+/**
+ * True when both endpoints are finite and inside the capture's document
+ * (inclusive edges) and the straight-line distance between them is at least
+ * MIN_ARROW_LENGTH_PX. An arrow has no area, so length is the only size rule.
+ */
+function arrowWithinCapture(arrow: ArrowGeometry, capture: CaptureRow): boolean {
+  const points = [arrow.start, arrow.end];
+  if (!points.every((point) => tipWithinCapture(point, capture))) return false;
+  const length = Math.hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y);
+  return length >= MIN_ARROW_LENGTH_PX;
+}
+
 /** Geometry validation by kind against one ready capture. */
 function geometryWithinCapture(geometry: AnnotationGeometry, capture: CaptureRow): boolean {
-  return geometry.kind === "pin"
-    ? tipWithinCapture(geometry.tip, capture)
-    : rectWithinCapture(geometry.rect, capture);
+  if (geometry.kind === "pin") return tipWithinCapture(geometry.tip, capture);
+  if (geometry.kind === "rectangle") return rectWithinCapture(geometry.rect, capture);
+  if (geometry.kind === "circle") return circleWithinCapture(geometry.circle, capture);
+  return arrowWithinCapture(geometry.arrow, capture);
 }
 
 /** True when the original body is bounded directional plain text. */
@@ -320,10 +420,14 @@ function createDigest(input: CreatePinInput, geometry: AnnotationGeometry | null
       JSON.stringify({
         captureId: input.captureId,
         // A pin digest keeps the shape it always had, so keys recorded
-        // before rectangles existed still replay.
+        // before the other kinds existed still replay.
         ...(geometry?.kind === "rectangle"
           ? { kind: "rectangle", rect: geometry.rect }
-          : { tip: geometry?.tip ?? null }),
+          : geometry?.kind === "circle"
+            ? { kind: "circle", circle: geometry.circle }
+            : geometry?.kind === "arrow"
+              ? { kind: "arrow", arrow: geometry.arrow }
+              : { tip: geometry?.kind === "pin" ? geometry.tip : null }),
         body: input.body,
         elementId: input.elementId,
       }),
@@ -447,7 +551,11 @@ export async function createPinAtomically(
     const annotation: AnnotationRecord =
       geometry.kind === "pin"
         ? { ...base, kind: "pin", tip: geometry.tip }
-        : { ...base, kind: "rectangle", rect: geometry.rect };
+        : geometry.kind === "rectangle"
+          ? { ...base, kind: "rectangle", rect: geometry.rect }
+          : geometry.kind === "circle"
+            ? { ...base, kind: "circle", circle: geometry.circle }
+            : { ...base, kind: "arrow", arrow: geometry.arrow };
     try {
       await db.transaction(async (tx) => {
         // The idempotency row goes first: its primary key is what makes two
@@ -554,7 +662,11 @@ export async function updatePin(
   const capture = await loadCapture(db, pin.captureId);
   if (!annotatable(capture)) return { ok: false, error: "not-found" };
 
-  const wantsGeometry = input.tip !== undefined || input.rect !== undefined;
+  const wantsGeometry =
+    input.tip !== undefined ||
+    input.rect !== undefined ||
+    input.circle !== undefined ||
+    input.arrow !== undefined;
   const geometry = wantsGeometry ? geometryOf(input) : null;
   if (wantsGeometry) {
     // Exactly one geometry, of the annotation's own kind, inside the frame.

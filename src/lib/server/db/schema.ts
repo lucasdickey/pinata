@@ -156,13 +156,14 @@ export const ANNOTATION_STATUSES = ["open", "replied", "resolved"] as const;
 export type AnnotationStatus = (typeof ANNOTATION_STATUSES)[number];
 
 /**
- * The annotation kinds the application reads and writes today (D079): a pin
- * with one natural-pixel tip, and a rectangle with a natural-pixel box.
- * ANNOTATION_KINDS above (and the check constraint) also admit circle and
- * arrow for later; no code path creates or lists those yet, so every
- * kind-aware read filters on this list.
+ * The annotation kinds the application reads and writes: a pin with one
+ * natural-pixel tip, a rectangle with a natural-pixel box (D079), a circle
+ * with a natural-pixel bounding square (D082), and an arrow with two
+ * natural-pixel endpoints (D083). This now covers every kind
+ * ANNOTATION_KINDS and the check constraint admit; kind-aware reads still
+ * filter on this list, so the two lists can diverge again later.
  */
-export const BUILT_ANNOTATION_KINDS = ["pin", "rectangle"] as const;
+export const BUILT_ANNOTATION_KINDS = ["pin", "rectangle", "circle", "arrow"] as const;
 export type BuiltAnnotationKind = (typeof BUILT_ANNOTATION_KINDS)[number];
 
 export const annotations = sqliteTable(

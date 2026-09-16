@@ -36,6 +36,8 @@ import type {
   ProjectPinListResponse,
 } from "../lib/annotations";
 import {
+  arrowsOf,
+  circlesOf,
   contextQuery,
   markKindNoun,
   markLabel,
@@ -191,7 +193,8 @@ export function ProjectWorkspace({
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
   const cameras = useRef(new Map<string, CaptureCameraState>());
-  // The active plane's transient draft (a pin tip or a rectangle, D079),
+  // The active plane's transient draft (a pin tip, a rectangle, a circle, or
+  // an arrow),
   // mirrored here so the save can carry it and the composer state below can
   // follow it. The canvas remains the source of truth and clears it on
   // switch via the keyed remount.
@@ -839,7 +842,7 @@ export function ProjectWorkspace({
             [EDITOR_CSRF_HEADER]: readCsrfProof(),
           },
           body: JSON.stringify({
-            // `tip` for a pin, `rect` for a rectangle: the key names the kind.
+            // `tip`, `rect`, `circle`, or `arrow`: the key names the kind.
             ...markPayload(draft),
             body: draftBody,
             elementId: draftChoice,
@@ -879,8 +882,9 @@ export function ProjectWorkspace({
     setDraftResetSignal((value) => value + 1);
   }, []);
 
-  // One revisioned geometry write for a pin move or a rectangle move or
-  // resize (D079): the mark names the kind and carries the new geometry.
+  // One revisioned geometry write for a pin move, or a region move or
+  // resize (D079, D082): the mark names the kind and carries the new
+  // geometry.
   const movePin = useCallback(
     async (annotationId: string, mark: DraftMark) => {
       const captureId = selectedReady?.id;
@@ -1348,8 +1352,8 @@ export function ProjectWorkspace({
                   with. A paragraph, never a heading. */}
               {selectedReady ? (
                 <p className="workspace-verbs" data-testid="workspace-verbs">
-                  drop a pin: click the page · draw a box: shift-drag · move: drag it · read or
-                  reply: click a mark
+                  drop a pin: click the page · draw a box, circle, or arrow: pick a tool, then
+                  drag · move: drag it · read: click a mark
                 </p>
               ) : null}
             </div>
@@ -1397,6 +1401,8 @@ export function ProjectWorkspace({
                   height={selectedReady.documentHeight!}
                   pins={pinsOf(activePins)}
                   rectangles={rectanglesOf(activePins)}
+                  circles={circlesOf(activePins)}
+                  arrows={arrowsOf(activePins)}
                   previewRect={previewRect}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
@@ -1405,6 +1411,12 @@ export function ProjectWorkspace({
                   }
                   onMoveRectangle={(annotationId, rect) =>
                     void movePin(annotationId, { kind: "rectangle", rect })
+                  }
+                  onMoveCircle={(annotationId, circle) =>
+                    void movePin(annotationId, { kind: "circle", circle })
+                  }
+                  onMoveArrow={(annotationId, arrow) =>
+                    void movePin(annotationId, { kind: "arrow", arrow })
                   }
                   savedCamera={cameras.current.get(selectedReady.id) ?? null}
                   onCameraChange={handleCameraChange}
