@@ -144,6 +144,36 @@ describe("DecisionsCatalog", () => {
   });
 });
 
+describe("key decisions index (D092)", () => {
+  test("lists exactly the records flagged key, in source order, linking to their cards", () => {
+    const { container } = render(<DecisionsCatalog />);
+    const index = container.querySelector("nav.key-decisions");
+    expect(index).not.toBeNull();
+    const expected = DECISIONS_SOURCE.decisions.filter((d) => d.key === true).map((d) => d.id);
+    expect(expected.length).toBeGreaterThan(10);
+    const links = [...(index as HTMLElement).querySelectorAll("ol a")];
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(expected.map((id) => `#${id}`));
+    for (const id of expected) {
+      expect(container.querySelector(`article[data-decision-id="${id}"]`), id).not.toBeNull();
+    }
+  });
+
+  test("the product definition, stack, descope, and deployment are key", () => {
+    const key = new Set(DECISIONS_SOURCE.decisions.filter((d) => d.key === true).map((d) => d.id));
+    for (const id of ["D012", "D014", "D015", "D016", "D017", "D051", "D068"]) {
+      expect(key.has(id), id).toBe(true);
+    }
+  });
+
+  test("the index is a nav landmark, not a section, so card region labels stay unique", () => {
+    const { container } = render(<DecisionsCatalog />);
+    const index = container.querySelector("nav.key-decisions") as HTMLElement;
+    expect(index.getAttribute("aria-labelledby")).toBe("key-decisions-heading");
+    expect(index.querySelector("h2")?.textContent).toBe("Key decisions");
+    expect(index.querySelector("section[aria-label]")).toBeNull();
+  });
+});
+
 describe("decision data single-source enforcement", () => {
   test("the decisions route imports the shared JSON and no generated copy", () => {
     const page = readFileSync(join(ROOT, "app/reqs/decisions/page.tsx"), "utf8");

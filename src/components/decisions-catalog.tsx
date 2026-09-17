@@ -142,6 +142,34 @@ function DecisionCard({ decision }: { decision: Decision }) {
   );
 }
 
+// The key-decisions index (D092): the product and architecture calls a
+// reviewer should read first, flagged `key: true` in the source. It is a nav
+// landmark, not a section, so the per-decision region labels below stay
+// unique to their cards.
+function KeyDecisions({ decisions }: { decisions: Decision[] }) {
+  const key = decisions.filter((d) => d.key === true);
+  if (key.length === 0) return null;
+  return (
+    <nav className="key-decisions" aria-labelledby="key-decisions-heading" data-key-count={key.length}>
+      <h2 id="key-decisions-heading">Key decisions</h2>
+      <p>
+        The {key.length} product and architecture decisions to read first. Each link jumps to the
+        full record below; the complete log of {decisions.length} follows in record order.
+      </p>
+      <ol>
+        {key.map((d) => (
+          <li key={d.id}>
+            <a href={`#${d.id}`}>
+              <span className="key-id">{d.id}</span> {d.title}
+            </a>{" "}
+            <span className="origin">({originLabel(d.origin)})</span>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
 export function DecisionsCatalog() {
   const { decisions } = DECISIONS_SOURCE;
   return (
@@ -150,6 +178,7 @@ export function DecisionsCatalog() {
         Source: <code>docs/decisions/decisions.json</code> · Revision:{" "}
         <code>{deployedRevision()}</code>
       </p>
+      <KeyDecisions decisions={decisions} />
       <p>
         {decisions.length} decisions, in record order. Provenance labels distinguish what the human
         directed, what the agent proposed and the human approved, what the agent decided alone, and

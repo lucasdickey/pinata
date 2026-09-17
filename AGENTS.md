@@ -113,7 +113,14 @@ Rules:
     { "type": "link", "url": "https://...", "caption": "..." }
   ],
   "supersedes": null,
-  "superseded_by": null
+  "superseded_by": null,
+  "key": true                           // optional: a product or architecture
+                                        // decision a reviewer should read first
+                                        // (D092). The Markdown log, the dashboard,
+                                        // and /reqs/decisions surface flagged
+                                        // records ahead of the rest. Omit it for
+                                        // routine build calls; a log where
+                                        // everything is key says nothing.
 }
 ```
 
@@ -171,8 +178,11 @@ Node 24, so a green local run and a green CI run mean the same thing.
   the markup, every relative link in `README.md` resolves, and the dependency
   lists stay within the approved set while the docs tooling stays
   zero-dependency.
-- `test/home.test.tsx` — the Vitest + jsdom + React Testing Library chain
+- `test/landing.test.tsx` — the Vitest + jsdom + React Testing Library chain
   against a real component.
+- `test/requirements-*.test.ts(x)` — the `/reqs` hub: the route table and its
+  sources, the safe Markdown renderer, and the decisions catalog with its
+  key-decisions index.
 - `e2e/smoke.spec.ts` — the Playwright Chromium chain against the production
   server on `127.0.0.1:3100`.
 - `test/e2e-env-gate.test.ts` — the environment gate below, plus the rule that
@@ -245,6 +255,10 @@ escapes to a human, add the failing test before fixing it.
 - **Commit straight to `main`.** No feature branches, no pull requests (`D010`).
   Which means `npm run validate` has to pass **before** every commit, not merely
   before a merge — CI reports after the change is already on the default branch.
+  Recorded exceptions exist for work that must not destabilise a working demo
+  build: the founder-links stream (`D084`) and the cross-harness review
+  (`D093`) each ran on a branch carrying the same gate. The CI workflow's
+  `pull_request` trigger exists for those.
 - **Commit hygiene.** Conventional-ish subject line, body naming the decision IDs
   the commit implements. Regenerate docs before committing. Commit and push early
   and often — at minimum whenever a decision lands — rather than batching; the
@@ -259,35 +273,56 @@ pinata/
 ├── AGENTS.md                       # this file
 ├── CLAUDE.md                       # pointer to this file
 ├── README.md
+├── .nvmrc                          # Node 24 (D019); npm ci fails outright under Node 22
+├── .env.example                    # environment NAMES only; values live in git-ignored .env.local
 ├── package.json                    # scripts + the approved pinned dependency set
 ├── package-lock.json               # the one lockfile
 ├── tsconfig.json                   # strict TypeScript, Next.js plugin
-├── next.config.ts                  # Next.js configuration
+├── next.config.ts                  # Next.js configuration, incl. founder-surface headers (D090)
+├── drizzle.config.ts               # Drizzle Kit, pointed at the Turso database
 ├── vitest.config.ts                # unit/component/integration runner
 ├── playwright.config.ts            # Chromium e2e against 127.0.0.1:3100
 ├── eslint.config.js                # flat config, JavaScript surface
+├── skills-lock.json                # pins the vendored agent skill below
+├── .agents/skills/turso-cloud/     # vendored Turso reference for agents; not application code
 ├── .github/workflows/validate.yml  # CI: Node 24, `npm run validate`
-├── app/                            # Next.js App Router entry points
-├── src/                            # application source (components, lib)
+├── app/                            # Next.js App Router: routes, API handlers, /reqs hub pages
+├── src/
+│   ├── components/                 # React components
+│   └── lib/                        # boundaries/, canvas/, server/ (auth, captures, db, founder, threads)
+├── drizzle/                        # committed migrations + meta (D025)
 ├── remotion/                       # the /walkthrough composition (D072); Studio + render via npm run walkthrough*
 ├── public/walkthrough/             # imagery the walkthrough borrows (derived from committed sources)
 ├── remotion.config.ts              # Remotion CLI settings; the app never reads it
-├── e2e/                            # Playwright specs
+├── e2e/                            # Playwright specs, env gate, run-scoped cleanup
 ├── scripts/
 │   ├── build-docs.mjs              # CLI: generate, or --check for staleness
 │   ├── lint.mjs                    # dependency-free syntax + repo-rule checks
+│   ├── db-migrate.mjs              # applies drizzle/ to the configured database
+│   ├── production-smoke.mjs        # API-level smoke against the deployment (D068)
+│   ├── chickpea-baseline.mjs       # same-run direct-browser baseline for Chickpea
+│   ├── publish-capture-fixtures.mjs # re-verifies the fixture host (D041)
 │   └── lib/
 │       ├── decisions.mjs           # pure validate + render functions
 │       └── approved-deps.mjs       # the approved dependency allowlist
 ├── test/
 │   ├── decisions.test.mjs          # rules, against fixtures (Vitest)
 │   ├── artifacts.test.mjs          # the real repo's integrity (Vitest)
-│   └── home.test.tsx               # component chain smoke test
+│   ├── landing.test.tsx            # component chain smoke test
+│   ├── requirements-*.test.*       # the /reqs hub: routes, renderer, decisions catalog
+│   ├── server/, canvas/            # unit tests by area
+│   ├── integration/                # real-provider suites; skip without .env.local
+│   └── fixtures/capture/           # controlled capture pages + host.json
 └── docs/
     ├── ASSIGNMENT.md               # the brief, and how we intend to satisfy it
-    ├── DECISIONS.md                # GENERATED
+    ├── REQUIREMENTS.md             # product requirements (rendered at /reqs)
+    ├── ARCHITECTURE.md             # system shape and boundaries (/reqs/architecture)
+    ├── MILESTONES.md               # the three slices and their status (/reqs/milestones)
+    ├── EVALS.md                    # the eval catalog (/reqs/evals)
+    ├── DECISIONS.md                # GENERATED (/reqs/decisions renders the JSON directly)
     ├── SESSION-LOG.md              # append-only build narrative
     ├── NEXT.md                     # what we'd do with more time
+    ├── brand/                      # logo exploration sheet
     ├── decisions/
     │   └── decisions.json          # SOURCE OF TRUTH
     └── dashboard/

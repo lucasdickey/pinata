@@ -16,11 +16,41 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 21 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081 |
+| Human directed | 25 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093 |
 | Agent proposed, human approved | 16 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083 |
-| Agent decided alone | 44 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080 |
+| Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 2 | D003, D054 |
-| **Total** | **83** | |
+| **Total** | **93** | |
+
+## Key decisions
+
+The product and architecture decisions to read first. The full index follows.
+
+- [D001](#d001--name-the-project-pinata) — Name the project "pinata" *(Human directed)*
+- [D004](#d004--treat-the-decision-trail-as-a-shipped-deliverable) — Treat the decision trail as a shipped deliverable *(Human directed)*
+- [D012](#d012--define-the-product-directional-feedback-on-friends-public-websites) — Define the product: directional feedback on friends' public websites *(Human directed)*
+- [D013](#d013--chickpea-is-the-canonical-real-world-test-target) — Chickpea is the canonical real-world test target *(Human directed)*
+- [D014](#d014--nextjs--react--typescript-on-vercel-is-the-application-stack) — Next.js + React + TypeScript on Vercel is the application stack *(Agent proposed, human approved)*
+- [D015](#d015--mit-react-flow-is-the-canvas-foundation) — MIT React Flow is the canvas foundation *(Agent proposed, human approved)*
+- [D016](#d016--browserless-captures-screenshots-and-dom-manifests-in-one-session) — Browserless captures screenshots and DOM manifests in one session *(Agent proposed, human approved)*
+- [D017](#d017--private-vercel-blob-for-images-tursolibsql--drizzle-for-metadata) — Private Vercel Blob for images, Turso/libSQL + Drizzle for metadata *(Agent proposed, human approved)*
+- [D018](#d018--editor-password-prompt-persistent-founder-capability-links-append-only-threads) — Editor password prompt, persistent founder capability links, append-only threads *(Agent proposed, human approved)*
+- [D025](#d025--persist-the-canonical-model-in-committed-drizzle-migrations-with-database-enforced-thread-immutability-and-injectable-provider-seams) — Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams *(Agent decided alone)*
+- [D028](#d028--projects-take-an-explicit-url-array-admission-is-a-synchronous-network-free-normalizer) — Projects take an explicit URL array; admission is a synchronous, network-free normalizer *(Agent decided alone)*
+- [D035](#d035--dispatch-admits-captures-and-finalizes-in-one-request-there-is-no-claim-endpoint) — Dispatch admits, captures, and finalizes in one request; there is no claim endpoint *(Agent decided alone)*
+- [D044](#d044--private-screenshot-delivery-is-one-non-redirecting-route-that-reauthorizes-every-request-and-revalidates-bytes-before-serving) — Private screenshot delivery is one non-redirecting route that reauthorizes every request and revalidates bytes before serving *(Agent decided alone)*
+- [D049](#d049--drive-pending-capture-dispatch-from-the-editor-client-bounded-by-the-durable-lease-cap-and-re-driven-by-the-polling-loop) — Drive pending capture dispatch from the editor client, bounded by the durable lease cap and re-driven by the polling loop *(Agent decided alone)*
+- [D051](#d051--materially-descope-the-post-milestone-1-roadmap-keep-pins-pin-comments-landing-page-first-deployment-short-pins-session-and-closeout-punt-everything-else) — Materially descope the post-milestone-1 roadmap: keep pins, pin comments, landing page, first deployment, short pins session, and closeout; punt everything else *(Human directed)*
+- [D059](#d059--pin-persistence-server-assigned-monotonic-numbering-inside-the-idempotency-transaction-one-create-per-saved-draft-one-revisioned-write-per-drag-and-authoritative-reloads-after-failure) — Pin persistence: server-assigned monotonic numbering inside the idempotency transaction, one create per saved draft, one revisioned write per drag, and authoritative reloads after failure *(Agent decided alone)*
+- [D061](#d061--pin-mutation-lifecycle-explicit-context-decision-with-server-derived-snapshots-expectedrevision-optimistic-concurrency-on-moveeditdelete-tombstone-deletes-and-authoritative-reloads-after-conflict) — Pin mutation lifecycle: explicit context decision with server-derived snapshots, expectedRevision optimistic concurrency on move/edit/delete, tombstone deletes, and authoritative reloads after conflict *(Agent decided alone)*
+- [D066](#d066--the-root-route-is-a-branded-landing-page-the-pinata-mark-directly-above-the-url-capture-entry-a-brief-value-proposition-a-fully-static-example-of-a-marked-up-capture-and-a-clear-sign-in-path) — The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path *(Human directed)*
+- [D068](#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke) — Deploy to Vercel production behind SSO protection, fixing the framework preset and adding a Protection-Bypass-for-Automation secret for the smoke *(Agent decided alone)*
+- [D069](#d069--split-the-public-landing-from-the-editor-workspace--stays-marketing-pins-is-the-app-pinsnew-holds-the-project-form) — Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form *(Human directed)*
+- [D071](#d071--list-every-pin-in-a-table-below-the-canvas-with-a-markdown-export-for-pasting-into-an-agentic-ide) — List every pin in a table below the canvas, with a Markdown export for pasting into an agentic IDE *(Human directed)*
+- [D084](#d084--build-the-founder-link-and-readreply-loop-after-all-on-a-parallel-branch-partly-un-deferring-d051) — Build the founder link and read/reply loop after all, on a parallel branch, partly un-deferring D051 *(Human directed)*
+- [D085](#d085--founder-capability-sessions-are-stateless-a-signed-cookie-bound-to-project-id-and-capability-version-re-checked-against-the-project-row-on-every-request) — Founder capability sessions are stateless: a signed cookie bound to project id and capability version, re-checked against the project row on every request *(Agent decided alone)*
+- [D091](#d091--disclose-the-tooling-used-after-the-missions-claude-code-on-mobile-for-the-documentation-closeout-and-a-second-harness-for-the-cross-review) — Disclose the tooling used after the Missions: Claude Code on mobile for the documentation closeout, and a second harness for the cross-review *(Human directed)*
+- [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) — Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch *(Human directed)*
 
 ## Index
 
@@ -109,6 +139,16 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | [D081](#d081--restate-the-milestones-against-what-is-actually-built-add-a-fourth-slice-for-depth-on-the-loop-and-hold-accounts-and-multiple-users-until-last) | wrap | Restate the milestones against what is actually built, add a fourth slice for depth on the loop, and hold accounts and multiple users until last | Human directed | accepted |
 | [D082](#d082--circle-marks-a-square-constrained-ellipse-drawn-with-an-armed-tool-sharing-every-rule-rectangles-already-follow) | build | Circle marks: a square-constrained ellipse drawn with an armed tool, sharing every rule rectangles already follow | Agent proposed, human approved | accepted |
 | [D083](#d083--arrow-marks-a-two-endpoint-straight-arrow-whose-head-carries-the-meaning-and-the-element-context) | build | Arrow marks: a two-endpoint straight arrow whose head carries the meaning and the element context | Agent proposed, human approved | accepted |
+| [D084](#d084--build-the-founder-link-and-readreply-loop-after-all-on-a-parallel-branch-partly-un-deferring-d051) | build | Build the founder link and read/reply loop after all, on a parallel branch, partly un-deferring D051 | Human directed | accepted |
+| [D085](#d085--founder-capability-sessions-are-stateless-a-signed-cookie-bound-to-project-id-and-capability-version-re-checked-against-the-project-row-on-every-request) | build | Founder capability sessions are stateless: a signed cookie bound to project id and capability version, re-checked against the project row on every request | Agent decided alone | accepted |
+| [D086](#d086--no-new-boundary-constants-for-founder-links-reuse-the-editor-session-policy-authrequestmaxbytes-annotationrequestmaxbytes-feedbackbodymaxchars-and-the-published-reply-quota) | build | No new boundary constants for founder links: reuse the editor session policy, AUTH_REQUEST_MAX_BYTES, ANNOTATION_REQUEST_MAX_BYTES, FEEDBACK_BODY_MAX_CHARS, and the published reply quota | Agent decided alone | accepted |
+| [D087](#d087--founder-reads-share-the-editors-capture-routes-through-one-editor-or-founder-authorizer-with-a-founder-scoped-hierarchy-route-and-a-same-origin-exchange-route-under-apifounder) | build | Founder reads share the editor's capture routes through one editor-or-founder authorizer, with a founder-scoped hierarchy route and a same-origin exchange route under /api/founder | Agent decided alone | accepted |
+| [D088](#d088--thread-replay-is-intent-bound-without-a-digest-column-the-same-key-returns-the-committed-entry-only-when-body-and-role-match-otherwise-it-conflicts) | build | Thread replay is intent-bound without a digest column: the same key returns the committed entry only when body and role match, otherwise it conflicts | Agent decided alone | accepted |
+| [D089](#d089--the-editors-share-control-is-closed-by-default-and-reads-nothing-until-opened-the-workspaces-default-traffic-is-unchanged) | build | The editor's share control is closed by default and reads nothing until opened; the workspace's default traffic is unchanged | Agent decided alone | accepted |
+| [D090](#d090--founder-pages-get-their-security-headers-from-nextconfigts-for-f-and-apifounder-no-referrer-no-indexing-no-framing-no-caching-a-full-nonce-based-csp-is-deferred) | build | Founder pages get their security headers from next.config.ts for /f/* and /api/founder/*: no referrer, no indexing, no framing, no caching; a full nonce-based CSP is deferred | Agent decided alone | accepted |
+| [D091](#d091--disclose-the-tooling-used-after-the-missions-claude-code-on-mobile-for-the-documentation-closeout-and-a-second-harness-for-the-cross-review) | wrap | Disclose the tooling used after the Missions: Claude Code on mobile for the documentation closeout, and a second harness for the cross-review | Human directed | accepted |
+| [D092](#d092--flag-the-product-and-architecture-decisions-a-reviewer-should-read-first-and-surface-them-ahead-of-the-full-log-in-markdown-the-dashboard-and-reqsdecisions) | wrap | Flag the product and architecture decisions a reviewer should read first, and surface them ahead of the full log in Markdown, the dashboard, and /reqs/decisions | Human directed | accepted |
+| [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) | wrap | Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch | Human directed | accepted |
 
 ---
 
@@ -3279,4 +3319,369 @@ Human approved:
 
 ---
 
-<sub>Generated from 83 record(s) as of 2026-09-15 · source `4fa3ddf6044b`</sub>
+## D084 — Build the founder link and read/reply loop after all, on a parallel branch, partly un-deferring D051
+
+*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D051 descoped requirements 6 and 7 — persistent revocable founder links and append-only two-way threads — to fit the remaining budget, and the requirements, architecture, and eval documents were marked accordingly. But the founder's reply is the whole point of the product: without it Pinata is usable by the editor alone, and the owner wanted it usable with friends after the assignment. Everything underneath the feature already existed: the schema carried the share columns and the thread_entries table with its reject-update and reject-delete triggers, and the boundary catalog already published a reply quota. What made it risky was timing, not difficulty — the demo build was working and a live pins checkpoint was still pending.
+
+**Decision**
+
+Build the founder stream in parallel on a branch (feat/founder-links) rather than deferring it further or interleaving it with the demo build, and keep it strictly additive so main's working behaviour cannot regress. The branch carries the same npm run validate gate as main. Its decision records stay in docs/decisions/drafts/ while it is in flight, so concurrent work never violates the sequential id rule, and are folded into the log with real ids at merge — which is what D085 through D090 are.
+
+**Alternatives considered**
+
+- *Keep it deferred and ship the editor-only build* — The founder's reply is the product's reason to exist; leaving it out makes the demo a screenshot annotator.
+- *Build it directly on main alongside the demo work* — It touches auth, the asset route, and the canvas. A half-finished founder session on main could break a working demo the day it is shown.
+- *Wait until after the live pins checkpoint* — The work is independent of the canvas and pin code the checkpoint exercises, so serializing it only spends calendar time.
+
+**Rationale**
+
+The human directed the stream, its priority relative to the demo, and the branch shape. This is a bounded exception to D010's commit-straight-to-main, not a reversal of it: main keeps the gate before every commit, and the branch carries the same gate.
+
+**Consequences**
+
+- D051 still governs the rest of the descope — rich marks, the visual design pass, and the hardening list stay deferred — but requirements 6 and 7 are no longer vision, so the deferral markers those documents carry for founder links and threads come out.
+- The founder surfaces must satisfy the security boundaries already published in docs/ARCHITECTURE.md: no referrer, no indexing, digests only in the database, generic denials. D085 through D090 record how each was met.
+- The founder e2e spec is environment-gated, so CI proves the anonymous surface only; the credentialed founder paths are proven by a local gate run with .env.local present.
+- The founder loop is on main but not yet in the production deployment, and it has had no live checkpoint with the owner.
+
+**Provenance evidence**
+
+Human instruction:
+
+> let's do this work (below) in parallel, as it's not crucual to the demo, but will make it more usable for future use in the wild with friends. open a separate branch for this and we'll own a PR later as well. I don't want to block/break what's already working.
+
+**Artifacts**
+
+- `src/components/founder-view.tsx` — The founder's read/reply-only shell.
+- `src/lib/server/founder/capability.ts` — Capability issue, rotate, and revoke.
+- `e2e/founder.spec.ts` — Environment-gated end-to-end proof of the link and reply loop.
+
+---
+
+## D085 — Founder capability sessions are stateless: a signed cookie bound to project id and capability version, re-checked against the project row on every request
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+A founder link must persist until rotated or revoked, and rotation or revocation must end every existing founder session at once. The editor session revokes through an in-memory denylist (a documented per-instance weakness); copying that for founders would let a rotated capability keep working on another serverless instance until absolute expiry.
+
+**Decision**
+
+Mirror the editor session code for signing, lifetime, renewal, cookie attributes, and the double-submit CSRF proof, but bind the founder payload to {project id, capability version} and have the guard re-read the project row on every request: the project must be live, the digest present, share_revoked_at null, and share_token_version equal to the session's version. No founder session state is persisted, so no migration is needed and no denylist exists to go stale.
+
+**Alternatives considered**
+
+- *A founder_sessions table with explicit revocation rows* — A new table and migration for state the project row already expresses; every request would still have to read the project row to learn about rotation.
+- *Reuse the editor session token format with a role claim* — One token format for two authorities invites confusion; a distinct prefix (f1 versus v1) covered by the signature makes cross-verification impossible by construction, and the tests prove it.
+
+**Rationale**
+
+The brief explicitly says the version binding is what invalidates sessions, and the durable row is the only authority that changes on rotation; reading it per request is one indexed primary-key lookup. Safe to decide alone because it adds no schema, no dependency, and no new boundary constant.
+
+**Consequences**
+
+- Founder sessions reuse EDITOR_SESSION_ABSOLUTE_LIFETIME_MS and EDITOR_SESSION_RENEWAL_THRESHOLD_MS; a founder-specific lifetime would need a new boundary constant and a POLICY_VERSION bump.
+- Every founder-authorized route performs one extra project-row read; asset delivery for founders costs one lookup more than for the editor.
+- There is no founder logout route; closing the browser or waiting for expiry ends the session, and the editor's rotate/revoke ends it immediately.
+
+**Artifacts**
+
+- `src/lib/server/founder/session.ts` — Signed founder session bound to project and version.
+- `src/lib/server/founder/guard.ts` — Live binding check on every request.
+- `test/server/founder-routes.test.ts` — Rotation and revocation end existing sessions.
+
+---
+
+## D086 — No new boundary constants for founder links: reuse the editor session policy, AUTH_REQUEST_MAX_BYTES, ANNOTATION_REQUEST_MAX_BYTES, FEEDBACK_BODY_MAX_CHARS, and the published reply quota
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The boundary catalog is versioned and drift-checked against docs/EVALS.md and docs/ARCHITECTURE.md; adding any constant requires a POLICY_VERSION bump published in both documents, and this branch is forbidden from editing ARCHITECTURE.md while another stream closes the docs out.
+
+**Decision**
+
+Every limit the founder and thread surfaces need already exists in the catalog: the exchange body is capped by AUTH_REQUEST_MAX_BYTES (a 43-character token fits comfortably), reply bodies by ANNOTATION_REQUEST_MAX_BYTES and FEEDBACK_BODY_MAX_CHARS, founder session lifetime by the editor session constants, and the founder reply quota by REPLY_MAX_PER_WINDOW / REPLY_WINDOW_MS. The token length itself (32 bytes, 43 base64url characters) lives in the capability module as an implementation constant, not a published boundary, because it is a cryptographic minimum rather than a tunable policy.
+
+**Alternatives considered**
+
+- *Add FOUNDER_SESSION_* and FOUNDER_TOKEN_BITS to the catalog with a POLICY_VERSION bump* — Forces edits to ARCHITECTURE.md and EVALS.md that this branch may not make, for values that would simply duplicate the editor's.
+
+**Rationale**
+
+The brief allows EVALS.md edits only when a drift test forces them; reusing constants means no drift test fires and the catalog stays at 2026-09-09.2. If the owner later wants a shorter founder lifetime, that is a one-constant catalog change with its own decision record.
+
+**Consequences**
+
+- A founder session lives 12 hours and renews inside the last 2 hours, exactly like the editor's.
+- The boundary catalog and both policy documents are untouched on this branch.
+
+**Artifacts**
+
+- `src/lib/server/founder/capability.ts` — Token size as an implementation constant.
+- `src/lib/server/threads/throttle.ts` — Reply quota from the existing catalog values.
+
+---
+
+## D087 — Founder reads share the editor's capture routes through one editor-or-founder authorizer, with a founder-scoped hierarchy route and a same-origin exchange route under /api/founder
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The founder view needs the project hierarchy, per-capture pin lists, private screenshot bytes, and per-pin threads. Duplicating those reads under a founder namespace would fork the list and delivery logic; admitting founders on the editor routes risks changing the editor-only denial shapes the existing tests pin.
+
+**Decision**
+
+One shared authorizer (src/lib/server/founder/reader.ts) tries the editor guard first and consults a founder cookie only when one is present; every founder failure answers with the editor's own denial, so anonymous, foreign-project, rotated, and revoked callers are byte-identical to what the routes always returned. The asset route, the pin-list GET, and the new thread route use it. The hierarchy read and the token exchange are founder-only and live under /api/founder/[publicId]; manifest and context reads stay editor-only because the read-only view never places a pin.
+
+**Alternatives considered**
+
+- *A parallel /api/founder/... namespace for every read* — Duplicates delivery and listing logic and doubles the byte-exact asset proof surface.
+- *Admit founders on manifest and context routes too* — The founder cannot place marks, so those reads have no consumer; the smallest admitted surface is the safest.
+
+**Rationale**
+
+The brief asks for the asset route to admit founders while denying everyone else exactly as today; a single authorizer that returns the editor's denial on any founder failure is the direct way to keep those denials identical, and the founder-specific asset tests prove one denial body for every failure case.
+
+**Consequences**
+
+- GET /api/captures/[captureId]/annotations now serves founders of that capture's project; POST/PATCH/DELETE remain editor-only.
+- The existing editor-only asset and annotation route tests pass unchanged.
+
+**Artifacts**
+
+- `src/lib/server/founder/reader.ts` — Editor-or-founder authorizer.
+- `test/server/capture-asset-founder.test.ts` — Founder bytes and the one denial shape.
+
+---
+
+## D088 — Thread replay is intent-bound without a digest column: the same key returns the committed entry only when body and role match, otherwise it conflicts
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Thread appends must be idempotent per the existing (annotation_id, idempotency_key) unique index, and pin creation binds a key to a payload digest through the idempotency_keys table. thread_entries has no digest column and adding one means a migration for a table whose rows can never be updated.
+
+**Decision**
+
+Look up the existing entry by (annotation, key); replay it with 200 when its body and actor role equal the request's, answer 409 when they differ, and converge on the winner if the unique index fires under concurrency. The founder quota admission runs only after the replay check and validation, so a retried or invalid reply never consumes quota.
+
+**Alternatives considered**
+
+- *Record thread appends in idempotency_keys with a payload digest* — Two sources of truth for one row; the entry itself already carries every field the digest would cover.
+- *Add a payload_digest column to thread_entries* — A migration for information derivable from the row.
+
+**Rationale**
+
+The entry row is immutable, so comparing its stored body and role is exactly as strong as comparing a digest of them. Safe to decide alone: no schema change, and the behavior matches the pin store's replay-or-conflict contract.
+
+**Consequences**
+
+- A client that reuses a key with different text gets a 409 and must choose a new key.
+- No thread-related rows are ever written to idempotency_keys.
+
+**Artifacts**
+
+- `src/lib/server/threads/entries.ts` — Replay-or-conflict append.
+- `test/server/thread-entries.test.ts` — Replay, conflict, quota admission ordering, and the trigger proof.
+
+---
+
+## D089 — The editor's share control is closed by default and reads nothing until opened; the workspace's default traffic is unchanged
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The workspace tests stub fetch and count requests; an always-on per-project status read would add a request per project on every mount and change the default behavior the brief says must stay unchanged.
+
+**Decision**
+
+Render one Share with founder toggle per project in the tree; opening it reads the status once and offers Create/Rotate and Revoke; the issued link is composed client-side as origin + path + '#' + token, shown once in a read-only field with a Copy control, and forgotten when the control closes. The hierarchy payload is not extended with share status.
+
+**Alternatives considered**
+
+- *Include share status in the project hierarchy response* — Changes the hierarchy shape every existing fixture constructs and adds capability metadata to a payload the founder route also serves.
+
+**Rationale**
+
+Additive and minimal, as the brief asks; the only new default-path DOM is one button per project, and the existing workspace suite passes without modification.
+
+**Consequences**
+
+- Share status is read lazily; an editor must open the control to see whether a link exists.
+- The raw token exists only in the editor's page state until the control closes.
+
+**Artifacts**
+
+- `src/components/founder-share.tsx` — The share control.
+- `test/founder-share.test.tsx` — Closed by default, link shown once, rotate and revoke.
+
+---
+
+## D090 — Founder pages get their security headers from next.config.ts for /f/* and /api/founder/*: no referrer, no indexing, no framing, no caching; a full nonce-based CSP is deferred
+
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Architecture requires founder capability pages to send no referrer and permit no indexing, and names a strict CSP with frame-ancestors 'none'. The application currently sets no response headers anywhere, and a strict script-src CSP would need per-request nonces threaded through the Next.js layout.
+
+**Decision**
+
+Add a headers() block to next.config.ts that sets Referrer-Policy: no-referrer, X-Robots-Tag: noindex, nofollow, noarchive, X-Frame-Options: DENY, Content-Security-Policy: frame-ancestors 'none', and Cache-Control: private, no-store, max-age=0 on /f/:path* and /api/founder/:path*; the founder page also declares robots noindex and referrer no-referrer in its metadata. The token never appears in a path or query, so no header can leak it.
+
+**Alternatives considered**
+
+- *A full strict CSP with nonces for the founder page* — Requires middleware-generated nonces and layout plumbing across the whole app; out of this feature's scope and not needed for the no-referrer / no-index requirement.
+
+**Rationale**
+
+This satisfies the stated founder-page requirements with framework configuration only; the strict CSP remains a documented gap for a follow-up decision.
+
+**Consequences**
+
+- The e2e founder spec asserts Referrer-Policy, X-Robots-Tag, and X-Frame-Options on the founder page response.
+- Other routes keep their current (header-less) posture; a site-wide CSP is a separate decision.
+
+**Artifacts**
+
+- `next.config.ts` — Founder surface headers.
+- `app/f/[publicId]/page.tsx` — Metadata: noindex, no-referrer.
+
+---
+
+## D091 — Disclose the tooling used after the Missions: Claude Code on mobile for the documentation closeout, and a second harness for the cross-review
+
+*2026-09-10 · phase: wrap · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The brief requires Factory, and docs/ASSIGNMENT.md said every commit was authored through a Factory droid session. That is no longer exactly true. Once the MVP was working, the owner did a documentation closeout and a repository-hygiene pass with Claude Code from a phone on a plane, because the network connection would not sustain a Factory session. The session log also had no top-level time accounting: each Mission section reports agent time, but nothing stated the human's wall-clock time against the four-hour brief, and most of the agent time ran unattended while the owner teed up a prompt and walked away. Leaving either unsaid would make the process narrative inaccurate on the one criterion the decision log exists to serve.
+
+**Decision**
+
+Record it plainly. The application code, capture pipeline, canvas, pins, founder links, landing page, and production deployment were built through Factory Droid Missions and Droid sessions. A documentation closeout and repository-hygiene pass were done with Claude Code on mobile, and that same harness produced the cross-review adopted in D093. docs/ASSIGNMENT.md's "built with Factory" row names the exception and points here; docs/SESSION-LOG.md opens with a time-and-tooling ledger that separates the human's wall-clock time (under the four-hour brief, per the owner) from the agent time each session section reports.
+
+**Alternatives considered**
+
+- *Say nothing, since the MVP itself was Factory-built* — The grading criterion is honesty about process, and the commit trailers already name the tool, so the log would be contradicted by the history it sits in.
+- *Wait for connectivity and redo the closeout inside a Factory session* — The work is documentation. Redoing it buys a cleaner-looking story and nothing else.
+- *Sum the per-session agent minutes into one total and present it as the time spent* — Agent time ran mostly unattended and overlapped with the owner's absence, so a single sum would overstate the human effort the brief bounds and understate the autonomy that is the point of the assignment. The ledger keeps the two measures apart.
+
+**Rationale**
+
+The human directed the disclosure and the time framing, with the verbatim quotes below. The decision costs nothing and makes the repository's own history and its narrative agree.
+
+**Consequences**
+
+- docs/ASSIGNMENT.md: the "Built with Factory" row names the Claude Code exception and points here; the timebox row points at the ledger.
+- docs/SESSION-LOG.md opens with a time-and-tooling ledger; per-session agent time stays where it was recorded.
+- Using a second harness is now a disclosed part of the process rather than an embarrassment to be tidied away; D093 makes it a deliberate technique.
+
+**Provenance evidence**
+
+Human instruction:
+
+> "in the interest of full disclosure, we can add a decision call-out somewhere that we used Claude Code on mobile on the plane due to network connectivity issues. I can live with that given the core MVP was otherwise working." — and later, on this pass: "note that we deviated from the homework a bit and used Claude Code on mobile so I could code on the plane!" — and on time: "using wall-clock time, we are under the 4 hour limit - a lot of the activity was ne teeing up a prompt and then walking away to let Droid Missions do its think mostly autonomously."
+
+**Artifacts**
+
+- `docs/ASSIGNMENT.md` — The amended "built with Factory" and timebox rows.
+- `docs/SESSION-LOG.md` — The time-and-tooling ledger at the top of the log.
+
+---
+
+## D092 — Flag the product and architecture decisions a reviewer should read first, and surface them ahead of the full log in Markdown, the dashboard, and /reqs/decisions
+
+*2026-09-10 · phase: wrap · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The interview is graded on explaining the process, but every surface rendered all seventy-plus records in one undifferentiated column, so a reader could not tell the two dozen decisions that shaped the product from the routine build calls. Curating that list in a page component would create a second decision dataset, which the single-source rule forbids.
+
+**Decision**
+
+Add an optional `key` boolean to the decision record schema, set on the product and architecture decisions a reviewer should read first. The validator accepts it and rejects non-boolean values; docs/DECISIONS.md gains a "Key decisions" section above the index; the dashboard gains a "Key decisions only" filter chip and a per-record pill; and /reqs/decisions opens with a nav landmark listing the same records, each linking to its card in the full catalog below. Records without the flag are unchanged.
+
+**Alternatives considered**
+
+- *Keep the curated list in the page component rather than in the data* — It would be a second decision dataset, which the single-source rule forbids, and the Markdown log and dashboard could not share it.
+- *Also add /reqs/session-log, /reqs/next, and /reqs/assignment as a second navigation group, as the cross-review proposed* — The owner declined: "Drop all three process routes." The hub stays at the five product routes, which are also the dogfood URL array and the production smoke's contract.
+
+**Rationale**
+
+The human directed the substance: the decision log reachable in the app, focused on the critical product and architecture calls. Where the flag lives — in the source data rather than a component — is mechanical inside that direction, and putting it in the data is what lets all three surfaces agree.
+
+**Consequences**
+
+- The decision schema gains an optional `key` boolean; AGENTS.md section 2.4 documents it.
+- DOGFOOD_URLS, the hub navigation, and the production smoke's five-route list are unchanged.
+- Flagging a record is a judgment call with no test to enforce it; test/requirements-decisions.test.tsx pins only that the index matches the data and that the product-defining records stay flagged.
+
+**Provenance evidence**
+
+Human instruction:
+
+> yes, let's have have the human-friendly decision log accessible from the app so it's all in one. also, focus on critical product or architecture decisions to surface in that context.
+
+**Artifacts**
+
+- `scripts/lib/decisions.mjs` — Validator and generator support for the key flag.
+- `src/components/decisions-catalog.tsx` — Key-decisions index above the full catalog.
+- `docs/dashboard/index.html` — Key-only filter chip and per-record pill.
+
+---
+
+## D093 — Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch
+
+*2026-09-10 · phase: wrap · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+An agent that reviews its own work grades its own homework. The owner ran a separate Claude Code session over the repository to audit it independently; that session pushed a branch carrying documentation reconciliation, repository hygiene, the key-decisions flag, and three new hub routes. By the time it was reviewed in Factory, main had moved on: the founder loop had merged, the landing/app split and the pin table had shipped, and main had independently reused the ids D069, D070, and D071 for different decisions. Merging the branch would have collided on those ids and reintroduced documentation asserting that the founder loop was still deferred.
+
+**Decision**
+
+Treat the branch as a review, not a patch. Adopt the findings that are still true and still valuable — the .gitignore ordering bug that made the committed .env.example unreachable, a checked-in .env.example of names only, .nvmrc pinning Node 24, moving a stray 1.5 MB PNG out of the repository root, the stale test/home.test.tsx reference and outdated layout tree in AGENTS.md, a Local setup section in the README, the time-and-tooling ledger and disclosure (D091), the honest additions to docs/NEXT.md, and the key-decisions flag (D092). Reject the three process routes at the owner's direction, reject every founder-is-deferred rewrite as now false, and renumber the branch's records instead of importing them. Fold the founder-links drafts into the log in the same pass, as D084 through D090, since nothing on main had recorded that stream at all.
+
+**Alternatives considered**
+
+- *Merge the review branch as-is and fix the fallout afterwards* — Three of its four records would have collided by id with main's own D069 through D071, and six documents would have re-asserted that the founder loop was unbuilt. Cheaper to take the findings than the commits.
+- *Ignore the branch and keep a single harness* — The branch found four real defects nothing in the gate catches, including the .gitignore ordering bug and the stale test reference in AGENTS.md. A second harness reading the whole repository cold is a cheap audit.
+- *Cherry-pick the branch's commits* — Its four commits each mix adopted and rejected changes; picking them would need the same file-level resolution with less clarity about what was accepted and why.
+
+**Rationale**
+
+The owner asked for the second harness specifically to hold the work doubly accountable, so its findings deserved evaluation rather than either automatic merge or dismissal. Selecting file by file keeps the accepted changes attributable and leaves the rejections stated here instead of implied by a silent revert.
+
+**Consequences**
+
+- The cross-review branch is not in the history; this record and the adopted changes are its trace, so the branch can be deleted.
+- docs/decisions/drafts/ is now empty and removed: the founder loop's records are D084 through D090, closing a fold-in that had been outstanding since the branch merged.
+- AGENTS.md section 5 now reflects the real layout, so the next agent reading it is not misled about where tests live.
+- Running a second harness over the repository before wrap-up is a technique worth repeating; it is not automated, and nothing schedules it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> take a look at origin/claude/droid-project-review-2qv0o3 -- i wanted to hold us doubly accountable with another harness - and see which updates you agree with. make those changes in a branch here. then let's merge. after that we'll delete the claude-named branch.
+
+**Artifacts**
+
+- `.gitignore` — The negation moved below the broader .env* pattern that had been re-ignoring it.
+- `.env.example` — Environment names only, adopted from the cross-review.
+- `AGENTS.md` — Section 5 layout tree and the corrected test references.
+
+---
+
+<sub>Generated from 93 record(s) as of 2026-09-15 · source `0f098263a191`</sub>

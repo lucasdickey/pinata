@@ -5,6 +5,31 @@ Append-only. Newest section at the bottom. One section per working session.
 This file records **what happened**, including dead ends. `DECISIONS.md` records
 **what we chose**. Both are needed to explain the process honestly.
 
+## Time and tooling ledger
+
+Added at closeout (`D079`) so the two measures of time in this log are not
+confused with each other.
+
+- **Human wall-clock time: under the four-hour brief**, by the owner's
+  accounting. Most of it went into writing a prompt, walking away while a
+  Factory Mission ran unattended, then coming back for the live checkpoints
+  and the scope calls (`D050`, `D051`). The owner's words: "using wall-clock
+  time, we are under the 4 hour limit - a lot of the activity was me teeing
+  up a prompt and then walking away to let Droid Missions do its thing mostly
+  autonomously."
+- **Agent time is recorded per session** in the `Elapsed` lines below, as the
+  Mission workers reported it. The sections that state a figure sum to
+  roughly 37 hours; several early and late sections record none. That figure
+  is machine time running mostly without a human present. It is not the human
+  effort the brief bounds, and it is not added to it.
+- **Tooling.** The application, capture pipeline, canvas, pins, founder links,
+  landing page, and production deployment were built through Factory Droid
+  Missions and Droid sessions. A documentation closeout and repository-hygiene
+  pass were done with Claude Code on a phone, on a plane, because the
+  connection would not sustain a Factory session; the same harness produced
+  the independent cross-review adopted in `D081`. That deviation from the
+  brief is disclosed rather than tidied away — see `D079`.
+
 ---
 
 ## Session 01 — 2026-09-04
@@ -3114,3 +3139,175 @@ checkpoint.
 - D082, D083 (agent-proposed, human-approved): circle and arrow marks.
 - Consequences recorded on D082 and D083 for the findings above.
 
+---
+
+## 2026-09-10 — founder links and the read/reply loop (D084–D090)
+
+Built on the `feat/founder-links` branch and merged to `main`. Folded into
+this log when its draft records were renumbered to `D085`–`D090` (`D093`).
+Renumbered again, by +12 to `D084`–`D093`, when this work was rebased onto a
+`main` whose own `D072`–`D083` (walkthrough, UX overhaul, marks) landed first.
+
+### Elapsed
+
+Roughly 1 h 15 min of build time in one sitting (2026-09-10, ~15:40Z to
+~17:00Z), in a container with Node 24 available through nvm, no `.env.local`,
+and no network access to Turso, Blob, or Browserless.
+
+### What was attempted
+
+The founder-links stream from REQUIREMENTS 6 and 7, end to end and additive:
+
+- **Capability tokens** (`src/lib/server/founder/capability.ts`): 32 random
+  bytes as 43 base64url characters; the store holds only the SHA-256 digest,
+  `share_token_version` increments on every issue/rotate, `share_revoked_at`
+  plus a cleared digest on revoke. Exchange is a timing-safe digest compare;
+  every failure is the same null.
+- **Founder sessions** (`session.ts`, `cookies.ts`, `guard.ts`, `reader.ts`):
+  the editor session code mirrored with an `f1` prefix, bound to
+  `{project id, version}` and re-checked against the project row on every
+  request. `reader.ts` is the one editor-or-founder authorizer the asset
+  route, pin-list GET, and thread route share.
+- **Threads** (`src/lib/server/threads/`): append-only store with
+  server-assigned labels (`editor`→`Lucas`, `founder`→`founder`), bounded
+  bodies, replay-or-conflict idempotency on the existing unique index, and a
+  durable per-project reply quota in `rate_limit_buckets`.
+- **Routes**: `POST /api/founder/[publicId]/session` (exchange),
+  `GET /api/founder/[publicId]` (hierarchy), `GET/POST/DELETE
+  /api/projects/[publicId]/share` (editor status / issue-rotate / revoke),
+  `GET/POST /api/captures/[captureId]/annotations/[annotationId]/thread`.
+  The asset route and the annotations GET admit a bound founder.
+- **Founder page** `/f/[publicId]` with `FounderView`: reads the fragment
+  once, scrubs it with `history.replaceState` before the exchange, then reads
+  through founder-authorized routes. The canvas mounts with the new
+  `readOnly` prop (no Canvas tools group, no drafts, pins never draggable,
+  `data-read-only="true"` on the region). `next.config.ts` adds
+  no-referrer / noindex / no-frame / no-store headers for `/f/*` and
+  `/api/founder/*`.
+- **Editor side**: `FounderShareControl` per project (closed by default; link
+  shown once), and `ThreadView` under the selected pin in `CapturePanel`
+  with a "Follow up as Lucas" composer.
+
+### What broke, and dead ends
+
+- First cut of the thread store tests seeded three captures on one page with
+  `attempt: 1` each and hit the `(page, variant, attempt)` unique index; the
+  seed helper now numbers attempts.
+- The trigger proof asserted `rejects.toThrow(/append-only/)` on the Drizzle
+  call, but Drizzle wraps the driver error and the trigger message is on the
+  `cause` chain; the test now walks the chain like `db-schema.test.ts` does.
+- A read-only canvas test queried `within(stage()).getByTestId("capture-stage")`,
+  i.e. searched an element for itself; replaced with a direct assertion.
+- The founder-view component test typed the captured request body as
+  `unknown`; narrowed at the assertion site.
+- Considered extending the project hierarchy payload with share status and
+  rejected it (D089): it would change every fixture and put capability
+  metadata on a payload the founder route also serves.
+- Considered a `founder_sessions` table and rejected it (D085): the
+  project row already carries the only authority that changes on rotation.
+
+### What could not be validated here
+
+- Everything env-gated. There is no `.env.local` in this container, so:
+  - `e2e/founder.spec.ts` (link open, founder reply, editor follow-up,
+    rotation kills the old link, revocation, founder-page headers) **skips**;
+    it has not run against a real server, a real Turso, or a real browser.
+    A human with `.env.local` and the seeded Chickpea project must run
+    `npm run e2e` (or `npx playwright test e2e/founder.spec.ts`) and watch it.
+  - The other env-gated Playwright specs and the `test/integration/` suites
+    also skip, exactly as they do in CI.
+- Real Turso semantics of the `RETURNING` upsert in the reply throttle: proven
+  against in-memory libSQL only (same pattern as the login throttle, which
+  has a real-Turso integration test).
+- The founder page's response headers from `next.config.ts` are asserted in
+  the e2e spec only; the production build succeeded but no request was made
+  against it here beyond what the ungated specs cover.
+- The e2e spec leaves side effects by design: two immutable thread entries
+  per run on the fixture pin (append-only, cannot be cleaned up), a fixture
+  pin created once on the seeded desktop capture if none exists, and the
+  seeded project's founder link rotated and then revoked.
+
+### Judgment calls the owner should review
+
+- No new boundary constants (D086): founder sessions use the editor
+  lifetime and renewal policy.
+- Founder denials on shared routes reuse the editor's exact denial (D087);
+  a founder of another project gets a 401, never a 404.
+- Revoke on a project that never issued a link is a 409; revoking twice is
+  idempotent; re-issuing after a revoke clears the revocation and bumps the
+  version.
+- `frame-ancestors 'none'` is the only CSP directive set (D090); a full
+  nonce-based CSP is deferred.
+- Manifest and context routes stay editor-only; the founder view never needs
+  them.
+
+---
+
+## 2026-09-10 — cross-harness review, folded records, key decisions (D091–D093)
+
+### Starting state
+
+The owner had run a separate Claude Code session over the whole repository
+"to hold us doubly accountable with another harness" and pushed its output as
+`claude/droid-project-review-2qv0o3`: four commits of documentation
+reconciliation, repository hygiene, a `key` flag on decision records, and
+three new `/reqs` routes. This session reviewed that branch from Factory and
+decided what to take.
+
+### What happened
+
+- **The branch could not be merged.** It was cut from the deployment commit,
+  and `main` had moved: the founder loop had landed, the route split and pin
+  table had shipped, and `main` had independently reused `D069`, `D070`, and
+  `D071` for entirely different decisions. Three of the branch's four records
+  collided by id, and six of its documents re-asserted that the founder loop
+  was still deferred, which was no longer true. Findings adopted file by
+  file instead. → `D093`
+- **Four real defects it found.** `.gitignore` listed `!.env.example` above a
+  broader `.env*` pattern, so the negation never applied and a committed
+  example file would have been invisible to git; there was no `.env.example`
+  at all; there was no `.nvmrc` despite `npm ci` failing outright under Node
+  22; and `AGENTS.md` still pointed at `test/home.test.tsx`, renamed long ago,
+  with a layout tree missing `drizzle/`, `.agents/`, and most of `scripts/`.
+  A 1.5 MB unreferenced PNG also sat in the repository root.
+- **The `key` flag was worth taking.** An optional boolean in the record
+  schema, surfaced as a "Key decisions" section in the Markdown log, a filter
+  chip and pill in the dashboard, and a nav landmark at the top of
+  `/reqs/decisions`. Twenty-five records are flagged. → `D092`
+- **The three process routes were not.** The owner declined them: "Drop all
+  three process routes." The hub stays at the five product routes, which are
+  also the dogfood URL array and the production smoke's contract.
+- **The founder loop had no decision record at all.** It shipped to `main`
+  with its records still sitting in `docs/decisions/drafts/`, so the log's
+  last word on founder links was `D051` deferring them. Folded in as `D084`
+  (the un-deferral, user-directed) through `D090` (the six implementation
+  calls, agent-autonomous), and the branch's session narrative was appended
+  above. `docs/decisions/drafts/` is gone.
+- **The tooling deviation is now stated in the log**, not just in commit
+  trailers: Claude Code on mobile for a documentation pass and for this
+  review, with a ledger separating human wall-clock time from unattended
+  agent time. → `D091`
+
+### What broke
+
+- The first fold-in numbered the founder records `D084`–`D089` and referenced
+  a `D070` that exists only on the deleted review branch. Backed out and
+  renumbered after checking `main`'s actual `D069`–`D071`, which is what
+  surfaced the missing un-deferral record in the first place.
+
+### Environment gaps, unresolved
+
+The founder loop is on `main` but not in the production deployment and has
+had no live checkpoint. Its e2e spec is environment-gated, so it proves
+nothing without `.env.local`.
+
+### Decisions
+
+- D084 (user-directed): build the founder loop on a parallel branch, partly
+  un-deferring `D051`.
+- D085–D090 (agent-autonomous): the founder implementation calls, folded in
+  from the branch drafts.
+- D091 (user-directed): disclose the Claude Code deviation and separate human
+  from agent time.
+- D092 (user-directed): flag key decisions and surface them first.
+- D093 (user-directed): cross-review with a second harness, adopt selectively.

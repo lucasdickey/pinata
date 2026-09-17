@@ -97,6 +97,12 @@ export function validate(data) {
       errors.push(`${at}: has superseded_by but status is \`${d.status}\`, expected superseded`);
     }
 
+    // `key` marks the product and architecture decisions a reviewer should
+    // read first (D092). Optional, boolean when present.
+    if ("key" in d && typeof d.key !== "boolean") {
+      errors.push(`${at}: \`key\` must be true or false when present`);
+    }
+
     for (const [j, a] of (d.artifacts ?? []).entries()) {
       const aat = `${at}.artifacts[${j}]`;
       if (!["screenshot", "file", "link"].includes(a?.type)) {
@@ -190,6 +196,18 @@ export function renderMarkdown(data, { sourceHash = "unknown" } = {}) {
   }
   L.push(`| **Total** | **${decisions.length}** | |`);
   L.push("");
+
+  const key = decisions.filter((d) => d.key === true);
+  if (key.length) {
+    L.push("## Key decisions");
+    L.push("");
+    L.push("The product and architecture decisions to read first. The full index follows.");
+    L.push("");
+    for (const d of key) {
+      L.push(`- [${d.id}](#${anchor(d)}) — ${d.title} *(${origins[d.origin].label})*`);
+    }
+    L.push("");
+  }
 
   L.push("## Index");
   L.push("");

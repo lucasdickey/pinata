@@ -1392,6 +1392,42 @@ pre code {
   color: var(--surface);
 }
 
+.key-decisions {
+  margin: 1.5rem 0 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  /* No tinted background: the AA-locked link and soft-ink colors (D047) are
+     measured against the page surface, and axe flagged them on the tint. */
+  background: var(--surface);
+}
+
+.key-decisions h2 {
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+
+.key-decisions ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.key-decisions li {
+  margin: 0.3rem 0;
+}
+
+.key-decisions .key-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+.key-decisions .origin {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
 .doc h1 {
   font-size: 2rem;
   line-height: 1.2;

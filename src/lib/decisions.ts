@@ -38,6 +38,8 @@ export interface Decision {
   artifacts: DecisionArtifact[];
   supersedes: string | null;
   superseded_by: string | null;
+  /** Product and architecture decisions to read first (D092). Optional. */
+  key?: boolean;
 }
 
 export interface DecisionOrigin {

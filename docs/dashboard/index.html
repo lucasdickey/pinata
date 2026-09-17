@@ -72,6 +72,7 @@
   .title { font-weight: 600; flex: 1 1 320px; }
   .pill { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
   .pill.status { color: var(--muted); }
+  .pill.key { color: #d29922; }
   .pill.status[data-s="accepted"] { color: #3fb950; }
   .pill.status[data-s="pending"] { color: #d29922; }
   .pill.status[data-s="superseded"], .pill.status[data-s="rejected"] { color: #8b949e; text-decoration: line-through; }
@@ -144,7 +145,7 @@
 (function () {
   var data = window.PINATA;
   var list = document.getElementById("list");
-  var state = { origins: new Set(), phases: new Set(), q: "" };
+  var state = { origins: new Set(), phases: new Set(), q: "", keyOnly: false };
 
   if (!data) {
     list.innerHTML = '<p class="empty">decisions-data.js is missing. Run <code>node scripts/build-docs.mjs</code>.</p>';
@@ -199,6 +200,8 @@
     var pf = document.getElementById("phase-filters");
     of.innerHTML = ""; pf.innerHTML = "";
 
+    // Key decisions (D092): the product and architecture calls to read first.
+    of.appendChild(chip("Key decisions only", null, state.keyOnly, function () { state.keyOnly = !state.keyOnly; }));
     of.appendChild(chip("All origins", null, state.origins.size === 0, function () { state.origins.clear(); }));
     Object.keys(data.origins).forEach(function (k) {
       var m = data.origins[k];
@@ -232,6 +235,7 @@
     h.push("<summary>");
     h.push('<span class="id">' + esc(d.id) + "</span>");
     h.push('<span class="title">' + rich(d.title) + "</span>");
+    if (d.key === true) h.push('<span class="pill key" title="A product or architecture decision to read first">key</span>');
     h.push('<span class="pill" style="color:' + esc(m.color) + '">' + esc(m.label) + "</span>");
     h.push('<span class="pill status" data-s="' + esc(d.status) + '">' + esc(d.status) + "</span>");
     h.push('<span class="meta">' + esc(d.date) + " · " + esc(d.phase) + "</span>");
@@ -295,6 +299,7 @@
 
   // ---- render ------------------------------------------------------------
   function matches(d) {
+    if (state.keyOnly && d.key !== true) return false;
     if (state.origins.size && !state.origins.has(d.origin)) return false;
     if (state.phases.size && !state.phases.has(d.phase)) return false;
     if (!state.q) return true;
