@@ -4152,8 +4152,45 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D094",
+      "date": "2026-09-19",
+      "phase": "build",
+      "title": "Defer runtime element matching with a System One model until the deterministic pre-selection has been measured",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "The owner asked whether Jev, TypeSafe AI's System One model, should choose the nearest appropriate manifest element when a mark is placed. The fit is closer than a general language model's would be: Jev returns a typed choice among defined options with a confidence score, cannot hallucinate because the schema fixes the valid outputs, and costs a fraction of a cent for the eight candidates a query would carry. Two things argue against reaching for it now. The pre-selection has never been watched by a person, so there is no evidence the deterministic ranking is failing; and the cost of a wrong pick is one click, because the composer pre-selects the top candidate and offers Change and No element beside it.",
+      "decision": "Postponed, not rejected. The deferral is resolved by a number the checkpoint will produce: for each mark placed, whether the pre-selected element was the one the editor wanted. If the deterministic ranking is right nearly every time, there is nothing here to build. If it is not, the cheaper deterministic fixes come first: weight semantic kind harder so an interactive element beats the container wrapping it, prefer elements carrying an accessible name, and penalise layout containers with no text or role.",
+      "alternatives": [
+        {
+          "option": "Adopt it now for nearest-element ranking",
+          "why_not": "It would add a fourth external service and reverse a published non-goal to improve something never measured, where the current failure cost is a single click."
+        },
+        {
+          "option": "Reject runtime AI permanently",
+          "why_not": "One version of the idea is genuinely out of reach of geometry: matching the comment's text to the element, so that 'this billing toggle reads the same in both states' resolves to the toggle rather than the card containing it. That is worth keeping open."
+        }
+      ],
+      "rationale": "Raised by the owner and consciously postponed in the same exchange. Recording it keeps the reasoning findable when the question returns, and names the measurement that settles it rather than leaving it to taste. Adopting it would reverse the 'no runtime AI or token-consuming product feature' non-goal published in the requirements, the walkthrough, and the live /reqs hub, so it would need a record superseding this one rather than a quiet dependency. Worth noting for whoever answers this: the valuable version re-ranks after the comment is written, which inverts today's flow, where pre-selection happens the moment a mark is dropped.",
+      "consequences": [
+        "The checkpoint gains one thing to record per mark: was the pre-selected element the one you wanted.",
+        "Until this is answered the non-goal stands, and any proposal to add a model to the product path is answered by pointing at this record."
+      ],
+      "transcript": {
+        "request": "does it make sense to use the Jev model from typesafeai to identify the nearest appropriate DOM object to attach metadata to vis-a-vis pin position?"
+      },
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://typesafe.ai/blog/introducing-system-one-models-and-jev",
+          "caption": "TypeSafe AI's announcement of System One models and Jev, 2026-09-15."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-15",
-  "source_hash": "0f098263a191"
+  "as_of": "2026-09-19",
+  "source_hash": "4e29b245cfff"
 };

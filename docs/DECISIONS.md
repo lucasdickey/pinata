@@ -19,8 +19,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Human directed | 25 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093 |
 | Agent proposed, human approved | 16 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
-| Raised and deferred | 2 | D003, D054 |
-| **Total** | **93** | |
+| Raised and deferred | 3 | D003, D054, D094 |
+| **Total** | **94** | |
 
 ## Key decisions
 
@@ -149,6 +149,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D091](#d091--disclose-the-tooling-used-after-the-missions-claude-code-on-mobile-for-the-documentation-closeout-and-a-second-harness-for-the-cross-review) | wrap | Disclose the tooling used after the Missions: Claude Code on mobile for the documentation closeout, and a second harness for the cross-review | Human directed | accepted |
 | [D092](#d092--flag-the-product-and-architecture-decisions-a-reviewer-should-read-first-and-surface-them-ahead-of-the-full-log-in-markdown-the-dashboard-and-reqsdecisions) | wrap | Flag the product and architecture decisions a reviewer should read first, and surface them ahead of the full log in Markdown, the dashboard, and /reqs/decisions | Human directed | accepted |
 | [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) | wrap | Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch | Human directed | accepted |
+| [D094](#d094--defer-runtime-element-matching-with-a-system-one-model-until-the-deterministic-pre-selection-has-been-measured) | build | Defer runtime element matching with a System One model until the deterministic pre-selection has been measured | Raised and deferred | pending |
 
 ---
 
@@ -3684,4 +3685,42 @@ Human instruction:
 
 ---
 
-<sub>Generated from 93 record(s) as of 2026-09-15 · source `0f098263a191`</sub>
+## D094 — Defer runtime element matching with a System One model until the deterministic pre-selection has been measured
+
+*2026-09-19 · phase: build · origin: **Raised and deferred** · status: **pending***
+
+**Problem**
+
+The owner asked whether Jev, TypeSafe AI's System One model, should choose the nearest appropriate manifest element when a mark is placed. The fit is closer than a general language model's would be: Jev returns a typed choice among defined options with a confidence score, cannot hallucinate because the schema fixes the valid outputs, and costs a fraction of a cent for the eight candidates a query would carry. Two things argue against reaching for it now. The pre-selection has never been watched by a person, so there is no evidence the deterministic ranking is failing; and the cost of a wrong pick is one click, because the composer pre-selects the top candidate and offers Change and No element beside it.
+
+**Decision**
+
+Postponed, not rejected. The deferral is resolved by a number the checkpoint will produce: for each mark placed, whether the pre-selected element was the one the editor wanted. If the deterministic ranking is right nearly every time, there is nothing here to build. If it is not, the cheaper deterministic fixes come first: weight semantic kind harder so an interactive element beats the container wrapping it, prefer elements carrying an accessible name, and penalise layout containers with no text or role.
+
+**Alternatives considered**
+
+- *Adopt it now for nearest-element ranking* — It would add a fourth external service and reverse a published non-goal to improve something never measured, where the current failure cost is a single click.
+- *Reject runtime AI permanently* — One version of the idea is genuinely out of reach of geometry: matching the comment's text to the element, so that 'this billing toggle reads the same in both states' resolves to the toggle rather than the card containing it. That is worth keeping open.
+
+**Rationale**
+
+Raised by the owner and consciously postponed in the same exchange. Recording it keeps the reasoning findable when the question returns, and names the measurement that settles it rather than leaving it to taste. Adopting it would reverse the 'no runtime AI or token-consuming product feature' non-goal published in the requirements, the walkthrough, and the live /reqs hub, so it would need a record superseding this one rather than a quiet dependency. Worth noting for whoever answers this: the valuable version re-ranks after the comment is written, which inverts today's flow, where pre-selection happens the moment a mark is dropped.
+
+**Consequences**
+
+- The checkpoint gains one thing to record per mark: was the pre-selected element the one you wanted.
+- Until this is answered the non-goal stands, and any proposal to add a model to the product path is answered by pointing at this record.
+
+**Provenance evidence**
+
+Human instruction:
+
+> does it make sense to use the Jev model from typesafeai to identify the nearest appropriate DOM object to attach metadata to vis-a-vis pin position?
+
+**Artifacts**
+
+- [TypeSafe AI's announcement of System One models and Jev, 2026-09-15.](https://typesafe.ai/blog/introducing-system-one-models-and-jev)
+
+---
+
+<sub>Generated from 94 record(s) as of 2026-09-19 · source `4e29b245cfff`</sub>
