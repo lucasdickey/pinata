@@ -24,6 +24,7 @@ import {
   claimCaptureLease,
   countActiveCaptureLeases,
 } from "../../src/lib/server/captures/leases";
+import { retryCapture } from "../../src/lib/server/captures/retry";
 import { schema } from "../../src/lib/server/db/client";
 import {
   echoClient,
@@ -245,6 +246,30 @@ describe("automatic retry", () => {
       ["failed", "automatic", "dns-failed"],
     ]);
     expect(provider.requests).toHaveLength(0);
+  });
+
+  test("an execution-time origin mismatch earns the automatic retry and leaves a manual one (D095)", async () => {
+    // Admission approved safe.example; the provider session then reports a
+    // different origin, as D054 recorded on Chickpea mobile.
+    provider = echoClient({ finalUrl: "https://elsewhere.example/" });
+    const project = await seedProject(testDb.db, "https://safe.example", [], "drive-0013");
+    const page = project.pages[0]!;
+    const [first] = await attemptsFor(testDb.db, page.id, "desktop");
+    const result = await driveCapture(testDb.db, first!.id, deps());
+    expect(result).toEqual({ ok: false, outcome: "browserless-provider" });
+    const desktop = await attemptsFor(testDb.db, page.id, "desktop");
+    expect(desktop.map((row) => [row.status, row.origin])).toEqual([
+      ["failed", "manual"],
+      ["pending", "automatic"],
+    ]);
+    await scheduler.flush();
+    // The automatic attempt failed the same way; a person can still retry.
+    const manual = await retryCapture(
+      testDb.db,
+      { pageId: page.id, variant: "desktop", idempotencyKey: "manual-after-mismatch" },
+      { now: tick, newId: () => "manual-retry" },
+    );
+    expect(manual).toMatchObject({ ok: true, created: true });
   });
 
   test("scheduleAutomaticRetry replays rather than creating a second row", async () => {
