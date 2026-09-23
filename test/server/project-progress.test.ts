@@ -121,7 +121,7 @@ describe("progress on the hierarchy read", () => {
     expect(hierarchy!.progress.estimatedRemainingMs).toBe(12_000 * 3);
   });
 
-  test("a finished project reports zero remaining, a stale attempt stays in progress, and the newest attempt decides", async () => {
+  test("a finished project reports zero remaining, a stale attempt counts as failed, and the newest attempt decides", async () => {
     const project = await seedProject(testDb.db, "https://safe.example", [], "progress-0004");
     const page = project.pages[0]!;
     await finish((await attempt(page.id, "desktop")).id, "ready", T0, 5_000);
@@ -137,8 +137,8 @@ describe("progress on the hierarchy read", () => {
     });
 
     // A retry row that was claimed and abandoned: the device's newest
-    // attempt is stale, which is still "in progress" for progress purposes
-    // and not a capturing page.
+    // attempt is stale. It will never move on its own, so it is a retryable
+    // failure, not work in progress and not a capturing page (D095).
     await testDb.db.insert(schema.captures).values({
       id: "retry-stale",
       pageId: page.id,
@@ -162,11 +162,12 @@ describe("progress on the hierarchy read", () => {
     expect(later!.progress).toMatchObject({
       total: 2,
       done: 1,
-      failed: 0,
-      inProgress: 1,
+      failed: 1,
+      inProgress: 0,
       capturingPage: null,
-      estimatedRemainingMs: 6_000,
+      estimatedRemainingMs: 0,
     });
+    expect(later!.counts).toMatchObject({ ready: 2, failed: 1, inProgress: 0 });
   });
 
   test("each project's estimate comes from its own attempts only", async () => {

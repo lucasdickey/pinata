@@ -33,8 +33,9 @@ export interface HierarchyCounts {
   pages: number;
   attempts: number;
   ready: number;
+  /** Attempts that failed or computed stale (D095). */
   failed: number;
-  /** Attempts still pending, capturing, or computed stale. */
+  /** Attempts still pending or capturing. */
   inProgress: number;
 }
 
@@ -70,9 +71,13 @@ export interface ProjectProgress {
   total: number;
   /** Devices whose newest attempt is ready. */
   done: number;
-  /** Devices whose newest attempt failed. */
+  /**
+   * Devices whose newest attempt failed or computed stale. A stale attempt
+   * will never move on its own, so counting it as in progress left the line
+   * reading "Capturing…" forever; it is a retryable failure (D095).
+   */
   failed: number;
-  /** Devices whose newest attempt is pending, capturing, or computed stale. */
+  /** Devices whose newest attempt is pending or capturing. */
   inProgress: number;
   /** The first page (in submitted order) with an attempt capturing right now. */
   capturingPage: string | null;
@@ -110,7 +115,7 @@ export function computeProjectProgress(
       if (!latest) continue;
       progress.total += 1;
       if (latest.state === "ready") progress.done += 1;
-      else if (latest.state === "failed") progress.failed += 1;
+      else if (latest.state === "failed" || latest.state === "stale") progress.failed += 1;
       else progress.inProgress += 1;
       if (latest.state === "capturing" && progress.capturingPage === null) {
         progress.capturingPage = page.normalizedUrl;
@@ -160,7 +165,7 @@ function buildPages(
       for (const attempt of device.attempts) {
         counts.attempts += 1;
         if (attempt.state === "ready") counts.ready += 1;
-        else if (attempt.state === "failed") counts.failed += 1;
+        else if (attempt.state === "failed" || attempt.state === "stale") counts.failed += 1;
         else counts.inProgress += 1;
       }
     }
