@@ -234,6 +234,17 @@ afterEach(() => {
   document.cookie = `${FOUNDER_CSRF_COOKIE}=; Max-Age=0`;
 });
 
+/**
+ * An element's text minus its thread timestamps. Since D097 a thread time
+ * reads "Jan 15, 2027, 8:00 AM", which the coordinate checks below would
+ * otherwise mistake for an "x, y" pair.
+ */
+function textWithoutTimes(element: HTMLElement): string {
+  const copy = element.cloneNode(true) as HTMLElement;
+  for (const time of copy.querySelectorAll("time")) time.remove();
+  return copy.textContent ?? "";
+}
+
 async function renderReady() {
   render(<FounderView publicId="pub-1" />);
   await screen.findByTestId("founder-view");
@@ -519,7 +530,7 @@ describe("rectangles for the founder (D079)", () => {
     );
     // The founder never sees the box's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
-    expect(panel.textContent).not.toMatch(/\d+, \d+/);
+    expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
     expect(within(panel).getByRole("button", { name: "Resolve box" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
@@ -563,7 +574,7 @@ describe("circles for the founder (D082)", () => {
     );
     // The founder never sees the circle's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
-    expect(panel.textContent).not.toMatch(/\d+, \d+/);
+    expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
     expect(within(panel).getByRole("button", { name: "Resolve circle" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
@@ -606,7 +617,7 @@ describe("arrows for the founder (D083)", () => {
       "Arrow 5 · “Move this up into the header.”",
     );
     // The founder never sees the arrow's coordinates (D078).
-    expect(panel.textContent).not.toMatch(/\d+, \d+/);
+    expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
     expect(within(panel).getByRole("button", { name: "Resolve arrow" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });

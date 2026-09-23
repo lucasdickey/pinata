@@ -29,8 +29,41 @@ export interface ThreadViewProps {
   sendLabel: string;
 }
 
-function timestamp(createdAt: number): string {
-  return new Date(createdAt).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+/**
+ * A thread time as a person reads it (D097): "Sep 23, 5:04 PM" in the
+ * reader's own locale and time zone, with the year only when it is not the
+ * current one. The exact instant stays machine-readable on the surrounding
+ * <time dateTime> and as its title. Locale, zone, and "now" are parameters
+ * so tests can pin them.
+ */
+export function formatThreadTime(
+  createdAt: number,
+  {
+    locale,
+    timeZone,
+    now = Date.now(),
+  }: { locale?: string; timeZone?: string; now?: number } = {},
+): string {
+  const zoned = (ms: number) =>
+    new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone }).format(new Date(ms));
+  const sameYear = zoned(createdAt) === zoned(now);
+  return new Intl.DateTimeFormat(locale, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(new Date(createdAt));
+}
+
+function EntryTime({ createdAt }: { createdAt: number }) {
+  const iso = new Date(createdAt).toISOString();
+  return (
+    <time dateTime={iso} title={iso}>
+      {formatThreadTime(createdAt)}
+    </time>
+  );
 }
 
 export function ThreadView({
@@ -60,10 +93,7 @@ export function ThreadView({
             // immutable chronology, written by the server, never a message.
             <li key={entry.id} className="thread-status" data-kind="status">
               <p className="thread-meta">
-                {entry.body}{" "}
-                <time dateTime={new Date(entry.createdAt).toISOString()}>
-                  {timestamp(entry.createdAt)}
-                </time>
+                {entry.body} <EntryTime createdAt={entry.createdAt} />
               </p>
             </li>
           ) : (
@@ -71,9 +101,7 @@ export function ThreadView({
               <p className="thread-meta">
                 <strong>{entry.authorLabel}</strong>{" "}
                 <span className="thread-role">({entry.actorRole})</span>{" "}
-                <time dateTime={new Date(entry.createdAt).toISOString()}>
-                  {timestamp(entry.createdAt)}
-                </time>
+                <EntryTime createdAt={entry.createdAt} />
               </p>
               <p className="thread-body">{entry.body}</p>
             </li>
