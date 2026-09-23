@@ -153,6 +153,41 @@ describe("resizeRect", () => {
     });
   });
 
+  test("a box pushed out to the minimum from fractional edges is exactly the minimum (D096)", () => {
+    // (0.7 + 8) - 0.7 is 7.999999999999999: without the snap, dragging the
+    // east edge past the west one produced a width the server rejects.
+    const fractional: NaturalRect = { x: 0.7, y: 5.7, width: 40, height: 40 };
+    const squeezed = resizeRect(fractional, "se", { x: -1000, y: -1000 }, doc);
+    expect(squeezed.width).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    expect(squeezed.height).toBeGreaterThanOrEqual(MIN_SHAPE_SIZE_PX);
+    expect(squeezed.x).toBe(0.7);
+    expect(squeezed.y).toBe(5.7);
+    // Across many fractional boxes and every handle, a collapsed box is at
+    // least the minimum and never overshoots the edge that stayed put.
+    for (let step = 0; step < 400; step += 1) {
+      const start: NaturalRect = {
+        x: step * 0.37 + 0.01,
+        y: step * 0.53 + 0.03,
+        width: 20 + step * 0.11,
+        height: 20 + step * 0.07,
+      };
+      for (const handle of RESIZE_HANDLES) {
+        const delta = {
+          x: handle.includes("w") ? 1000 : -1000,
+          y: handle.includes("n") ? 1000 : -1000,
+        };
+        const result = resizeRect(start, handle, delta, doc);
+        expect(meetsMinimumSize(result), `${handle} ${JSON.stringify(start)}`).toBe(true);
+        if (handle.includes("w")) {
+          expect(result.x + result.width).toBeLessThanOrEqual(start.x + start.width);
+        }
+        if (handle.includes("n")) {
+          expect(result.y + result.height).toBeLessThanOrEqual(start.y + start.height);
+        }
+      }
+    }
+  });
+
   test("a zero delta is the identity, and non-finite input is rejected", () => {
     for (const handle of RESIZE_HANDLES) {
       expect(resizeRect(box, handle, { x: 0, y: 0 }, doc)).toEqual(box);

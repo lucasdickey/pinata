@@ -119,7 +119,33 @@ export function resizeRect(
   if (handle.includes("s")) {
     bottom = Math.max(Math.min(doc.height, start.y + start.height + delta.y), top + minimum);
   }
-  return { x: left, y: top, width: right - left, height: bottom - top };
+  const horizontal = snapSpan(left, right, minimum, handle.includes("w"));
+  const vertical = snapSpan(top, bottom, minimum, handle.includes("n"));
+  return { x: horizontal.start, y: vertical.start, width: horizontal.size, height: vertical.size };
+}
+
+/**
+ * One axis of a resized box, snapped so a span that was pushed out to the
+ * minimum is exactly the minimum (D096). `right - left` over fractional
+ * edges can round a few ulps under it — (0.7 + 8) - 0.7 is
+ * 7.999999999999999 — and the server rejects anything under the published
+ * number, so such a draft could never save. When the moving edge is the
+ * start (a west or north handle), the start is placed so that adding the
+ * size back does not overshoot the fixed end either, which is the other
+ * check the server makes with the same arithmetic.
+ */
+function snapSpan(
+  start: number,
+  end: number,
+  minimum: number,
+  startMoved: boolean,
+): { start: number; size: number } {
+  if (end - start >= minimum) return { start, size: end - start };
+  if (!startMoved) return { start, size: minimum };
+  let snapped = end - minimum;
+  const step = Number.EPSILON * Math.max(1, Math.abs(end));
+  while (snapped > 0 && snapped + minimum > end) snapped = Math.max(0, snapped - step);
+  return { start: snapped, size: minimum };
 }
 
 /** The handle's place on the box, as fractions of its width and height. */

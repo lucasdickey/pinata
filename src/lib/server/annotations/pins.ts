@@ -314,6 +314,17 @@ export function manifestElements(capture: CaptureRow): ContextElement[] | null {
   return parseManifestElements(capture.domManifestJson);
 }
 
+/**
+ * Floating-point slack on the minimum-size checks below (D096). A client
+ * that snaps a shape to exactly the minimum computes it as a difference of
+ * fractional coordinates (`right - left`, or the hypot of an arrow's
+ * components), which can land a few ulps under the published number — a
+ * width of 7.999999999999999 for a minimum of 8. Rejecting that would leave
+ * the editor with a draft that can never save. The slack is far below any
+ * pixel the product can show, so the published minimum still holds.
+ */
+const MINIMUM_SIZE_TOLERANCE_PX = 1e-6;
+
 /** True when the tip is finite and inside the inclusive capture bounds. */
 function tipWithinCapture(tip: PinTip, capture: CaptureRow): boolean {
   return (
@@ -335,8 +346,8 @@ function rectWithinCapture(rect: RectangleGeometry, capture: CaptureRow): boolea
   const values = [rect.x, rect.y, rect.width, rect.height];
   if (!values.every((value) => Number.isFinite(value))) return false;
   return (
-    rect.width >= MIN_SHAPE_SIZE_PX &&
-    rect.height >= MIN_SHAPE_SIZE_PX &&
+    rect.width >= MIN_SHAPE_SIZE_PX - MINIMUM_SIZE_TOLERANCE_PX &&
+    rect.height >= MIN_SHAPE_SIZE_PX - MINIMUM_SIZE_TOLERANCE_PX &&
     rect.x >= 0 &&
     rect.y >= 0 &&
     rect.x + rect.width <= (capture.documentWidth ?? -1) &&
@@ -353,7 +364,7 @@ function circleWithinCapture(circle: CircleGeometry, capture: CaptureRow): boole
   const values = [circle.x, circle.y, circle.size];
   if (!values.every((value) => Number.isFinite(value))) return false;
   return (
-    circle.size >= MIN_SHAPE_SIZE_PX &&
+    circle.size >= MIN_SHAPE_SIZE_PX - MINIMUM_SIZE_TOLERANCE_PX &&
     circle.x >= 0 &&
     circle.y >= 0 &&
     circle.x + circle.size <= (capture.documentWidth ?? -1) &&
@@ -370,7 +381,7 @@ function arrowWithinCapture(arrow: ArrowGeometry, capture: CaptureRow): boolean 
   const points = [arrow.start, arrow.end];
   if (!points.every((point) => tipWithinCapture(point, capture))) return false;
   const length = Math.hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y);
-  return length >= MIN_ARROW_LENGTH_PX;
+  return length >= MIN_ARROW_LENGTH_PX - MINIMUM_SIZE_TOLERANCE_PX;
 }
 
 /** Geometry validation by kind against one ready capture. */

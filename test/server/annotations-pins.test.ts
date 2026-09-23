@@ -742,6 +742,20 @@ describe("rectangles (D079)", () => {
     expect(edge).toMatchObject({ ok: true, created: true });
   });
 
+  test("a box snapped to the minimum from fractional edges saves (D096)", async () => {
+    // (0.7 + 8) - 0.7 is 7.999999999999999 in floating point: what a client
+    // computes for a box whose left edge is fractional and whose right edge
+    // was pushed out to exactly the minimum. A few ulps under the published
+    // number is still the minimum; a whole hundredth is not (above).
+    const width = 0.7 + MIN_SHAPE_SIZE_PX - 0.7;
+    expect(width).toBeLessThan(MIN_SHAPE_SIZE_PX);
+    const result = await createPinAtomically(
+      testDb.db,
+      rectInput({ rect: { x: 0.7, y: 5, width, height: width } }),
+    );
+    expect(result).toMatchObject({ ok: true, created: true });
+  });
+
   test("pins and boxes share one number sequence per capture, tombstones included", async () => {
     const pin = await createPinAtomically(testDb.db, createInput());
     const rect = await createPinAtomically(testDb.db, rectInput());
@@ -1265,6 +1279,20 @@ describe("arrows (D083)", () => {
       arrowInput({ arrow: { start: { x: 100, y: 100 }, end: { x: 100 + min, y: 100 } } }),
     );
     expect(edge).toMatchObject({ ok: true, created: true });
+  });
+
+  test("an arrow pushed out to the minimum along a diagonal saves (D096)", async () => {
+    // An endpoint pushed to exactly the minimum along a unit vector can land
+    // a few ulps short once the server takes the hypot again.
+    const start = { x: 86.11894683408441, y: 91.40120171651004 };
+    const angle = 4.353762793814827;
+    const end = {
+      x: start.x + Math.cos(angle) * MIN_ARROW_LENGTH_PX,
+      y: start.y + Math.sin(angle) * MIN_ARROW_LENGTH_PX,
+    };
+    expect(Math.hypot(end.x - start.x, end.y - start.y)).toBeLessThan(MIN_ARROW_LENGTH_PX);
+    const result = await createPinAtomically(testDb.db, arrowInput({ arrow: { start, end } }));
+    expect(result).toMatchObject({ ok: true, created: true });
   });
 
   test("all four kinds share one number sequence per capture, tombstones included", async () => {
