@@ -13,7 +13,10 @@
 //   automatically again (MAX_AUTOMATIC_CAPTURE_RETRIES, the project-wide
 //   attempt cap still applies);
 // - the next pending attempt of the same project is scheduled to run after
-//   the current response, so a project chains to completion on its own.
+//   the current response, so a project chains to completion on its own;
+//   when that project has nothing pending, the oldest pending attempts of
+//   any project take the free slots, so a project that found both slots
+//   busy is not left for the sweep (D095).
 //
 // The durable lease table stays the only concurrency authority: every path
 // here claims through it, and a claim that finds every slot held leaves the
@@ -29,7 +32,7 @@ import type { AdmissionDeps } from "./admission";
 import { serverCaptureEnabled, type ContinuationScheduler } from "./continuation";
 import { dispatchCapture } from "./dispatch";
 import { executeCapture, type CaptureExecutionDeps, type ReadyCapture } from "./execute";
-import { releaseCaptureLease } from "./leases";
+import { countActiveCaptureLeases, releaseCaptureLease } from "./leases";
 import { defaultCaptureRetryDeps, retryCapture, type CaptureRetryDeps } from "./retry";
 import { captureAttemptState, summarizeVariant } from "./status";
 
@@ -132,7 +135,11 @@ async function continueAfterFinalization(
   if (!projectId) return;
   const owner = projectId;
   deps.after(async () => {
-    await driveProject(db, owner, deps);
+    const driven = await driveProject(db, owner, deps);
+    // Nothing left here: give the freed slot to whichever project has been
+    // waiting longest, so one that found both slots busy is resumed by the
+    // server rather than by the sweep (D095).
+    if (driven.scheduled.length === 0) await driveOldestPending(db, deps);
   });
 }
 
@@ -280,6 +287,52 @@ export async function driveProject(
 ): Promise<DriveProjectResult> {
   const pending = await pendingAttemptIds(db, projectId);
   const scheduled = pending.slice(0, MAX_ACTIVE_CAPTURES);
+  for (const captureId of scheduled) {
+    deps.after(async () => {
+      await driveCapture(db, captureId, deps);
+    });
+  }
+  return { scheduled };
+}
+
+/**
+ * Schedule the oldest pending attempts across every project, at most the
+ * slots free right now. Age is the attempt's creation time; within one
+ * project's batch the hierarchy order breaks ties. Like driveProject, a task
+ * whose claim finds every slot held stops quietly.
+ */
+export async function driveOldestPending(
+  db: Database,
+  deps: CaptureDriveDeps,
+): Promise<DriveProjectResult> {
+  const now = deps.now?.() ?? Date.now();
+  const free = MAX_ACTIVE_CAPTURES - (await countActiveCaptureLeases(db, now));
+  if (free <= 0) return { scheduled: [] };
+  const rows = await db
+    .select({
+      id: schema.captures.id,
+      variant: schema.captures.variant,
+      attempt: schema.captures.attempt,
+      createdAt: schema.captures.createdAt,
+      sortIndex: schema.pages.sortIndex,
+      pageId: schema.pages.id,
+    })
+    .from(schema.captures)
+    .innerJoin(schema.pages, eq(schema.captures.pageId, schema.pages.id))
+    .where(eq(schema.captures.status, "pending"));
+  const deviceOrder = (variant: string) =>
+    (CAPTURE_VARIANTS as readonly string[]).indexOf(variant);
+  const scheduled = rows
+    .sort(
+      (a, b) =>
+        a.createdAt - b.createdAt ||
+        a.sortIndex - b.sortIndex ||
+        (a.pageId < b.pageId ? -1 : a.pageId > b.pageId ? 1 : 0) ||
+        deviceOrder(a.variant) - deviceOrder(b.variant) ||
+        a.attempt - b.attempt,
+    )
+    .slice(0, free)
+    .map((row) => row.id);
   for (const captureId of scheduled) {
     deps.after(async () => {
       await driveCapture(db, captureId, deps);

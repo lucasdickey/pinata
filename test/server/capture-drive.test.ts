@@ -16,6 +16,7 @@ import {
 import {
   automaticRetryKey,
   driveCapture,
+  driveOldestPending,
   driveProject,
   scheduleAutomaticRetry,
   type CaptureDriveDeps,
@@ -179,6 +180,40 @@ describe("driveProject", () => {
     await scheduler.flush();
     const driven = await driveProject(testDb.db, project.projectId, deps());
     expect(driven.scheduled).toEqual([]);
+  });
+});
+
+describe("across projects (D095)", () => {
+  test("a finished project hands the freed slot to another project's waiting attempts", async () => {
+    const first = await seedProject(testDb.db, "https://safe.example/a", [], "drive-0014");
+    const waiting = await seedProject(testDb.db, "https://safe.example/b", [], "drive-0015");
+    // The waiting project was driven while both slots were busy: its claims
+    // found quota and its attempts stayed pending with nothing scheduled.
+    for (let slot = 0; slot < MAX_ACTIVE_CAPTURES; slot += 1) {
+      await claimCaptureLease(testDb.db, `busy-${slot}`, clock);
+    }
+    await driveProject(testDb.db, waiting.projectId, deps());
+    await scheduler.flush();
+    await testDb.db.delete(schema.captureLeases);
+
+    const [desktop] = await attemptsFor(testDb.db, first.pages[0]!.id, "desktop");
+    await driveCapture(testDb.db, desktop!.id, deps());
+    await scheduler.flush();
+    const rows = await allCaptures(testDb.db);
+    expect(rows.map((row) => row.status)).toEqual(["ready", "ready", "ready", "ready"]);
+  });
+
+  test("driveOldestPending takes the oldest attempts, at most the free slots", async () => {
+    const newer = await seedProject(testDb.db, "https://safe.example/new", [], "drive-0016", T0 + 5);
+    const older = await seedProject(testDb.db, "https://safe.example/old", [], "drive-0017", T0 + 1);
+    await claimCaptureLease(testDb.db, "busy-0", clock);
+    const driven = await driveOldestPending(testDb.db, deps());
+    const [olderDesktop] = await attemptsFor(testDb.db, older.pages[0]!.id, "desktop");
+    expect(driven.scheduled).toEqual([olderDesktop!.id]);
+    expect(newer.pages).toHaveLength(1);
+
+    await claimCaptureLease(testDb.db, "busy-1", clock);
+    expect((await driveOldestPending(testDb.db, deps())).scheduled).toEqual([]);
   });
 });
 
