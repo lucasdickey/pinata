@@ -675,6 +675,16 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
     1 + 1 / cameraNow.zoom,
   );
 
+  // Handles belong to the selected mark only (D096): select the box by its
+  // badge first.
+  await expect(rectangleNode(page, number).locator('[data-testid="rectangle-handle"]')).toHaveCount(
+    0,
+  );
+  await rectangleNode(page, number).locator('[data-testid="rectangle-badge"]').click();
+  await expect(rectangleNode(page, number).locator('[data-testid="rectangle"]')).toHaveAttribute(
+    "data-selected",
+    "true",
+  );
   // Resize by the south-east handle: exactly one revisioned PATCH, the
   // corner untouched, the size grown by the pointer's travel.
   const handle = rectangleNode(page, number).locator(
@@ -835,7 +845,10 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   expect(Math.abs(renderedTopLeft.y - savedCircle.y)).toBeLessThanOrEqual(1 + 1 / cameraNow.zoom);
   expect(Math.abs(nodeBox.width - nodeBox.height)).toBeLessThanOrEqual(1);
   await expect(circleNode(page, number).locator("ellipse").first()).toHaveCount(1);
-  // Four corner handles, no edge handles (D082).
+  // Four corner handles, no edge handles (D082), on the selected circle
+  // only (D096).
+  await expect(circleNode(page, number).locator('[data-testid="circle-handle"]')).toHaveCount(0);
+  await circleNode(page, number).locator('[data-testid="circle-badge"]').click();
   await expect(circleNode(page, number).locator('[data-testid="circle-handle"]')).toHaveCount(4);
 
   // Resize by the south-east corner: exactly one revisioned PATCH, the
@@ -997,6 +1010,11 @@ test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and 
   expect(Math.hypot(badgeAt.x - savedArrow.start.x, badgeAt.y - savedArrow.start.y)).toBeLessThan(
     Math.hypot(badgeAt.x - savedArrow.end.x, badgeAt.y - savedArrow.end.y),
   );
+
+  // Endpoint handles belong to the selected arrow only (D096).
+  await expect(arrowNode(page, number).locator('[data-testid="arrow-handle"]')).toHaveCount(0);
+  await arrowNode(page, number).locator('[data-testid="arrow-badge"]').click();
+  await expect(arrowNode(page, number).locator('[data-testid="arrow-handle"]')).toHaveCount(2);
 
   // Drag the head: one revisioned PATCH, and the tail does not move.
   const head = arrowNode(page, number).locator('[data-testid="arrow-handle"][data-endpoint="end"]');

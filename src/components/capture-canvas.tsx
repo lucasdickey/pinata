@@ -34,7 +34,9 @@
 // top-right corner, with candidates ranked by overlap with the bounding
 // box), draggable and resizable before it is saved. Saved regions drag by
 // their stroke or badge and resize by their handles — eight for a box, the
-// four corners for a circle; each gesture commits exactly one revisioned
+// four corners for a circle, shown only on the selected mark and only once
+// it is big enough on screen for them not to cover it (D096); each gesture
+// that travels past the placement slop commits exactly one revisioned
 // geometry write at its end (onMoveRectangle / onMoveCircle), clamped to the
 // frame and never below the minimum size. A click on a region's stroke or
 // badge selects it; a click inside one lands on the screenshot and drops a
@@ -48,8 +50,9 @@
 // distance-to-segment test at ARROW_HIT_TOLERANCE_CSS_PX rather than a box
 // test: the shaft carries an invisible band that wide, so a click near but
 // off the line falls through to the screenshot and drops a pin as usual.
-// After a save each endpoint drags on its own and the shaft drags the whole
-// arrow, each gesture committing exactly one revisioned write. The stroke
+// After a save each endpoint of the selected arrow drags on its own (D096)
+// and the shaft drags the whole arrow, each gesture committing exactly one
+// revisioned write. The stroke
 // and the head scale with the zoom so the arrow stays visible without the
 // stored endpoints changing, and the founder sees it with no handles.
 //
@@ -739,6 +742,8 @@ type Gesture =
       /** The region as it was when the press landed: a box or a circle. */
       startMark: DraftMark;
       startPointer: NaturalPoint;
+      /** Where the press landed on screen, to tell a wobble from a resize. */
+      startScreen: { x: number; y: number };
     }
   | {
       type: "endpoint";
@@ -747,6 +752,7 @@ type Gesture =
       /** The arrow as it was when the press landed. */
       startArrow: NaturalArrow;
       startPointer: NaturalPoint;
+      startScreen: { x: number; y: number };
     };
 
 /** The mark a draw produces between press and release, in the tool's shape. */
@@ -975,6 +981,10 @@ function CaptureCanvasInner({
   // mounts the window listeners for it.
   const gestureRef = useRef<Gesture | null>(null);
   const [gestureActive, setGestureActive] = useState(false);
+  // The saved mark whose handle is being dragged: it keeps its handles
+  // until the release, even if the gesture shrinks it under the on-screen
+  // size at which handles are otherwise hidden (D096).
+  const [handleGestureId, setHandleGestureId] = useState<string | null>(null);
 
   const effectivePins = useMemo<CanvasPin[]>(
     () =>
@@ -1048,6 +1058,7 @@ function CaptureCanvasInner({
       zoom: liveZoom,
       preview: previewRect ?? null,
       readOnly,
+      handleGestureId,
     });
     // The adapter marks pins draggable; only a read-only plane turns that
     // off. There is no mode that could.
@@ -1065,6 +1076,7 @@ function CaptureCanvasInner({
     liveZoom,
     previewRect,
     readOnly,
+    handleGestureId,
   ]);
 
   const [mode, setMode] = useState<CameraMode>("entire");
@@ -1232,6 +1244,7 @@ function CaptureCanvasInner({
     const gesture = gestureRef.current;
     gestureRef.current = null;
     setGestureActive(false);
+    setHandleGestureId(null);
     setDrawing(null);
     if (gesture?.type === "resize" && !gesture.target.draft) {
       regionDragRef.current = null;
@@ -1372,6 +1385,7 @@ function CaptureCanvasInner({
       if (!gesture) return;
       gestureRef.current = null;
       setGestureActive(false);
+      setHandleGestureId(null);
       if (gesture.type === "draw") {
         setDrawing(null);
         // A release within the placement slop was a click, not a drag
@@ -1412,7 +1426,14 @@ function CaptureCanvasInner({
       regionDragRef.current = null;
       setRegionDrag(null);
       // The one write of the gesture, and only when the geometry actually
-      // changed: a press-and-release on a handle writes nothing.
+      // changed: a press-and-release on a handle writes nothing. Nor does a
+      // release within the placement slop (D096), the same rule a node drag
+      // follows: a one-pixel wobble on a handle is a click, never a resize.
+      const travel = Math.hypot(
+        event.clientX - gesture.startScreen.x,
+        event.clientY - gesture.startScreen.y,
+      );
+      if (travel <= PLACEMENT_SLOP_SCREEN_PX) return;
       if (drop && drop.id === gesture.target.id && !marksEqual(drop.mark, startMark)) {
         commitRegion(drop.id, drop.mark);
       }
@@ -1442,7 +1463,9 @@ function CaptureCanvasInner({
           handle,
           startMark,
           startPointer,
+          startScreen: { x: pointer.x, y: pointer.y },
         };
+        setHandleGestureId(target.draft ? null : target.id);
         setGestureActive(true);
       },
       beginEndpoint: (target, endpoint, pointer) => {
@@ -1457,7 +1480,9 @@ function CaptureCanvasInner({
           endpoint,
           startArrow: startMark.arrow,
           startPointer,
+          startScreen: { x: pointer.x, y: pointer.y },
         };
+        setHandleGestureId(target.draft ? null : target.id);
         setGestureActive(true);
       },
     }),
