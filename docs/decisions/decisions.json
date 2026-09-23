@@ -4417,6 +4417,50 @@
       "supersedes": null,
       "superseded_by": null,
       "key": true
+    },
+    {
+      "id": "D100",
+      "date": "2026-09-23",
+      "phase": "build",
+      "title": "Serve production at yourpinata.dev, and correct what D099 assumed about the deployment",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "D099 was written from the repository alone, without access to the Vercel project or the database, and took three facts from older records that were no longer true. It said production had been on commit 523dcd9 since 2026-09-10; in fact pushes to main had been deploying to production all along, the last before this pass five days earlier. It said migrations 0004 to 0006 stood between main and production; the migration table showed all seven applied, 0004 to 0006 on 2026-09-12. And it said deployment protection was all_except_custom_domains (D068), so founders would meet a Vercel sign-in page; the project's ssoProtection was in fact off, and every vercel.app address answered publicly. Two things D099 named were genuinely missing: CRON_SECRET in Production, and a custom domain.",
+      "decision": "Attach yourpinata.dev, registered through Vercel Domains with Vercel's nameservers, to the pinata project as the production domain, with www.yourpinata.dev as a 308 redirect to it. Add CRON_SECRET to Production as a sensitive variable generated from 32 random bytes and never displayed, then redeploy the current production deployment so functions read it. Leave deployment protection off, as the owner had set it, and leave D099's runbook order and disclosure standing; correct its factual premises here and in the README, milestones, and next steps.",
+      "alternatives": [
+        {
+          "option": "Turn deployment protection back on now",
+          "why_not": "The owner had turned it off and is the only user; with the custom domain in place it can be re-enabled later without breaking founder links, since all_except_custom_domains leaves the custom domain open."
+        },
+        {
+          "option": "Run db:migrate anyway",
+          "why_not": "The migration table already listed every migration in the repository; there was nothing to apply."
+        },
+        {
+          "option": "Rewrite D099 in place",
+          "why_not": "The log records what was believed and when; the correction belongs in a new record that points at it."
+        }
+      ],
+      "rationale": "The owner asked for the domain and for the remaining deploy steps to be carried out once a Vercel CLI was available. Checking the live project and database before acting showed which of D099's steps were real and which rested on stale records, which is the lesson worth keeping: verify deployment state against the platform, not against the decision log.",
+      "consequences": [
+        "Production: https://yourpinata.dev, commit b80f982, Fluid compute on, CRON_SECRET set; the sweep route now answers 401 without its secret rather than 404.",
+        "Founder links are issued from yourpinata.dev; the vercel.app addresses serve the same deployment.",
+        "The production smoke still asserts an SSO wall that no longer exists; that one check fails until the smoke follows the current posture (NEXT.md).",
+        "Preview deployments are public and share Production's secrets and database, guarded by the editor password alone.",
+        "Four provider variables are stored as non-sensitive in Vercel; re-adding them as sensitive is listed in NEXT.md."
+      ],
+      "transcript": {
+        "request": "use the Vercel CLI (if possible) to use the new yourpinata.dev domain I purchased with Vercel Domains / cool. we're local now. we have the vercel cli installed. run through all of the above."
+      },
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://yourpinata.dev",
+          "caption": "Production, served from the custom domain."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

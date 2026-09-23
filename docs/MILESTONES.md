@@ -69,11 +69,8 @@ gate; none of it has been driven by the owner in a browser.
   `/pricing`, `/about`, and `/privacy` URL array, captured as eight ordered
   Desktop/Mobile captures, exercised by the production smoke tooling.
 
-**What stands between this and complete:** the deployment is the one from
-D068, at commit `523dcd9`. Everything below that line in this document, plus
-the whole route split and the UX overhaul, has never been deployed. The
-checkpoint needs a current deployment to run against, so shipping and the
-checkpoint are one piece of work, listed under milestone 3.
+**What stands between this and complete:** only the owner's live
+checkpoint. Everything above is deployed at `yourpinata.dev` (D100).
 
 ## Milestone 3: Rich marks, polish, and handoff — in progress
 
@@ -97,12 +94,10 @@ vocabulary the requirements name.
 
 Remaining:
 
-- **Ship the current build and run the milestone-2/3 checkpoint.** The
-  README runbook now lists the order (D099): Fluid compute and
-  `CRON_SECRET` in Vercel, a custom domain so founders are not stopped at
-  Vercel's sign-in wall, migrations 0004–0006 against the shared database,
-  then the deploy. The owner then drives the real Chickpea project end to
-  end. Expect findings, and expect them to become assertions before they
+- **Run the milestone-2/3 checkpoint.** The current build is live at
+  `yourpinata.dev` (D100): migrations 0004–0006 were already applied,
+  Fluid compute is on, and `CRON_SECRET` is set. The owner now drives the
+  real Chickpea project end to end. Expect findings, and expect them to become assertions before they
   become fixes.
 - **Resize handles on a small selected mark**, much reduced by D096 and
   recorded in [what's next](https://github.com/lucasdickey/pinata/blob/main/docs/NEXT.md).

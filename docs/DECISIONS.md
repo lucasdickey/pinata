@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 25 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093 |
+| Human directed | 26 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **99** | |
+| **Total** | **100** | |
 
 ## Key decisions
 
@@ -159,6 +159,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D097](#d097--both-sides-see-replies-without-reloading-addresses-are-completed-on-the-client-the-founder-arrives-oriented-and-link-rotation-asks-first) | build | Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first | Agent proposed, human approved | accepted |
 | [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) | build | Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session | Agent proposed, human approved | accepted |
 | [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) | build | Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits | Agent proposed, human approved | accepted |
+| [D100](#d100--serve-production-at-yourpinatadev-and-correct-what-d099-assumed-about-the-deployment) | build | Serve production at yourpinata.dev, and correct what D099 assumed about the deployment | Human directed | accepted |
 
 ---
 
@@ -3951,4 +3952,46 @@ Human approved:
 
 ---
 
-<sub>Generated from 99 record(s) as of 2026-09-23 · source `cf055a61c36f`</sub>
+## D100 — Serve production at yourpinata.dev, and correct what D099 assumed about the deployment
+
+*2026-09-23 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D099 was written from the repository alone, without access to the Vercel project or the database, and took three facts from older records that were no longer true. It said production had been on commit 523dcd9 since 2026-09-10; in fact pushes to main had been deploying to production all along, the last before this pass five days earlier. It said migrations 0004 to 0006 stood between main and production; the migration table showed all seven applied, 0004 to 0006 on 2026-09-12. And it said deployment protection was all_except_custom_domains (D068), so founders would meet a Vercel sign-in page; the project's ssoProtection was in fact off, and every vercel.app address answered publicly. Two things D099 named were genuinely missing: CRON_SECRET in Production, and a custom domain.
+
+**Decision**
+
+Attach yourpinata.dev, registered through Vercel Domains with Vercel's nameservers, to the pinata project as the production domain, with www.yourpinata.dev as a 308 redirect to it. Add CRON_SECRET to Production as a sensitive variable generated from 32 random bytes and never displayed, then redeploy the current production deployment so functions read it. Leave deployment protection off, as the owner had set it, and leave D099's runbook order and disclosure standing; correct its factual premises here and in the README, milestones, and next steps.
+
+**Alternatives considered**
+
+- *Turn deployment protection back on now* — The owner had turned it off and is the only user; with the custom domain in place it can be re-enabled later without breaking founder links, since all_except_custom_domains leaves the custom domain open.
+- *Run db:migrate anyway* — The migration table already listed every migration in the repository; there was nothing to apply.
+- *Rewrite D099 in place* — The log records what was believed and when; the correction belongs in a new record that points at it.
+
+**Rationale**
+
+The owner asked for the domain and for the remaining deploy steps to be carried out once a Vercel CLI was available. Checking the live project and database before acting showed which of D099's steps were real and which rested on stale records, which is the lesson worth keeping: verify deployment state against the platform, not against the decision log.
+
+**Consequences**
+
+- Production: https://yourpinata.dev, commit b80f982, Fluid compute on, CRON_SECRET set; the sweep route now answers 401 without its secret rather than 404.
+- Founder links are issued from yourpinata.dev; the vercel.app addresses serve the same deployment.
+- The production smoke still asserts an SSO wall that no longer exists; that one check fails until the smoke follows the current posture (NEXT.md).
+- Preview deployments are public and share Production's secrets and database, guarded by the editor password alone.
+- Four provider variables are stored as non-sensitive in Vercel; re-adding them as sensitive is listed in NEXT.md.
+
+**Provenance evidence**
+
+Human instruction:
+
+> use the Vercel CLI (if possible) to use the new yourpinata.dev domain I purchased with Vercel Domains / cool. we're local now. we have the vercel cli installed. run through all of the above.
+
+**Artifacts**
+
+- [Production, served from the custom domain.](https://yourpinata.dev)
+
+---
+
+<sub>Generated from 100 record(s) as of 2026-09-23 · source `4de9fb74e0fa`</sub>

@@ -58,9 +58,15 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   scroll-to-zoom). React Flow's `panOnScroll` would make a tall page scroll
   naturally at the cost of Ctrl+wheel to zoom with a mouse; it is the
   owner's call, left open in `D096`.
-- Production still sits behind Vercel's sign-in wall on every `vercel.app`
-  address (`D099`); founders need a custom domain before a link can reach
-  them.
+- The production smoke (`scripts/production-smoke.mjs`,
+  `e2e/production-smoke.spec.ts`) still asserts that a visitor without the
+  bypass header meets Vercel's SSO page. Protection is off (`D100`), so that
+  one check fails; the smoke should assert the posture actually chosen.
+- `BROWSERLESS_TOKEN`, `TURSO_AUTH_TOKEN`, `TURSO_DATABASE_URL`, and
+  `BLOB_READ_WRITE_TOKEN` are stored in Vercel as non-sensitive variables,
+  readable in the dashboard by anyone on the team. Re-adding them as
+  sensitive (`vercel env add --sensitive`) hides their values without
+  changing what the functions receive.
 - A founder link is shown to the editor once. Letting the editor copy the
   current link again would mean storing the token recoverably, a change to
   the capability posture (`D018`, `D089`) that `D097` declined to make

@@ -196,9 +196,12 @@ only to localhost.
 
 ## Deployment
 
-Production lives at **https://pinata-lucasdickeys-projects.vercel.app**
-(also aliased as `pinata-tau.vercel.app`), on the Vercel project `pinata`,
-Node 24, Next.js preset. The first production deployment is recorded as
+Production lives at **https://yourpinata.dev** (`www.yourpinata.dev`
+redirects there; the older `pinata-tau.vercel.app` and
+`pinata-lucasdickeys-projects.vercel.app` addresses serve the same
+deployment), on the Vercel project `pinata`, Node 24, Next.js preset, Fluid
+compute on (`D100`). Share founder links from `yourpinata.dev`: the share
+control builds each link from the page's own address (`D089`). The first production deployment is recorded as
 [`D068`](docs/DECISIONS.md#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke).
 
 Seven environment variable **names** must exist in the Vercel Production
@@ -235,7 +238,8 @@ against the newer schema; that is what makes this order safe.
      `PINATA_AUTH_DISABLED` is also refused in code on Vercel (`D098`).
    - **Protection Bypass for Automation exists** (`D068`). Vercel exposes it
      to functions as `VERCEL_AUTOMATION_BYPASS_SECRET`, which the capture
-     hand-off (`D095`) uses to reach its own protected deployment URL.
+     hand-off (`D095`) sends in case the deployment URL is protected. With
+     protection off, as it is today (`D100`), the header is harmless.
    - `vercel ls pinata` shows the last deployment as Ready. If recent
      pushes produced no deployment or a failed one, read that build log
      first; fixing whatever stopped it will let everything since through
@@ -265,26 +269,29 @@ integration suites with `.env.local` present) while testing production:
 they write to the same database and Blob store and take the same two
 capture slots.
 
-### Founders cannot reach a `*.vercel.app` URL
+### Deployment protection is off
 
-Deployment protection is `all_except_custom_domains` (`D068`): every
-`*.vercel.app` address, production included, sends a browser without a
-Vercel login to the SSO page. The editor never notices, because the editor
-is signed in to Vercel. A founder is not, so a founder link on
-`pinata-lucasdickeys-projects.vercel.app` or `pinata-tau.vercel.app` opens
-a Vercel sign-in wall instead of the project. Before sending a link to
-anyone, attach a custom domain to the production deployment (Vercel →
-Settings → Domains) and work from that domain: the share control builds
-the founder link from the page's own origin (`D089`), so a link issued
-while the editor is on a `vercel.app` address points at the wall. Preview
-and per-deployment URLs stay protected. `D099` records this.
+`D068` recorded Vercel SSO protection as `all_except_custom_domains`. It has
+since been turned off (`D100`), so every deployment URL — production,
+preview, and per-deployment — is publicly reachable, and a founder link
+opens for anyone who holds it. Editor routes still require the password;
+founder routes still require the link's token. Two consequences:
+
+- Preview deployments of any branch are public too and use the same
+  Production-scoped secrets and shared database, guarded only by the same
+  editor password.
+- If protection is turned back on, founders must be sent links on
+  `yourpinata.dev`: a custom domain is the one address
+  `all_except_custom_domains` leaves open.
 
 ### Production smoke
 
-Deployment protection (Vercel SSO) stays **on**. Automation reaches the
-deployment through the project's Protection Bypass for Automation secret,
-sent as the `x-vercel-protection-bypass` header; browsers without it get the
-SSO redirect. With the secret in an environment variable or a local
+Both smoke tools were written while deployment protection was on. They send
+the project's Protection Bypass for Automation secret as the
+`x-vercel-protection-bypass` header, and each also asserts that a visitor
+without it is sent to Vercel's SSO page — an assertion that now fails,
+because protection is off (`D100`). Until the smoke is updated to the
+current posture, expect that one check to fail and read the rest. With the secret in an environment variable or a local
 0600-permission file (never in the repository):
 
 ```bash
@@ -293,7 +300,7 @@ SSO redirect. With the secret in an environment variable or a local
 # driven to ready through the deployment's own dispatch route, private-asset
 # authorization, pin persistence, and a scoped recapture that starts empty.
 node --env-file=.env.local scripts/production-smoke.mjs \
-  https://pinata-lucasdickeys-projects.vercel.app --bypass-file <file>
+  https://yourpinata.dev --bypass-file <file>
 
 # Browser-level smoke (Playwright): UI sign-in, dense-cell pin at 8x with an
 # explicit element choice, reload persistence, mobile/desktop isolation, and
@@ -314,8 +321,8 @@ state, animated regions) that a capture run is compared against.
   durable revocation (a Turso-backed denylist, the same pattern as the login
   throttle) is the follow-up — tracked in `docs/NEXT.md`.
 - **The automation-bypass secret skips deployment protection entirely.** It
-  exists to keep CI-style smoke possible while SSO stays on; rotate it from
-  the project settings if it may have leaked, and redeploy.
+  exists to keep CI-style smoke possible when protection is on; rotate it
+  from the project settings if it may have leaked, and redeploy.
 - **Turso and Blob are shared between local development and production**
   (one Vercel-integrated database and store), so local test fixtures and the
   production demo project coexist in the same tables; run-scoped cleanup and
