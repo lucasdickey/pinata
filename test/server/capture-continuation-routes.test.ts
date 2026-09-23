@@ -9,8 +9,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { POST as dispatchPOST } from "../../app/api/captures/[captureId]/dispatch/route";
 import { POST as retryPOST } from "../../app/api/pages/[pageId]/captures/route";
-import { POST as projectsPOST } from "../../app/api/projects/route";
-import { MAX_ACTIVE_CAPTURES } from "../../src/lib/boundaries";
+import { GET as projectsGET, POST as projectsPOST } from "../../app/api/projects/route";
+import { MAX_ACTIVE_CAPTURES, STALE_CAPTURE_AGE_MS } from "../../src/lib/boundaries";
 import { EDITOR_CSRF_HEADER, EDITOR_SESSION_COOKIE } from "../../src/lib/auth-constants";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import { __setContinuationSchedulerForTests } from "../../src/lib/server/captures/continuation";
@@ -250,5 +250,86 @@ describe("POST /api/captures/[captureId]/dispatch", () => {
     expect(scheduler.scheduled).toBe(before);
     const [row] = await attemptsFor(testDb.db, page.id, "desktop");
     expect(row!.status).toBe("capturing");
+  });
+});
+
+describe("GET /api/projects stale recovery (D095)", () => {
+  interface ReadDevice {
+    variant: string;
+    latest: { state: string; attempt: number } | null;
+  }
+  interface ReadProject {
+    projectId: string;
+    progress: { failed: number; inProgress: number };
+    pages: { devices: ReadDevice[] }[];
+  }
+
+  async function read(): Promise<ReadProject[]> {
+    const response = await projectsGET(build("/api/projects", "GET"));
+    expect(response.status).toBe(200);
+    return (await response.json()).projects as ReadProject[];
+  }
+
+  /** Claim the desktop attempt at T0 and move the clock past the stale age. */
+  async function abandonDesktop(key: string) {
+    const project = await createProject(key);
+    const page = project.pages[0]!;
+    scheduler.queue.splice(0); // The creation continuation never ran.
+    const [first] = await attemptsFor(testDb.db, page.id, "desktop");
+    await applyCaptureTransition(testDb.db, {
+      captureId: first!.id,
+      from: "pending",
+      to: "capturing",
+      now: T0,
+    });
+    vi.setSystemTime(T0 + STALE_CAPTURE_AGE_MS + 1);
+    return page;
+  }
+
+  test("a stale newest attempt gets its one automatic retry on the read, and is driven", async () => {
+    const page = await abandonDesktop("stale-read-0001");
+    const before = scheduler.scheduled;
+
+    const [project] = await read();
+    // The answer already shows the automatic attempt, so a poller keeps going.
+    const desktop = project!.pages[0]!.devices.find((device) => device.variant === "desktop");
+    expect(desktop!.latest).toMatchObject({ state: "pending", attempt: 2 });
+    const rows = await attemptsFor(testDb.db, page.id, "desktop");
+    expect(rows.map((row) => [row.status, row.origin])).toEqual([
+      ["capturing", "manual"],
+      ["pending", "automatic"],
+    ]);
+    expect(scheduler.scheduled).toBe(before + 1);
+
+    // A second read replays nothing and writes nothing.
+    await read();
+    expect(await attemptsFor(testDb.db, page.id, "desktop")).toHaveLength(2);
+    expect(scheduler.scheduled).toBe(before + 1);
+
+    await scheduler.flush();
+    const after = await attemptsFor(testDb.db, page.id, "desktop");
+    expect(after.map((row) => row.status)).toEqual(["capturing", "ready"]);
+  });
+
+  test("once the automatic retry is spent, a stale attempt is a failure the read leaves alone", async () => {
+    const page = await abandonDesktop("stale-read-0002");
+    await read();
+    scheduler.queue.splice(0);
+    // The automatic attempt is claimed and abandoned too.
+    const [, automatic] = await attemptsFor(testDb.db, page.id, "desktop");
+    await applyCaptureTransition(testDb.db, {
+      captureId: automatic!.id,
+      from: "pending",
+      to: "capturing",
+      now: T0 + STALE_CAPTURE_AGE_MS + 1,
+    });
+    vi.setSystemTime(T0 + 2 * STALE_CAPTURE_AGE_MS + 2);
+    const before = scheduler.scheduled;
+
+    const [project] = await read();
+    const desktop = project!.pages[0]!.devices.find((device) => device.variant === "desktop");
+    expect(desktop!.latest).toMatchObject({ state: "stale", attempt: 2 });
+    expect(await attemptsFor(testDb.db, page.id, "desktop")).toHaveLength(2);
+    expect(scheduler.scheduled).toBe(before);
   });
 });

@@ -283,6 +283,21 @@ async function hydrate(
 }
 
 /**
+ * The newest attempt of every page device that computed stale, in hierarchy
+ * order. The editor's read hands these to the stale recovery (D095); the
+ * hierarchy itself stays a pure read.
+ */
+export function staleLatestCaptureIds(projects: readonly ProjectHierarchy[]): string[] {
+  return projects.flatMap((project) =>
+    project.pages.flatMap((page) =>
+      page.devices.flatMap((device) =>
+        device.latest?.state === "stale" ? [device.latest.id] : [],
+      ),
+    ),
+  );
+}
+
+/**
  * Every live project with its ordered pages, devices, and attempt history.
  * Feedback counts are computed for `viewer` (the editor unless told otherwise).
  */

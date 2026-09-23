@@ -201,6 +201,40 @@ export async function scheduleAutomaticRetry(
   return { projectId, created: result.ok && result.created };
 }
 
+/**
+ * Give stale newest attempts a reader just noticed the same one automatic
+ * retry the sweep would give them, then drive the projects that gained a
+ * pending attempt (D095). Without this a stale attempt waited for the daily
+ * sweep. It is safe to call from a read because it is idempotent per stale
+ * attempt: the retry key is derived from the attempt id, and once the
+ * automatic attempt exists the stale row is no longer the newest, so later
+ * calls read two rows and write nothing. An attempt whose automatic retry is
+ * already spent is not retried again; the editor retries it by hand. Off
+ * while PINATA_SERVER_CAPTURE is off, like the sweep.
+ */
+export async function recoverStaleAttempts(
+  db: Database,
+  captureIds: readonly string[],
+  deps: CaptureDriveDeps,
+): Promise<{ created: number }> {
+  if (captureIds.length === 0 || !serverCaptureEnabled()) return { created: 0 };
+  let created = 0;
+  const projects = new Set<string>();
+  for (const captureId of captureIds) {
+    const retried = await scheduleAutomaticRetry(db, captureId, deps);
+    if (retried.created && retried.projectId) {
+      created += 1;
+      projects.add(retried.projectId);
+    }
+  }
+  for (const projectId of [...projects].sort()) {
+    deps.after(async () => {
+      await driveProject(db, projectId, deps);
+    });
+  }
+  return { created };
+}
+
 export interface DriveProjectResult {
   /** Attempt ids handed to the scheduler, in hierarchy order. */
   scheduled: string[];
