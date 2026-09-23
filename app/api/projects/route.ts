@@ -18,7 +18,7 @@
 // instead of settling on a dead one until the daily sweep.
 
 import { PROJECT_REQUEST_MAX_BYTES } from "../../../src/lib/boundaries";
-import { sessionCookie } from "../../../src/lib/server/auth/cookies";
+import { appendEditorRenewal, type SessionRenewal } from "../../../src/lib/server/auth/cookies";
 import { requireEditor, requireEditorMutation } from "../../../src/lib/server/auth/guard";
 import { getCaptureDriveDeps } from "../../../src/lib/server/captures/deps";
 import { driveProject, recoverStaleAttempts } from "../../../src/lib/server/captures/drive";
@@ -43,10 +43,9 @@ import { validateProjectSubmission } from "../../../src/lib/server/projects/subm
 // route's note on the value).
 export const maxDuration = 300;
 
-/** Attach a renewed session cookie when the guard issued one. */
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+/** Attach the renewed session and CSRF cookies when the guard issued them. */
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -59,11 +58,11 @@ export async function POST(request: Request): Promise<Response> {
   const body = await readBoundedJson(request, PROJECT_REQUEST_MAX_BYTES);
   if (!body.ok) {
     const status = body.error === "too-large" ? 413 : body.error === "content-type" ? 415 : 400;
-    return withRenewal(jsonError(status, ERRORS.invalidRequest), auth.renewedToken, secure);
+    return withRenewal(jsonError(status, ERRORS.invalidRequest), auth.renewal, secure);
   }
   const parsed = createProjectBodySchema.safeParse(body.value);
   if (!parsed.success) {
-    return withRenewal(jsonError(400, ERRORS.invalidRequest), auth.renewedToken, secure);
+    return withRenewal(jsonError(400, ERRORS.invalidRequest), auth.renewal, secure);
   }
 
   const submission = validateProjectSubmission({
@@ -78,21 +77,21 @@ export async function POST(request: Request): Promise<Response> {
       { error: ERRORS.invalidRequest, errors: submission.errors },
       { status: 422 },
     );
-    return withRenewal(response, auth.renewedToken, secure);
+    return withRenewal(response, auth.renewal, secure);
   }
 
   const db = getDatabase();
-  if (!db) return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
+  if (!db) return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewal, secure);
 
   let result;
   try {
     result = await createProjectAtomically(db, submission, parsed.data.idempotencyKey);
   } catch {
     // The transaction rolled back: no project, page, or attempt exists.
-    return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
+    return withRenewal(jsonError(503, ERRORS.unavailable), auth.renewal, secure);
   }
   if (!result.ok) {
-    return withRenewal(jsonError(409, ERRORS.rejected), auth.renewedToken, secure);
+    return withRenewal(jsonError(409, ERRORS.rejected), auth.renewal, secure);
   }
 
   // The rows are committed; capture continues after the response is written,
@@ -108,7 +107,7 @@ export async function POST(request: Request): Promise<Response> {
     { project: result.project },
     { status: result.created ? 201 : 200 },
   );
-  return withRenewal(response, auth.renewedToken, secure);
+  return withRenewal(response, auth.renewal, secure);
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -118,7 +117,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!db) {
     return withRenewal(
       jsonError(503, ERRORS.unavailable),
-      auth.renewedToken,
+      auth.renewal,
       isSecureRequest(request),
     );
   }
@@ -135,13 +134,13 @@ export async function GET(request: Request): Promise<Response> {
     }
     return withRenewal(
       Response.json({ projects }),
-      auth.renewedToken,
+      auth.renewal,
       isSecureRequest(request),
     );
   } catch {
     return withRenewal(
       jsonError(503, ERRORS.unavailable),
-      auth.renewedToken,
+      auth.renewal,
       isSecureRequest(request),
     );
   }

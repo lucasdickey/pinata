@@ -15,7 +15,10 @@ import {
   requireEditor,
   requireEditorMutation,
 } from "../../src/lib/server/auth/guard";
-import { isAuthDisabled } from "../../src/lib/server/auth/bypass";
+import {
+  __resetAuthBypassWarningForTests,
+  isAuthDisabled,
+} from "../../src/lib/server/auth/bypass";
 import {
   createEditorSession,
   __clearRevokedSessionsForTests,
@@ -33,9 +36,17 @@ const ORIGIN = "http://127.0.0.1:3100";
 const SESSION_URL = `${ORIGIN}/api/editor/session`;
 const LOGIN_URL = `${ORIGIN}/api/auth/login`;
 
+beforeEach(() => {
+  // The bypass is refused on Vercel (D098); pin the host signal off so these
+  // tests mean the same thing wherever the suite runs.
+  vi.stubEnv("VERCEL", "");
+});
+
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   __clearRevokedSessionsForTests();
+  __resetAuthBypassWarningForTests();
 });
 
 describe("isAuthDisabled flag parsing", () => {
@@ -54,6 +65,41 @@ describe("isAuthDisabled flag parsing", () => {
   });
 });
 
+describe("the bypass is impossible on Vercel (D098)", () => {
+  test("VERCEL set: the flag is ignored and anonymous editor reads are denied", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("PINATA_AUTH_DISABLED", "1");
+    vi.stubEnv("SESSION_SECRET", TEST_SECRET);
+    vi.stubEnv("VERCEL", "1");
+    expect(isAuthDisabled()).toBe(false);
+    expect(requireEditor(new Request(SESSION_URL)).ok).toBe(false);
+    const response = await sessionGET(new Request(SESSION_URL));
+    expect(response.status).toBe(401);
+    // One clear server-side warning, however many requests ask; it names
+    // the flag but carries no secret value.
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0]?.[0]);
+    expect(message).toContain("PINATA_AUTH_DISABLED");
+    expect(message).not.toContain(TEST_SECRET);
+  });
+
+  test("VERCEL set without the flag: off and silent", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("PINATA_AUTH_DISABLED", "");
+    expect(isAuthDisabled()).toBe(false);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("off Vercel the flag still works under a production build (npm run start)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("PINATA_AUTH_DISABLED", "1");
+    expect(isAuthDisabled()).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
 describe("bypass enabled (PINATA_AUTH_DISABLED=1)", () => {
   beforeEach(() => {
     vi.stubEnv("PINATA_AUTH_DISABLED", "1");
@@ -68,7 +114,7 @@ describe("bypass enabled (PINATA_AUTH_DISABLED=1)", () => {
     expect(result.session.v).toBe(1);
     expect(result.session.sid).toBe("auth-disabled-local");
     expect(result.session.exp).toBeGreaterThan(Date.now());
-    expect(result.renewedToken).toBeNull();
+    expect(result.renewal).toBeNull();
   });
 
   test("requireEditorMutation authorizes without a cookie or CSRF proof", () => {

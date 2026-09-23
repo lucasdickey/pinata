@@ -1,11 +1,11 @@
 // POST /api/auth/login — the only way to establish an editor session.
 //
-// Boundary order (VAL-AUTH-001, VAL-AUTH-006, VAL-AUTH-007): exact
+// Boundary order (VAL-AUTH-001, VAL-AUTH-006, VAL-AUTH-007, D098): exact
 // same-origin Origin, application/json content type, hard byte cap, strict
-// schema, durable throttle pre-check, fail-closed secret checks, then the
-// server-only timing-safe verifier with durable failure accounting. Every
-// failure is a bounded generic response that echoes nothing; only a valid
-// password sets session cookies.
+// schema, fail-closed store and secret checks, a read-only throttle
+// pre-check, an atomic attempt reservation, and only then the server-only
+// timing-safe verifier. Every failure is a bounded generic response that
+// echoes nothing; only a valid password sets session cookies.
 
 import { AUTH_REQUEST_MAX_BYTES } from "../../../../src/lib/boundaries";
 import { csrfCookie, sessionCookie } from "../../../../src/lib/server/auth/cookies";
@@ -15,8 +15,11 @@ import { getEditorPassword, getSessionSecret } from "../../../../src/lib/server/
 import { createEditorSession } from "../../../../src/lib/server/auth/session";
 import {
   checkLoginThrottle,
-  clearLoginFailures,
-  registerLoginFailure,
+  loginClientFromRequest,
+  LOGIN_THROTTLE_SCOPE,
+  recordLoginSuccess,
+  reserveLoginAttempt,
+  type LoginReservation,
 } from "../../../../src/lib/server/auth/throttle";
 import { getDatabase } from "../../../../src/lib/server/db/client";
 import {
@@ -51,33 +54,40 @@ export async function POST(request: Request): Promise<Response> {
   const db = getDatabase();
   if (!db) return jsonError(503, ERRORS.unavailable);
 
+  // Check the signing secret before verifying the password so a
+  // misconfigured deployment cannot serve as a password-correctness oracle:
+  // every attempt receives the identical bounded 503. It also runs before
+  // the reservation (D098), so misconfiguration is never counted as abuse
+  // and cannot throttle anyone. Fail closed when either editor auth secret
+  // is absent — no variable names, no default credential.
+  const secret = getSessionSecret();
+  if (!secret) return jsonError(503, ERRORS.unavailable);
+
+  // Per-client and global buckets (D098); the client is a digest-keyed
+  // address, never stored or echoed.
+  const client = loginClientFromRequest(request);
+  let reservation: LoginReservation;
   try {
-    const throttle = await checkLoginThrottle(db, Date.now());
+    // Already throttled: reject untouched, so rejected attempts neither
+    // inflate the counts nor extend a window.
+    const throttle = await checkLoginThrottle(db, Date.now(), LOGIN_THROTTLE_SCOPE, client);
     if (throttle.throttled) return throttledResponse(throttle.retryAfterMs);
+    // Reserve the attempt atomically BEFORE verifying (D098). Parallel
+    // requests can all pass the read above; only the reservation's returned
+    // count decides which of them may reach the verifier.
+    reservation = await reserveLoginAttempt(db, Date.now(), LOGIN_THROTTLE_SCOPE, client);
+    if (reservation.throttled) return throttledResponse(reservation.retryAfterMs);
   } catch {
     return jsonError(503, ERRORS.unavailable);
   }
 
-  // Check the signing secret before verifying the password so a
-  // misconfigured deployment cannot serve as a password-correctness oracle:
-  // every attempt receives the identical bounded 503. Fail closed when
-  // either editor auth secret is absent — no variable names, no default
-  // credential, and no throttle accounting for misconfiguration.
-  const secret = getSessionSecret();
-  if (!secret) return jsonError(503, ERRORS.unavailable);
-
+  // A mismatch leaves its reservation standing: that is the failure count.
   if (!verifyEditorPassword(parsed.data.password, getEditorPassword())) {
-    try {
-      const failure = await registerLoginFailure(db, Date.now());
-      if (failure.throttled) return throttledResponse(failure.retryAfterMs);
-    } catch {
-      return jsonError(503, ERRORS.unavailable);
-    }
     return jsonError(401, ERRORS.wrongPassword);
   }
 
   try {
-    await clearLoginFailures(db);
+    await recordLoginSuccess(db, reservation, Date.now(), LOGIN_THROTTLE_SCOPE, client);
   } catch {
     return jsonError(503, ERRORS.unavailable);
   }

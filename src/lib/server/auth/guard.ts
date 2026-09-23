@@ -8,6 +8,7 @@ import { EDITOR_CSRF_HEADER, EDITOR_SESSION_COOKIE } from "../../auth-constants"
 import { EDITOR_SESSION_ABSOLUTE_LIFETIME_MS } from "../../boundaries";
 import { ERRORS, jsonError, parseCookieHeader } from "../http";
 import { isAuthDisabled } from "./bypass";
+import type { SessionRenewal } from "./cookies";
 import { getSessionSecret } from "./secrets";
 import {
   renewEditorSessionToken,
@@ -16,7 +17,7 @@ import {
 } from "./session";
 
 export type EditorAuthResult =
-  | { ok: true; session: EditorSessionPayload; renewedToken: string | null }
+  | { ok: true; session: EditorSessionPayload; renewal: SessionRenewal | null }
   | { ok: false; response: Response };
 
 function denied(status: number, message: string): EditorAuthResult {
@@ -42,13 +43,14 @@ function syntheticBypassSession(): EditorSessionPayload {
 }
 
 /**
- * Authorize an editor read. Returns the verified session, plus a renewed
- * token when the session is inside its renewal threshold (the caller must
- * set it as a cookie).
+ * Authorize an editor read. Returns the verified session, plus a renewal
+ * when the session is inside its renewal threshold; the caller attaches it
+ * with appendEditorRenewal, which writes the session and CSRF cookies
+ * together (D098).
  */
 export function requireEditor(request: Request): EditorAuthResult {
   if (isAuthDisabled()) {
-    return { ok: true, session: syntheticBypassSession(), renewedToken: null };
+    return { ok: true, session: syntheticBypassSession(), renewal: null };
   }
   const secret = getSessionSecret();
   if (!secret) return denied(503, ERRORS.unavailable);
@@ -56,10 +58,13 @@ export function requireEditor(request: Request): EditorAuthResult {
   if (!token) return denied(401, ERRORS.authRequired);
   const result = verifyEditorSessionToken(token, secret, Date.now());
   if (result.status !== "valid") return denied(401, ERRORS.authRequired);
-  const renewedToken = result.renew
-    ? renewEditorSessionToken(result.payload, secret, Date.now())
+  const renewal = result.renew
+    ? {
+        token: renewEditorSessionToken(result.payload, secret, Date.now()),
+        csrf: result.payload.csrf,
+      }
     : null;
-  return { ok: true, session: result.payload, renewedToken };
+  return { ok: true, session: result.payload, renewal };
 }
 
 /**

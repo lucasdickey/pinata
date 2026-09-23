@@ -8,7 +8,10 @@
 // missing or tombstoned project is the same generic 404 as every other
 // project read.
 
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import { requireEditor } from "../../../../../src/lib/server/auth/guard";
 import { listProjectPins } from "../../../../../src/lib/server/annotations/project-pins";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
@@ -18,10 +21,9 @@ interface RouteContext {
   params: Promise<{ publicId: string }>;
 }
 
-function finish(response: Response, renewedToken: string | null, secure: boolean): Response {
+function finish(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
   response.headers.set("cache-control", "no-store");
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
@@ -29,7 +31,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    finish(jsonError(status, message), auth.renewedToken, secure);
+    finish(jsonError(status, message), auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return deny(503, ERRORS.unavailable);
@@ -44,7 +46,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (!result.ok) return deny(404, ERRORS.rejected);
   return finish(
     Response.json({ annotations: result.annotations }),
-    auth.renewedToken,
+    auth.renewal,
     secure,
   );
 }

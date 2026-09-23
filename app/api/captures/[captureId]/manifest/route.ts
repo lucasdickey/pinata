@@ -13,7 +13,10 @@
 // read.
 
 import { requireEditor } from "../../../../../src/lib/server/auth/guard";
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import { getDatabase, schema } from "../../../../../src/lib/server/db/client";
 import { eq } from "drizzle-orm";
 import { ERRORS, isSecureRequest, jsonError } from "../../../../../src/lib/server/http";
@@ -22,9 +25,8 @@ interface RouteContext {
   params: Promise<{ captureId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 /** Serve the capture's persisted manifest bytes, verbatim. */
@@ -32,7 +34,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const auth = requireEditor(request);
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
-  const respond = (response: Response) => withRenewal(response, auth.renewedToken, secure);
+  const respond = (response: Response) => withRenewal(response, auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return respond(jsonError(503, ERRORS.unavailable));

@@ -16,7 +16,11 @@
 // write. Errors are bounded and generic; nothing echoes request input.
 
 import { ANNOTATION_REQUEST_MAX_BYTES } from "../../../../../src/lib/boundaries";
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  appendSetCookies,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import { requireEditorMutation } from "../../../../../src/lib/server/auth/guard";
 import {
   createPinAtomically,
@@ -37,9 +41,8 @@ interface RouteContext {
   params: Promise<{ captureId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 /**
@@ -56,10 +59,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const { captureId } = await context.params;
   const auth = await authorizeCaptureReader(request, db, captureId, secure);
   if (!auth.ok) return auth.response;
-  const finish = (response: Response) => {
-    if (auth.actor.renewCookie) response.headers.append("set-cookie", auth.actor.renewCookie);
-    return response;
-  };
+  const finish = (response: Response) => appendSetCookies(response, auth.actor.renewCookies);
 
   if (!db) return finish(jsonError(503, ERRORS.unavailable));
 
@@ -85,7 +85,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const body = await readBoundedJson(request, ANNOTATION_REQUEST_MAX_BYTES);
   if (!body.ok) {
@@ -130,7 +130,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
     { annotation: result.annotation },
     { status: result.created ? 201 : 200 },
   );
-  return withRenewal(response, auth.renewedToken, secure);
+  return withRenewal(response, auth.renewal, secure);
 }
 
 function methodNotAllowed(): Response {
