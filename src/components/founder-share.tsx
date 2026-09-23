@@ -9,8 +9,13 @@
 // the complete link exactly once — the server persists only a digest and
 // can never show the token again — with the token in the URL fragment so it
 // never reaches a server log or referrer.
+//
+// Rotate and Revoke each end the link the founder already has, so each asks
+// once, inline, before doing it (D097): the button becomes a sentence that
+// says what will happen plus Confirm and Cancel. Create has nothing to break
+// and goes straight through.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import type {
@@ -45,6 +50,30 @@ export function FounderShareControl({
   // control is closed or the capability changes again.
   const [freshLink, setFreshLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Which destructive action is waiting for its confirmation, if any.
+  const [confirming, setConfirming] = useState<"rotate" | "revoke" | null>(null);
+  const confirmButton = useRef<HTMLButtonElement | null>(null);
+  const actionButtons = useRef<HTMLParagraphElement | null>(null);
+  // Focus follows the step: into Confirm when it appears, and back to the
+  // action row when the step closes, so a keyboard user never loses place.
+  const focusAfter = useRef<"confirm" | "actions" | null>(null);
+  useEffect(() => {
+    if (focusAfter.current === "confirm") confirmButton.current?.focus();
+    else if (focusAfter.current === "actions") {
+      actionButtons.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    }
+    focusAfter.current = null;
+  }, [confirming]);
+
+  const ask = (action: "rotate" | "revoke") => {
+    setError(null);
+    focusAfter.current = "confirm";
+    setConfirming(action);
+  };
+  const cancelConfirm = () => {
+    focusAfter.current = "actions";
+    setConfirming(null);
+  };
 
   const load = useCallback(async () => {
     setState({ status: "loading" });
@@ -77,6 +106,7 @@ export function FounderShareControl({
     const next = !open;
     setOpen(next);
     setError(null);
+    setConfirming(null);
     if (next) {
       if (state.status === "failed") void load();
     } else {
@@ -88,6 +118,7 @@ export function FounderShareControl({
 
   const issue = async () => {
     if (busy) return;
+    setConfirming(null);
     setBusy(true);
     setError(null);
     setCopied(false);
@@ -112,6 +143,7 @@ export function FounderShareControl({
 
   const revoke = async () => {
     if (busy) return;
+    setConfirming(null);
     setBusy(true);
     setError(null);
     try {
@@ -216,16 +248,49 @@ export function FounderShareControl({
               </p>
             </div>
           ) : null}
-          {share ? (
-            <p className="panel-actions">
-              <button type="button" onClick={() => void issue()} disabled={busy}>
-                {share.state === "active" ? "Rotate link" : "Create link"}
-              </button>
-              {share.state === "active" ? (
-                <button type="button" onClick={() => void revoke()} disabled={busy}>
-                  Revoke link
+          {share && confirming ? (
+            <div
+              className="founder-share-confirm"
+              role="group"
+              aria-labelledby={`founder-share-confirm-${publicId}`}
+              data-testid="founder-share-confirm"
+            >
+              <p id={`founder-share-confirm-${publicId}`}>
+                {confirming === "rotate"
+                  ? "Rotate the link? The link the founder has now stops working, and you get a new one to send."
+                  : "Revoke the link? The link the founder has now stops working, and nobody can open the review until you create a new one."}
+              </p>
+              <p className="panel-actions">
+                <button
+                  type="button"
+                  ref={confirmButton}
+                  onClick={() => void (confirming === "rotate" ? issue() : revoke())}
+                  disabled={busy}
+                >
+                  {confirming === "rotate" ? "Yes, rotate link" : "Yes, revoke link"}
                 </button>
-              ) : null}
+                <button type="button" onClick={cancelConfirm} disabled={busy}>
+                  Cancel
+                </button>
+              </p>
+            </div>
+          ) : null}
+          {share && !confirming ? (
+            <p className="panel-actions" ref={actionButtons}>
+              {share.state === "active" ? (
+                <>
+                  <button type="button" onClick={() => ask("rotate")} disabled={busy}>
+                    Rotate link
+                  </button>
+                  <button type="button" onClick={() => ask("revoke")} disabled={busy}>
+                    Revoke link
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => void issue()} disabled={busy}>
+                  Create link
+                </button>
+              )}
             </p>
           ) : null}
           {error ? (
