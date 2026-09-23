@@ -882,6 +882,14 @@ export function ProjectWorkspace({
     setDraftResetSignal((value) => value + 1);
   }, []);
 
+  // Geometry writes in flight, per annotation id, each holding the latest
+  // geometry that arrived while it was out (D096). A second drag that ends
+  // before the first PATCH returns would otherwise carry the revision the
+  // first one is about to replace, and the server would answer 409 — a
+  // false "changed in another session" that loses the second move. Holding
+  // only the latest keeps it one write per settled gesture at most.
+  const moveQueue = useRef(new Map<string, DraftMark | null>());
+
   // One revisioned geometry write for a pin move, or a region move or
   // resize (D079, D082): the mark names the kind and carries the new
   // geometry.
@@ -911,50 +919,76 @@ export function ProjectWorkspace({
           : current,
       );
       setMoveError(null);
+      // A write for this mark is already out: hold this geometry and let
+      // that write send it, with the revision it gets back (D096).
+      const queue = moveQueue.current;
+      if (queue.has(annotationId)) {
+        queue.set(annotationId, mark);
+        return;
+      }
+      queue.set(annotationId, null);
+      let revision = pin.revision;
+      let sending: DraftMark | null = mark;
       try {
-        const response = await fetch(
-          `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}`,
-          {
-            method: "PATCH",
-            headers: {
-              "content-type": "application/json",
-              [EDITOR_CSRF_HEADER]: readCsrfProof(),
+        while (sending) {
+          const response = await fetch(
+            `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}`,
+            {
+              method: "PATCH",
+              headers: {
+                "content-type": "application/json",
+                [EDITOR_CSRF_HEADER]: readCsrfProof(),
+              },
+              body: JSON.stringify({ ...markPayload(sending), expectedRevision: revision }),
             },
-            body: JSON.stringify({ ...markPayload(mark), expectedRevision: pin.revision }),
-          },
-        );
-        if (!response.ok) {
-          // A 409 means another session wrote first: the authoritative
-          // reload shows the winning revision instead of overwriting it.
-          // The move's message supersedes any stale edit/delete conflict
-          // notice — one conflict message at a time.
-          setMoveError(
-            response.status === 409
-              ? `This ${noun} changed in another session. The latest version is now shown.`
-              : restored,
           );
-          setEditState("idle");
-          setDeleteState("idle");
-          await loadPins(captureId);
-          return;
+          if (!response.ok) {
+            // A 409 means another session wrote first: the authoritative
+            // reload shows the winning revision instead of overwriting it.
+            // The move's message supersedes any stale edit/delete conflict
+            // notice — one conflict message at a time. A held geometry is
+            // dropped with it: the reload is the truth now.
+            setMoveError(
+              response.status === 409
+                ? `This ${noun} changed in another session. The latest version is now shown.`
+                : restored,
+            );
+            setEditState("idle");
+            setDeleteState("idle");
+            queue.delete(annotationId);
+            await loadPins(captureId);
+            return;
+          }
+          const payload = (await response.json()) as PinMutationResponse;
+          revision = payload.annotation.revision;
+          // Whatever arrived meanwhile goes next, on the revision just
+          // returned; until it lands, the mark stays where it was dropped.
+          const next: DraftMark | null = queue.get(annotationId) ?? null;
+          queue.set(annotationId, null);
+          setPinsState((current) =>
+            current && current.captureId === captureId
+              ? {
+                  ...current,
+                  pins: current.pins.map((pin) =>
+                    pin.id === annotationId
+                      ? next
+                        ? withMark(payload.annotation, next)
+                        : payload.annotation
+                      : pin,
+                  ),
+                }
+              : current,
+          );
+          patchProjectPin(
+            annotationId,
+            { revision: payload.annotation.revision },
+            markOf(payload.annotation),
+          );
+          sending = next;
         }
-        const payload = (await response.json()) as PinMutationResponse;
-        setPinsState((current) =>
-          current && current.captureId === captureId
-            ? {
-                ...current,
-                pins: current.pins.map((pin) =>
-                  pin.id === annotationId ? payload.annotation : pin,
-                ),
-              }
-            : current,
-        );
-        patchProjectPin(
-          annotationId,
-          { revision: payload.annotation.revision },
-          markOf(payload.annotation),
-        );
+        queue.delete(annotationId);
       } catch {
+        queue.delete(annotationId);
         setMoveError(restored);
         setEditState("idle");
         setDeleteState("idle");
