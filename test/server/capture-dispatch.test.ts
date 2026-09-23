@@ -566,4 +566,35 @@ describe("durable concurrency admission (VAL-CAPTURE-007)", () => {
     // back: only the foreign lease remains.
     expect(await countActiveCaptureLeases(testDb.db, T0)).toBe(1);
   });
+
+  test("a rejection that loses the fence leaves the winner's slot held (D095)", async () => {
+    const attempt = await firstAttempt(pageIds[0]!);
+    // A concurrent dispatcher wins this attempt while this one is still in
+    // admission: it holds the attempt's one lease and has claimed the row.
+    // This dispatcher's admission then rejects (a private answer here).
+    const winner = await claimCaptureLease(testDb.db, attempt.id, T0);
+    expect(winner.ok).toBe(true);
+    const resolver = resolverFor({ "safe.example": ["10.0.0.5"] });
+    __setAdmissionDepsForTests({
+      resolver: {
+        ...resolver,
+        resolve4: async (host) => {
+          await applyCaptureTransition(testDb.db, {
+            captureId: attempt.id,
+            from: "pending",
+            to: "capturing",
+            now: T0,
+            finalUrl: "https://safe.example/",
+          });
+          return resolver.resolve4(host);
+        },
+      },
+      dnsTimeoutMs: 50,
+    });
+    const response = await dispatchPOST(build(attempt.id), routeContext(attempt.id));
+    expect(response.status).toBe(409);
+    expect(await firstAttempt(pageIds[0]!)).toMatchObject({ status: "capturing" });
+    // The winner's capture is still running under that slot.
+    expect(await countActiveCaptureLeases(testDb.db, T0)).toBe(1);
+  });
 });
