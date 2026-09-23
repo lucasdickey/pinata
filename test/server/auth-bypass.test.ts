@@ -114,7 +114,7 @@ describe("bypass enabled (PINATA_AUTH_DISABLED=1)", () => {
     expect(result.session.v).toBe(1);
     expect(result.session.sid).toBe("auth-disabled-local");
     expect(result.session.exp).toBeGreaterThan(Date.now());
-    expect(result.renewedToken).toBeNull();
+    expect(result.renewal).toBeNull();
   });
 
   test("requireEditorMutation authorizes without a cookie or CSRF proof", () => {

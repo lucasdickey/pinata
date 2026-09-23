@@ -12,6 +12,7 @@
 // exactly reply, resolve, reopen, and seen; create, move, edit, and delete
 // stay editor-only in their own routes.
 
+import { appendSetCookies } from "../auth/cookies";
 import { getDatabase } from "../db/client";
 import { authorizeCaptureReplier, type CaptureActor } from "../founder/reader";
 import { ERRORS, hasSameOrigin, isSecureRequest, jsonError } from "../http";
@@ -26,8 +27,7 @@ export type PinFeedbackAction = PinStatusAction | "seen";
 
 function finish(response: Response, actor: CaptureActor | null): Response {
   response.headers.set("cache-control", "no-store");
-  if (actor?.renewCookie) response.headers.append("set-cookie", actor.renewCookie);
-  return response;
+  return actor ? appendSetCookies(response, actor.renewCookies) : response;
 }
 
 /** Build the POST handler for one of the feedback actions. */

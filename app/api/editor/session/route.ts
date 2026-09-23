@@ -4,7 +4,7 @@
 // with no editor data, and a session inside its renewal threshold is renewed
 // here (VAL-AUTH-003).
 
-import { csrfCookie, sessionCookie } from "../../../../src/lib/server/auth/cookies";
+import { appendEditorRenewal } from "../../../../src/lib/server/auth/cookies";
 import { requireEditor } from "../../../../src/lib/server/auth/guard";
 import { ERRORS, isSecureRequest, jsonError } from "../../../../src/lib/server/http";
 
@@ -17,12 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     actor: "editor",
     expiresAt: new Date(auth.session.exp).toISOString(),
   });
-  if (auth.renewedToken) {
-    const secure = isSecureRequest(request);
-    response.headers.append("set-cookie", sessionCookie(auth.renewedToken, secure));
-    response.headers.append("set-cookie", csrfCookie(auth.session.csrf, secure));
-  }
-  return response;
+  return appendEditorRenewal(response, auth.renewal, isSecureRequest(request));
 }
 
 function methodNotAllowed(): Response {

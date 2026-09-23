@@ -13,6 +13,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { EDITOR_CSRF_HEADER, FOUNDER_SESSION_COOKIE } from "../../auth-constants";
+import type { SessionRenewal } from "../auth/cookies";
 import { getSessionSecret } from "../auth/secrets";
 import { schema, type Database } from "../db/client";
 import { ERRORS, jsonError, parseCookieHeader } from "../http";
@@ -24,7 +25,7 @@ import {
 } from "./session";
 
 export type FounderAuthResult =
-  | { ok: true; session: FounderSessionPayload; renewedToken: string | null }
+  | { ok: true; session: FounderSessionPayload; renewal: SessionRenewal | null }
   | { ok: false; response: Response };
 
 function denied(status: number, message: string): FounderAuthResult {
@@ -38,8 +39,9 @@ export function hasFounderCookie(request: Request): boolean {
 
 /**
  * Authorize a founder read: a valid signed session whose project/version
- * binding is still current in the durable store. Returns a renewed token
- * when the session is inside its renewal threshold.
+ * binding is still current in the durable store. Returns a renewal (token
+ * plus CSRF proof, written together by appendFounderRenewal, D098) when the
+ * session is inside its renewal threshold.
  */
 export async function requireFounder(request: Request, db: Database): Promise<FounderAuthResult> {
   const secret = getSessionSecret();
@@ -51,10 +53,13 @@ export async function requireFounder(request: Request, db: Database): Promise<Fo
   // Live authority: rotation and revocation change the row, not the cookie.
   const current = await founderBindingIsCurrent(db, result.payload.pid, result.payload.ver);
   if (!current) return denied(401, ERRORS.authRequired);
-  const renewedToken = result.renew
-    ? renewFounderSessionToken(result.payload, secret, Date.now())
+  const renewal = result.renew
+    ? {
+        token: renewFounderSessionToken(result.payload, secret, Date.now()),
+        csrf: result.payload.csrf,
+      }
     : null;
-  return { ok: true, session: result.payload, renewedToken };
+  return { ok: true, session: result.payload, renewal };
 }
 
 /**

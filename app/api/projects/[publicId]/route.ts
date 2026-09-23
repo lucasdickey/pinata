@@ -5,7 +5,7 @@
 // root, normalized URLs, order, ownership, and capture attempts. Nothing in
 // this path trusts browser-local state (VAL-PROJECT-003, VAL-PROJECT-004).
 
-import { sessionCookie } from "../../../../src/lib/server/auth/cookies";
+import { appendEditorRenewal, type SessionRenewal } from "../../../../src/lib/server/auth/cookies";
 import { requireEditor } from "../../../../src/lib/server/auth/guard";
 import { getDatabase } from "../../../../src/lib/server/db/client";
 import { ERRORS, isSecureRequest, jsonError } from "../../../../src/lib/server/http";
@@ -15,9 +15,8 @@ interface RouteContext {
   params: Promise<{ publicId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
@@ -25,7 +24,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return deny(503, ERRORS.unavailable);
@@ -39,7 +38,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   }
   // A tombstoned project and one that never existed are indistinguishable.
   if (!project) return deny(404, ERRORS.rejected);
-  return withRenewal(Response.json({ project }), auth.renewedToken, secure);
+  return withRenewal(Response.json({ project }), auth.renewal, secure);
 }
 
 function methodNotAllowed(): Response {

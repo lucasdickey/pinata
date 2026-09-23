@@ -13,7 +13,10 @@
 // session + CSRF proof. POST and DELETE carry no body. A missing or
 // tombstoned project is the same generic 404 as every other project read.
 
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import {
   requireEditor,
   requireEditorMutation,
@@ -35,10 +38,9 @@ interface RouteContext {
   params: Promise<{ publicId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
   response.headers.set("cache-control", "no-store");
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 /** The founder route the link points at; the token rides in the fragment. */
@@ -51,7 +53,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return deny(503, ERRORS.unavailable);
@@ -64,7 +66,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     return deny(503, ERRORS.unavailable);
   }
   if (!share) return deny(404, ERRORS.rejected);
-  return withRenewal(Response.json({ share }), auth.renewedToken, secure);
+  return withRenewal(Response.json({ share }), auth.renewal, secure);
 }
 
 /** Issue or rotate the capability; the token is shown exactly once. */
@@ -75,7 +77,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return deny(503, ERRORS.unavailable);
@@ -94,7 +96,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
       { share: issued.status, path: founderLinkPath(publicId), token: issued.token },
       { status: 201 },
     ),
-    auth.renewedToken,
+    auth.renewal,
     secure,
   );
 }
@@ -107,7 +109,7 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const db = getDatabase();
   if (!db) return deny(503, ERRORS.unavailable);
@@ -122,7 +124,7 @@ export async function DELETE(request: Request, context: RouteContext): Promise<R
   if (!result.ok) {
     return result.error === "not-found" ? deny(404, ERRORS.rejected) : deny(409, ERRORS.rejected);
   }
-  return withRenewal(Response.json({ share: result.status }), auth.renewedToken, secure);
+  return withRenewal(Response.json({ share: result.status }), auth.renewal, secure);
 }
 
 function methodNotAllowed(): Response {

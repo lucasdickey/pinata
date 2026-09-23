@@ -10,8 +10,9 @@
 // affordances.
 
 import { founderViewer } from "../../../../src/lib/server/annotations/seen";
+import type { SessionRenewal } from "../../../../src/lib/server/auth/cookies";
 import { getDatabase } from "../../../../src/lib/server/db/client";
-import { founderSessionCookie } from "../../../../src/lib/server/founder/cookies";
+import { appendFounderRenewal } from "../../../../src/lib/server/founder/cookies";
 import { requireFounder } from "../../../../src/lib/server/founder/guard";
 import { ERRORS, isSecureRequest, jsonError } from "../../../../src/lib/server/http";
 import { readProjectHierarchy } from "../../../../src/lib/server/projects/hierarchy";
@@ -20,12 +21,9 @@ interface RouteContext {
   params: Promise<{ publicId: string }>;
 }
 
-function finish(response: Response, renewedToken: string | null, secure: boolean): Response {
+function finish(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
   response.headers.set("cache-control", "no-store");
-  if (renewedToken) {
-    response.headers.append("set-cookie", founderSessionCookie(renewedToken, secure));
-  }
-  return response;
+  return appendFounderRenewal(response, renewal, secure);
 }
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
@@ -48,16 +46,16 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
       founderViewer(auth.session.ver),
     );
   } catch {
-    return finish(jsonError(503, ERRORS.unavailable), auth.renewedToken, secure);
+    return finish(jsonError(503, ERRORS.unavailable), auth.renewal, secure);
   }
   // The session is bound to one project; any other public id — existing or
   // not — is the same generic denial as an anonymous read.
   if (!project || project.projectId !== auth.session.pid) {
-    return finish(jsonError(401, ERRORS.authRequired), auth.renewedToken, secure);
+    return finish(jsonError(401, ERRORS.authRequired), auth.renewal, secure);
   }
   return finish(
     Response.json({ actor: "founder", project }),
-    auth.renewedToken,
+    auth.renewal,
     secure,
   );
 }

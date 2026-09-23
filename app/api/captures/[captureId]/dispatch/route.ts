@@ -30,7 +30,10 @@
 // message that names no host, no resolved address, and no provider detail.
 
 import { CAPTURE_REQUEST_MAX_BYTES, captureOutcome } from "../../../../../src/lib/boundaries";
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import { requireEditorMutation } from "../../../../../src/lib/server/auth/guard";
 import { getCaptureDriveDeps } from "../../../../../src/lib/server/captures/deps";
 import { driveCapture } from "../../../../../src/lib/server/captures/drive";
@@ -47,9 +50,8 @@ interface RouteContext {
   params: Promise<{ captureId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 export async function POST(request: Request, context: RouteContext): Promise<Response> {
@@ -59,7 +61,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
   const deny = (status: number, message: string) =>
-    withRenewal(jsonError(status, message), auth.renewedToken, secure);
+    withRenewal(jsonError(status, message), auth.renewal, secure);
 
   const declared = request.headers.get("content-length");
   if (declared !== null) {
@@ -82,7 +84,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
         { error: outcome.publicMessage, code: outcome.code, remediation: outcome.remediation },
         { status: outcome.httpStatus ?? 502 },
       ),
-      auth.renewedToken,
+      auth.renewal,
       secure,
     );
   };
@@ -99,7 +101,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
 
   return withRenewal(
     Response.json({ capture: { ...result.capture, status: "ready" } }, { status: 200 }),
-    auth.renewedToken,
+    auth.renewal,
     secure,
   );
 }
