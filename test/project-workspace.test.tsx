@@ -947,6 +947,143 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(within(detail()).getByTestId("panel-pin")).toHaveTextContent("Pin 1");
   });
 
+  // Live refresh (D097): while the tab is visible the workspace re-reads the
+  // hierarchy (through onRefresh), the project's pins, the open capture's
+  // pins, and the open thread. A window focus runs one tick immediately,
+  // which is how these tests trigger it; the timer schedule itself is
+  // covered in test/live-refresh.test.ts and test/editor-home-live-refresh.test.tsx.
+  describe("live refresh (D097)", () => {
+    const founderReply = {
+      id: "thr-founder-1",
+      annotationId: "ann-saved-1",
+      actorRole: "founder",
+      authorLabel: "founder",
+      kind: "message",
+      body: "Agreed, trimming it today.",
+      createdAt: 1_800_000_009_000,
+    };
+
+    /** stubAnnotations, plus a thread whose entries the test can change. */
+    function stubWithThread(initial: StubPin[]) {
+      const store = stubAnnotations(initial);
+      const entries: (typeof founderReply)[] = [];
+      const base = fetchMock.getMockImplementation() as (
+        url: unknown,
+        init?: RequestInit,
+      ) => Promise<Response>;
+      fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+        if (String(url).endsWith("/thread") && (init?.method ?? "GET") === "GET") {
+          return Promise.resolve(json({ entries }));
+        }
+        return base(url, init);
+      });
+      return { ...store, entries };
+    }
+
+    const reads = (pattern: RegExp) =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) =>
+          ((init as RequestInit | undefined)?.method ?? "GET") === "GET" &&
+          pattern.test(String(url)),
+      ).length;
+
+    test("a founder reply and status arrive in the open thread without losing the selection or the typed follow-up", async () => {
+      const user = userEvent.setup();
+      const { pins, entries } = stubWithThread([savedPin]);
+      const onRefresh = vi.fn(() => Promise.resolve());
+      render(
+        <ProjectWorkspace projects={[project()]} onChanged={onChanged} onRefresh={onRefresh} />,
+      );
+      openHome();
+      await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
+      const thread = await within(detail()).findByTestId("thread");
+      await within(thread).findByText("No replies yet.");
+      await user.type(within(thread).getByLabelText("Follow up as Lucas"), "Half-written note");
+      const threadReads = reads(/\/thread$/);
+
+      // Meanwhile the founder replied, which moved the pin to replied (D075).
+      pins[0] = { ...pins[0]!, status: "replied", unreadReplies: 1 };
+      entries.push(founderReply);
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+
+      await within(thread).findByText("Agreed, trimming it today.");
+      expect(onRefresh).toHaveBeenCalledTimes(1);
+      expect(reads(/\/thread$/)).toBe(threadReads + 1);
+      await waitFor(() =>
+        expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Replied"),
+      );
+      // Nothing the editor was doing moved: same pin, same typed text.
+      expect(within(detail()).getByTestId("panel-pin")).toHaveTextContent("Pin 1");
+      expect(within(thread).getByLabelText("Follow up as Lucas")).toHaveValue("Half-written note");
+      // The new reply is on screen, so it is marked seen rather than left unread.
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(
+            ([url, init]) =>
+              String(url).endsWith("/ann-saved-1/seen") &&
+              (init as RequestInit | undefined)?.method === "POST",
+          ),
+        ).toBe(true),
+      );
+    });
+
+    test("an unsaved draft and its comment survive a refresh tick", async () => {
+      const user = userEvent.setup();
+      stubWithThread([savedPin]);
+      render(
+        <ProjectWorkspace
+          projects={[project()]}
+          onChanged={onChanged}
+          onRefresh={() => Promise.resolve()}
+        />,
+      );
+      openHome();
+      await settleAnnotations();
+      await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
+      await placeDraft();
+      await user.type(within(composer()).getByLabelText("Comment"), "Not saved yet");
+      const pinReads = reads(/\/api\/captures\/root-d1\/annotations$/);
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await waitFor(() =>
+        expect(reads(/\/api\/captures\/root-d1\/annotations$/)).toBe(pinReads + 1),
+      );
+      expect(within(composer()).getByLabelText("Comment")).toHaveValue("Not saved yet");
+      // A quiet read: the list never flashed back to a loading state.
+      expect(within(detail()).queryByText(/Loading pins/)).toBeNull();
+    });
+
+    test("a hidden tab reads nothing, and becoming visible reads at once", async () => {
+      stubWithThread([savedPin]);
+      const onRefresh = vi.fn(() => Promise.resolve());
+      let visibility = "hidden";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => visibility,
+      });
+      try {
+        render(
+          <ProjectWorkspace projects={[project()]} onChanged={onChanged} onRefresh={onRefresh} />,
+        );
+        await settleAnnotations();
+        await act(async () => {
+          window.dispatchEvent(new Event("focus"));
+        });
+        expect(onRefresh).not.toHaveBeenCalled();
+        visibility = "visible";
+        await act(async () => {
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+        expect(onRefresh).toHaveBeenCalledTimes(1);
+      } finally {
+        delete (document as { visibilityState?: unknown }).visibilityState;
+      }
+    });
+  });
+
   test("with no nearby element, No element is pre-selected and one create posts the null decision", async () => {
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations();

@@ -142,12 +142,22 @@ beforeEach(() => {
   vi.useFakeTimers();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
+  // These counts measure the capture poll alone. The live refresh (D097)
+  // also re-reads the hierarchy, but only while the tab is visible, so the
+  // tab is hidden here; the capture poll keeps running regardless, because
+  // it is what finishes a capture. test/editor-home-live-refresh.test.tsx
+  // covers the visible-tab schedule.
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    get: () => "hidden",
+  });
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+  delete (document as { visibilityState?: unknown }).visibilityState;
 });
 
 describe("capture-progress polling", () => {
