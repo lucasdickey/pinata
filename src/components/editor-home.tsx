@@ -9,7 +9,9 @@
 //
 // This component still owns the capture-progress polling loop and the
 // capture-dispatch driver, so any pending attempt — including one committed
-// by /pins/new a moment ago — is driven to completion on this load.
+// by /pins/new a moment ago — is driven to completion on this load. The
+// live refresh (D097) that keeps founder replies and status changes current
+// runs in the workspace, and calls back here for the hierarchy re-read.
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,7 +33,7 @@ type ListState =
   | { status: "ready"; projects: WorkspaceProject[] }
   | { status: "failed" };
 
-export function EditorHome() {
+export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
@@ -40,6 +42,10 @@ export function EditorHome() {
   // never multiply reads.
   const [retrying, setRetrying] = useState(false);
 
+  // The last hierarchy answer as text, so the live refresh (D097) can tell a
+  // changed hierarchy from an identical one without a deep compare.
+  const lastPayload = useRef<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
@@ -47,7 +53,9 @@ export function EditorHome() {
         setList({ status: "failed" });
         return;
       }
-      const payload = (await response.json()) as { projects: WorkspaceProject[] };
+      const text = await response.text();
+      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      lastPayload.current = text;
       setList({ status: "ready", projects: payload.projects });
     } catch {
       setList({ status: "failed" });
@@ -57,6 +65,27 @@ export function EditorHome() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The live refresh's hierarchy read (D097). Unlike `load`, a failure here
+  // leaves the list exactly as it was — a network blip in a background tick
+  // must never swap the workspace for the failure state — and an answer
+  // identical to the last one is dropped, so a quiet tick re-renders nothing.
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch("/api/projects", { cache: "no-store" });
+      if (!response.ok) return;
+      const text = await response.text();
+      if (text === lastPayload.current) return;
+      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      if (!Array.isArray(payload.projects)) return;
+      lastPayload.current = text;
+      setList((current) =>
+        current.status === "ready" ? { status: "ready", projects: payload.projects } : current,
+      );
+    } catch {
+      // Best effort: the next tick, or the next write, reads again.
+    }
+  }, []);
 
   // Capture-progress polling (VAL-CAPTURE-012): while any attempt is pending
   // or capturing, re-read the hierarchy on the published backoff schedule.
@@ -217,7 +246,12 @@ export function EditorHome() {
           </p>
         ) : null}
         {list.status === "ready" && list.projects.length > 0 ? (
-          <ProjectWorkspace projects={list.projects} onChanged={() => void load()} />
+          <ProjectWorkspace
+            projects={list.projects}
+            onChanged={() => void load()}
+            onRefresh={refresh}
+            liveRefreshMs={liveRefreshMs}
+          />
         ) : null}
       </section>
 

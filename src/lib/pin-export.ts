@@ -18,6 +18,7 @@ import {
   rectanglePosition,
 } from "./canvas/marks";
 import { PIN_STATUS_LABELS } from "./feedback-counts";
+import type { ThreadEntryView } from "./threads";
 
 export interface PinExportContext {
   pageUrl: string;
@@ -31,6 +32,11 @@ export interface PinExportContext {
    * device instead.
    */
   heading?: string;
+  /**
+   * Each mark's thread, oldest first, by annotation id (D097). A mark with
+   * no entry here is exported with its original comment only.
+   */
+  threads?: ReadonlyMap<string, readonly ThreadEntryView[]>;
 }
 
 /** The element path as a single readable trail, or null for "No element". */
@@ -99,6 +105,27 @@ export function arrowPointsLine(annotation: AnnotationView): string | null {
 }
 
 /**
+ * The conversation under a mark's original comment (D097), oldest first:
+ * each message named by its server-assigned author and quoted verbatim for
+ * the same reason the comment is, and each resolve or reopen as one italic
+ * line. No line starts with "#", so the project export's heading demotion
+ * stays safe.
+ */
+export function threadLines(entries: readonly ThreadEntryView[]): string[] {
+  const lines: string[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "status") {
+      lines.push(`_${entry.body}_`, "");
+      continue;
+    }
+    lines.push(`**${entry.authorLabel}** replied:`, "");
+    for (const line of entry.body.split("\n")) lines.push(`> ${line}`);
+    lines.push("");
+  }
+  return lines;
+}
+
+/**
  * The whole capture as one Markdown block. Pin bodies are emitted verbatim
  * inside a blockquote: a comment can contain any character, and quoting is
  * the one Markdown construct that survives arbitrary text without needing
@@ -145,6 +172,7 @@ export function formatPinsAsMarkdown(
     lines.push("");
     for (const line of pin.body.split("\n")) lines.push(`> ${line}`);
     lines.push("");
+    lines.push(...threadLines(context.threads?.get(pin.id) ?? []));
   }
 
   // One trailing newline, never a run of blank lines at the end.

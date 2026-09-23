@@ -8,7 +8,10 @@
 // Cancel writes nothing.
 //
 // Pinata never discovers URLs: what is typed here is exactly what gets
-// captured.
+// captured. The one liberty taken (D097) is finishing an address the obvious
+// way — a bare domain gains https://, and a row starting with "/" is resolved
+// against the root — on blur and again on submit, always visibly in the
+// field, so what is sent is still exactly what is shown.
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
@@ -18,6 +21,7 @@ import {
 } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
+import { completeUrlInput } from "../lib/url/complete";
 
 export interface CreatedProjectView {
   projectId: string;
@@ -43,7 +47,8 @@ interface RowError {
   code: string;
 }
 
-const ROW_MESSAGES: Record<string, string> = {
+/** Plain-language messages per URL rejection reason, shared with the landing entry. */
+export const URL_ROW_MESSAGES: Record<string, string> = {
   blank: "Enter a public https:// address.",
   malformed: "Pinata cannot read this as a web address.",
   relative: "Enter the full address, starting with https://.",
@@ -160,7 +165,7 @@ export function ProjectCreateForm(props: {
 
     for (const error of errors) {
       if (error.field === "rootUrl") {
-        nextRoot = message(error.code, ROW_MESSAGES);
+        nextRoot = message(error.code, URL_ROW_MESSAGES);
         if (CLEAR_ON_ERROR.has(error.code)) clearRoot = true;
       } else if (error.field === "title") {
         nextTitle = `Keep the title under ${PROJECT_TITLE_MAX_CHARS} characters.`;
@@ -168,7 +173,7 @@ export function ProjectCreateForm(props: {
         nextForm = message(error.code, FORM_MESSAGES);
       } else if (error.index !== null && rows[error.index]) {
         const row = rows[error.index]!;
-        nextRowErrors[row.id] = message(error.code, ROW_MESSAGES);
+        nextRowErrors[row.id] = message(error.code, URL_ROW_MESSAGES);
         if (CLEAR_ON_ERROR.has(error.code)) clearedRows.push(row.id);
       }
     }
@@ -185,9 +190,29 @@ export function ProjectCreateForm(props: {
     }
   }
 
+  /** Finish a row's address against the current root (D097). */
+  function completeRow(id: string) {
+    setRows((current) =>
+      current.map((candidate) =>
+        candidate.id === id
+          ? { ...candidate, value: completeUrlInput(candidate.value, rootUrl) }
+          : candidate,
+      ),
+    );
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
+    // Enter can submit without a blur, so complete here too, and show the
+    // completed values in the fields before they are sent.
+    const completedRoot = completeUrlInput(rootUrl);
+    const completedRows = rows.map((row) => ({
+      ...row,
+      value: completeUrlInput(row.value, rootUrl),
+    }));
+    setRootUrl(completedRoot);
+    setRows(completedRows);
     setPending(true);
     clearErrors();
     try {
@@ -199,8 +224,8 @@ export function ProjectCreateForm(props: {
         },
         body: JSON.stringify({
           ...(title.trim() === "" ? {} : { title: title.trim() }),
-          rootUrl,
-          urls: rows.map((row) => row.value),
+          rootUrl: completedRoot,
+          urls: completedRows.map((row) => row.value),
           idempotencyKey,
         }),
       });
@@ -266,6 +291,7 @@ export function ProjectCreateForm(props: {
             aria-invalid={rootError ? true : undefined}
             aria-describedby={rootError ? "project-root-url-error" : undefined}
             onChange={(event) => setRootUrl(event.target.value)}
+            onBlur={() => setRootUrl((current) => completeUrlInput(current))}
           />
         </p>
         {rootError ? (
@@ -308,6 +334,7 @@ export function ProjectCreateForm(props: {
                         ),
                       )
                     }
+                    onBlur={() => completeRow(row.id)}
                   />
                   <span className="row-controls">
                     <button

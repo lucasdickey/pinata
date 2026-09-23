@@ -140,20 +140,36 @@ describe("FounderShareControl", () => {
     expect(reopened).not.toHaveTextContent(TOKEN);
   });
 
-  test("rotate issues a new link and revoke ends it", async () => {
+  test("rotate issues a new link and revoke ends it, each only after an inline confirm (D097)", async () => {
     const user = userEvent.setup();
     share = { state: "active", version: 3, revokedAt: null };
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
     await within(panel).findByText("Founder link active (version 3).");
+    const writes = () =>
+      fetchMock.mock.calls.filter(([, init]) => ((init as RequestInit)?.method ?? "GET") !== "GET");
+
+    // Rotate asks first: the founder's current link would stop working.
     await user.click(within(panel).getByRole("button", { name: "Rotate link" }));
+    const rotateStep = within(panel).getByTestId("founder-share-confirm");
+    expect(rotateStep).toHaveTextContent(/link the founder has now stops working/);
+    expect(writes()).toHaveLength(0);
+    // Focus lands on the confirmation so the keyboard path is Enter or Tab.
+    expect(within(rotateStep).getByRole("button", { name: "Yes, rotate link" })).toHaveFocus();
+    await user.click(within(rotateStep).getByRole("button", { name: "Yes, rotate link" }));
     await within(panel).findByText("Founder link active (version 4).");
     expect(await within(panel).findByLabelText(/Founder link \(shown once/)).toHaveValue(
       `${window.location.origin}/f/pub-1#${TOKEN}`,
     );
+    expect(within(panel).queryByTestId("founder-share-confirm")).toBeNull();
+    expect(writes()).toHaveLength(1);
 
     await user.click(within(panel).getByRole("button", { name: "Revoke link" }));
+    const revokeStep = within(panel).getByTestId("founder-share-confirm");
+    expect(revokeStep).toHaveTextContent(/nobody can open the review/);
+    expect(writes()).toHaveLength(1);
+    await user.click(within(revokeStep).getByRole("button", { name: "Yes, revoke link" }));
     await within(panel).findByText("Founder link revoked (was version 4).");
     expect(within(panel).queryByLabelText(/Founder link \(shown once/)).toBeNull();
     expect(within(panel).queryByRole("button", { name: "Revoke link" })).toBeNull();
@@ -162,6 +178,31 @@ describe("FounderShareControl", () => {
     expect(new Headers((del[1] as RequestInit).headers).get(EDITOR_CSRF_HEADER)).toBe(
       "editor-proof-sentinel",
     );
+  });
+
+  test("cancelling a rotate or revoke writes nothing and keeps the one-time link (D097)", async () => {
+    const user = userEvent.setup();
+    render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
+    await user.click(screen.getByRole("button", { name: "Share with founder" }));
+    const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
+    // Create needs no confirmation: there is no link yet to break.
+    await user.click(await within(panel).findByRole("button", { name: "Create link" }));
+    await within(panel).findByText("Founder link active (version 1).");
+    expect(within(panel).queryByTestId("founder-share-confirm")).toBeNull();
+    const writesBefore = fetchMock.mock.calls.length;
+
+    for (const action of ["Rotate link", "Revoke link"]) {
+      await user.click(within(panel).getByRole("button", { name: action }));
+      await user.click(within(panel).getByRole("button", { name: "Cancel" }));
+      expect(within(panel).queryByTestId("founder-share-confirm")).toBeNull();
+      // Focus returns to the action row rather than falling to the page.
+      expect(within(panel).getByRole("button", { name: "Rotate link" })).toHaveFocus();
+    }
+    expect(fetchMock.mock.calls.length).toBe(writesBefore);
+    expect(within(panel).getByLabelText(/Founder link \(shown once/)).toHaveValue(
+      `${window.location.origin}/f/pub-1#${TOKEN}`,
+    );
+    expect(panel).toHaveTextContent("Founder link active (version 1).");
   });
 
   test("a failed issue reports a bounded error and shows no link", async () => {
