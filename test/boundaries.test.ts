@@ -40,6 +40,7 @@ import {
   LAZY_SCROLL_MAX_STEPS,
   LAZY_SCROLL_STEP_DELAY_MS,
   LAZY_SCROLL_STEP_PX,
+  LOGIN_GLOBAL_MAX_FAILURES,
   LOGIN_MAX_FAILURES,
   LOGIN_WINDOW_MS,
   MANIFEST_ACCESSIBLE_NAME_MAX_CHARS,
@@ -199,6 +200,7 @@ const GEOMETRY_ROWS: DocRow[] = [
 
 const QUOTA_ROWS: DocRow[] = [
   { name: "LOGIN_MAX_FAILURES", value: fmtNum(LOGIN_MAX_FAILURES) },
+  { name: "LOGIN_GLOBAL_MAX_FAILURES", value: fmtNum(LOGIN_GLOBAL_MAX_FAILURES) },
   { name: "LOGIN_WINDOW_MS", value: fmtMs(LOGIN_WINDOW_MS) },
   { name: "REPLY_MAX_PER_WINDOW", value: fmtNum(REPLY_MAX_PER_WINDOW) },
   { name: "REPLY_WINDOW_MS", value: fmtMs(REPLY_WINDOW_MS) },
@@ -295,6 +297,11 @@ function fixtureRow(f: UrlNormalizationFixture): string {
 describe("boundary catalog coverage and consistency", () => {
   test("the catalog is versioned with a dated policy version", () => {
     expect(POLICY_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/);
+  });
+
+  test("the global login ceiling sits well above the per-client limit (D098)", () => {
+    // Otherwise one client's guesses would again lock every client out.
+    expect(LOGIN_GLOBAL_MAX_FAILURES).toBeGreaterThanOrEqual(10 * LOGIN_MAX_FAILURES);
   });
 
   test("session renewal only makes sense inside the absolute lifetime", () => {
