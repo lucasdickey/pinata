@@ -37,7 +37,9 @@ import {
   PIN_TYPE,
   pinNode,
   RECTANGLE_TYPE,
+  MIN_HANDLE_MARK_SCREEN_PX,
   rectangleNode,
+  savedMarkHandles,
   type CanvasArrow,
   type CanvasCircle,
   type CanvasPin,
@@ -349,7 +351,16 @@ describe("circle nodes (D082)", () => {
 
   test("offers the four corner handles only, and none at all read-only", () => {
     expect([...circleNode(domain, circle, 1).data.handleNames]).toEqual(["nw", "ne", "se", "sw"]);
-    const readOnly = circleNode(domain, circle, 1, { readOnly: true });
+    // Handles only on the selected circle, and only when it is big enough
+    // on screen for four corners not to blanket it (D096).
+    expect(circleNode(domain, circle, 1).data.handles).toBe(false);
+    const selected = { ...circle, selected: true };
+    expect(circleNode(domain, selected, 1).data.handles).toBe(true);
+    expect(circleNode(domain, selected, MIN_HANDLE_MARK_SCREEN_PX / 300).data.handles).toBe(true);
+    expect(circleNode(domain, selected, (MIN_HANDLE_MARK_SCREEN_PX - 1) / 300).data.handles).toBe(
+      false,
+    );
+    const readOnly = circleNode(domain, selected, 1, { readOnly: true });
     expect(readOnly.draggable).toBe(false);
     expect(readOnly.data.handles).toBe(false);
     // The wrapper lets the pointer through; the stroke and badge opt back in.
@@ -439,20 +450,58 @@ describe("rectangle nodes (D079)", () => {
   });
 
   test("is draggable with handles on an editable plane, neither on a read-only one", () => {
-    const editable = rectangleNode(domain, rectangle, 1);
+    // Handles belong to the selected box only (D096); the drag is anyone's.
+    const editable = rectangleNode(domain, { ...rectangle, selected: true }, 1);
     expect(editable.draggable).toBe(true);
     expect(editable.data.handles).toBe(true);
+    expect(rectangleNode(domain, rectangle, 1).data.handles).toBe(false);
+    expect(rectangleNode(domain, rectangle, 1).draggable).toBe(true);
     expect(editable.selectable).toBe(false);
     expect(editable.connectable).toBe(false);
     expect(editable.deletable).toBe(false);
     expect(editable.extent).toBeUndefined();
     // The wrapper lets the pointer through; the stroke and badge opt back in.
     expect(editable.style).toEqual({ pointerEvents: "none" });
-    const readOnly = rectangleNode(domain, rectangle, 1, { readOnly: true });
+    const readOnly = rectangleNode(domain, { ...rectangle, selected: true }, 1, {
+      readOnly: true,
+    });
     expect(readOnly.draggable).toBe(false);
     expect(readOnly.data.handles).toBe(false);
     expect("positionAbsolute" in editable).toBe(false);
     expect("measured" in editable).toBe(false);
+  });
+
+  test("a selected box shows handles only once its shorter side is big enough on screen (D096)", () => {
+    const selected = { ...rectangle, selected: true };
+    // The shorter side (150.75) decides: at an overview zoom on a tall page
+    // a small box would otherwise be blanketed by handles that eat pans.
+    const threshold = MIN_HANDLE_MARK_SCREEN_PX / 150.75;
+    expect(rectangleNode(domain, selected, threshold).data.handles).toBe(true);
+    expect(rectangleNode(domain, selected, threshold * 0.99).data.handles).toBe(false);
+    expect(rectangleNode(domain, selected, 0.05).data.handles).toBe(false);
+    // Drafts keep their own rule: handles whenever they are not being drawn,
+    // however small, so a just-drawn box can always be adjusted.
+    const tiny = { x: 10, y: 20, width: 8, height: 8 };
+    expect(draftRectangleNode(domain, tiny, 0.05).data.handles).toBe(true);
+    // The rule itself, for every kind.
+    expect(MIN_HANDLE_MARK_SCREEN_PX).toBe(2 * MIN_HIT_TARGET_CSS_PX);
+    expect(savedMarkHandles({ readOnly: false, selected: true, screenSize: 48 })).toBe(true);
+    expect(savedMarkHandles({ readOnly: false, selected: true, screenSize: 47.9 })).toBe(false);
+    expect(savedMarkHandles({ readOnly: false, selected: false, screenSize: 500 })).toBe(false);
+    expect(savedMarkHandles({ readOnly: true, selected: true, screenSize: 500 })).toBe(false);
+    // A mark whose handle is being dragged keeps its handles until release,
+    // even once the gesture shrinks it under the threshold, so the handle
+    // under the pointer never unmounts mid-drag; never on a read-only plane.
+    expect(rectangleNode(domain, selected, 0.05, { handleGesture: true }).data.handles).toBe(true);
+    const planeNodes = nodesForPlane(domain, {
+      rectangles: [selected],
+      zoom: 0.05,
+      handleGestureId: selected.id,
+    });
+    expect(planeNodes.find((node) => node.id === selected.id)!.data.handles).toBe(true);
+    expect(
+      savedMarkHandles({ readOnly: true, selected: true, screenSize: 0, handleGesture: true }),
+    ).toBe(false);
   });
 
   test("the draft rectangle is namespaced, draggable, and loses its handles while being drawn", () => {
@@ -585,14 +634,22 @@ describe("arrow nodes (D083)", () => {
   });
 
   test("has two endpoint handles and a drag on an editable plane, neither read-only", () => {
-    const editable = arrowNode(domain, arrow, 1);
+    // Endpoint handles belong to the selected arrow only (D096), and only
+    // while it is long enough on screen (this one is 500 natural px long).
+    const editable = arrowNode(domain, { ...arrow, selected: true }, 1);
     expect(editable.draggable).toBe(true);
     expect(editable.data.handles).toBe(true);
+    expect(arrowNode(domain, arrow, 1).data.handles).toBe(false);
+    const threshold = MIN_HANDLE_MARK_SCREEN_PX / 500;
+    expect(arrowNode(domain, { ...arrow, selected: true }, threshold).data.handles).toBe(true);
+    expect(arrowNode(domain, { ...arrow, selected: true }, threshold * 0.99).data.handles).toBe(
+      false,
+    );
     expect(editable.selectable).toBe(false);
     expect(editable.extent).toBeUndefined();
     // The wrapper lets the pointer through; the shaft band and badge opt in.
     expect(editable.style).toEqual({ pointerEvents: "none" });
-    const readOnly = arrowNode(domain, arrow, 1, { readOnly: true });
+    const readOnly = arrowNode(domain, { ...arrow, selected: true }, 1, { readOnly: true });
     expect(readOnly.draggable).toBe(false);
     expect(readOnly.data.handles).toBe(false);
   });

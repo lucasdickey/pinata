@@ -1769,6 +1769,101 @@ describe("rectangle drafts (D079)", () => {
   });
 });
 
+describe("geometry writes (D096)", () => {
+  test("a second move that ends before the first PATCH returns waits for it, on the new revision", async () => {
+    // A stateful single-box store. The PATCH applies at once, as the server
+    // would, but the first response is held back: a second drag that ends
+    // meanwhile is exactly the fast double move that used to send the stale
+    // revision and come back 409.
+    let box = {
+      id: "box-1",
+      captureId: "root-d1",
+      kind: "rectangle",
+      number: 1,
+      rect: { x: 20, y: 20, width: 1400, height: 8000 },
+      body: "Move this whole column.",
+      elementSnapshot: null,
+      revision: 1,
+      status: "open",
+      unreadReplies: 0,
+      createdAt: 1,
+    };
+    const located = () => ({
+      ...box,
+      pageId: "page-root",
+      normalizedUrl: "https://chickpea.co/",
+      variant: "desktop",
+      attempt: 1,
+    });
+    const patches: { expectedRevision: unknown; rect: unknown; status: number }[] = [];
+    let releaseFirst: (() => void) | null = null;
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        return Promise.resolve(json({ annotations: [located()] }));
+      }
+      if (target.endsWith("/thread")) return Promise.resolve(json({ entries: [] }));
+      if (target.includes("/annotations/box-1") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        if (body.expectedRevision !== box.revision) {
+          patches.push({ expectedRevision: body.expectedRevision, rect: body.rect, status: 409 });
+          return Promise.resolve(json({ error: "Request rejected." }, 409));
+        }
+        patches.push({ expectedRevision: body.expectedRevision, rect: body.rect, status: 200 });
+        box = { ...box, rect: body.rect as typeof box.rect, revision: box.revision + 1 };
+        const response = json({ annotation: box });
+        if (patches.length > 1) return Promise.resolve(response);
+        return new Promise<Response>((resolve) => {
+          releaseFirst = () => resolve(response);
+        });
+      }
+      if (target.includes("/annotations") && (!init?.method || init.method === "GET")) {
+        return Promise.resolve(json({ annotations: [box] }));
+      }
+      if (target.includes("/annotations")) return Promise.resolve(json({ seen: true }));
+      return Promise.reject(new Error(`unexpected fetch: ${target}`));
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+    // Handles belong to the selected mark: select the box from the list.
+    const list = await within(sidePanel()).findByRole("list", { name: "Saved pins" });
+    fireEvent.click(within(list).getByRole("button", { name: /^Box 1/ }));
+    const handle = () =>
+      document.querySelector(
+        '.react-flow__node-rectangle [data-testid="rectangle-handle"][data-handle="se"]',
+      )!;
+    await waitFor(() => expect(handle()).not.toBeNull());
+    const image = document.querySelector(".capture-frame-image")!;
+    const resize = (dx: number) => {
+      fireEvent.pointerDown(handle(), { clientX: 400, clientY: 400, isPrimary: true });
+      fireEvent.pointerMove(image, { clientX: 400 - dx, clientY: 400 - dx, isPrimary: true });
+      fireEvent.pointerUp(image, { clientX: 400 - dx, clientY: 400 - dx, isPrimary: true });
+    };
+
+    resize(20);
+    await waitFor(() => expect(patches).toHaveLength(1));
+    // The second drag ends while the first write is still out.
+    resize(40);
+    await Promise.resolve();
+    expect(patches).toHaveLength(1);
+    releaseFirst!();
+
+    // It follows on the revision the first write returned, and lands.
+    await waitFor(() => expect(patches).toHaveLength(2));
+    expect(patches[0]!.expectedRevision).toBe(1);
+    expect(patches[1]!.expectedRevision).toBe(2);
+    expect(patches.map((patch) => patch.status)).toEqual([200, 200]);
+    const second = patches[1]!.rect as { width: number };
+    expect(second.width).toBeLessThan((patches[0]!.rect as { width: number }).width);
+    await waitFor(() => expect(box.revision).toBe(3));
+    expect(within(detail()).queryByText(/changed in another session/i)).toBeNull();
+  });
+});
+
 describe("circle drafts (D082)", () => {
   test("the Circle tool draws one: the context query carries its square and the save posts circle", async () => {
     const user = userEvent.setup();

@@ -14,7 +14,7 @@ import type { Node } from "@xyflow/react";
 import { ARROW_HIT_TOLERANCE_CSS_PX, MIN_HIT_TARGET_CSS_PX } from "../boundaries";
 import { pinHitBox, type PinBox } from "./geometry";
 import type { NaturalPoint } from "./camera";
-import { arrowBounds, isFiniteArrow, type NaturalArrow } from "./arrow";
+import { arrowBounds, arrowLength, isFiniteArrow, type NaturalArrow } from "./arrow";
 import { circleBounds, CIRCLE_RESIZE_HANDLES, type NaturalCircle } from "./circle";
 import { markLabel, type DraftMark, type MarkElementSource } from "./marks";
 import { isFiniteRect, RESIZE_HANDLES, type NaturalRect } from "./rectangle";
@@ -153,6 +153,13 @@ export interface PlaneMarks {
    * no drag. Pins keep their own read-only handling in the canvas.
    */
   readOnly?: boolean;
+  /**
+   * The saved mark whose resize or endpoint gesture is in flight: it keeps
+   * its handles until the release even if the gesture shrinks it under the
+   * on-screen threshold, so the handle under the pointer never unmounts
+   * mid-drag (D096).
+   */
+  handleGestureId?: string | null;
 }
 
 /**
@@ -175,9 +182,10 @@ export function nodesForPlane(domain: CaptureFrameDomain, marks: PlaneMarks): Ca
   const nodes: CanvasNode[] = [frame, ...(highlight ? [highlight] : [])];
   const readOnly = marks.readOnly ?? false;
   for (const mark of ordered) {
-    if ("rect" in mark) nodes.push(rectangleNode(domain, mark, zoom, { readOnly }));
-    else if ("circle" in mark) nodes.push(circleNode(domain, mark, zoom, { readOnly }));
-    else if ("arrow" in mark) nodes.push(arrowNode(domain, mark, zoom, { readOnly }));
+    const options = { readOnly, handleGesture: mark.id === marks.handleGestureId };
+    if ("rect" in mark) nodes.push(rectangleNode(domain, mark, zoom, options));
+    else if ("circle" in mark) nodes.push(circleNode(domain, mark, zoom, options));
+    else if ("arrow" in mark) nodes.push(arrowNode(domain, mark, zoom, options));
     else nodes.push(pinNode(domain, mark, zoom));
   }
   const draft = marks.draft ?? null;
@@ -456,6 +464,38 @@ export const RECTANGLE_STROKE_SCREEN_PX = 2;
 export const RECTANGLE_GRAB_SCREEN_PX = 14;
 export const RECTANGLE_HANDLE_DOT_SCREEN_PX = 10;
 
+/**
+ * The smallest on-screen size, in CSS px, at which a saved mark shows its
+ * resize or endpoint handles (D096): a region's shorter side, or an arrow's
+ * length, times the zoom. It is two shared minimum hit targets, so below it
+ * two opposite handles would overlap each other and blanket the mark —
+ * which at an overview zoom on a tall page hid small marks, swallowed the
+ * presses that should pan (the handles are nodrag/nopan), and turned a
+ * one-pixel wobble into a saved resize. Zoom in and the handles return.
+ * Deliberately a local chrome constant rather than a published boundary:
+ * it changes what is drawn, never what may be stored.
+ */
+export const MIN_HANDLE_MARK_SCREEN_PX = 2 * MIN_HIT_TARGET_CSS_PX;
+
+/**
+ * Whether a saved mark offers its handles (D096): only on an editable plane,
+ * only while it is the selected mark — handles on every mark at once crowd
+ * the plane and eat pans — and only once it is big enough on screen for
+ * them not to cover it. Drafts keep their own rule (handles whenever they
+ * are not being drawn).
+ */
+export function savedMarkHandles(options: {
+  readOnly: boolean;
+  selected: boolean;
+  screenSize: number;
+  /** A gesture on one of this mark's handles is in flight: keep them. */
+  handleGesture?: boolean;
+}): boolean {
+  if (options.readOnly) return false;
+  if (options.handleGesture) return true;
+  return options.selected && options.screenSize >= MIN_HANDLE_MARK_SCREEN_PX;
+}
+
 /** The domain facts one persisted circle renders from (D082). */
 export interface CanvasCircle {
   /** Server annotation id; the React Flow node id is exactly this. */
@@ -495,7 +535,10 @@ export interface RectangleData extends Record<string, unknown> {
   drawing: boolean;
   /** Whether the panel selection is on this rectangle (styling only). */
   selected: boolean;
-  /** Whether the eight resize handles render (never on a read-only plane). */
+  /**
+   * Whether the resize handles render: never on a read-only plane, and on a
+   * saved region only while it is selected and big enough on screen (D096).
+   */
   handles: boolean;
   /** Natural-pixel sizes derived from the zoom so the chrome stays screen-sized. */
   strokeWidth: number;
@@ -541,7 +584,8 @@ function rectangleChrome(doc: { width: number; height: number }, zoom: number) {
  * screenshot, so a pin can be dropped there); its stroke, badge, and
  * handles take the pointer. Dragging the stroke or badge moves the box and
  * commits one revisioned write at drag end; the handles resize it the same
- * way. A read-only plane renders no handles and no drag.
+ * way, and show only while the box is selected and big enough on screen
+ * (savedMarkHandles, D096). A read-only plane renders no handles and no drag.
  *
  * Deliberately no `extent: "parent"`, for the same reason as pins: the
  * pure adapter (moveRect, resizeRect) is the single clamping authority.
@@ -550,7 +594,7 @@ export function rectangleNode(
   domain: CaptureFrameDomain,
   rectangle: CanvasRectangle,
   zoom: number,
-  options: { readOnly?: boolean } = {},
+  options: { readOnly?: boolean; handleGesture?: boolean } = {},
 ): RectangleNode {
   requireRect(rectangle.rect, "rect");
   const chrome = rectangleChrome(domain, zoom);
@@ -580,7 +624,12 @@ export function rectangleNode(
       draft: false,
       drawing: false,
       selected: rectangle.selected,
-      handles: !readOnly,
+      handles: savedMarkHandles({
+        readOnly,
+        handleGesture: options.handleGesture,
+        selected: rectangle.selected,
+        screenSize: Math.min(rectangle.rect.width, rectangle.rect.height) * zoom,
+      }),
       ...chrome,
       label,
     },
@@ -667,15 +716,16 @@ export function draftCircleNodeId(captureId: string): string {
  * stored geometry within one natural pixel at any zoom. Everything else
  * matches a rectangle: a pointer-transparent wrapper so a click inside still
  * drops a pin, a stroke and a badge that take the pointer, one revisioned
- * write per gesture, and no handles or drag on a read-only plane. The only
- * difference is the handle set: four corners, because the square constraint
- * means one drag governs both dimensions.
+ * write per gesture, handles only while selected and big enough on screen
+ * (D096), and no handles or drag on a read-only plane. The only difference
+ * is the handle set: four corners, because the square constraint means one
+ * drag governs both dimensions.
  */
 export function circleNode(
   domain: CaptureFrameDomain,
   circle: CanvasCircle,
   zoom: number,
-  options: { readOnly?: boolean } = {},
+  options: { readOnly?: boolean; handleGesture?: boolean } = {},
 ): CircleNode {
   const bounds = circleBounds(circle.circle);
   requireRect(bounds, "circle");
@@ -706,7 +756,12 @@ export function circleNode(
       draft: false,
       drawing: false,
       selected: circle.selected,
-      handles: !readOnly,
+      handles: savedMarkHandles({
+        readOnly,
+        handleGesture: options.handleGesture,
+        selected: circle.selected,
+        screenSize: circle.circle.size * zoom,
+      }),
       ...chrome,
       label,
     },
@@ -810,7 +865,11 @@ export interface ArrowData extends Record<string, unknown> {
   drawing: boolean;
   /** Whether the panel selection is on this arrow (styling only). */
   selected: boolean;
-  /** Whether the two endpoint handles render (never on a read-only plane). */
+  /**
+   * Whether the two endpoint handles render: never on a read-only plane, and
+   * on a saved arrow only while it is selected and long enough on screen
+   * (D096).
+   */
   handles: boolean;
   /** Natural-pixel sizes derived from the zoom so the chrome stays screen-sized. */
   strokeWidth: number;
@@ -900,7 +959,8 @@ function arrowData(arrow: NaturalArrow, doc: { width: number; height: number }, 
  * zoom. The wrapper is pointer-transparent; what takes the pointer is a band
  * around the shaft (ARROW_HIT_TOLERANCE_CSS_PX on each side, so selecting is
  * a distance-to-segment test rather than a box test), the badge at the tail,
- * and, on an editable plane, the two endpoint handles. Dragging the shaft
+ * and, on an editable plane while it is selected and long enough on screen
+ * (D096), the two endpoint handles. Dragging the shaft
  * moves the whole arrow and commits one revisioned write; dragging an
  * endpoint moves that endpoint alone, also one write. A read-only plane
  * renders no handles and no drag.
@@ -909,7 +969,7 @@ export function arrowNode(
   domain: CaptureFrameDomain,
   arrow: CanvasArrow,
   zoom: number,
-  options: { readOnly?: boolean } = {},
+  options: { readOnly?: boolean; handleGesture?: boolean } = {},
 ): ArrowNode {
   requireArrow(arrow.arrow, "arrow");
   const { box, data } = arrowData(arrow.arrow, domain, zoom);
@@ -933,7 +993,12 @@ export function arrowNode(
       draft: false,
       drawing: false,
       selected: arrow.selected,
-      handles: !readOnly,
+      handles: savedMarkHandles({
+        readOnly,
+        handleGesture: options.handleGesture,
+        selected: arrow.selected,
+        screenSize: arrowLength(arrow.arrow) * zoom,
+      }),
       ...data,
       label,
     },
