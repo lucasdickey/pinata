@@ -56,6 +56,20 @@ export const CAPTURE_OUTCOMES: readonly CaptureOutcome[] = Object.freeze([
     remediation: "Remove or replace the unsafe redirect target.",
   },
   {
+    // The redirect preflight could not read a response at all (timeout, TLS
+    // error, connection reset). Only targets that already passed the address
+    // policy are probed, so this says nothing about a private address and is
+    // no oracle; it is a network condition, and retrying is the fix (D095).
+    code: "target-unreachable",
+    captureStatus: "failed",
+    retryable: true,
+    httpStatus: 502,
+    consumesAttempt: true,
+    warn: false,
+    publicMessage: "The page could not be reached to check where it leads.",
+    remediation: "Retry; if it persists, check the page loads publicly over HTTPS.",
+  },
+  {
     code: "browserless-auth",
     captureStatus: "failed",
     retryable: false,

@@ -488,6 +488,7 @@ describe("capture outcome catalog", () => {
       "invalid-url",
       "dns-failed",
       "unsafe-redirect",
+      "target-unreachable",
       "browserless-auth",
       "browserless-provider",
       "navigation-timeout",

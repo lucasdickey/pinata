@@ -34,8 +34,12 @@ export interface AdmissionDeps {
   dnsTimeoutMs?: number;
 }
 
-/** The three capture outcomes this boundary can produce. */
-export type AdmissionOutcome = "invalid-url" | "dns-failed" | "unsafe-redirect";
+/** The capture outcomes this boundary can produce. */
+export type AdmissionOutcome =
+  | "invalid-url"
+  | "dns-failed"
+  | "unsafe-redirect"
+  | "target-unreachable";
 
 export type AdmissionRejectionReason =
   | { kind: "url"; detail: UrlRejectReason }
@@ -112,9 +116,13 @@ export async function admitCaptureTarget(
     try {
       response = await deps.probe(current);
     } catch {
+      // No response could be read (timeout, TLS error, reset). That is not a
+      // policy verdict: every URL probed here already passed the address
+      // policy, so this is a network condition and retryable (D095). Only a
+      // redirect the policy actually refused is an unsafe-redirect.
       return {
         ok: false,
-        outcome: "unsafe-redirect",
+        outcome: "target-unreachable",
         reason: { kind: "redirect", detail: "unreadable" },
       };
     }

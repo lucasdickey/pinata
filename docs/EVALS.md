@@ -217,7 +217,7 @@ closing statement:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-15.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-23.1`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -225,7 +225,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-15.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-23.1 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -486,6 +486,7 @@ messages and remediation text live in the catalog and are bounded by
 | invalid-url | failed | no | 422 | no | no |
 | dns-failed | failed | yes | 502 | yes | no |
 | unsafe-redirect | failed | no | 422 | yes | no |
+| target-unreachable | failed | yes | 502 | yes | no |
 | browserless-auth | failed | no | 502 | yes | no |
 | browserless-provider | failed | yes | 502 | yes | no |
 | navigation-timeout | failed | yes | 504 | yes | no |
