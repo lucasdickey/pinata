@@ -64,6 +64,23 @@ export const LAZY_SCROLL_STEP_DELAY_MS = 250;
 /** Whole-capture deadline; must stay under the provider's 120 s session cap. */
 export const TOTAL_CAPTURE_TIMEOUT_MS = 90_000;
 
+/**
+ * How long one function invocation that runs captures may live (5 minutes):
+ * the Vercel Hobby ceiling with Fluid compute. Route segment config must be
+ * a literal, so every capture-running route exports `maxDuration = 300`
+ * itself and a test asserts each equals this value (D095).
+ */
+export const CAPTURE_INVOCATION_MAX_DURATION_MS = 300_000;
+
+/**
+ * Time an invocation keeps in reserve, beyond TOTAL_CAPTURE_TIMEOUT_MS, before
+ * it starts another capture: the admission preflight (one DNS round and one
+ * probe per redirect hop, 48 s at worst), storing and finalizing the result, and handing the chain
+ * to a fresh invocation. With less than both left, the chain is handed off
+ * instead of being killed mid-capture at the duration limit (D095).
+ */
+export const CAPTURE_CONTINUATION_MARGIN_MS = 60_000;
+
 /** Redirect hops revalidated before a capture fails as an unsafe chain. */
 export const MAX_REDIRECT_HOPS = 5;
 

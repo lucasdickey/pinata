@@ -217,7 +217,7 @@ closing statement:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-23.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-23.2`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -225,7 +225,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-23.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-23.2 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -319,6 +319,8 @@ before any capture attempt or project row exists.
 | `LAZY_SCROLL_MAX_STEPS` | 24 | Enough steps to reach the bottom of a maximum-height page. |
 | `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
 | `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap; exceeding it fails as `total-timeout`. |
+| `CAPTURE_INVOCATION_MAX_DURATION_MS` | 300,000 ms (5 minutes) | Lifetime of one capture-running function invocation; every capture route's `maxDuration` equals it. |
+| `CAPTURE_CONTINUATION_MARGIN_MS` | 60,000 ms | Reserve beyond one capture deadline an invocation must have left to start another; otherwise the chain is handed to a fresh invocation. |
 | `MAX_REDIRECT_HOPS` | 5 | Every hop is revalidated under the same public-HTTPS rules. |
 | `DNS_TIMEOUT_MS` | 3,000 ms | Per-query DNS budget; a query that outlives it fails the capture as `dns-failed`. |
 | `MAX_CNAME_HOPS` | 8 | CNAME hops followed before the chain is refused as unresolvable. |

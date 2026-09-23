@@ -18,6 +18,12 @@
 //   any project take the free slots, so a project that found both slots
 //   busy is not left for the sweep (D095).
 //
+// Every continuation runs inside the invocation that started it, which dies
+// at its maxDuration. Before starting another capture the drive checks that
+// the invocation still has room for a whole one (TOTAL_CAPTURE_TIMEOUT_MS
+// plus CAPTURE_CONTINUATION_MARGIN_MS); when it does not, it hands the chain
+// to a fresh invocation through the sweep route instead (D095).
+//
 // The durable lease table stays the only concurrency authority: every path
 // here claims through it, and a claim that finds every slot held leaves the
 // attempt pending and stops. The client driver, the sweep, or the next
@@ -25,11 +31,21 @@
 // same attempt are settled by the fenced transition, never by this module.
 
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { MAX_ACTIVE_CAPTURES, MAX_AUTOMATIC_CAPTURE_RETRIES } from "../../boundaries";
+import {
+  CAPTURE_CONTINUATION_MARGIN_MS,
+  CAPTURE_INVOCATION_MAX_DURATION_MS,
+  MAX_ACTIVE_CAPTURES,
+  MAX_AUTOMATIC_CAPTURE_RETRIES,
+  TOTAL_CAPTURE_TIMEOUT_MS,
+} from "../../boundaries";
 import { schema, type Database } from "../db/client";
 import { CAPTURE_VARIANTS } from "../db/schema";
 import type { AdmissionDeps } from "./admission";
-import { serverCaptureEnabled, type ContinuationScheduler } from "./continuation";
+import {
+  serverCaptureEnabled,
+  type CaptureHandoff,
+  type ContinuationScheduler,
+} from "./continuation";
 import { dispatchCapture } from "./dispatch";
 import { executeCapture, type CaptureExecutionDeps, type ReadyCapture } from "./execute";
 import { countActiveCaptureLeases, releaseCaptureLease } from "./leases";
@@ -43,6 +59,37 @@ export interface CaptureDriveDeps {
   after: ContinuationScheduler;
   retry?: CaptureRetryDeps;
   now?: () => number;
+  /**
+   * The function invocation these deps drive in (D095): when it started,
+   * measured on `now`, and whether it already handed off. Shared by reference
+   * across every continuation of one request. Absent means no budget applies
+   * (scripts and focused tests that run nothing after a response).
+   */
+  invocation?: CaptureInvocation;
+  /** Starts a fresh invocation to continue; absent leaves it to other drivers. */
+  handoff?: CaptureHandoff;
+}
+
+export interface CaptureInvocation {
+  startedAt: number;
+  handedOff?: boolean;
+}
+
+/**
+ * Whether this invocation can still run one whole capture before its
+ * maxDuration: the capture deadline plus the margin for preflight,
+ * finalization, and a handoff must fit in what is left.
+ */
+export function invocationHasCaptureBudget(
+  deps: Pick<CaptureDriveDeps, "invocation" | "now">,
+): boolean {
+  if (!deps.invocation) return true;
+  const now = deps.now?.() ?? Date.now();
+  const elapsed = now - deps.invocation.startedAt;
+  return (
+    elapsed + TOTAL_CAPTURE_TIMEOUT_MS + CAPTURE_CONTINUATION_MARGIN_MS <=
+    CAPTURE_INVOCATION_MAX_DURATION_MS
+  );
 }
 
 export type DriveCaptureResult =
@@ -133,6 +180,7 @@ async function continueAfterFinalization(
     // attempt into a failed response. The sweep sees the same rows later.
   }
   if (!projectId) return;
+  if (!invocationHasCaptureBudget(deps) && handOff(db, deps)) return;
   const owner = projectId;
   deps.after(async () => {
     const driven = await driveProject(db, owner, deps);
@@ -141,6 +189,37 @@ async function continueAfterFinalization(
     // server rather than by the sweep (D095).
     if (driven.scheduled.length === 0) await driveOldestPending(db, deps);
   });
+}
+
+/**
+ * Hand the chain to a fresh invocation, once per invocation, and only when
+ * pending work exists; true when the chain is now the fresh invocation's (or
+ * a sibling continuation already handed it over). Without a handoff (no
+ * deployment origin or sweep secret, as in local development, which has no
+ * duration limit) it answers false and the caller keeps today's behavior:
+ * continue here, and if the platform stops the invocation, the stale
+ * recovery, the client driver, and the cron pick the rows up. Never throws
+ * into the caller.
+ */
+function handOff(db: Database, deps: CaptureDriveDeps): boolean {
+  const handoff = deps.handoff;
+  if (!handoff || !deps.invocation) return false;
+  if (deps.invocation.handedOff) return true;
+  deps.invocation.handedOff = true;
+  deps.after(async () => {
+    try {
+      const pending = await db
+        .select({ id: schema.captures.id })
+        .from(schema.captures)
+        .where(eq(schema.captures.status, "pending"))
+        .limit(1);
+      if (pending.length === 0) return;
+      await handoff();
+    } catch {
+      // Best effort: the rows stay pending for the other drivers.
+    }
+  });
+  return true;
 }
 
 export type AutomaticRetryResult = {

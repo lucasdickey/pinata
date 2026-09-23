@@ -23,6 +23,8 @@ import {
   AUTH_REQUEST_MAX_BYTES,
   BLANK_URL_ROW_POLICY,
   CAPTURE_CLEANUP_WINDOW_MS,
+  CAPTURE_CONTINUATION_MARGIN_MS,
+  CAPTURE_INVOCATION_MAX_DURATION_MS,
   CAPTURE_OUTCOMES,
   CAPTURE_POLL_DEADLINE_MS,
   CAPTURE_POLL_INITIAL_INTERVAL_MS,
@@ -155,6 +157,11 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "LAZY_SCROLL_MAX_STEPS", value: fmtNum(LAZY_SCROLL_MAX_STEPS) },
   { name: "LAZY_SCROLL_STEP_DELAY_MS", value: fmtMs(LAZY_SCROLL_STEP_DELAY_MS) },
   { name: "TOTAL_CAPTURE_TIMEOUT_MS", value: fmtMs(TOTAL_CAPTURE_TIMEOUT_MS) },
+  {
+    name: "CAPTURE_INVOCATION_MAX_DURATION_MS",
+    value: fmtMs(CAPTURE_INVOCATION_MAX_DURATION_MS),
+  },
+  { name: "CAPTURE_CONTINUATION_MARGIN_MS", value: fmtMs(CAPTURE_CONTINUATION_MARGIN_MS) },
   { name: "MAX_REDIRECT_HOPS", value: fmtNum(MAX_REDIRECT_HOPS) },
   { name: "DNS_TIMEOUT_MS", value: fmtMs(DNS_TIMEOUT_MS) },
   { name: "MAX_CNAME_HOPS", value: fmtNum(MAX_CNAME_HOPS) },
@@ -333,6 +340,14 @@ describe("boundary catalog coverage and consistency", () => {
     const perHop = DNS_TIMEOUT_MS + REDIRECT_PROBE_TIMEOUT_MS;
     expect(perHop * (MAX_REDIRECT_HOPS + 1)).toBeLessThan(TOTAL_CAPTURE_TIMEOUT_MS);
     expect(MAX_CNAME_HOPS).toBeGreaterThan(0);
+  });
+
+  test("the continuation margin covers the preflight, and one capture fits an invocation", () => {
+    const perHop = DNS_TIMEOUT_MS + REDIRECT_PROBE_TIMEOUT_MS;
+    expect(CAPTURE_CONTINUATION_MARGIN_MS).toBeGreaterThan(perHop * (MAX_REDIRECT_HOPS + 1));
+    expect(TOTAL_CAPTURE_TIMEOUT_MS + CAPTURE_CONTINUATION_MARGIN_MS).toBeLessThan(
+      CAPTURE_INVOCATION_MAX_DURATION_MS,
+    );
   });
 
   test("the non-public address catalog is unique and canonical", () => {

@@ -40,7 +40,9 @@ import { ERRORS, hasSameOrigin, isSecureRequest, jsonError } from "../../../../.
 // One capture may run for TOTAL_CAPTURE_TIMEOUT_MS (90 s) after an admission
 // preflight of up to about 30 s, and the continuation that follows the
 // response runs inside the same function budget. Next.js needs this to be a
-// literal; 300 s is the Vercel Hobby ceiling with Fluid compute.
+// literal; 300 s is the Vercel Hobby ceiling with Fluid compute, published as
+// CAPTURE_INVOCATION_MAX_DURATION_MS, which a test holds every capture route
+// to. A chain that would outrun it hands off to the sweep route (D095).
 export const maxDuration = 300;
 
 interface RouteContext {

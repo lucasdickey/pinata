@@ -2,6 +2,9 @@
 // work (D076). This is the backstop behind server continuation: a chain that
 // died mid-way (a function that hit its duration limit, a process that went
 // away) is picked up here, and a stale attempt gets its one automatic retry.
+// It is also where a continuation near the end of its invocation's budget
+// hands the chain (D095): the call arrives with the same secret, and the
+// sweep drives the pending work in this fresh invocation.
 //
 // The route is for machines, not people: no editor session, no same-origin
 // rule. It is protected by a shared secret instead, sent either as the
