@@ -1137,7 +1137,13 @@ export function ProjectWorkspace({
         : [],
     [active, activePins, selectedAttempt],
   );
+  // Every mark's thread as the project read returned it (D097), for both
+  // exports: the per-capture list does not carry threads, but its marks are
+  // the same records, so the capture export borrows them from here.
+  const exportThreads = () =>
+    new Map(orderedPins.map((pin) => [pin.id, pin.thread ?? []] as const));
   const projectMarkdown = () => {
+    const threads = exportThreads();
     // One group per capture, in the order the pins already have.
     const groups: { context: PinExportGroup["context"]; pins: ProjectPinAnnotationView[] }[] = [];
     for (const pin of orderedPins) {
@@ -1150,6 +1156,7 @@ export function ProjectWorkspace({
             pageUrl: pin.normalizedUrl,
             variant: variantLabel(pin.variant),
             attempt: pin.attempt,
+            threads,
           },
           pins: [pin],
         });
@@ -1166,6 +1173,7 @@ export function ProjectWorkspace({
           pageUrl: active.page.normalizedUrl,
           variant: variantLabel(active.device.variant),
           attempt: selectedAttempt?.attempt ?? null,
+          threads: exportThreads(),
         })
       : "";
   // ---- end stepping and the project table --------------------------------------

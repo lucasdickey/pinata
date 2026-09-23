@@ -380,3 +380,76 @@ describe("arrows in the export (D083)", () => {
     expect(block).toContain("> Move this up into the header.");
   });
 });
+
+describe("the conversation in the export (D097)", () => {
+  const thread = [
+    {
+      id: "t1",
+      annotationId: "a1",
+      actorRole: "founder" as const,
+      authorLabel: "founder" as const,
+      kind: "message" as const,
+      body: "Agreed.\nWill swap the labels.",
+      createdAt: 1,
+    },
+    {
+      id: "t2",
+      annotationId: "a1",
+      actorRole: "editor" as const,
+      authorLabel: "Lucas" as const,
+      kind: "message" as const,
+      body: "# not a heading",
+      createdAt: 2,
+    },
+    {
+      id: "t3",
+      annotationId: "a1",
+      actorRole: "founder" as const,
+      authorLabel: "founder" as const,
+      kind: "status" as const,
+      body: "Resolved by founder",
+      createdAt: 3,
+    },
+  ];
+
+  test("each reply follows the original comment in order, named and quoted verbatim; a status change is one italic line", () => {
+    const markdown = formatPinsAsMarkdown([pin()], {
+      ...context,
+      threads: new Map([["a1", thread]]),
+    });
+    const tail = markdown.slice(markdown.indexOf("> This billing toggle"));
+    expect(tail).toBe(
+      [
+        "> This billing toggle reads the same in both states.",
+        "",
+        "**founder** replied:",
+        "",
+        "> Agreed.",
+        "> Will swap the labels.",
+        "",
+        "**Lucas** replied:",
+        "",
+        "> # not a heading",
+        "",
+        "_Resolved by founder_",
+      ].join("\n"),
+    );
+  });
+
+  test("a mark with no thread, or no threads given, exports exactly as before", () => {
+    const without = formatPinsAsMarkdown([pin()], context);
+    expect(formatPinsAsMarkdown([pin()], { ...context, threads: new Map() })).toBe(without);
+    expect(without.endsWith("> This billing toggle reads the same in both states.")).toBe(true);
+  });
+
+  test("the project export carries threads and still has a single top heading", () => {
+    const markdown = formatProjectPinsAsMarkdown(
+      [{ context: { ...context, threads: new Map([["a1", thread]]) }, pins: [pin()] }],
+      { title: "Chickpea", rootUrl: "https://chickpea.co/" },
+    );
+    expect(markdown).toContain("**founder** replied:\n\n> Agreed.");
+    // A reply that starts with "#" is quoted, so demotion never touches it.
+    expect(markdown).toContain("> # not a heading");
+    expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
+  });
+});

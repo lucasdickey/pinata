@@ -7,10 +7,14 @@
 // hierarchy read already produces that plane order, and listPins already
 // answers "the live pins of one ready capture" with the viewer's unread
 // counts, so this module walks the one and calls the other rather than
-// repeating either query. Read-only; nothing here writes.
+// repeating either query. Each annotation also carries its thread (D097), in
+// one extra query for the whole project, so the project Markdown export can
+// include the conversation without a read per pin. Read-only; nothing here
+// writes.
 
 import { readProjectHierarchy } from "../projects/hierarchy";
 import type { Database } from "../db/client";
+import { listThreadEntriesByAnnotation, type ThreadEntryRecord } from "../threads/entries";
 import { listPins, type AnnotationRecord } from "./pins";
 import { EDITOR_VIEWER, type Viewer } from "./seen";
 
@@ -20,6 +24,8 @@ export interface ProjectAnnotationLocation {
   normalizedUrl: string;
   variant: string;
   attempt: number;
+  /** The annotation's append-only thread, oldest first (D097). */
+  thread: ThreadEntryRecord[];
 }
 
 /** An annotation (pin or rectangle, D079) plus where its capture sits. */
@@ -59,10 +65,16 @@ export async function listProjectPins(
             normalizedUrl: page.normalizedUrl,
             variant: device.variant,
             attempt: attempt.attempt,
+            thread: [],
           });
         }
       }
     }
   }
+  const threads = await listThreadEntriesByAnnotation(
+    db,
+    annotations.map((annotation) => annotation.id),
+  );
+  for (const annotation of annotations) annotation.thread = threads.get(annotation.id) ?? [];
   return { ok: true, annotations };
 }

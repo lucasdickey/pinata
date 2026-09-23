@@ -8,6 +8,8 @@
 // head at `end`. They share one numbering sequence per capture, one comment,
 // one context snapshot, one revision, one lifecycle status, and one thread.
 
+import type { ThreadEntryView } from "./threads";
+
 /** A pin tip in screenshot-natural CSS pixels. */
 export interface PinTipView {
   x: number;
@@ -247,6 +249,11 @@ export interface ProjectAnnotationLocation {
   variant: string;
   /** The capture attempt (version) the pin lives on. */
   attempt: number;
+  /**
+   * The annotation's thread, oldest first (D097), so the project export can
+   * carry the conversation. Optional so an older server's answer still reads.
+   */
+  thread?: ThreadEntryView[];
 }
 
 /**

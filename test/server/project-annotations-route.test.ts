@@ -257,6 +257,54 @@ describe("GET /api/projects/[publicId]/annotations", () => {
     expect(ids).not.toContain("pricing-m1-1");
   });
 
+  test("each pin carries its thread, oldest first, so the export can include the conversation (D097)", async () => {
+    // A later entry inserted first: order is created_at, then id.
+    await testDb.db.insert(schema.threadEntries).values([
+      {
+        id: "e4",
+        annotationId: "root-d1-1",
+        actorRole: "founder",
+        authorLabel: "founder",
+        kind: "status",
+        body: "Resolved by founder",
+        idempotencyKey: "e4",
+        createdAt: T0 + 9,
+      },
+      {
+        id: "e3",
+        annotationId: "root-d1-1",
+        actorRole: "editor",
+        authorLabel: "Lucas",
+        kind: "message",
+        body: "Follow-up.",
+        idempotencyKey: "e3",
+        createdAt: T0 + 8,
+      },
+    ]);
+    const response = await annotationsGET(request("pub-1"), context("pub-1"));
+    const { annotations } = await response.json();
+    const byId = new Map(
+      annotations.map((pin: { id: string; thread: { id: string }[] }) => [
+        pin.id,
+        pin.thread.map((entry) => entry.id),
+      ]),
+    );
+    expect(byId.get("root-d1-1")).toEqual(["e3", "e4"]);
+    expect(byId.get("root-m1-1")).toEqual(["e1", "e2"]);
+    expect(byId.get("root-d1-2")).toEqual([]);
+    expect(annotations[2].thread[0]).toEqual({
+      id: "e1",
+      annotationId: "root-m1-1",
+      actorRole: "founder",
+      authorLabel: "founder",
+      kind: "message",
+      body: "Reply.",
+      createdAt: T0 + 5,
+    });
+    // Nothing internal rides along: no idempotency key.
+    expect(JSON.stringify(annotations)).not.toContain("idempotencyKey");
+  });
+
   test("an empty project answers an empty list, not an error", async () => {
     const response = await annotationsGET(request("pub-empty"), context("pub-empty"));
     expect(response.status).toBe(200);
