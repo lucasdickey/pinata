@@ -947,6 +947,143 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(within(detail()).getByTestId("panel-pin")).toHaveTextContent("Pin 1");
   });
 
+  // Live refresh (D097): while the tab is visible the workspace re-reads the
+  // hierarchy (through onRefresh), the project's pins, the open capture's
+  // pins, and the open thread. A window focus runs one tick immediately,
+  // which is how these tests trigger it; the timer schedule itself is
+  // covered in test/live-refresh.test.ts and test/editor-home-live-refresh.test.tsx.
+  describe("live refresh (D097)", () => {
+    const founderReply = {
+      id: "thr-founder-1",
+      annotationId: "ann-saved-1",
+      actorRole: "founder",
+      authorLabel: "founder",
+      kind: "message",
+      body: "Agreed, trimming it today.",
+      createdAt: 1_800_000_009_000,
+    };
+
+    /** stubAnnotations, plus a thread whose entries the test can change. */
+    function stubWithThread(initial: StubPin[]) {
+      const store = stubAnnotations(initial);
+      const entries: (typeof founderReply)[] = [];
+      const base = fetchMock.getMockImplementation() as (
+        url: unknown,
+        init?: RequestInit,
+      ) => Promise<Response>;
+      fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+        if (String(url).endsWith("/thread") && (init?.method ?? "GET") === "GET") {
+          return Promise.resolve(json({ entries }));
+        }
+        return base(url, init);
+      });
+      return { ...store, entries };
+    }
+
+    const reads = (pattern: RegExp) =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) =>
+          ((init as RequestInit | undefined)?.method ?? "GET") === "GET" &&
+          pattern.test(String(url)),
+      ).length;
+
+    test("a founder reply and status arrive in the open thread without losing the selection or the typed follow-up", async () => {
+      const user = userEvent.setup();
+      const { pins, entries } = stubWithThread([savedPin]);
+      const onRefresh = vi.fn(() => Promise.resolve());
+      render(
+        <ProjectWorkspace projects={[project()]} onChanged={onChanged} onRefresh={onRefresh} />,
+      );
+      openHome();
+      await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
+      const thread = await within(detail()).findByTestId("thread");
+      await within(thread).findByText("No replies yet.");
+      await user.type(within(thread).getByLabelText("Follow up as Lucas"), "Half-written note");
+      const threadReads = reads(/\/thread$/);
+
+      // Meanwhile the founder replied, which moved the pin to replied (D075).
+      pins[0] = { ...pins[0]!, status: "replied", unreadReplies: 1 };
+      entries.push(founderReply);
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+
+      await within(thread).findByText("Agreed, trimming it today.");
+      expect(onRefresh).toHaveBeenCalledTimes(1);
+      expect(reads(/\/thread$/)).toBe(threadReads + 1);
+      await waitFor(() =>
+        expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Replied"),
+      );
+      // Nothing the editor was doing moved: same pin, same typed text.
+      expect(within(detail()).getByTestId("panel-pin")).toHaveTextContent("Pin 1");
+      expect(within(thread).getByLabelText("Follow up as Lucas")).toHaveValue("Half-written note");
+      // The new reply is on screen, so it is marked seen rather than left unread.
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some(
+            ([url, init]) =>
+              String(url).endsWith("/ann-saved-1/seen") &&
+              (init as RequestInit | undefined)?.method === "POST",
+          ),
+        ).toBe(true),
+      );
+    });
+
+    test("an unsaved draft and its comment survive a refresh tick", async () => {
+      const user = userEvent.setup();
+      stubWithThread([savedPin]);
+      render(
+        <ProjectWorkspace
+          projects={[project()]}
+          onChanged={onChanged}
+          onRefresh={() => Promise.resolve()}
+        />,
+      );
+      openHome();
+      await settleAnnotations();
+      await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
+      await placeDraft();
+      await user.type(within(composer()).getByLabelText("Comment"), "Not saved yet");
+      const pinReads = reads(/\/api\/captures\/root-d1\/annotations$/);
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await waitFor(() =>
+        expect(reads(/\/api\/captures\/root-d1\/annotations$/)).toBe(pinReads + 1),
+      );
+      expect(within(composer()).getByLabelText("Comment")).toHaveValue("Not saved yet");
+      // A quiet read: the list never flashed back to a loading state.
+      expect(within(detail()).queryByText(/Loading pins/)).toBeNull();
+    });
+
+    test("a hidden tab reads nothing, and becoming visible reads at once", async () => {
+      stubWithThread([savedPin]);
+      const onRefresh = vi.fn(() => Promise.resolve());
+      let visibility = "hidden";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => visibility,
+      });
+      try {
+        render(
+          <ProjectWorkspace projects={[project()]} onChanged={onChanged} onRefresh={onRefresh} />,
+        );
+        await settleAnnotations();
+        await act(async () => {
+          window.dispatchEvent(new Event("focus"));
+        });
+        expect(onRefresh).not.toHaveBeenCalled();
+        visibility = "visible";
+        await act(async () => {
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+        expect(onRefresh).toHaveBeenCalledTimes(1);
+      } finally {
+        delete (document as { visibilityState?: unknown }).visibilityState;
+      }
+    });
+  });
+
   test("with no nearby element, No element is pre-selected and one create posts the null decision", async () => {
     const user = userEvent.setup();
     const { pins, writes } = stubAnnotations();
@@ -1629,6 +1766,101 @@ describe("rectangle drafts (D079)", () => {
     expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
       "draw a box, circle, or arrow: pick a tool, then drag",
     );
+  });
+});
+
+describe("geometry writes (D096)", () => {
+  test("a second move that ends before the first PATCH returns waits for it, on the new revision", async () => {
+    // A stateful single-box store. The PATCH applies at once, as the server
+    // would, but the first response is held back: a second drag that ends
+    // meanwhile is exactly the fast double move that used to send the stale
+    // revision and come back 409.
+    let box = {
+      id: "box-1",
+      captureId: "root-d1",
+      kind: "rectangle",
+      number: 1,
+      rect: { x: 20, y: 20, width: 1400, height: 8000 },
+      body: "Move this whole column.",
+      elementSnapshot: null,
+      revision: 1,
+      status: "open",
+      unreadReplies: 0,
+      createdAt: 1,
+    };
+    const located = () => ({
+      ...box,
+      pageId: "page-root",
+      normalizedUrl: "https://chickpea.co/",
+      variant: "desktop",
+      attempt: 1,
+    });
+    const patches: { expectedRevision: unknown; rect: unknown; status: number }[] = [];
+    let releaseFirst: (() => void) | null = null;
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      const target = String(url);
+      if (target.endsWith("/share")) {
+        return Promise.resolve(json({ share: { state: "none", version: 0, revokedAt: null } }));
+      }
+      if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
+        return Promise.resolve(json({ annotations: [located()] }));
+      }
+      if (target.endsWith("/thread")) return Promise.resolve(json({ entries: [] }));
+      if (target.includes("/annotations/box-1") && init?.method === "PATCH") {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        if (body.expectedRevision !== box.revision) {
+          patches.push({ expectedRevision: body.expectedRevision, rect: body.rect, status: 409 });
+          return Promise.resolve(json({ error: "Request rejected." }, 409));
+        }
+        patches.push({ expectedRevision: body.expectedRevision, rect: body.rect, status: 200 });
+        box = { ...box, rect: body.rect as typeof box.rect, revision: box.revision + 1 };
+        const response = json({ annotation: box });
+        if (patches.length > 1) return Promise.resolve(response);
+        return new Promise<Response>((resolve) => {
+          releaseFirst = () => resolve(response);
+        });
+      }
+      if (target.includes("/annotations") && (!init?.method || init.method === "GET")) {
+        return Promise.resolve(json({ annotations: [box] }));
+      }
+      if (target.includes("/annotations")) return Promise.resolve(json({ seen: true }));
+      return Promise.reject(new Error(`unexpected fetch: ${target}`));
+    });
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+    // Handles belong to the selected mark: select the box from the list.
+    const list = await within(sidePanel()).findByRole("list", { name: "Saved pins" });
+    fireEvent.click(within(list).getByRole("button", { name: /^Box 1/ }));
+    const handle = () =>
+      document.querySelector(
+        '.react-flow__node-rectangle [data-testid="rectangle-handle"][data-handle="se"]',
+      )!;
+    await waitFor(() => expect(handle()).not.toBeNull());
+    const image = document.querySelector(".capture-frame-image")!;
+    const resize = (dx: number) => {
+      fireEvent.pointerDown(handle(), { clientX: 400, clientY: 400, isPrimary: true });
+      fireEvent.pointerMove(image, { clientX: 400 - dx, clientY: 400 - dx, isPrimary: true });
+      fireEvent.pointerUp(image, { clientX: 400 - dx, clientY: 400 - dx, isPrimary: true });
+    };
+
+    resize(20);
+    await waitFor(() => expect(patches).toHaveLength(1));
+    // The second drag ends while the first write is still out.
+    resize(40);
+    await Promise.resolve();
+    expect(patches).toHaveLength(1);
+    releaseFirst!();
+
+    // It follows on the revision the first write returned, and lands.
+    await waitFor(() => expect(patches).toHaveLength(2));
+    expect(patches[0]!.expectedRevision).toBe(1);
+    expect(patches[1]!.expectedRevision).toBe(2);
+    expect(patches.map((patch) => patch.status)).toEqual([200, 200]);
+    const second = patches[1]!.rect as { width: number };
+    expect(second.width).toBeLessThan((patches[0]!.rect as { width: number }).width);
+    await waitFor(() => expect(box.revision).toBe(3));
+    expect(within(detail()).queryByText(/changed in another session/i)).toBeNull();
   });
 });
 

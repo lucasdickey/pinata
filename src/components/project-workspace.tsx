@@ -68,6 +68,7 @@ import {
   stepProjectPin,
 } from "../lib/pin-order";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
+import { useLiveRefresh } from "../lib/live-refresh";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
@@ -153,9 +154,18 @@ function findDevice(project: WorkspaceProject | undefined, selection: Selection 
 export function ProjectWorkspace({
   projects,
   onChanged,
+  onRefresh,
+  liveRefreshMs,
 }: {
   projects: WorkspaceProject[];
   onChanged: () => void;
+  /**
+   * The live refresh's quiet hierarchy re-read (D097), owned by the page
+   * that owns the list. Absent, the refresh still re-reads this
+   * workspace's own pins and thread.
+   */
+  onRefresh?: () => Promise<unknown>;
+  liveRefreshMs?: number;
 }) {
   // Which project the detail area shows (its overview, or one of its
   // captures), and which capture is open in the canvas view; null opens
@@ -882,6 +892,14 @@ export function ProjectWorkspace({
     setDraftResetSignal((value) => value + 1);
   }, []);
 
+  // Geometry writes in flight, per annotation id, each holding the latest
+  // geometry that arrived while it was out (D096). A second drag that ends
+  // before the first PATCH returns would otherwise carry the revision the
+  // first one is about to replace, and the server would answer 409 — a
+  // false "changed in another session" that loses the second move. Holding
+  // only the latest keeps it one write per settled gesture at most.
+  const moveQueue = useRef(new Map<string, DraftMark | null>());
+
   // One revisioned geometry write for a pin move, or a region move or
   // resize (D079, D082): the mark names the kind and carries the new
   // geometry.
@@ -911,50 +929,76 @@ export function ProjectWorkspace({
           : current,
       );
       setMoveError(null);
+      // A write for this mark is already out: hold this geometry and let
+      // that write send it, with the revision it gets back (D096).
+      const queue = moveQueue.current;
+      if (queue.has(annotationId)) {
+        queue.set(annotationId, mark);
+        return;
+      }
+      queue.set(annotationId, null);
+      let revision = pin.revision;
+      let sending: DraftMark | null = mark;
       try {
-        const response = await fetch(
-          `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}`,
-          {
-            method: "PATCH",
-            headers: {
-              "content-type": "application/json",
-              [EDITOR_CSRF_HEADER]: readCsrfProof(),
+        while (sending) {
+          const response = await fetch(
+            `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}`,
+            {
+              method: "PATCH",
+              headers: {
+                "content-type": "application/json",
+                [EDITOR_CSRF_HEADER]: readCsrfProof(),
+              },
+              body: JSON.stringify({ ...markPayload(sending), expectedRevision: revision }),
             },
-            body: JSON.stringify({ ...markPayload(mark), expectedRevision: pin.revision }),
-          },
-        );
-        if (!response.ok) {
-          // A 409 means another session wrote first: the authoritative
-          // reload shows the winning revision instead of overwriting it.
-          // The move's message supersedes any stale edit/delete conflict
-          // notice — one conflict message at a time.
-          setMoveError(
-            response.status === 409
-              ? `This ${noun} changed in another session. The latest version is now shown.`
-              : restored,
           );
-          setEditState("idle");
-          setDeleteState("idle");
-          await loadPins(captureId);
-          return;
+          if (!response.ok) {
+            // A 409 means another session wrote first: the authoritative
+            // reload shows the winning revision instead of overwriting it.
+            // The move's message supersedes any stale edit/delete conflict
+            // notice — one conflict message at a time. A held geometry is
+            // dropped with it: the reload is the truth now.
+            setMoveError(
+              response.status === 409
+                ? `This ${noun} changed in another session. The latest version is now shown.`
+                : restored,
+            );
+            setEditState("idle");
+            setDeleteState("idle");
+            queue.delete(annotationId);
+            await loadPins(captureId);
+            return;
+          }
+          const payload = (await response.json()) as PinMutationResponse;
+          revision = payload.annotation.revision;
+          // Whatever arrived meanwhile goes next, on the revision just
+          // returned; until it lands, the mark stays where it was dropped.
+          const next: DraftMark | null = queue.get(annotationId) ?? null;
+          queue.set(annotationId, null);
+          setPinsState((current) =>
+            current && current.captureId === captureId
+              ? {
+                  ...current,
+                  pins: current.pins.map((pin) =>
+                    pin.id === annotationId
+                      ? next
+                        ? withMark(payload.annotation, next)
+                        : payload.annotation
+                      : pin,
+                  ),
+                }
+              : current,
+          );
+          patchProjectPin(
+            annotationId,
+            { revision: payload.annotation.revision },
+            markOf(payload.annotation),
+          );
+          sending = next;
         }
-        const payload = (await response.json()) as PinMutationResponse;
-        setPinsState((current) =>
-          current && current.captureId === captureId
-            ? {
-                ...current,
-                pins: current.pins.map((pin) =>
-                  pin.id === annotationId ? payload.annotation : pin,
-                ),
-              }
-            : current,
-        );
-        patchProjectPin(
-          annotationId,
-          { revision: payload.annotation.revision },
-          markOf(payload.annotation),
-        );
+        queue.delete(annotationId);
       } catch {
+        queue.delete(annotationId);
         setMoveError(restored);
         setEditState("idle");
         setDeleteState("idle");
@@ -1137,7 +1181,13 @@ export function ProjectWorkspace({
         : [],
     [active, activePins, selectedAttempt],
   );
+  // Every mark's thread as the project read returned it (D097), for both
+  // exports: the per-capture list does not carry threads, but its marks are
+  // the same records, so the capture export borrows them from here.
+  const exportThreads = () =>
+    new Map(orderedPins.map((pin) => [pin.id, pin.thread ?? []] as const));
   const projectMarkdown = () => {
+    const threads = exportThreads();
     // One group per capture, in the order the pins already have.
     const groups: { context: PinExportGroup["context"]; pins: ProjectPinAnnotationView[] }[] = [];
     for (const pin of orderedPins) {
@@ -1150,6 +1200,7 @@ export function ProjectWorkspace({
             pageUrl: pin.normalizedUrl,
             variant: variantLabel(pin.variant),
             attempt: pin.attempt,
+            threads,
           },
           pins: [pin],
         });
@@ -1166,9 +1217,86 @@ export function ProjectWorkspace({
           pageUrl: active.page.normalizedUrl,
           variant: variantLabel(active.device.variant),
           attempt: selectedAttempt?.attempt ?? null,
+          threads: exportThreads(),
         })
       : "";
   // ---- end stepping and the project table --------------------------------------
+
+  // ---- live refresh (D097) -----------------------------------------------------
+  // While the tab is visible, re-read what the other role can change: the
+  // hierarchy (unread and open counts, via onRefresh), the project's pins
+  // (statuses in the table and the stepping order), the open capture's pins,
+  // and the open thread. Every read here is quiet: no loading state, nothing
+  // cleared, and an answer is applied only when the state it would replace is
+  // still exactly the state the read started from, so a save, an edit, a
+  // move, or a reply that landed meanwhile always wins over the background
+  // read. Drafts, the selection, typed replies, and the camera live in state
+  // these reads never touch (the same guarantee as e1dcdca for the hierarchy).
+  const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const refreshCapturePinsQuietly = async (captureId: string) => {
+    const before = pinsState;
+    if (!before || before.captureId !== captureId || before.status !== "ready") return;
+    const response = await fetch(`/api/captures/${encodeURIComponent(captureId)}/annotations`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const payload = (await response.json()) as PinListResponse;
+    if (!Array.isArray(payload.annotations)) return;
+    setPinsState((current) =>
+      current === before && !sameJson(current.pins, payload.annotations)
+        ? { captureId, status: "ready", pins: payload.annotations }
+        : current,
+    );
+  };
+  const refreshProjectPinsQuietly = async (publicId: string) => {
+    const before = projectPins;
+    if (!before || before.publicId !== publicId || before.status !== "ready") return;
+    const response = await fetch(`/api/projects/${encodeURIComponent(publicId)}/annotations`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const payload = (await response.json()) as ProjectPinListResponse;
+    if (!Array.isArray(payload.annotations)) return;
+    setProjectPins((current) =>
+      current === before && !sameJson(current.pins, payload.annotations)
+        ? { publicId, status: "ready", pins: payload.annotations }
+        : current,
+    );
+  };
+  const refreshThreadQuietly = async (captureId: string, annotationId: string) => {
+    const before = threadState;
+    if (!before || before.annotationId !== annotationId || before.status !== "ready") return;
+    const response = await fetch(
+      `/api/captures/${encodeURIComponent(captureId)}/annotations/${encodeURIComponent(annotationId)}/thread`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return;
+    const payload = (await response.json()) as ThreadListResponse;
+    if (!Array.isArray(payload.entries)) return;
+    const grew = payload.entries.length > before.entries.length;
+    setThreadState((current) =>
+      current === before && !sameJson(current.entries, payload.entries)
+        ? { annotationId, status: "ready", entries: payload.entries }
+        : current,
+    );
+    // A reply arrived while the thread is open in front of Lucas: it has
+    // been read, so it should not come back as unread (D075).
+    if (grew) void markThreadSeen(captureId, annotationId);
+  };
+  useLiveRefresh(
+    async () => {
+      await Promise.all([
+        onRefresh?.(),
+        refreshProjectPinsQuietly(activePublicId),
+        selectedReadyId ? refreshCapturePinsQuietly(selectedReadyId) : null,
+        selectedReadyId && selectedPinId
+          ? refreshThreadQuietly(selectedReadyId, selectedPinId)
+          : null,
+      ]);
+    },
+    { intervalMs: liveRefreshMs },
+  );
+  // ---- end live refresh --------------------------------------------------------
 
   return (
     <div className="workspace">

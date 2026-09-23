@@ -41,31 +41,27 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   re-verification. The real-provider suite still opts in via the
   `CAPTURE_*_FIXTURE_URL` environment and skips without it, so the gate never
   spends Browserless quota unless asked.
-- An execution-time, provider-side `unsafe-redirect` (a transient
-  final-URL inconsistency inside the provider session, not a genuinely
-  unsafe target) is permanently non-retryable in the outcome catalog, so a
-  provider flake leaves a failed attempt the product cannot recover. Whether
-  to distinguish it from an admission-time unsafe target and offer retry is
-  deferred (`D054`, pending user answer).
-- Arrow endpoint handles have the same low-zoom problem as the other marks
-  (`D083`): both are a fixed screen size, so a near-minimum arrow renders
-  them overlapping each other and the badge at the tail. The shaft band is
-  wide enough to grab either way, so the arrow can still be moved.
-- Circle handles inherit the rectangle's low-zoom ergonomics problem
-  (`D082`): the four corner handles are a fixed screen size, so a
-  near-minimum circle renders them overlapping its interior and the top-left
-  one paints over the number badge. Having only four rather than eight makes
-  it less crowded than a box, not fixed.
 - The pins e2e writes real pins to the shared local store by design (the
   corner-fixture pin is reused across runs; the other tests add at most
   three pins per run), so roughly sixty full local `npm run validate` runs
   would approach the 200-per-capture annotation quota on the seeded desktop
   capture (`D059`). Deletion or a scratch capture per run would make this
   free.
-- Rectangle resize handles are rough at low zoom (`D079`): all eight are a
-  fixed screen size, so a near-minimum box renders them overlapping and
-  blanketing its interior, and the top-left handle paints over the number
-  badge, so the corner resizes instead of selecting/grabbing. The fix is
-  screen-size-aware handle rendering (hide or shrink them below a threshold)
-  and stacking the badge above the corner handle; it wants visual iteration
-  in the canvas, so it was left for a pass that can be checked by eye.
+- Resize handles on a small selected mark (`D079`, `D082`, `D083`, reduced
+  by `D096`). Handles now show only on the selected mark and only once it is
+  at least 48 CSS pixels on screen, which removes the crowding on every
+  unselected mark and on tiny ones. Between about 48 and 72 screen pixels a
+  selected box or circle can still have its top-left handle over the number
+  badge; stacking the badge above the corner handle wants a pass checked by
+  eye.
+- Two-finger scroll on a trackpad zooms rather than pans (`D058`'s
+  scroll-to-zoom). React Flow's `panOnScroll` would make a tall page scroll
+  naturally at the cost of Ctrl+wheel to zoom with a mouse; it is the
+  owner's call, left open in `D096`.
+- Production still sits behind Vercel's sign-in wall on every `vercel.app`
+  address (`D099`); founders need a custom domain before a link can reach
+  them.
+- A founder link is shown to the editor once. Letting the editor copy the
+  current link again would mean storing the token recoverably, a change to
+  the capability posture (`D018`, `D089`) that `D097` declined to make
+  quietly.

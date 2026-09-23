@@ -41,7 +41,7 @@ with agent-driven development to produce something functional.
 | Requirement | Where it is answered |
 | --- | --- |
 | Built new, specifically for this interview | Repository created 2026-09-04 from an empty directory; full git history is the evidence |
-| Built with Factory | Every commit authored through a Factory droid session; session narrative in `docs/SESSION-LOG.md` |
+| Built with Factory | The application was built through Factory Droid Missions and Droid sessions. Three exceptions, disclosed rather than tidied away: Claude Code for a documentation closeout and the cross-review (`D091`, `D093`); Cursor's agent for the review fixes on pull requests 5 and 6 plus a test and a merge on pull request 3, eight commits authored `Cursor Agent` (`D099`); and Claude Code again for the post-assignment hardening pass (`D095`–`D099`). Session narrative and the time-and-tooling ledger in `docs/SESSION-LOG.md` |
 | Something functional | `src/` — the MVP itself |
 | Problem framing | `README.md` opens with the problem statement, not the feature list |
 | Process and decisions explained | `docs/DECISIONS.md` (plain text) and `docs/dashboard/index.html` (browser view), both generated from `docs/decisions/decisions.json` |

@@ -7,7 +7,11 @@
 import { createVercelBlobStore, type ScreenshotStore } from "../providers/blob";
 import { createBrowserlessClient } from "../providers/browserless";
 import { createRedirectProbe, type AdmissionDeps } from "./admission";
-import { getContinuationScheduler } from "./continuation";
+import {
+  createSweepHandoff,
+  getContinuationScheduler,
+  type CaptureHandoff,
+} from "./continuation";
 import { createNodeDnsResolver } from "./dns";
 import type { CaptureDriveDeps } from "./drive";
 import type { CaptureExecutionDeps } from "./execute";
@@ -44,17 +48,28 @@ export function __setCaptureExecutionDepsForTests(deps: CaptureExecutionDeps | n
   executionOverride = deps;
 }
 
+let handoffOverride: CaptureHandoff | null | undefined;
+
 /**
- * Everything the server-driven capture path needs: admission, execution, and
- * the scheduler that continues work after a response. Each piece honours its
- * own test seam, so a route test can inject fakes for all three.
+ * Everything the server-driven capture path needs: admission, execution, the
+ * scheduler that continues work after a response, and the budget of this
+ * invocation with its handoff (D095). Each piece honours its own test seam,
+ * so a route test can inject fakes for all of them. Called once per request,
+ * so the invocation's start is the moment the route began driving.
  */
 export function getCaptureDriveDeps(): CaptureDriveDeps {
+  const handoff = handoffOverride !== undefined ? handoffOverride : createSweepHandoff();
   return {
     admission: getAdmissionDeps(),
     execution: getCaptureExecutionDeps(),
     after: getContinuationScheduler(),
+    invocation: { startedAt: Date.now() },
+    ...(handoff ? { handoff } : {}),
   };
+}
+
+export function __setCaptureHandoffForTests(handoff: CaptureHandoff | null | undefined): void {
+  handoffOverride = handoff;
 }
 
 /**

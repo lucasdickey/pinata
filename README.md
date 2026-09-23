@@ -41,12 +41,13 @@ edits; Pinata just makes "try tightening this" unambiguous.
    values.
 3. **Annotate.** Each capture opens in a pan/zoom canvas (React Flow) rendered
    at the screenshot's own size. A click drops a numbered pin; a Shift-drag
-   (or the Box tool) draws a numbered box around a region. Both are stored in
-   screenshot pixels, so they stay glued to their target at any zoom, and
-   both are named by what they say and what they point at ("Pin 3 · “Annual
-   toggle reads the same in both states” · Annual (save 20%)"). When placing
-   a mark, nearby captured elements are offered as context. Circles and
-   arrows are still to come.
+   (or the Box tool, B) draws a numbered box around a region; the Circle
+   tool (C) circles one, and the Arrow tool (A) says "move this there".
+   Every mark is stored in screenshot pixels, so it stays glued to its
+   target at any zoom, and is named by what it says and what it points at
+   ("Pin 3 · “Annual toggle reads the same in both states” · Annual (save
+   20%)"). When placing a mark, nearby captured elements are offered as
+   context.
 4. **Share and reply.** A persistent, revocable link opens the project in a
    read/reply-only founder view. Threads are append-only and chronological:
    the founder replies, the editor follows up, and nobody — including the
@@ -218,16 +219,65 @@ the production server under test with it off, and it is local/test only.
 
 ### Runbook
 
-1. Land the change on `main` with `npm run validate` green under Node 24.
-2. Pushing to `main` deploys production automatically through the GitHub
-   integration. To deploy the exact checked-out commit by hand instead:
+Migrations are **not** run by the build. Code that expects a new column
+deploys in seconds and fails on its first read, so the database moves first,
+then the code. Every migration so far only adds (columns with defaults, new
+tables, insert/update triggers), so the older deployment keeps working
+against the newer schema; that is what makes this order safe.
+
+1. Check the Vercel project before the first deploy of a new stream of work:
+   - **Settings → Functions → Fluid compute is on.** Four routes export
+     `maxDuration = 300`, which Hobby accepts only with Fluid compute;
+     without it the deploy is rejected.
+   - **The seven Production variables above exist**, `CRON_SECRET`
+     included (the sweep answers 404 without it), and neither
+     `PINATA_AUTH_DISABLED` nor `PINATA_SERVER_CAPTURE` is set.
+     `PINATA_AUTH_DISABLED` is also refused in code on Vercel (`D098`).
+   - **Protection Bypass for Automation exists** (`D068`). Vercel exposes it
+     to functions as `VERCEL_AUTOMATION_BYPASS_SECRET`, which the capture
+     hand-off (`D095`) uses to reach its own protected deployment URL.
+   - `vercel ls pinata` shows the last deployment as Ready. If recent
+     pushes produced no deployment or a failed one, read that build log
+     first; fixing whatever stopped it will let everything since through
+     at once.
+2. Land the change with `npm run validate` green under Node 24.
+3. **Migrate the shared database:** `npm run db:migrate` from a checkout of
+   the commit being deployed, with `.env.local` pointing at the production
+   Turso database (local and production share it — see Known weaknesses).
+   Before the first run after a gap, list what is applied with
+   `SELECT hash, created_at FROM __drizzle_migrations ORDER BY created_at`:
+   Drizzle skips any migration older than the newest recorded one, so an
+   out-of-order row would silently hide a pending migration.
+4. Deploy. Pushing to `main` deploys production automatically through the
+   GitHub integration — which is why step 3 comes before the push, not
+   after. To deploy the exact checked-out commit by hand instead:
    `vercel deploy --prod --yes` (the CLI attaches the local git metadata, so
    the deployment record and the `/reqs` pages show the same commit SHA).
-3. Verify: `vercel ls pinata --prod` shows the new deployment Ready and
+5. Verify: `vercel ls pinata --prod` shows the new deployment Ready and
    aliased; `vercel inspect <deployment-url>` names the commit; the deployed
-   `/reqs` pages display that same SHA.
-4. Roll back by redeploying the previous Ready deployment from the Vercel
-   dashboard (`…` → Redeploy) or by deploying the earlier commit.
+   `/reqs` pages display that same SHA. Then run the production smoke below.
+6. Roll back by redeploying the previous Ready deployment from the Vercel
+   dashboard (`…` → Redeploy) or by deploying the earlier commit. Additive
+   migrations do not need reversing for a rollback.
+
+Do not run the local gate (`npm run e2e`, `npm run validate`, or the
+integration suites with `.env.local` present) while testing production:
+they write to the same database and Blob store and take the same two
+capture slots.
+
+### Founders cannot reach a `*.vercel.app` URL
+
+Deployment protection is `all_except_custom_domains` (`D068`): every
+`*.vercel.app` address, production included, sends a browser without a
+Vercel login to the SSO page. The editor never notices, because the editor
+is signed in to Vercel. A founder is not, so a founder link on
+`pinata-lucasdickeys-projects.vercel.app` or `pinata-tau.vercel.app` opens
+a Vercel sign-in wall instead of the project. Before sending a link to
+anyone, attach a custom domain to the production deployment (Vercel →
+Settings → Domains) and work from that domain: the share control builds
+the founder link from the page's own origin (`D089`), so a link issued
+while the editor is on a `vercel.app` address points at the wall. Preview
+and per-deployment URLs stay protected. `D099` records this.
 
 ### Production smoke
 

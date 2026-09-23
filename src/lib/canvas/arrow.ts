@@ -165,11 +165,21 @@ export function dragArrowEndpoint(
     length > 0
       ? { x: dx / length, y: dy / length }
       : { x: fallbackX / fallbackLength, y: fallbackY / fallbackLength };
-  const pushed = { x: fixed.x + unit.x * minimum, y: fixed.y + unit.y * minimum };
+  // The push is scaled up by a few ulps until the length the server will
+  // take again (the hypot of end minus start) is not under the minimum
+  // (D096): along a diagonal, fixed + unit * minimum can land short.
+  let reach = minimum;
+  let pushed = { x: fixed.x + unit.x * reach, y: fixed.y + unit.y * reach };
+  const pushedArrow = (point: NaturalPoint): NaturalArrow =>
+    endpoint === "start" ? { start: point, end: fixed } : { start: fixed, end: point };
+  for (let step = 0; step < 8 && arrowLength(pushedArrow(pushed)) < minimum; step += 1) {
+    reach += minimum * Number.EPSILON * 4;
+    pushed = { x: fixed.x + unit.x * reach, y: fixed.y + unit.y * reach };
+  }
   if (pushed.x < 0 || pushed.y < 0 || pushed.x > doc.width || pushed.y > doc.height) {
     return arrow;
   }
-  return endpoint === "start" ? { start: pushed, end: fixed } : { start: fixed, end: pushed };
+  return pushedArrow(pushed);
 }
 
 /**

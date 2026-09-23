@@ -21,6 +21,7 @@
 // editor-only 401. Authority is re-evaluated on every request.
 
 import { ASSET_CACHE_CONTROL, ASSET_VARY } from "../../../../../src/lib/boundaries";
+import { appendSetCookies } from "../../../../../src/lib/server/auth/cookies";
 import { deliverCaptureAsset } from "../../../../../src/lib/server/captures/asset";
 import { getScreenshotStore } from "../../../../../src/lib/server/captures/deps";
 import { getDatabase } from "../../../../../src/lib/server/db/client";
@@ -53,10 +54,8 @@ async function handle(
   const { captureId } = await context.params;
   const auth = await authorizeCaptureReader(request, db, captureId, secure);
   if (!auth.ok) return withAssetSafety(auth.response);
-  const withRenewal = (response: Response) => {
-    if (auth.actor.renewCookie) response.headers.append("set-cookie", auth.actor.renewCookie);
-    return response;
-  };
+  const withRenewal = (response: Response) =>
+    appendSetCookies(response, auth.actor.renewCookies);
 
   if (!db) return withRenewal(withAssetSafety(jsonError(503, ERRORS.unavailable)));
 

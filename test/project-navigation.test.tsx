@@ -162,12 +162,18 @@ const planeInfo: Record<string, Pick<ProjectPinAnnotationView, "pageId" | "norma
   },
 };
 
+/** Threads the project route carries per pin (D097); empty unless a test sets one. */
+let threadsById: Record<string, NonNullable<ProjectPinAnnotationView["thread"]>> = {};
+
 /** The project route's answer: every pin, deliberately not in project order. */
 function projectPins(): ProjectPinAnnotationView[] {
   return ["pricing-d1", "root-m1", "root-d1"].flatMap((captureId) =>
-    [...pinsByCapture[captureId]!]
-      .reverse()
-      .map((entry) => ({ ...entry, ...planeInfo[captureId]!, attempt: 1 })),
+    [...pinsByCapture[captureId]!].reverse().map((entry) => ({
+      ...entry,
+      ...planeInfo[captureId]!,
+      attempt: 1,
+      thread: threadsById[entry.id] ?? [],
+    })),
   );
 }
 
@@ -180,6 +186,7 @@ function json(payload: unknown, status = 200): Response {
 
 beforeEach(() => {
   onChanged.mockReset();
+  threadsById = {};
   fetchMock = vi.fn((url: unknown) => {
     const target = String(url);
     if (/^\/api\/projects\/[^/]+\/annotations$/.test(target)) {
@@ -601,5 +608,33 @@ describe("the table scope toggle", () => {
     expect(detail().querySelector(".pin-table-actions [role='status']")).toHaveTextContent(
       "Copied 4 pins as Markdown.",
     );
+  });
+
+  test("Copy all on one capture includes each mark's conversation from the project read (D097)", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    threadsById = {
+      "rd-2": [
+        {
+          id: "t1",
+          annotationId: "rd-2",
+          actorRole: "founder",
+          authorLabel: "founder",
+          kind: "message",
+          body: "Fixed on staging.",
+          createdAt: 5,
+        },
+      ],
+    };
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await user.click(pageButton("https://chickpea.co/"));
+    await waitFor(() => expect(stepPosition()).toHaveTextContent("4 pins in this project"));
+    await user.click(within(detail()).getByRole("button", { name: "Copy all as Markdown" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const markdown = writeText.mock.calls[0]![0] as string;
+    expect(markdown).toContain("> Note rd-2.\n\n**founder** replied:\n\n> Fixed on staging.");
+    // The pin without a thread is exported as before.
+    expect(markdown).not.toContain("> Note rd-1.\n\n**");
   });
 });

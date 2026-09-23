@@ -153,14 +153,14 @@ left as an open `capturing` claim waiting for a second call (`D035`).
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-15.1`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-09-23.3`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-15.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-23.3 | Dated catalog version; bumps on any boundary change. |
 | `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
 | `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
@@ -178,6 +178,8 @@ minimums, quotas, interaction limits, and performance budgets.
 | `LAZY_SCROLL_MAX_STEPS` | 24 | Reaches the bottom of a maximum-height page. |
 | `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
 | `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap. |
+| `CAPTURE_INVOCATION_MAX_DURATION_MS` | 300,000 ms (5 minutes) | One capture-running invocation's lifetime; equals every capture route's `maxDuration`. |
+| `CAPTURE_CONTINUATION_MARGIN_MS` | 60,000 ms | Reserve beyond one capture an invocation needs to start another; below it the chain hands off to a fresh invocation. |
 | `MAX_REDIRECT_HOPS` | 5 | Redirect hops revalidated before failure. |
 | `DNS_TIMEOUT_MS` | 3,000 ms | Per-query DNS budget; exceeding it fails closed. |
 | `MAX_CNAME_HOPS` | 8 | CNAME hops followed before the chain is refused. |

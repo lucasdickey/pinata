@@ -23,6 +23,8 @@ import {
   AUTH_REQUEST_MAX_BYTES,
   BLANK_URL_ROW_POLICY,
   CAPTURE_CLEANUP_WINDOW_MS,
+  CAPTURE_CONTINUATION_MARGIN_MS,
+  CAPTURE_INVOCATION_MAX_DURATION_MS,
   CAPTURE_OUTCOMES,
   CAPTURE_POLL_DEADLINE_MS,
   CAPTURE_POLL_INITIAL_INTERVAL_MS,
@@ -40,6 +42,7 @@ import {
   LAZY_SCROLL_MAX_STEPS,
   LAZY_SCROLL_STEP_DELAY_MS,
   LAZY_SCROLL_STEP_PX,
+  LOGIN_GLOBAL_MAX_FAILURES,
   LOGIN_MAX_FAILURES,
   LOGIN_WINDOW_MS,
   MANIFEST_ACCESSIBLE_NAME_MAX_CHARS,
@@ -155,6 +158,11 @@ const CAPTURE_ROWS: DocRow[] = [
   { name: "LAZY_SCROLL_MAX_STEPS", value: fmtNum(LAZY_SCROLL_MAX_STEPS) },
   { name: "LAZY_SCROLL_STEP_DELAY_MS", value: fmtMs(LAZY_SCROLL_STEP_DELAY_MS) },
   { name: "TOTAL_CAPTURE_TIMEOUT_MS", value: fmtMs(TOTAL_CAPTURE_TIMEOUT_MS) },
+  {
+    name: "CAPTURE_INVOCATION_MAX_DURATION_MS",
+    value: fmtMs(CAPTURE_INVOCATION_MAX_DURATION_MS),
+  },
+  { name: "CAPTURE_CONTINUATION_MARGIN_MS", value: fmtMs(CAPTURE_CONTINUATION_MARGIN_MS) },
   { name: "MAX_REDIRECT_HOPS", value: fmtNum(MAX_REDIRECT_HOPS) },
   { name: "DNS_TIMEOUT_MS", value: fmtMs(DNS_TIMEOUT_MS) },
   { name: "MAX_CNAME_HOPS", value: fmtNum(MAX_CNAME_HOPS) },
@@ -199,6 +207,7 @@ const GEOMETRY_ROWS: DocRow[] = [
 
 const QUOTA_ROWS: DocRow[] = [
   { name: "LOGIN_MAX_FAILURES", value: fmtNum(LOGIN_MAX_FAILURES) },
+  { name: "LOGIN_GLOBAL_MAX_FAILURES", value: fmtNum(LOGIN_GLOBAL_MAX_FAILURES) },
   { name: "LOGIN_WINDOW_MS", value: fmtMs(LOGIN_WINDOW_MS) },
   { name: "REPLY_MAX_PER_WINDOW", value: fmtNum(REPLY_MAX_PER_WINDOW) },
   { name: "REPLY_WINDOW_MS", value: fmtMs(REPLY_WINDOW_MS) },
@@ -297,6 +306,11 @@ describe("boundary catalog coverage and consistency", () => {
     expect(POLICY_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/);
   });
 
+  test("the global login ceiling sits well above the per-client limit (D098)", () => {
+    // Otherwise one client's guesses would again lock every client out.
+    expect(LOGIN_GLOBAL_MAX_FAILURES).toBeGreaterThanOrEqual(10 * LOGIN_MAX_FAILURES);
+  });
+
   test("session renewal only makes sense inside the absolute lifetime", () => {
     expect(EDITOR_SESSION_RENEWAL_THRESHOLD_MS).toBeGreaterThan(0);
     expect(EDITOR_SESSION_RENEWAL_THRESHOLD_MS).toBeLessThan(EDITOR_SESSION_ABSOLUTE_LIFETIME_MS);
@@ -333,6 +347,14 @@ describe("boundary catalog coverage and consistency", () => {
     const perHop = DNS_TIMEOUT_MS + REDIRECT_PROBE_TIMEOUT_MS;
     expect(perHop * (MAX_REDIRECT_HOPS + 1)).toBeLessThan(TOTAL_CAPTURE_TIMEOUT_MS);
     expect(MAX_CNAME_HOPS).toBeGreaterThan(0);
+  });
+
+  test("the continuation margin covers the preflight, and one capture fits an invocation", () => {
+    const perHop = DNS_TIMEOUT_MS + REDIRECT_PROBE_TIMEOUT_MS;
+    expect(CAPTURE_CONTINUATION_MARGIN_MS).toBeGreaterThan(perHop * (MAX_REDIRECT_HOPS + 1));
+    expect(TOTAL_CAPTURE_TIMEOUT_MS + CAPTURE_CONTINUATION_MARGIN_MS).toBeLessThan(
+      CAPTURE_INVOCATION_MAX_DURATION_MS,
+    );
   });
 
   test("the non-public address catalog is unique and canonical", () => {
@@ -488,6 +510,7 @@ describe("capture outcome catalog", () => {
       "invalid-url",
       "dns-failed",
       "unsafe-redirect",
+      "target-unreachable",
       "browserless-auth",
       "browserless-provider",
       "navigation-timeout",

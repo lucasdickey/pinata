@@ -7,7 +7,7 @@ This file records **what happened**, including dead ends. `DECISIONS.md` records
 
 ## Time and tooling ledger
 
-Added at closeout (`D079`) so the two measures of time in this log are not
+Added at closeout (`D091`) so the two measures of time in this log are not
 confused with each other.
 
 - **Human wall-clock time: under the four-hour brief**, by the owner's
@@ -27,8 +27,21 @@ confused with each other.
   Missions and Droid sessions. A documentation closeout and repository-hygiene
   pass were done with Claude Code on a phone, on a plane, because the
   connection would not sustain a Factory session; the same harness produced
-  the independent cross-review adopted in `D081`. That deviation from the
-  brief is disclosed rather than tidied away — see `D079`.
+  the independent cross-review adopted in `D093`. That deviation from the
+  brief is disclosed rather than tidied away — see `D091`.
+- **Cursor, 2026-09-13/14.** Cursor's agent reviewed the UX-overhaul pull
+  request and pushed its fixes: the selection-survives-a-poll fix on pull
+  request 5, then pull request 6 (the retry race, the feedback count recorded
+  as `D080`, export counts, the gesture-listener effect, and the handle
+  ergonomics note), plus a test update and a merge on pull request 3. Those
+  eight commits are authored `Cursor Agent` in the history. They were
+  described in the 2026-09-15 session below but missing from this ledger
+  until `D099`.
+- **After the assignment, 2026-09-23.** The owner took Pinata forward as his
+  own project, no longer a Factory exercise, and ran a review and hardening
+  pass in Claude Code: capture recovery (`D095`), canvas input (`D096`), live
+  refresh and the founder's arrival (`D097`), sign-in hardening (`D098`), and
+  the deploy runbook and this disclosure (`D099`).
 
 ---
 
@@ -3311,3 +3324,66 @@ nothing without `.env.local`.
   from agent time.
 - D092 (user-directed): flag key decisions and surface them first.
 - D093 (user-directed): cross-review with a second harness, adopt selectively.
+
+---
+
+## 2026-09-23 — review and hardening before the first end-to-end test (D095–D099)
+
+Harness: Claude Code, in a cloud session. Pinata is no longer a Factory
+exercise; the owner: "I'm taking it and running with it".
+
+### Starting state
+
+Production was still commit `523dcd9` from 2026-09-10. `main` was about
+forty commits ahead and had never been driven end to end by the owner. On
+Node 24 the gate's first four stages and the build were green: 1,626 tests
+passed and 44 skipped for want of credentials.
+
+### What happened
+
+- **Review first.** Five reviews ran in parallel, each over one area:
+  capture pipeline, canvas, founder links and security, the editor's
+  journey, and deploy readiness. Every finding passed on to the owner was
+  re-read in the code first. No route was found missing its guard and no
+  founder could reach another project's data. What was found would have met
+  the owner during the checkpoint: captures that could never be retried, a
+  chain longer than one function's time limit, replies invisible until a
+  reload, typing that turned into shortcuts, a lockout anyone could trigger,
+  and a runbook that deployed before migrating.
+- **A finding the reviews missed.** Deployment protection covers every
+  `vercel.app` address, so a founder link on the production URL shows a
+  Vercel sign-in page to anyone not on the team. The owner, signed in to
+  Vercel, would not have seen it. → `D099`
+- **Fixes in four parallel worktrees**, one per area, each fix with a test
+  that fails first, merged into one branch: capture recovery → `D095`
+  (answering `D054`), canvas input → `D096`, live refresh and the founder's
+  arrival → `D097`, sign-in hardening → `D098` (superseding `D026`'s single
+  bucket).
+- **Documentation.** The runbook now migrates before deploying and checks
+  the Vercel settings first; `.env.example` names the sweep secrets; the
+  tooling ledger and `docs/ASSIGNMENT.md` now name the Cursor commits and
+  cite the right records. → `D099`
+
+### What broke
+
+- **Worktrees share one `git stash`.** Two workers stashed within two
+  seconds of each other and each popped the other's changes. Nothing was
+  lost: both sets were found intact, the strays removed from each worktree,
+  and stashing stopped for the rest of the pass. Parallel agents in
+  worktrees of one repository should commit or copy, never stash.
+- **Two workers each bumped `POLICY_VERSION`** (to `.1` and `.2`); the
+  merge settled on `2026-09-23.3`, covering both.
+
+### What could not be validated here
+
+Everything that needs `.env.local`: the credentialed Playwright specs, the
+real-provider capture suites, and the Turso integration tests skipped. The
+hand-off to a fresh invocation (`D095`) is proven against the real sweep
+route in-process, not on Vercel. The owner's checkpoint is the first run
+against real services.
+
+### Decisions
+
+- D095–D098 (agent-proposed, user-approved as one pass): capture recovery,
+  canvas input, live refresh and founder arrival, sign-in hardening.
+- D099 (agent-proposed, user-approved): runbook, custom domain, disclosure.

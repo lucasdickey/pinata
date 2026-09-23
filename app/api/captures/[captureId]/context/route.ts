@@ -13,7 +13,10 @@
 // or foreign capture is the same generic 404 as every other capture read.
 
 import { requireEditor } from "../../../../../src/lib/server/auth/guard";
-import { sessionCookie } from "../../../../../src/lib/server/auth/cookies";
+import {
+  appendEditorRenewal,
+  type SessionRenewal,
+} from "../../../../../src/lib/server/auth/cookies";
 import {
   parseManifestElements,
   rankNearbyCandidates,
@@ -28,9 +31,8 @@ interface RouteContext {
   params: Promise<{ captureId: string }>;
 }
 
-function withRenewal(response: Response, renewedToken: string | null, secure: boolean): Response {
-  if (renewedToken) response.headers.append("set-cookie", sessionCookie(renewedToken, secure));
-  return response;
+function withRenewal(response: Response, renewal: SessionRenewal | null, secure: boolean): Response {
+  return appendEditorRenewal(response, renewal, secure);
 }
 
 /** One finite query number, or null for a missing, blank, or non-finite one. */
@@ -70,7 +72,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const auth = requireEditor(request);
   if (!auth.ok) return auth.response;
   const secure = isSecureRequest(request);
-  const respond = (response: Response) => withRenewal(response, auth.renewedToken, secure);
+  const respond = (response: Response) => withRenewal(response, auth.renewal, secure);
 
   const anchor = queryAnchor(request.url);
   if (!anchor) return respond(jsonError(400, ERRORS.invalidRequest));

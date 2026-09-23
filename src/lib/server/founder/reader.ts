@@ -9,12 +9,12 @@
 // from what these routes always answered.
 
 import { EDITOR_VIEWER, founderViewer, type Viewer } from "../annotations/seen";
-import { sessionCookie } from "../auth/cookies";
+import { editorRenewalCookies } from "../auth/cookies";
 import { requireEditor, requireEditorMutation } from "../auth/guard";
 import type { Database } from "../db/client";
 import type { ThreadActorRole } from "../db/schema";
 import { ERRORS, jsonError } from "../http";
-import { founderSessionCookie } from "./cookies";
+import { founderRenewalCookies } from "./cookies";
 import {
   hasFounderCookie,
   requireFounderForCapture,
@@ -28,8 +28,12 @@ export interface CaptureActor {
   projectId: string | null;
   /** The identity unread counts and last-seen marks are kept under (D075). */
   viewer: Viewer;
-  /** A renewed session Set-Cookie value when inside the renewal threshold. */
-  renewCookie: string | null;
+  /**
+   * Set-Cookie values renewing the session when inside the renewal
+   * threshold: the session cookie and its CSRF cookie together (D098), or
+   * none. Callers append them with appendSetCookies.
+   */
+  renewCookies: string[];
 }
 
 export type CaptureActorResult =
@@ -51,7 +55,7 @@ export async function authorizeCaptureReader(
         role: "editor",
         projectId: null,
         viewer: EDITOR_VIEWER,
-        renewCookie: editor.renewedToken ? sessionCookie(editor.renewedToken, secure) : null,
+        renewCookies: editorRenewalCookies(editor.renewal, secure),
       },
     };
   }
@@ -66,9 +70,7 @@ export async function authorizeCaptureReader(
       role: "founder",
       projectId: founder.session.pid,
       viewer: founderViewer(founder.session.ver),
-      renewCookie: founder.renewedToken
-        ? founderSessionCookie(founder.renewedToken, secure)
-        : null,
+      renewCookies: founderRenewalCookies(founder.renewal, secure),
     },
   };
 }
@@ -88,7 +90,7 @@ export async function authorizeCaptureReplier(
         role: "editor",
         projectId: null,
         viewer: EDITOR_VIEWER,
-        renewCookie: editor.renewedToken ? sessionCookie(editor.renewedToken, secure) : null,
+        renewCookies: editorRenewalCookies(editor.renewal, secure),
       },
     };
   }
@@ -104,9 +106,7 @@ export async function authorizeCaptureReplier(
       role: "founder",
       projectId: founder.session.pid,
       viewer: founderViewer(founder.session.ver),
-      renewCookie: founder.renewedToken
-        ? founderSessionCookie(founder.renewedToken, secure)
-        : null,
+      renewCookies: founderRenewalCookies(founder.renewal, secure),
     },
   };
 }

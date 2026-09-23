@@ -149,6 +149,32 @@ export async function listThreadEntries(db: Database, ref: ThreadRef): Promise<L
   return { ok: true, entries: rows.map(toRecord) };
 }
 
+/**
+ * Every entry of many threads at once, grouped by annotation, each thread in
+ * the same documented order as listThreadEntries. The caller has already
+ * established that the annotations are live and readable; this is the one
+ * extra query the project-scoped read spends so the Markdown export can carry
+ * the conversation (D097).
+ */
+export async function listThreadEntriesByAnnotation(
+  db: Database,
+  annotationIds: readonly string[],
+): Promise<Map<string, ThreadEntryRecord[]>> {
+  const threads = new Map<string, ThreadEntryRecord[]>();
+  if (annotationIds.length === 0) return threads;
+  const rows = await db
+    .select()
+    .from(schema.threadEntries)
+    .where(inArray(schema.threadEntries.annotationId, [...annotationIds]))
+    .orderBy(asc(schema.threadEntries.createdAt), asc(schema.threadEntries.id));
+  for (const row of rows) {
+    const list = threads.get(row.annotationId) ?? [];
+    list.push(toRecord(row));
+    threads.set(row.annotationId, list);
+  }
+  return threads;
+}
+
 async function findExisting(
   db: Database,
   annotationId: string,

@@ -271,3 +271,55 @@ describe("submission", () => {
     expect(within(fieldset).getByText(/never follows links/i)).toBeInTheDocument();
   });
 });
+
+// D097: bare domains and root-relative rows are finished on blur and on
+// submit, visibly, and the request carries exactly what the fields show.
+describe("address completion (D097)", () => {
+  test("blur adds https:// to a bare domain and resolves a / row against the root", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const root = screen.getByLabelText("Root URL");
+    await user.type(root, "chickpea.co");
+    await user.tab();
+    expect(root).toHaveValue("https://chickpea.co");
+    await addRows(user, ["/pricing", "www.chickpea.co/about"]);
+    await user.tab();
+    expect(rowInputs().map((input) => (input as HTMLInputElement).value)).toEqual([
+      "https://chickpea.co/pricing",
+      "https://www.chickpea.co/about",
+    ]);
+  });
+
+  test("submitting without a blur still sends, and shows, the completed addresses", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(201, created));
+    renderForm();
+    await user.click(screen.getByRole("button", { name: "Add URL" }));
+    // Typed straight into the fields with no blur in between, then Enter.
+    await user.type(rowInputs()[0]!, "/pricing");
+    await user.type(screen.getByLabelText("Root URL"), "chickpea.co{Enter}");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(body.rootUrl).toBe("https://chickpea.co");
+    expect(body.urls).toEqual(["https://chickpea.co/pricing"]);
+  });
+
+  test("http:// is never rewritten, so the server can say why it is refused", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(
+      jsonResponse(422, { errors: [{ field: "rootUrl", index: null, code: "scheme" }] }),
+    );
+    renderForm();
+    const root = screen.getByLabelText("Root URL");
+    await user.type(root, "http://chickpea.co");
+    await user.tab();
+    expect(root).toHaveValue("http://chickpea.co");
+    await user.click(screen.getByRole("button", { name: "Create project" }));
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string).rootUrl).toBe(
+      "http://chickpea.co",
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Only public https:// addresses can be captured.",
+    );
+  });
+});

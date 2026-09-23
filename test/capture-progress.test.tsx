@@ -250,6 +250,41 @@ describe("CaptureProgress", () => {
     expect(fetchMock.mock.calls[0]![1].headers["x-pinata-csrf"]).toBe("proof-token");
   });
 
+  test("a stale device is listed as failed and included in the bulk retry (D095)", async () => {
+    const user = userEvent.setup();
+    const staleProject: ProgressProject = {
+      projectId: "p1",
+      // The server counts a stale newest attempt as failed, not in progress.
+      progress: progress({ done: 1, failed: 1, inProgress: 0, capturingPage: null, total: 2 }),
+      pages: [
+        {
+          id: "page-root",
+          normalizedUrl: "https://chickpea.co/",
+          devices: [
+            { variant: "desktop", retryable: true, latest: { state: "ready", errorCode: null } },
+            { variant: "mobile", retryable: true, latest: { state: "stale", errorCode: null } },
+          ],
+        },
+      ],
+    };
+    const bodies: { url: string; body: { variant: string } }[] = [];
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      bodies.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return Promise.resolve(json({ attempt: { id: "new" } }, 201));
+    });
+    render(<CaptureProgress project={staleProject} onChanged={onChanged} />);
+    expect(screen.getByRole("status")).toHaveTextContent("1 of 2 captured · 1 capture failed");
+    const list = screen.getByRole("list", { name: "Failed captures" });
+    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Mobile — chickpea.co: This capture attempt stopped responding and was marked stale.",
+    ]);
+    await user.click(screen.getByRole("button", { name: "Retry the failed capture" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(bodies).toEqual([
+      { url: "/api/pages/page-root/captures", body: expect.objectContaining({ variant: "mobile" }) },
+    ]);
+  });
+
   test("a refused retry reports plainly and keeps the control", async () => {
     const user = userEvent.setup();
     const failedProject: ProgressProject = {

@@ -188,6 +188,31 @@ describe("click versus drag", () => {
     expect(draftNodes()).toHaveLength(1);
   });
 
+  test("a pinch whose first finger barely moves drops nothing (D096)", () => {
+    const onDraftChange = vi.fn();
+    render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
+    // First finger down, second finger down (a pinch), then the first one
+    // lifts inside the placement slop: the camera zoomed, and no pin may
+    // appear under the first finger.
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerDown(frameImage(), { clientX: 500, clientY: 400, isPrimary: false, pointerId: 2 });
+    fireEvent.pointerUp(frameImage(), { clientX: 402, clientY: 301, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerUp(frameImage(), { clientX: 500, clientY: 400, isPrimary: false, pointerId: 2 });
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  test("a right- or middle-click drops nothing (D096)", () => {
+    const onDraftChange = vi.fn();
+    render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
+    for (const button of [1, 2]) {
+      fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button });
+      fireEvent.pointerUp(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button });
+    }
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
   test("a click that lands outside the screenshot drops nothing", () => {
     const onDraftChange = vi.fn();
     render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
@@ -295,6 +320,15 @@ describe("the composer popover", () => {
     expect(draftNodes()).toHaveLength(1);
   });
 
+  test("moving the open draft hands focus back to the comment (D096)", () => {
+    render(<CaptureCanvas {...props} composer={composerProps()} />);
+    tap(frameImage(), 400, 300);
+    // A real click on the pane focuses the region (tabIndex 0) on press.
+    region().focus();
+    tap(frameImage(), 410, 450);
+    expect(within(composer()!).getByLabelText("Comment")).toHaveFocus();
+  });
+
   test("focus returns to the canvas region when the draft closes", async () => {
     const { rerender } = render(
       <CaptureCanvas {...props} composer={composerProps()} draftResetSignal={0} />,
@@ -390,9 +424,40 @@ describe("keyboard shortcuts on the canvas region", () => {
     expect(onSelectPin).toHaveBeenCalledWith(null);
     // The composer opens for it like any click-placed draft.
     expect(composer()).not.toBeNull();
-    // A second N moves the same draft; it never stacks.
+    // A second N while that draft is open is the editor typing, not a
+    // shortcut (D096): the draft stays where it is, and it never stacks.
     fireEvent.keyDown(region(), { key: "N" });
     expect(draftNodes()).toHaveLength(1);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+  });
+
+  test("while a draft is open, letters on the region are never shortcuts; Escape still is (D096)", () => {
+    const onSelectPin = vi.fn();
+    const onStepPin = vi.fn();
+    const onDraftSettled = vi.fn();
+    render(
+      <CaptureCanvas
+        {...props}
+        pins={pins}
+        onSelectPin={onSelectPin}
+        onStepPin={onStepPin}
+        onDraftSettled={onDraftSettled}
+        composer={composerProps()}
+      />,
+    );
+    tap(frameImage(), 400, 300);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    // Focus slipped to the region: what follows is the comment being typed.
+    for (const key of ["n", "N", "j", "k", "b", "c", "a", "J"]) {
+      fireEvent.keyDown(region(), { key });
+    }
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    expect(onStepPin).not.toHaveBeenCalled();
+    expect(onSelectPin).not.toHaveBeenCalled();
+    expect(region()).not.toHaveAttribute("data-draw-armed");
+    expect(draftNodes()).toHaveLength(1);
+    fireEvent.keyDown(region(), { key: "Escape" });
+    expect(draftNodes()).toHaveLength(0);
   });
 
   test("shortcuts ignore modifier combinations", () => {
@@ -895,7 +960,9 @@ describe("rectangles (D079)", () => {
     const user = userEvent.setup();
     await renderZoomed();
     await user.click(drawToggle());
-    drag(frameImage(), { x: 400, y: 300 }, { x: 402, y: 302 });
+    // Past the placement slop, so a drag; 5 by 2.5 natural px at 4x, so
+    // below the minimum.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 420, y: 310 });
     expect(draftRectangleNodes()).toHaveLength(0);
     expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
 
@@ -903,6 +970,53 @@ describe("rectangles (D079)", () => {
     expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a click with a tool armed draws nothing and keeps the tool for the next drag (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    // A press and release inside the placement slop is a click, not a drag.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 402, y: 302 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
+    // The drag that follows still draws.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 });
+    expect(draftRectangleNodes()).toHaveLength(1);
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a right-click with a tool armed never starts a draw (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button: 2 });
+    expect(region()).not.toHaveAttribute("data-drawing");
+    fireEvent.pointerMove(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, button: 2 });
+    fireEvent.pointerUp(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, button: 2 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("a second finger mid-draw abandons the draw: a pinch draws nothing (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerMove(frameImage(), { clientX: 440, clientY: 340, isPrimary: true, pointerId: 1 });
+    expect(region()).toHaveAttribute("data-drawing", "true");
+    fireEvent.pointerDown(frameImage(), { clientX: 600, clientY: 500, isPrimary: false, pointerId: 2 });
+    expect(region()).not.toHaveAttribute("data-drawing");
+    fireEvent.pointerUp(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, pointerId: 1 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
   });
 
   test("the draft box has eight handles and resizing one re-settles the draft", async () => {
@@ -936,7 +1050,8 @@ describe("rectangles (D079)", () => {
   });
 
   test("a saved box renders at its persisted box with a numbered badge and handles", async () => {
-    await renderZoomed({ pins, rectangles });
+    // Handles show on the selected box (D096); see the next test.
+    await renderZoomed({ pins, rectangles, selectedPinId: "box-2" });
     const nodes = rectangleNodes();
     expect(nodes).toHaveLength(1);
     expect(nodes[0]!.style.transform).toContain("translate(100px,200px)");
@@ -951,9 +1066,41 @@ describe("rectangles (D079)", () => {
     expect(nodes[0]!.style.pointerEvents).toBe("none");
   });
 
+  test("an unselected box, or one too small on screen, offers no handles (D096)", async () => {
+    const { rerender } = await renderZoomed({ pins, rectangles });
+    // Not selected: no handles, so presses on the plane pan or select.
+    expect(handles(rectangleNodes()[0]!)).toHaveLength(0);
+    expect(rectangleNodes()[0]!.className).toContain("draggable");
+    // Selected but 10 natural px tall at 4x: 40 screen px, under the 48 px
+    // at which two handles stop overlapping it.
+    const small = [{ id: "box-2", number: 2, rect: { x: 100, y: 200, width: 300, height: 10 } }];
+    rerender(
+      <CaptureCanvas {...props} savedCamera={zoomed} rectangles={small} selectedPinId="box-2" />,
+    );
+    expect(handles(rectangleNodes()[0]!)).toHaveLength(0);
+    const enough = [{ id: "box-2", number: 2, rect: { x: 100, y: 200, width: 300, height: 12 } }];
+    rerender(
+      <CaptureCanvas {...props} savedCamera={zoomed} rectangles={enough} selectedPinId="box-2" />,
+    );
+    expect(handles(rectangleNodes()[0]!)).toHaveLength(8);
+  });
+
+  test("a wobble on a handle within the placement slop writes nothing (D096)", async () => {
+    const onMoveRectangle = vi.fn();
+    await renderZoomed({ rectangles, onMoveRectangle, selectedPinId: "box-2" });
+    const box = rectangleNodes()[0]!;
+    // 3 by 2 screen px at 4x would be a real, sub-pixel resize: it is a click.
+    fireEvent.pointerDown(handle(box, "se"), { clientX: 600, clientY: 600, isPrimary: true });
+    fireEvent.pointerMove(frameImage(), { clientX: 603, clientY: 602, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 603, clientY: 602, isPrimary: true });
+    expect(onMoveRectangle).not.toHaveBeenCalled();
+    // The local box snapped back to the saved geometry.
+    expect(rectangleNodes()[0]!.style.width).toBe("300px");
+  });
+
   test("resizing a saved box commits exactly one clamped write at release", async () => {
     const onMoveRectangle = vi.fn();
-    await renderZoomed({ pins, rectangles, onMoveRectangle });
+    await renderZoomed({ pins, rectangles, onMoveRectangle, selectedPinId: "box-2" });
     const box = rectangleNodes()[0]!;
     // South-east handle dragged far past the frame's right edge: the width
     // clamps to the frame, the height grows by the pointer's travel, and
@@ -979,7 +1126,7 @@ describe("rectangles (D079)", () => {
 
   test("a resize can never push a box below the minimum size", async () => {
     const onMoveRectangle = vi.fn();
-    await renderZoomed({ rectangles, onMoveRectangle });
+    await renderZoomed({ rectangles, onMoveRectangle, selectedPinId: "box-2" });
     const box = rectangleNodes()[0]!;
     // North-west handle dragged far past the opposite corner.
     drag(handle(box, "nw"), { x: 0, y: 0 }, { x: 9000, y: 9000 });
@@ -993,7 +1140,7 @@ describe("rectangles (D079)", () => {
 
   test("a press and release on a handle writes nothing", async () => {
     const onMoveRectangle = vi.fn();
-    await renderZoomed({ rectangles, onMoveRectangle });
+    await renderZoomed({ rectangles, onMoveRectangle, selectedPinId: "box-2" });
     const box = rectangleNodes()[0]!;
     fireEvent.pointerDown(handle(box, "e"), { clientX: 600, clientY: 600, isPrimary: true });
     fireEvent.pointerUp(frameImage(), { clientX: 600, clientY: 600, isPrimary: true });
@@ -1252,7 +1399,7 @@ describe("circles (D082)", () => {
   });
 
   test("a saved circle renders at its bounding square with a numbered badge", async () => {
-    await renderZoomed({ circles });
+    await renderZoomed({ circles, selectedPinId: "circle-2" });
     const nodes = circleNodes();
     expect(nodes).toHaveLength(1);
     expect(nodes[0]!.style.transform).toContain("translate(100px,200px)");
@@ -1272,7 +1419,7 @@ describe("circles (D082)", () => {
 
   test("resizing a saved circle commits exactly one clamped write at release", async () => {
     const onMoveCircle = vi.fn();
-    await renderZoomed({ circles, onMoveCircle });
+    await renderZoomed({ circles, onMoveCircle, selectedPinId: "circle-2" });
     const node = circleNodes()[0]!;
     // South-east corner dragged far past the frame: the square clamps to the
     // room left, and three move frames still produce one write.
@@ -1296,7 +1443,7 @@ describe("circles (D082)", () => {
 
   test("a resize can never push a circle below the minimum size", async () => {
     const onMoveCircle = vi.fn();
-    await renderZoomed({ circles, onMoveCircle });
+    await renderZoomed({ circles, onMoveCircle, selectedPinId: "circle-2" });
     const node = circleNodes()[0]!;
     drag(circleHandle(node, "nw"), { x: 0, y: 0 }, { x: 9000, y: 9000 });
     expect(onMoveCircle).toHaveBeenCalledTimes(1);
@@ -1308,7 +1455,7 @@ describe("circles (D082)", () => {
 
   test("a press and release on a circle handle writes nothing", async () => {
     const onMoveCircle = vi.fn();
-    await renderZoomed({ circles, onMoveCircle });
+    await renderZoomed({ circles, onMoveCircle, selectedPinId: "circle-2" });
     const node = circleNodes()[0]!;
     fireEvent.pointerDown(circleHandle(node, "ne"), { clientX: 600, clientY: 600, isPrimary: true });
     fireEvent.pointerUp(frameImage(), { clientX: 600, clientY: 600, isPrimary: true });
@@ -1480,7 +1627,7 @@ describe("arrows (D083)", () => {
   });
 
   test("a saved arrow draws its shaft and head at the persisted points, badge at the tail", async () => {
-    await renderZoomed({ arrows });
+    await renderZoomed({ arrows, selectedPinId: "arrow-2" });
     const nodes = arrowNodes();
     expect(nodes).toHaveLength(1);
     const node = nodes[0]!;
@@ -1502,16 +1649,40 @@ describe("arrows (D083)", () => {
     const nodeLeft = Number.parseFloat(node.style.transform.match(/translate\(([-\d.]+)px/)![1]!);
     const badgeLeft = Number.parseFloat((badge as HTMLElement).style.left);
     expect(nodeLeft + badgeLeft).toBeCloseTo(arrows[0]!.arrow.start.x, 4);
-    // Two endpoint handles on an editable plane.
+    // Two endpoint handles on the selected arrow of an editable plane.
     expect(arrowHandles(node).map((element) => element.dataset.endpoint)).toEqual([
       "start",
       "end",
     ]);
   });
 
+  test("an unselected arrow offers no endpoint handles, and a wobble on one writes nothing (D096)", async () => {
+    const onMoveArrow = vi.fn();
+    const { rerender } = await renderZoomed({ arrows, onMoveArrow });
+    expect(arrowHandles(arrowNodes()[0]!)).toHaveLength(0);
+    rerender(
+      <CaptureCanvas
+        {...props}
+        savedCamera={zoomed}
+        arrows={arrows}
+        onMoveArrow={onMoveArrow}
+        selectedPinId="arrow-2"
+      />,
+    );
+    const node = arrowNodes()[0]!;
+    fireEvent.pointerDown(endpointHandle(node, "end"), {
+      clientX: 600,
+      clientY: 600,
+      isPrimary: true,
+    });
+    fireEvent.pointerMove(frameImage(), { clientX: 604, clientY: 603, isPrimary: true });
+    fireEvent.pointerUp(frameImage(), { clientX: 604, clientY: 603, isPrimary: true });
+    expect(onMoveArrow).not.toHaveBeenCalled();
+  });
+
   test("dragging the head moves only the head, in exactly one write", async () => {
     const onMoveArrow = vi.fn();
-    await renderZoomed({ arrows, onMoveArrow });
+    await renderZoomed({ arrows, onMoveArrow, selectedPinId: "arrow-2" });
     const node = arrowNodes()[0]!;
     fireEvent.pointerDown(endpointHandle(node, "end"), {
       clientX: 600,
@@ -1533,7 +1704,7 @@ describe("arrows (D083)", () => {
 
   test("dragging the tail moves only the tail, in exactly one write", async () => {
     const onMoveArrow = vi.fn();
-    await renderZoomed({ arrows, onMoveArrow });
+    await renderZoomed({ arrows, onMoveArrow, selectedPinId: "arrow-2" });
     const node = arrowNodes()[0]!;
     drag(endpointHandle(node, "start"), { x: 500, y: 500 }, { x: 420, y: 460 });
     expect(onMoveArrow).toHaveBeenCalledTimes(1);
@@ -1545,7 +1716,7 @@ describe("arrows (D083)", () => {
 
   test("an endpoint drag can never shorten the arrow past the minimum", async () => {
     const onMoveArrow = vi.fn();
-    await renderZoomed({ arrows, onMoveArrow });
+    await renderZoomed({ arrows, onMoveArrow, selectedPinId: "arrow-2" });
     const node = arrowNodes()[0]!;
     // Drag the head right on top of the tail: 300 by 400 natural pixels back
     // at 4x is 1200 by 1600 screen pixels.
@@ -1559,7 +1730,7 @@ describe("arrows (D083)", () => {
 
   test("a press and release on an endpoint handle writes nothing", async () => {
     const onMoveArrow = vi.fn();
-    await renderZoomed({ arrows, onMoveArrow });
+    await renderZoomed({ arrows, onMoveArrow, selectedPinId: "arrow-2" });
     const node = arrowNodes()[0]!;
     fireEvent.pointerDown(endpointHandle(node, "end"), {
       clientX: 600,

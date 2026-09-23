@@ -17,6 +17,7 @@
 // in the same generic 404/401 shapes the rest of the API uses.
 
 import { ANNOTATION_REQUEST_MAX_BYTES } from "../../../../../../../src/lib/boundaries";
+import { appendSetCookies } from "../../../../../../../src/lib/server/auth/cookies";
 import { getDatabase } from "../../../../../../../src/lib/server/db/client";
 import {
   authorizeCaptureReader,
@@ -47,8 +48,7 @@ interface RouteContext {
 
 function finish(response: Response, actor: CaptureActor | null): Response {
   response.headers.set("cache-control", "no-store");
-  if (actor?.renewCookie) response.headers.append("set-cookie", actor.renewCookie);
-  return response;
+  return actor ? appendSetCookies(response, actor.renewCookies) : response;
 }
 
 /** List the thread under one live pin, oldest first. */

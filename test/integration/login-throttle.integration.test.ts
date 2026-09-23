@@ -16,7 +16,9 @@ import {
   checkLoginThrottle,
   clearLoginFailures,
   loginBucketKey,
-  registerLoginFailure,
+  loginClientBucketKey,
+  LOGIN_UNKNOWN_CLIENT,
+  reserveLoginAttempt,
 } from "../../src/lib/server/auth/throttle";
 import { createDatabase } from "../../src/lib/server/db/client";
 
@@ -25,6 +27,8 @@ const hasDatabaseEnv = Boolean(process.env.TURSO_DATABASE_URL && process.env.TUR
 const RUN_ID = `valrun-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
 const SCOPE = `editor-login:test:${RUN_ID}`;
 const BUCKET_KEY = loginBucketKey(SCOPE);
+// The per-client bucket (D098) the calls below count under by default.
+const CLIENT_BUCKET_KEY = loginClientBucketKey(LOGIN_UNKNOWN_CLIENT, SCOPE);
 
 describe.skipIf(!hasDatabaseEnv)("real Turso durable login throttling", () => {
   test("one bucket is enforced across two instances, correlated by run id, and cleaned up", async () => {
@@ -38,7 +42,7 @@ describe.skipIf(!hasDatabaseEnv)("real Turso durable login throttling", () => {
     try {
       // Instance A accumulates failures up to the published threshold.
       for (let attempt = 1; attempt <= LOGIN_MAX_FAILURES; attempt += 1) {
-        const result = await registerLoginFailure(instanceA!, now, SCOPE);
+        const result = await reserveLoginAttempt(instanceA!, now, SCOPE);
         expect(result.count).toBe(attempt);
         expect(result.throttled).toBe(false);
       }
@@ -72,7 +76,7 @@ describe.skipIf(!hasDatabaseEnv)("real Turso durable login throttling", () => {
 
       // A racing registration through instance B crosses the limit
       // atomically and reports throttled with the exact retry bound.
-      const overflow = await registerLoginFailure(instanceB!, now + 2000, SCOPE);
+      const overflow = await reserveLoginAttempt(instanceB!, now + 2000, SCOPE);
       expect(overflow.count).toBe(LOGIN_MAX_FAILURES + 1);
       expect(overflow.throttled).toBe(true);
       expect(overflow.retryAfterMs).toBe(LOGIN_WINDOW_MS - 2000);
@@ -83,15 +87,15 @@ describe.skipIf(!hasDatabaseEnv)("real Turso durable login throttling", () => {
         throttled: false,
       });
     } finally {
-      // Verified cleanup: the run-scoped row is gone.
+      // Verified cleanup: both run-scoped rows are gone.
       await clearLoginFailures(instanceA!, SCOPE);
       const verifier = createClient({
         url: process.env.TURSO_DATABASE_URL!,
         authToken: process.env.TURSO_AUTH_TOKEN!,
       });
       const remaining = await verifier.execute({
-        sql: "SELECT COUNT(*) AS n FROM rate_limit_buckets WHERE bucket_key = ?",
-        args: [BUCKET_KEY],
+        sql: "SELECT COUNT(*) AS n FROM rate_limit_buckets WHERE bucket_key IN (?, ?)",
+        args: [BUCKET_KEY, CLIENT_BUCKET_KEY],
       });
       expect(Number(remaining.rows[0]?.n)).toBe(0);
       verifier.close();

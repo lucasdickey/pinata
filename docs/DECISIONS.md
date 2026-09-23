@@ -17,10 +17,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 25 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093 |
-| Agent proposed, human approved | 16 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083 |
+| Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **94** | |
+| **Total** | **99** | |
 
 ## Key decisions
 
@@ -51,6 +51,10 @@ The product and architecture decisions to read first. The full index follows.
 - [D085](#d085--founder-capability-sessions-are-stateless-a-signed-cookie-bound-to-project-id-and-capability-version-re-checked-against-the-project-row-on-every-request) — Founder capability sessions are stateless: a signed cookie bound to project id and capability version, re-checked against the project row on every request *(Agent decided alone)*
 - [D091](#d091--disclose-the-tooling-used-after-the-missions-claude-code-on-mobile-for-the-documentation-closeout-and-a-second-harness-for-the-cross-review) — Disclose the tooling used after the Missions: Claude Code on mobile for the documentation closeout, and a second harness for the cross-review *(Human directed)*
 - [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) — Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch *(Human directed)*
+- [D095](#d095--recover-captures-on-the-server-retryable-probe-and-provider-failures-stale-attempts-treated-as-failed-a-time-budget-per-invocation-and-freed-slots-shared-across-projects) — Recover captures on the server: retryable probe and provider failures, stale attempts treated as failed, a time budget per invocation, and freed slots shared across projects *(Agent proposed, human approved)*
+- [D097](#d097--both-sides-see-replies-without-reloading-addresses-are-completed-on-the-client-the-founder-arrives-oriented-and-link-rotation-asks-first) — Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first *(Agent proposed, human approved)*
+- [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) — Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session *(Agent proposed, human approved)*
+- [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) — Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits *(Agent proposed, human approved)*
 
 ## Index
 
@@ -81,7 +85,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D023](#d023--publish-one-versioned-validation-boundary-catalog-as-shared-exported-constants) | build | Publish one versioned validation boundary catalog as shared exported constants | Agent decided alone | accepted |
 | [D024](#d024--verify-the-editor-password-via-fixed-length-digests-and-bind-sessions-to-a-double-submit-csrf-proof) | build | Verify the editor password via fixed-length digests and bind sessions to a double-submit CSRF proof | Agent decided alone | accepted |
 | [D025](#d025--persist-the-canonical-model-in-committed-drizzle-migrations-with-database-enforced-thread-immutability-and-injectable-provider-seams) | build | Persist the canonical model in committed Drizzle migrations with database-enforced thread immutability and injectable provider seams | Agent decided alone | accepted |
-| [D026](#d026--throttle-editor-logins-with-one-durable-digested-global-bucket-and-check-secrets-fail-closed-before-verification) | build | Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification | Agent decided alone | accepted |
+| [D026](#d026--throttle-editor-logins-with-one-durable-digested-global-bucket-and-check-secrets-fail-closed-before-verification) | build | Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification | Agent decided alone | superseded |
 | [D027](#d027--env-dependent-tests-skip-rather-than-fail-so-the-ci-gate-needs-no-repository-secrets) | build | Env-dependent tests skip rather than fail, so the CI gate needs no repository secrets | Agent decided alone | accepted |
 | [D028](#d028--projects-take-an-explicit-url-array-admission-is-a-synchronous-network-free-normalizer) | build | Projects take an explicit URL array; admission is a synchronous, network-free normalizer | Agent decided alone | accepted |
 | [D029](#d029--a-project-its-pages-and-two-pending-capture-attempts-per-page-are-created-in-one-transaction-keyed-for-idempotent-retry) | build | A project, its pages, and two pending capture attempts per page are created in one transaction, keyed for idempotent retry | Agent decided alone | accepted |
@@ -109,7 +113,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D051](#d051--materially-descope-the-post-milestone-1-roadmap-keep-pins-pin-comments-landing-page-first-deployment-short-pins-session-and-closeout-punt-everything-else) | validate | Materially descope the post-milestone-1 roadmap: keep pins, pin comments, landing page, first deployment, short pins session, and closeout; punt everything else | Human directed | accepted |
 | [D052](#d052--add-a-temporary-local-only-editor-auth-bypass-flag-pinataauthdisabled-default-off-never-in-envlocal-or-any-deployment) | build | Add a temporary local-only editor auth bypass flag (PINATA_AUTH_DISABLED), default off, never in .env.local or any deployment | Human directed | accepted |
 | [D053](#d053--correct-the-checkpoint-capture-target-the-seeded-and-demonstrated-chickpea-is-httpschickpeaco-not-chickpeavercelapp) | validate | Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app | Agent decided alone | accepted |
-| [D054](#d054--decide-later-whether-an-execution-time-provider-side-unsafe-redirect-should-stay-non-retryable) | validate | Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable | Raised and deferred | pending |
+| [D054](#d054--decide-later-whether-an-execution-time-provider-side-unsafe-redirect-should-stay-non-retryable) | validate | Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable | Raised and deferred | superseded |
 | [D055](#d055--the-canvas-opens-every-capture-with-the-entire-page-in-view-contain-width-fit-and-natural-size-remain-named-modes) | build | The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes | Human directed | accepted |
 | [D056](#d056--pin-geometry-lives-in-a-pure-adapter-canonical-tip-plus-zoom-aware-hit-box-annotation-children-carry-no-react-flow-parent-extent-and-the-drag-grab-offset-is-captured-once-per-gesture) | build | Pin geometry lives in a pure adapter (canonical tip plus zoom-aware hit box); annotation children carry no React Flow parent extent, and the drag grab offset is captured once per gesture | Agent decided alone | accepted |
 | [D057](#d057--capture-driver-e2e-asserts-the-server-fence-one-claiming-answer-fenced-redrives-instead-of-a-fixed-per-attempt-dispatch-count) | build | Capture-driver e2e asserts the server fence (one claiming answer, fenced redrives) instead of a fixed per-attempt dispatch count | Agent decided alone | accepted |
@@ -150,6 +154,11 @@ The product and architecture decisions to read first. The full index follows.
 | [D092](#d092--flag-the-product-and-architecture-decisions-a-reviewer-should-read-first-and-surface-them-ahead-of-the-full-log-in-markdown-the-dashboard-and-reqsdecisions) | wrap | Flag the product and architecture decisions a reviewer should read first, and surface them ahead of the full log in Markdown, the dashboard, and /reqs/decisions | Human directed | accepted |
 | [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) | wrap | Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch | Human directed | accepted |
 | [D094](#d094--defer-runtime-element-matching-with-a-system-one-model-until-the-deterministic-pre-selection-has-been-measured) | build | Defer runtime element matching with a System One model until the deterministic pre-selection has been measured | Raised and deferred | pending |
+| [D095](#d095--recover-captures-on-the-server-retryable-probe-and-provider-failures-stale-attempts-treated-as-failed-a-time-budget-per-invocation-and-freed-slots-shared-across-projects) | build | Recover captures on the server: retryable probe and provider failures, stale attempts treated as failed, a time budget per invocation, and freed slots shared across projects | Agent proposed, human approved | accepted |
+| [D096](#d096--canvas-input-the-composer-keeps-focus-handles-only-on-the-selected-mark-when-they-fit-one-pointer-and-one-button-exact-minimums-and-serialized-moves) | build | Canvas input: the composer keeps focus, handles only on the selected mark when they fit, one pointer and one button, exact minimums, and serialized moves | Agent proposed, human approved | accepted |
+| [D097](#d097--both-sides-see-replies-without-reloading-addresses-are-completed-on-the-client-the-founder-arrives-oriented-and-link-rotation-asks-first) | build | Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first | Agent proposed, human approved | accepted |
+| [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) | build | Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session | Agent proposed, human approved | accepted |
+| [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) | build | Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits | Agent proposed, human approved | accepted |
 
 ---
 
@@ -1085,7 +1094,8 @@ The architecture document already directs Turso/libSQL + Drizzle, committed migr
 
 ## D026 — Throttle editor logins with one durable digested global bucket and check secrets fail-closed before verification
 
-*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **accepted***
+*2026-09-08 · phase: build · origin: **Agent decided alone** · status: **superseded***
+*Superseded by D098.*
 
 **Problem**
 
@@ -2117,7 +2127,8 @@ Safe to decide unilaterally: the choice was a factual correction to match the ta
 
 ## D054 — Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable
 
-*2026-09-10 · phase: validate · origin: **Raised and deferred** · status: **pending***
+*2026-09-10 · phase: validate · origin: **Raised and deferred** · status: **superseded***
+*Superseded by D095.*
 
 **Problem**
 
@@ -3723,4 +3734,221 @@ Human instruction:
 
 ---
 
-<sub>Generated from 94 record(s) as of 2026-09-19 · source `4e29b245cfff`</sub>
+## D095 — Recover captures on the server: retryable probe and provider failures, stale attempts treated as failed, a time budget per invocation, and freed slots shared across projects
+
+*2026-09-23 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D054.*
+
+**Problem**
+
+Five capture defects shared one pattern: a recoverable condition became a dead end or waited for the daily cron. A redirect probe that could not be read (a 5-second timeout, a TLS error, a reset connection) and an origin mismatch seen inside the Browserless session after admission had approved the target were both filed as unsafe-redirect, which is non-retryable, so a network blip left a capture the product could not recover (the open question in D054). A stale attempt counted as in progress, so the project read 'Capturing…' indefinitely and the bulk retry was hidden. Every continuation ran as a nested after() inside the invocation that started it, so an eight-capture project in four waves of up to 90 seconds could outrun the 300-second maxDuration and be killed mid-chain on Vercel while passing locally, where there is no limit. A project that found both capture slots busy was never resumed by the server. And a dispatcher that lost the fenced transition could release the winner's lease.
+
+**Decision**
+
+An unreadable redirect probe fails with a new retryable outcome, target-unreachable; unsafe-redirect stays non-retryable and is reserved for redirects the policy actually refused. An execution-time origin mismatch fails as browserless-provider, which is retryable, answering D054: admission-time rejection stays final, execution-time mismatch does not. Stale attempts count as failed and retryable in project progress and join the bulk retry, and the editor's hierarchy read gives a stale newest attempt the same one automatic retry the sweep would, idempotent per attempt. Each invocation records when it started; before scheduling another capture it checks that one whole capture plus a margin still fits in CAPTURE_INVOCATION_MAX_DURATION_MS, and when it does not it hands the chain once to a fresh invocation by calling its own sweep route with the sweep secret and, where deployment protection is on, the automation bypass header. When a finished attempt's project has nothing pending, the oldest pending attempts of any project take the free slots. A rejected dispatch releases its lease only when its own transition applied.
+
+**Alternatives considered**
+
+- *Make unsafe-redirect retryable* — It would weaken a deliberate policy verdict and let a retry probe the address policy repeatedly.
+- *Reuse navigation-timeout or dns-failed for an unreadable probe* — Both messages would misdescribe a TLS error or a reset connection to the editor.
+- *A queue service for the chain* — A new external dependency, already rejected in D076.
+- *Stop the chain when the budget runs out, without a hand-off* — Leaves the work idle until the next tab or the next day's cron, and local development has no limit to protect.
+- *Leave stale recovery to the sweep* — The Hobby cron runs once a day.
+
+**Rationale**
+
+Every recovery reuses a path that already existed and is already idempotent: the automatic-retry key derived from the attempt id, the fenced state transitions, and the two-slot lease cap. The hand-off falls back to today's behaviour when no origin or secret is available, so local development and tests are unchanged. The owner approved the review's recommendations as one pass rather than item by item; the specific calls inside it were the agent's, made inside that approval, and are listed here so they can be revisited.
+
+**Consequences**
+
+- New outcome code target-unreachable; new boundary constants CAPTURE_INVOCATION_MAX_DURATION_MS (300,000) and CAPTURE_CONTINUATION_MARGIN_MS (60,000); POLICY_VERSION 2026-09-23.3 together with D098.
+- A test asserts that the four routes' maxDuration literals equal CAPTURE_INVOCATION_MAX_DURATION_MS, since route segment config has to stay a literal.
+- The hand-off needs VERCEL_URL and a sweep secret (CRON_SECRET or CAPTURE_SWEEP_SECRET), plus VERCEL_AUTOMATION_BYPASS_SECRET while deployment protection is on; without them the chain continues in place as before.
+- An execution-time mismatch now reads to the editor as a provider failure, and a page that redirects off-site with JavaScript gets one automatic retry before a person has to act.
+- GET /api/projects can write one automatic-retry row per stale attempt it notices; later reads write nothing.
+- D054 is answered and superseded by this record.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Review of the repository before the owner's first end-to-end test: five parallel reviews (capture pipeline, canvas, founder links and security, editor journey, deploy readiness), each claim checked against the code. Recommended, in order: fix the deploy order (migrations before code, Fluid compute, CRON_SECRET); make probe timeouts and stalled captures retryable and stop long capture chains dying at maxDuration; refresh unread counts without a reload; fix composer focus after a draft moves and show handles only on the selected mark; close the login lockout, the bypass flag on Vercel, and the CSRF renewal gap; and correct the tooling disclosure.
+
+Human approved:
+
+> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+
+---
+
+## D096 — Canvas input: the composer keeps focus, handles only on the selected mark when they fit, one pointer and one button, exact minimums, and serialized moves
+
+*2026-09-23 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Seven canvas defects, each confirmed in the code before it was fixed. The composer focused its textarea only on mount, so after a click moved an open draft, typing reached the canvas shortcuts: n re-placed the draft, b, c and a armed tools, and j or k stepped to another mark and could discard the draft and its comment. Every saved rectangle, circle and arrow carried resize handles at every zoom; at overview zoom on a tall page they covered small marks, swallowed pans, and saved a real resize from a one-pixel wobble. A second finger did not cancel the first, so a pinch could drop a pin. Right and middle clicks placed pins and started draws. A mark resized to the minimum could come out a rounding error short (7.999999999999999 for a box, 15.999999999999996 for an arrow) and fail server validation on every retry. A second move ending before the first save returned carried a stale revision and was lost to a false 'changed in another session'. And a click with a tool armed silently disarmed it.
+
+**Decision**
+
+The composer takes a placement counter and refocuses whenever the draft is placed or moved, and the canvas ignores single-letter shortcuts while a draft is open (Escape still works). Handles render only on the selected saved mark, and only when its shorter side, or an arrow's length, is at least 48 CSS pixels on screen; a mark keeps them until its own resize ends, and a resize released within PLACEMENT_SLOP_SCREEN_PX saves nothing. A non-primary pointerdown cancels the pending press and any gesture in progress. Only the primary button starts a press or a draw. The client snaps a minimum-size box and arrow exactly to the minimum, and the server's minimum checks allow 1e-6 of slack. Geometry saves queue per mark, sending only the latest pending geometry on the revision the previous save returned. A click with a tool armed leaves it armed.
+
+**Alternatives considered**
+
+- *Shrink handles at low zoom instead of hiding them* — Smaller handles on every mark would still capture pans and wobbles.
+- *Publish the 48-pixel threshold as a boundary constant* — It changes only what is drawn, not what is accepted, and publishing it would force a policy-version and documentation bump for a rendering choice.
+- *Round stored geometry to whole pixels* — Changes the stored precision D062 fixed.
+- *Retry automatically on a 409* — Would overwrite a genuine write from another session.
+- *Keep click-disarms* — The tool was used up with no visible result, which reads as a broken button.
+
+**Rationale**
+
+Each fix restores a rule the canvas already claimed: D074's distinction between a click and a drag, one write per settled gesture, and server validation that never rejects geometry the client itself produced. The owner approved the review's recommendations as one pass rather than item by item; the specific calls inside it were the agent's, made inside that approval, and are listed here so they can be revisited.
+
+**Consequences**
+
+- A saved mark must be selected before it can be resized; e2e/pin-lifecycle.spec.ts selects by its badge first.
+- N no longer moves an open draft; it still places one when none is open.
+- The low-zoom handle weaknesses recorded for D079, D082 and D083 are largely fixed; a selected mark between about 48 and 72 screen pixels can still have its top-left handle over the number badge.
+- Scroll-to-zoom on a trackpad is unchanged (D058); making two-finger scroll pan is an open call for the owner.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Review of the repository before the owner's first end-to-end test: five parallel reviews (capture pipeline, canvas, founder links and security, editor journey, deploy readiness), each claim checked against the code. Recommended, in order: fix the deploy order (migrations before code, Fluid compute, CRON_SECRET); make probe timeouts and stalled captures retryable and stop long capture chains dying at maxDuration; refresh unread counts without a reload; fix composer focus after a draft moves and show handles only on the selected mark; close the login lockout, the bypass flag on Vercel, and the CSRF renewal gap; and correct the tooling disclosure.
+
+Human approved:
+
+> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+
+---
+
+## D097 — Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first
+
+*2026-09-23 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The editor's only timer was the capture poll, which stops once nothing is capturing, and the founder view had none, so a founder's reply, a status change, or an editor follow-up stayed invisible on the other side until a reload: the moment the product is named for failed silently. The address fields refused anything without https://, and the landing page parked input unchecked, so 'chickpea.co' and '/pricing' failed, the landing page's only after sign-in. A founder's own mark still read Open after they replied. Rotate and Revoke broke the link a friend already had in one click. A founder whose twelve-hour session had ended was told the link may have been replaced or turned off, when reopening it would have worked, and a founder arriving saw root/Desktop whether or not it had notes, with no word of how many notes were waiting. Thread times read like log lines, and the Markdown export dropped the conversation.
+
+**Decision**
+
+A shared visibility-aware refresh re-reads every LIVE_REFRESH_INTERVAL_MS (20 seconds) while the tab is visible and immediately on becoming visible or focused, pauses while hidden, runs one read at a time, and applies a result only if local state has not moved since the read began, so drafts, selection, typed text and the camera survive. The editor refreshes the hierarchy, the open capture's pins, the project pins and the open thread; the founder its hierarchy, pin list and thread. The client completes bare domains with https:// and resolves /path rows against the root, on blur and on submit, while the server normalizer stays strict; http:// is never added or upgraded. After a reply the founder view re-reads that capture's pins. Rotate and Revoke each take an inline confirmation. An ended session and a refused link get different messages, the first saying to reopen the link from Lucas's message. The founder view opens with a one-line summary of the notes waiting, shows per-page counts, and opens on the first capture with marks. Thread times are friendly local times with the ISO value in a time element. The project annotations read and both exports include each mark's thread.
+
+**Alternatives considered**
+
+- *Server-sent events or websockets* — New infrastructure for a product with one editor and a handful of founders.
+- *Keep the capture poll running* — It stops by design once nothing is capturing.
+- *Loosen the server normalizer* — It is the security boundary for what gets captured.
+- *Complete or upgrade to http://* — Would capture an address nobody typed.
+- *window.confirm for Rotate and Revoke* — Blocking, unstyled, and hard to test.
+- *Let the editor copy the current link again* — Needs the token stored recoverably, which changes the capability posture D018 and D089 set.
+
+**Rationale**
+
+It reuses the reads that already exist and the unread and status rules of D075, costs nothing while a tab is hidden, and never lets a background read overwrite something the person is doing. The owner approved the review's recommendations as one pass rather than item by item; the specific calls inside it were the agent's, made inside that approval, and are listed here so they can be revisited.
+
+**Consequences**
+
+- More GET traffic while a tab is visible; the project annotations read now carries threads.
+- Tests that count requests hide the tab or account for the refresh; the share control's lazy read (D089) is unchanged.
+- LIVE_REFRESH_INTERVAL_MS lives in src/lib/live-refresh.ts, not in the boundary catalog.
+- A founder whose session ends while the page is open learns it on their next reply rather than immediately.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Review of the repository before the owner's first end-to-end test: five parallel reviews (capture pipeline, canvas, founder links and security, editor journey, deploy readiness), each claim checked against the code. Recommended, in order: fix the deploy order (migrations before code, Fluid compute, CRON_SECRET); make probe timeouts and stalled captures retryable and stop long capture chains dying at maxDuration; refresh unread counts without a reload; fix composer focus after a draft moves and show handles only on the selected mark; close the login lockout, the bypass flag on Vercel, and the CSRF renewal gap; and correct the tooling disclosure.
+
+Human approved:
+
+> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+
+---
+
+## D098 — Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session
+
+*2026-09-23 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D026.*
+
+**Problem**
+
+Four defects in the password and session paths. PINATA_AUTH_DISABLED was honoured in any environment, so setting it in Vercel by mistake would open the editor to anyone. The login route read the throttle, checked the password, and counted a failure only afterwards, so a burst of parallel requests all passed the pre-check and a window allowed as many guesses as requests. One global bucket (D026) meant six wrong guesses every fifteen minutes from anywhere kept the owner from signing in, because a throttled pre-check refused even the right password. And renewing a session re-issued only the session cookie, so after about twelve hours of activity reads kept working while every write answered 403.
+
+**Decision**
+
+isAuthDisabled() returns false whenever VERCEL is set and logs one warning if the flag is present there; it does not consult NODE_ENV, because local live sessions run next start. Login now checks the signing secret, then a read-only throttle pre-check, then atomically reserves the attempt in two buckets before verifying the password: a per-client bucket keyed by a digest of Vercel's x-real-ip (else the first x-forwarded-for entry, else a fixed key) at LOGIN_MAX_FAILURES, and a global bucket at the new LOGIN_GLOBAL_MAX_FAILURES of 100. Either over its limit answers 429 without checking the password; success clears the client bucket and returns its slot to the global one. Every site that renews a session goes through one helper per role that writes the session and CSRF cookies together. A SESSION_SECRET shorter than 32 characters logs a warning but is not refused.
+
+**Alternatives considered**
+
+- *Key the bypass on NODE_ENV* — Local live sessions deliberately run the production build with the flag.
+- *Keep only the global bucket* — It lets anyone lock the editor out.
+- *Per-client buckets only* — Does not bound guessing spread across many addresses, D026's original concern.
+- *Refuse a short SESSION_SECRET* — Could lock the owner out of production if the existing secret is short.
+- *Fix each renewal site separately* — Fourteen sites would drift again; one helper and a source scan keep them together.
+
+**Rationale**
+
+Each change is the smallest one that makes its guarantee hold under concurrency and on a real deployment, and D026's protection against distributed guessing is kept with a ceiling one guesser cannot reach. The owner approved the review's recommendations as one pass rather than item by item; the specific calls inside it were the agent's, made inside that approval, and are listed here so they can be revisited.
+
+**Consequences**
+
+- New boundary constant LOGIN_GLOBAL_MAX_FAILURES (100 per LOGIN_WINDOW_MS); LOGIN_MAX_FAILURES is now per client; POLICY_VERSION 2026-09-23.3 together with D095.
+- Off Vercel the client address can be spoofed, but every attempt still counts against the global bucket.
+- Racing throttled attempts can over-count slightly within a window; they never reach the password check.
+- A source-scan test fails if anything outside the cookie modules, login, or the founder exchange builds a session cookie directly.
+- D026's single shared bucket is superseded by this record; its fail-closed secret checks carry over unchanged.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Review of the repository before the owner's first end-to-end test: five parallel reviews (capture pipeline, canvas, founder links and security, editor journey, deploy readiness), each claim checked against the code. Recommended, in order: fix the deploy order (migrations before code, Fluid compute, CRON_SECRET); make probe timeouts and stalled captures retryable and stop long capture chains dying at maxDuration; refresh unread counts without a reload; fix composer focus after a draft moves and show handles only on the selected mark; close the login lockout, the bypass flag on Vercel, and the CSRF renewal gap; and correct the tooling disclosure.
+
+Human approved:
+
+> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+
+---
+
+## D099 — Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits
+
+*2026-09-23 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Production had been on commit 523dcd9 since 2026-09-10 while main moved about forty commits ahead, and the runbook went straight from pushing to deploying. Migrations are not run by the build, so pushing main before migrating would break project creation, pins and the founder view on their first read. The four capture routes export maxDuration = 300, which Hobby accepts only with Fluid compute; CRON_SECRET was missing from .env.example, and without it the sweep answers 404. Deployment protection is all_except_custom_domains (D068), so every vercel.app address, production included, shows a Vercel sign-in wall to a founder, and the editor, signed in to Vercel, would never notice; because the share control builds the link from the page's origin (D089), a link issued on a vercel.app address points at the wall. Separately, docs/ASSIGNMENT.md still said every commit came through Factory although D091 said that row had been corrected, the session log's tooling ledger cited D079 and D081 where it meant D091 and D093, and eight commits authored 'Cursor Agent' on pull requests 3, 5 and 6 appeared in no disclosure.
+
+**Decision**
+
+The README runbook now checks the Vercel project first (Fluid compute on, the seven Production variables present including CRON_SECRET, neither local-only flag set, the bypass for automation present, and whether recent pushes deployed at all), then validates, then migrates the shared database, listing applied migrations first because Drizzle skips one older than the newest recorded, then deploys, verifies, and rolls back without reversing additive migrations. A new README section says founders cannot reach a vercel.app address and that production needs a custom domain the editor also works from. .env.example names CRON_SECRET and CAPTURE_SWEEP_SECRET. docs/ASSIGNMENT.md names the Claude Code and Cursor exceptions and this post-assignment pass, and the tooling ledger cites the right records and adds the Cursor work and this pass.
+
+**Alternatives considered**
+
+- *Run migrations in the Vercel build* — A build that migrates the shared production database on every preview deployment is worse than a manual step in the right order.
+- *Turn deployment protection off* — Would expose every preview deployment, and their per-commit URLs, as well as production.
+- *Leave the Cursor commits to the git history* — The interview is graded partly on explaining how AI tools were used, and a reviewer reading the history would find them before the ledger did.
+
+**Rationale**
+
+These are the steps that stood between main and a first real test, and the gaps a reviewer would find first. Writing them down in the order they must happen removes the one ordering mistake that breaks production outright. The owner approved the review's recommendations as one pass rather than item by item; the specific calls inside it were the agent's, made inside that approval, and are listed here so they can be revisited.
+
+**Consequences**
+
+- The owner's pre-test checklist: Fluid compute, CRON_SECRET, a custom domain, migrate, then deploy.
+- Pinata is no longer a Factory exercise; work after 2026-09-23 is the owner's own project and is recorded the same way.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Review of the repository before the owner's first end-to-end test: five parallel reviews (capture pipeline, canvas, founder links and security, editor journey, deploy readiness), each claim checked against the code. Recommended, in order: fix the deploy order (migrations before code, Fluid compute, CRON_SECRET); make probe timeouts and stalled captures retryable and stop long capture chains dying at maxDuration; refresh unread counts without a reload; fix composer focus after a draft moves and show handles only on the selected mark; close the login lockout, the bypass flag on Vercel, and the CSRF renewal gap; and correct the tooling disclosure.
+
+Human approved:
+
+> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+
+---
+
+<sub>Generated from 99 record(s) as of 2026-09-23 · source `cf055a61c36f`</sub>

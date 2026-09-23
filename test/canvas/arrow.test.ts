@@ -137,6 +137,36 @@ describe("dragArrowEndpoint", () => {
     }
   });
 
+  test("an endpoint pushed out along a diagonal is never a few ulps short (D096)", () => {
+    // fixed + unit * 16 along this angle measured 15.999999999999996 again,
+    // which the server's own hypot rejects, so the draft could never save.
+    const fixed = { x: 86.11894683408441, y: 91.40120171651004 };
+    const angle = 4.353762793814827;
+    const diagonal: NaturalArrow = {
+      start: fixed,
+      end: { x: fixed.x + Math.cos(angle) * 100, y: fixed.y + Math.sin(angle) * 100 },
+    };
+    const pulled = dragArrowEndpoint(
+      diagonal,
+      "end",
+      { x: fixed.x + Math.cos(angle), y: fixed.y + Math.sin(angle) },
+      doc,
+    );
+    expect(pulled.start).toEqual(fixed);
+    expect(arrowLength(pulled)).toBeGreaterThanOrEqual(MIN_ARROW_LENGTH_PX);
+    // And across a sweep of angles and fractional anchors, for both ends.
+    for (let step = 0; step < 360; step += 1) {
+      const theta = (step * Math.PI) / 180 + 0.001;
+      const anchor = { x: 200 + step * 0.173, y: 300 + step * 0.291 };
+      const far = { x: anchor.x + Math.cos(theta) * 60, y: anchor.y + Math.sin(theta) * 60 };
+      const near = { x: anchor.x + Math.cos(theta), y: anchor.y + Math.sin(theta) };
+      const byEnd = dragArrowEndpoint({ start: anchor, end: far }, "end", near, doc);
+      const byStart = dragArrowEndpoint({ start: far, end: anchor }, "start", near, doc);
+      expect(meetsMinimumArrowLength(byEnd), `end ${step}`).toBe(true);
+      expect(meetsMinimumArrowLength(byStart), `start ${step}`).toBe(true);
+    }
+  });
+
   test("leaves the arrow untouched when even the minimum would land outside", () => {
     // A frame too small to hold a minimum-length arrow at all: pushing the
     // head back out would leave it, so the arrow is handed back untouched

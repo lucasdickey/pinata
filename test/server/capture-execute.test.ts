@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { MAX_IMAGE_BYTES } from "../../src/lib/boundaries";
+import { MAX_IMAGE_BYTES, captureOutcome } from "../../src/lib/boundaries";
 import type { ScreenshotStore } from "../../src/lib/server/providers/blob";
 import type {
   BrowserlessClient,
@@ -319,13 +319,16 @@ describe("untrustworthy provider results never become ready", () => {
     expect(puts).toEqual([]);
   });
 
-  test("a final URL from another origin fails as an unsafe redirect", async () => {
+  test("a final URL from another origin fails retryably, stored nothing (D095)", async () => {
     const id = await seedClaimedCapture("cap-origin");
     const envelope = successEnvelope({ finalUrl: "https://elsewhere.example/page" });
+    // An execution-time mismatch comes after admission approved the target:
+    // a provider-session inconsistency (D054), not an unsafe-redirect verdict.
     expect(await executeCapture(testDb.db, id, deps(clientReturning(envelope)))).toEqual({
       ok: false,
-      outcome: "unsafe-redirect",
+      outcome: "browserless-provider",
     });
+    expect(captureOutcome("browserless-provider").retryable).toBe(true);
     expect(puts).toEqual([]);
   });
 });

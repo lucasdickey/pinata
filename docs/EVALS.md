@@ -217,7 +217,7 @@ closing statement:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-15.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-09-23.3`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -225,7 +225,7 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-15.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-09-23.3 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
@@ -319,6 +319,8 @@ before any capture attempt or project row exists.
 | `LAZY_SCROLL_MAX_STEPS` | 24 | Enough steps to reach the bottom of a maximum-height page. |
 | `LAZY_SCROLL_STEP_DELAY_MS` | 250 ms | Settle delay per scroll step. |
 | `TOTAL_CAPTURE_TIMEOUT_MS` | 90,000 ms | Whole-capture deadline, inside the provider's 120-second session cap; exceeding it fails as `total-timeout`. |
+| `CAPTURE_INVOCATION_MAX_DURATION_MS` | 300,000 ms (5 minutes) | Lifetime of one capture-running function invocation; every capture route's `maxDuration` equals it. |
+| `CAPTURE_CONTINUATION_MARGIN_MS` | 60,000 ms | Reserve beyond one capture deadline an invocation must have left to start another; otherwise the chain is handed to a fresh invocation. |
 | `MAX_REDIRECT_HOPS` | 5 | Every hop is revalidated under the same public-HTTPS rules. |
 | `DNS_TIMEOUT_MS` | 3,000 ms | Per-query DNS budget; a query that outlives it fails the capture as `dns-failed`. |
 | `MAX_CNAME_HOPS` | 8 | CNAME hops followed before the chain is refused as unresolvable. |
@@ -486,6 +488,7 @@ messages and remediation text live in the catalog and are bounded by
 | invalid-url | failed | no | 422 | no | no |
 | dns-failed | failed | yes | 502 | yes | no |
 | unsafe-redirect | failed | no | 422 | yes | no |
+| target-unreachable | failed | yes | 502 | yes | no |
 | browserless-auth | failed | no | 502 | yes | no |
 | browserless-provider | failed | yes | 502 | yes | no |
 | navigation-timeout | failed | yes | 504 | yes | no |
@@ -541,20 +544,28 @@ application instances, and both recover after exactly the published window.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `LOGIN_MAX_FAILURES` | 5 | Failed editor logins allowed per window before generic throttling. |
+| `LOGIN_MAX_FAILURES` | 5 | Failed editor logins allowed per client per window before generic throttling. |
+| `LOGIN_GLOBAL_MAX_FAILURES` | 100 | Failed editor logins allowed per window across all clients before generic throttling. |
 | `LOGIN_WINDOW_MS` | 900,000 ms (15 minutes) | Login throttle window and recovery interval. |
 | `REPLY_MAX_PER_WINDOW` | 30 | Founder replies accepted per window. |
 | `REPLY_WINDOW_MS` | 3,600,000 ms (1 hour) | Reply rate-limit window and recovery interval. |
 
-Login enforcement semantics: failed editor logins are counted in one shared
-`rate_limit_buckets` row keyed by the SHA-256 digest of the `editor-login`
-scope — never a password, secret, or client identifier — so the threshold
-holds for the single editor credential across tabs and application instances.
-The window is fixed at the first failure in the window; throttled attempts
-receive the same generic `429` with a bounded `Retry-After` header and never
+Login enforcement semantics (`D098`, superseding the single shared bucket
+of `D026`): every attempt is counted in two `rate_limit_buckets` rows before
+the password is checked — a per-client row keyed by the SHA-256 digest of the
+`editor-login` scope and the client address (Vercel's `x-real-ip`, else the
+first `x-forwarded-for` entry, else a fixed `unknown`), limited to
+`LOGIN_MAX_FAILURES`, and a global row keyed by the scope alone, limited to
+`LOGIN_GLOBAL_MAX_FAILURES`. Keys are digests; a password or secret is never
+part of one. Reserving before verifying means parallel requests cannot
+multiply the guesses a window allows, and the per-client row means one
+guessing address cannot lock the editor out, while the global row still
+bounds guessing spread across many addresses. The window is fixed at the
+first attempt in it; throttled attempts receive the same generic `429` with a
+bounded `Retry-After` header, never reach the password check, and never
 extend the window. A correct attempt succeeds immediately once
-`window_started_at + LOGIN_WINDOW_MS` has passed, and a successful login
-clears the bucket.
+`window_started_at + LOGIN_WINDOW_MS` has passed; a successful login clears
+its client row and returns its one slot to the global row.
 
 ### Feedback, annotation, and interaction limits
 

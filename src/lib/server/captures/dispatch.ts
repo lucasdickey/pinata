@@ -90,10 +90,14 @@ export async function dispatchCapture(
       errorCode: outcome.code,
       errorMessage: outcome.publicMessage,
     });
+    // A lost fence means another dispatcher owns this attempt, and the lease
+    // this claim reused is the winner's one slot (leases are unique per
+    // capture id): releasing it here would free a slot a running capture
+    // still occupies (D095). The winner releases it when it finalizes.
+    if (transition === "fenced") return { ok: false, error: "not-dispatchable" };
     // The row never reached `capturing`, so the slot frees immediately
     // rather than at lease expiry.
     await releaseCaptureLease(db, capture.id);
-    if (transition === "fenced") return { ok: false, error: "not-dispatchable" };
     return { ok: false, error: "rejected", outcome: admission.outcome };
   }
 

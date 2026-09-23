@@ -2,7 +2,7 @@
 // (VAL-AUTH-001, VAL-AUTH-010). All secrets here are non-production test
 // sentinels; real environment values are never used or printed.
 
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -33,6 +33,10 @@ import {
   readBoundedJson,
 } from "../../src/lib/server/http";
 import { loginBodySchema } from "../../src/lib/server/auth/schemas";
+import {
+  __resetSessionSecretWarningForTests,
+  getSessionSecret,
+} from "../../src/lib/server/auth/secrets";
 
 const TEST_SECRET = "test-session-secret-not-a-real-value";
 const TEST_PASSWORD = "test-editor-password-not-a-real-value";
@@ -158,6 +162,42 @@ describe("editor session tokens (VAL-AUTH-003 foundations)", () => {
     expect(a.payload.sid).not.toBe(b.payload.sid);
     expect(a.payload.csrf).not.toBe(b.payload.csrf);
     expect(a.token).not.toBe(b.token);
+  });
+});
+
+describe("session secret length advice (D098)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    __resetSessionSecretWarningForTests();
+  });
+
+  test("a short secret still works and warns exactly once, without the value", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const short = "short-sentinel-secret";
+    vi.stubEnv("SESSION_SECRET", short);
+    // Advice, not enforcement: a short secret must never lock the owner out.
+    expect(getSessionSecret()).toBe(short);
+    expect(getSessionSecret()).toBe(short);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0]?.[0]);
+    expect(message).toContain("SESSION_SECRET");
+    expect(message).not.toContain(short);
+    expect(message).not.toContain(String(short.length));
+  });
+
+  test("a secret of at least 32 characters is silent", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("SESSION_SECRET", "x".repeat(32));
+    expect(getSessionSecret()).toBe("x".repeat(32));
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test("a missing secret is still undefined and silent", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("SESSION_SECRET", "");
+    expect(getSessionSecret()).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

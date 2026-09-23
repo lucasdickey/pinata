@@ -61,6 +61,33 @@ describe("opening", () => {
     render(<PinComposer {...props()} />);
     expect(document.activeElement).toBe(comment());
   });
+
+  test("takes focus back whenever the draft is re-placed or moved (D096)", () => {
+    const { rerender } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <PinComposer {...props()} placement={1} />
+      </>,
+    );
+    // A click that moves the draft leaves focus on the canvas region.
+    screen.getByRole("button", { name: "Elsewhere" }).focus();
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <PinComposer {...props()} placement={1} />
+      </>,
+    );
+    // An unrelated re-render does not steal focus...
+    expect(document.activeElement).not.toBe(comment());
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <PinComposer {...props()} placement={2} />
+      </>,
+    );
+    // ...but a new placement hands it back to the comment.
+    expect(document.activeElement).toBe(comment());
+  });
 });
 
 describe("the pre-selected choice", () => {

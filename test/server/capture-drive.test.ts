@@ -16,6 +16,7 @@ import {
 import {
   automaticRetryKey,
   driveCapture,
+  driveOldestPending,
   driveProject,
   scheduleAutomaticRetry,
   type CaptureDriveDeps,
@@ -24,6 +25,7 @@ import {
   claimCaptureLease,
   countActiveCaptureLeases,
 } from "../../src/lib/server/captures/leases";
+import { retryCapture } from "../../src/lib/server/captures/retry";
 import { schema } from "../../src/lib/server/db/client";
 import {
   echoClient,
@@ -181,6 +183,40 @@ describe("driveProject", () => {
   });
 });
 
+describe("across projects (D095)", () => {
+  test("a finished project hands the freed slot to another project's waiting attempts", async () => {
+    const first = await seedProject(testDb.db, "https://safe.example/a", [], "drive-0014");
+    const waiting = await seedProject(testDb.db, "https://safe.example/b", [], "drive-0015");
+    // The waiting project was driven while both slots were busy: its claims
+    // found quota and its attempts stayed pending with nothing scheduled.
+    for (let slot = 0; slot < MAX_ACTIVE_CAPTURES; slot += 1) {
+      await claimCaptureLease(testDb.db, `busy-${slot}`, clock);
+    }
+    await driveProject(testDb.db, waiting.projectId, deps());
+    await scheduler.flush();
+    await testDb.db.delete(schema.captureLeases);
+
+    const [desktop] = await attemptsFor(testDb.db, first.pages[0]!.id, "desktop");
+    await driveCapture(testDb.db, desktop!.id, deps());
+    await scheduler.flush();
+    const rows = await allCaptures(testDb.db);
+    expect(rows.map((row) => row.status)).toEqual(["ready", "ready", "ready", "ready"]);
+  });
+
+  test("driveOldestPending takes the oldest attempts, at most the free slots", async () => {
+    const newer = await seedProject(testDb.db, "https://safe.example/new", [], "drive-0016", T0 + 5);
+    const older = await seedProject(testDb.db, "https://safe.example/old", [], "drive-0017", T0 + 1);
+    await claimCaptureLease(testDb.db, "busy-0", clock);
+    const driven = await driveOldestPending(testDb.db, deps());
+    const [olderDesktop] = await attemptsFor(testDb.db, older.pages[0]!.id, "desktop");
+    expect(driven.scheduled).toEqual([olderDesktop!.id]);
+    expect(newer.pages).toHaveLength(1);
+
+    await claimCaptureLease(testDb.db, "busy-1", clock);
+    expect((await driveOldestPending(testDb.db, deps())).scheduled).toEqual([]);
+  });
+});
+
 describe("automatic retry", () => {
   test("a retryable catalog failure earns exactly one automatic attempt, never a second", async () => {
     provider = recordingClient(failureEnvelope("navigation-timeout"));
@@ -245,6 +281,30 @@ describe("automatic retry", () => {
       ["failed", "automatic", "dns-failed"],
     ]);
     expect(provider.requests).toHaveLength(0);
+  });
+
+  test("an execution-time origin mismatch earns the automatic retry and leaves a manual one (D095)", async () => {
+    // Admission approved safe.example; the provider session then reports a
+    // different origin, as D054 recorded on Chickpea mobile.
+    provider = echoClient({ finalUrl: "https://elsewhere.example/" });
+    const project = await seedProject(testDb.db, "https://safe.example", [], "drive-0013");
+    const page = project.pages[0]!;
+    const [first] = await attemptsFor(testDb.db, page.id, "desktop");
+    const result = await driveCapture(testDb.db, first!.id, deps());
+    expect(result).toEqual({ ok: false, outcome: "browserless-provider" });
+    const desktop = await attemptsFor(testDb.db, page.id, "desktop");
+    expect(desktop.map((row) => [row.status, row.origin])).toEqual([
+      ["failed", "manual"],
+      ["pending", "automatic"],
+    ]);
+    await scheduler.flush();
+    // The automatic attempt failed the same way; a person can still retry.
+    const manual = await retryCapture(
+      testDb.db,
+      { pageId: page.id, variant: "desktop", idempotencyKey: "manual-after-mismatch" },
+      { now: tick, newId: () => "manual-retry" },
+    );
+    expect(manual).toMatchObject({ ok: true, created: true });
   });
 
   test("scheduleAutomaticRetry replays rather than creating a second row", async () => {

@@ -92,19 +92,20 @@ Done:
 - README, next-steps, the decision dashboard, the session narrative, and a
   ten-chapter interactive walkthrough at `/walkthrough` (D072, D073).
 
+Also done: circles and arrows (D082, D083), which complete the mark
+vocabulary the requirements name.
+
 Remaining:
 
-- **Circles and arrows.** The schema, the geometry minimums, and the
-  kind-generic annotation path all allow them; only the renderers, the
-  gestures, and their geometry validation are missing. Arrows carry the
-  meaning a pin and a box cannot: *move this there*.
-- **Ship the current build and run the milestone-2/3 checkpoint.** Three
-  migrations, two new environment variables, and a function-duration setting
-  stand between `main` and production; the owner then drives the real
-  Chickpea project end to end. Expect findings, and expect them to become
-  assertions before they become fixes.
-- **Rectangle resize-handle ergonomics** at low zoom, recorded as a known
-  weakness in [what's next](https://github.com/lucasdickey/pinata/blob/main/docs/NEXT.md).
+- **Ship the current build and run the milestone-2/3 checkpoint.** The
+  README runbook now lists the order (D099): Fluid compute and
+  `CRON_SECRET` in Vercel, a custom domain so founders are not stopped at
+  Vercel's sign-in wall, migrations 0004–0006 against the shared database,
+  then the deploy. The owner then drives the real Chickpea project end to
+  end. Expect findings, and expect them to become assertions before they
+  become fixes.
+- **Resize handles on a small selected mark**, much reduced by D096 and
+  recorded in [what's next](https://github.com/lucasdickey/pinata/blob/main/docs/NEXT.md).
 
 ## The UX overhaul (2026-09-12) — unplanned, between milestones 2 and 3
 
@@ -129,6 +130,29 @@ either one.
   comment and element, internals behind a disclosure, and a reading-first
   founder view on phones.
 - **D079** — rectangles (listed under milestone 3 above).
+
+## The review and hardening pass (2026-09-23) — after the assignment
+
+Pinata stopped being a Factory exercise and became the owner's own project.
+Before his first end-to-end test, a review found defects that would have met
+him during it; each was confirmed in the code, fixed with a failing test
+first, and recorded.
+
+- **D095** — captures recover on the server: probe and provider flakes are
+  retryable, a stalled capture reads as failed and retries itself, a long
+  chain hands itself to a fresh function before the time limit, and a freed
+  capture slot goes to whichever project has waited longest. Answers D054.
+- **D096** — the canvas stops misreading input: the composer keeps focus,
+  handles appear only where they fit, a pinch or a right-click places
+  nothing, minimum-size marks save, and quick successive moves land.
+- **D097** — replies arrive without a reload on both sides, addresses can be
+  typed the short way, the founder lands knowing what is waiting, and
+  rotating a link asks first.
+- **D098** — sign-in cannot be locked out by a stranger or raced past, the
+  local auth bypass cannot switch on in Vercel, and writes keep working past
+  twelve hours.
+- **D099** — the deploy runbook, the custom-domain requirement for founders,
+  and the tooling disclosure.
 
 ## Milestone 4: Depth on the loop — planned
 

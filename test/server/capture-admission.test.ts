@@ -3,7 +3,7 @@
 // revalidation (VAL-CAPTURE-001, VAL-CAPTURE-002).
 
 import { describe, expect, test, vi } from "vitest";
-import { MAX_CNAME_HOPS, MAX_REDIRECT_HOPS } from "../../src/lib/boundaries";
+import { MAX_CNAME_HOPS, MAX_REDIRECT_HOPS, captureOutcome } from "../../src/lib/boundaries";
 import {
   admitCaptureTarget,
   type AdmissionDeps,
@@ -396,16 +396,19 @@ describe("redirect hop revalidation", () => {
     });
   });
 
-  test("a probe that throws is a bounded failure, not an exception", async () => {
+  test("a probe that throws is a bounded, retryable failure, not an unsafe redirect (D095)", async () => {
     const result = await admitCaptureTarget(
       "https://start.example/",
       deps(publicZone("start.example"), () => Promise.reject(new Error("connection reset"))),
     );
     expect(result).toMatchObject({
       ok: false,
-      outcome: "unsafe-redirect",
+      outcome: "target-unreachable",
       reason: { kind: "redirect", detail: "unreadable" },
     });
+    // A network blip is not a policy verdict: the catalog offers a retry.
+    expect(captureOutcome("target-unreachable").retryable).toBe(true);
+    expect(captureOutcome("unsafe-redirect").retryable).toBe(false);
   });
 
   test("no hop is probed once the initial target is rejected", async () => {
