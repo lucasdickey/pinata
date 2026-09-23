@@ -51,7 +51,9 @@ function isReservedHost(hostname: string): boolean {
 export function normalizeProjectUrl(input: string): UrlNormalizationResult {
   const trimmed = input.trim();
   if (trimmed === "") return { ok: false, reason: "blank" };
-  if (Buffer.byteLength(trimmed, "utf8") > MAX_URL_BYTES) {
+  // UTF-8 byte length via TextEncoder rather than Buffer, so the same rules
+  // can pre-check input in the browser (D097); the count is identical.
+  if (new TextEncoder().encode(trimmed).length > MAX_URL_BYTES) {
     return { ok: false, reason: "too-long" };
   }
   // Distinguish "you left the scheme off" from "this is not parseable at all"

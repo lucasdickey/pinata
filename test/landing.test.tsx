@@ -133,3 +133,54 @@ describe("anonymous landing", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// D097: the landing entry finishes bare addresses the same way the project
+// form does, and checks them with the server's rules before parking, so a
+// mistake is named here rather than only after signing in.
+describe("landing address completion and checks (D097)", () => {
+  test("a bare domain and a / row are completed, shown, and parked completed", () => {
+    render(<AnonymousLanding />);
+    fireEvent.change(screen.getByLabelText("Root URL"), { target: { value: "chickpea.co" } });
+    fireEvent.blur(screen.getByLabelText("Root URL"));
+    expect(screen.getByLabelText("Root URL")).toHaveValue("https://chickpea.co");
+    fireEvent.click(screen.getByRole("button", { name: "Add URL" }));
+    fireEvent.change(screen.getByLabelText("URL 2"), { target: { value: "/pricing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
+    expect(screen.getByLabelText("URL 2")).toHaveValue("https://chickpea.co/pricing");
+    expect(JSON.parse(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)!)).toEqual({
+      rootUrl: "https://chickpea.co",
+      urls: ["https://chickpea.co/pricing"],
+    });
+    expect(screen.getByLabelText("Password")).toHaveFocus();
+  });
+
+  test("an address the server would refuse is named inline and nothing is parked", () => {
+    render(<AnonymousLanding />);
+    fireEvent.change(screen.getByLabelText("Root URL"), {
+      target: { value: "http://chickpea.co" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Only public https:// addresses can be captured.",
+    );
+    expect(screen.getByLabelText("Root URL")).toHaveFocus();
+    expect(screen.getByLabelText("Root URL")).toHaveAttribute("aria-invalid", "true");
+    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  test("a bad extra row is marked on that row and blocks parking", () => {
+    render(<AnonymousLanding />);
+    fireEvent.change(screen.getByLabelText("Root URL"), {
+      target: { value: "https://chickpea.co/" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add URL" }));
+    fireEvent.change(screen.getByLabelText("URL 2"), { target: { value: "localhost:3000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
+    const row = screen.getByLabelText("URL 2");
+    expect(row).toHaveAttribute("aria-invalid", "true");
+    expect(row).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent(/https:\/\//);
+    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+});

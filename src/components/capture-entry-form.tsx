@@ -11,11 +11,17 @@
 // POST /api/projects creates the project.
 //
 // Pinata never discovers URLs: what is typed here is exactly what gets
-// captured.
+// captured. As in the project form (D097), a bare domain gains https:// and
+// a row starting with "/" is resolved against the root, visibly, on blur and
+// on submit; and every address is checked with the server's own admission
+// rules before it is parked, so a mistake is reported here rather than only
+// after the visitor has signed in.
 
 import { useRef, useState, type FormEvent } from "react";
 import { MAX_SUBMITTED_URL_ROWS } from "../lib/boundaries";
 import { saveCaptureDraft } from "../lib/capture-draft";
+import { checkUrlInput, completeUrlInput } from "../lib/url/complete";
+import { URL_ROW_MESSAGES } from "./project-create-form";
 
 interface UrlRow {
   id: string;
@@ -27,6 +33,7 @@ export function CaptureEntryForm() {
   const [rootUrl, setRootUrl] = useState("");
   const [rows, setRows] = useState<UrlRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [routed, setRouted] = useState(false);
   const rootInput = useRef<HTMLInputElement | null>(null);
 
@@ -39,20 +46,45 @@ export function CaptureEntryForm() {
     setRows((current) => current.filter((row) => row.id !== id));
   }
 
+  const reasonMessage = (reason: string) =>
+    URL_ROW_MESSAGES[reason] ?? "Please correct this entry.";
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const root = rootUrl.trim();
-    if (root === "") {
-      setError("Enter a public https:// address.");
+    const root = checkUrlInput(rootUrl);
+    const extras = rows
+      .filter((row) => row.value.trim() !== "")
+      .map((row) => ({ row, ...checkUrlInput(row.value, rootUrl) }));
+    // Show the completed addresses whatever happens next.
+    setRootUrl(root.value);
+    setRows((current) =>
+      current.map((row) => {
+        const checked = extras.find((extra) => extra.row.id === row.id);
+        return checked ? { ...row, value: checked.value } : row;
+      }),
+    );
+    const nextRowErrors: Record<string, string> = {};
+    for (const extra of extras) {
+      if (!extra.result.ok) nextRowErrors[extra.row.id] = reasonMessage(extra.result.reason);
+    }
+    setRowErrors(nextRowErrors);
+    setError(root.result.ok ? null : reasonMessage(root.result.reason));
+    setRouted(false);
+    if (!root.result.ok) {
       rootInput.current?.focus();
       return;
     }
-    setError(null);
+    const firstBadRow = extras.find((extra) => !extra.result.ok);
+    if (firstBadRow) {
+      document.getElementById(`${firstBadRow.row.id}-input`)?.focus();
+      return;
+    }
     // Park the draft, then route to the sign-in prompt. No request leaves
-    // the page: the project is created only after the editor signs in.
+    // the page: the project is created only after the editor signs in. The
+    // parked values are the completed ones the visitor can see.
     saveCaptureDraft({
-      rootUrl: root,
-      urls: rows.map((row) => row.value.trim()).filter((value) => value !== ""),
+      rootUrl: root.value,
+      urls: extras.map((extra) => extra.value),
     });
     setRouted(true);
     const field = document.getElementById("editor-password");
@@ -82,6 +114,7 @@ export function CaptureEntryForm() {
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "entry-root-url-error" : undefined}
             onChange={(event) => setRootUrl(event.target.value)}
+            onBlur={() => setRootUrl((current) => completeUrlInput(current))}
           />
         </p>
         {error ? (
@@ -106,11 +139,22 @@ export function CaptureEntryForm() {
                   inputMode="url"
                   value={row.value}
                   placeholder="https://example.com/pricing"
+                  aria-invalid={rowErrors[row.id] ? true : undefined}
+                  aria-describedby={rowErrors[row.id] ? `${row.id}-error` : undefined}
                   onChange={(event) =>
                     setRows((current) =>
                       current.map((candidate) =>
                         candidate.id === row.id
                           ? { ...candidate, value: event.target.value }
+                          : candidate,
+                      ),
+                    )
+                  }
+                  onBlur={() =>
+                    setRows((current) =>
+                      current.map((candidate) =>
+                        candidate.id === row.id
+                          ? { ...candidate, value: completeUrlInput(candidate.value, rootUrl) }
                           : candidate,
                       ),
                     )
@@ -125,6 +169,11 @@ export function CaptureEntryForm() {
                     Remove
                   </button>
                 </span>
+                {rowErrors[row.id] ? (
+                  <span id={`${row.id}-error`} className="field-error" role="alert">
+                    {rowErrors[row.id]}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ol>
