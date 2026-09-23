@@ -11,13 +11,17 @@
 // new project's pending attempts (D076), so nothing depends on the browser
 // staying open.
 //
-// GET lists the committed hierarchy from the durable store.
+// GET lists the committed hierarchy from the durable store. When the read
+// finds a device whose newest attempt computed stale, it first gives that
+// attempt its one automatic retry (idempotent per attempt, D095) and answers
+// with the re-read hierarchy, so the poller sees the new pending attempt
+// instead of settling on a dead one until the daily sweep.
 
 import { PROJECT_REQUEST_MAX_BYTES } from "../../../src/lib/boundaries";
 import { sessionCookie } from "../../../src/lib/server/auth/cookies";
 import { requireEditor, requireEditorMutation } from "../../../src/lib/server/auth/guard";
 import { getCaptureDriveDeps } from "../../../src/lib/server/captures/deps";
-import { driveProject } from "../../../src/lib/server/captures/drive";
+import { driveProject, recoverStaleAttempts } from "../../../src/lib/server/captures/drive";
 import { getDatabase } from "../../../src/lib/server/db/client";
 import {
   ERRORS,
@@ -27,7 +31,10 @@ import {
   readBoundedJson,
 } from "../../../src/lib/server/http";
 import { createProjectAtomically } from "../../../src/lib/server/projects/create";
-import { listProjectHierarchies } from "../../../src/lib/server/projects/hierarchy";
+import {
+  listProjectHierarchies,
+  staleLatestCaptureIds,
+} from "../../../src/lib/server/projects/hierarchy";
 import { createProjectBodySchema } from "../../../src/lib/server/projects/schemas";
 import { validateProjectSubmission } from "../../../src/lib/server/projects/submission";
 
@@ -116,7 +123,16 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
   try {
-    const projects = await listProjectHierarchies(db, Date.now());
+    let projects = await listProjectHierarchies(db, Date.now());
+    const stale = staleLatestCaptureIds(projects);
+    if (stale.length > 0) {
+      // Best effort: a failed recovery never fails the read; the sweep sees
+      // the same rows later.
+      const recovered = await recoverStaleAttempts(db, stale, getCaptureDriveDeps()).catch(
+        () => ({ created: 0 }),
+      );
+      if (recovered.created > 0) projects = await listProjectHierarchies(db, Date.now());
+    }
     return withRenewal(
       Response.json({ projects }),
       auth.renewedToken,

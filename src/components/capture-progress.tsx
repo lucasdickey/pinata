@@ -12,6 +12,7 @@
 // When attempts have failed and nothing is still moving, the line turns into
 // the failure list — every reason comes from the outcome catalog, never a
 // provider detail — with one button that retries every failed page device
+// (a computed-stale attempt counts: it will never move on its own, D095)
 // through the same scoped retry route the per-device control uses, one
 // idempotency key per device so a double click cannot schedule two.
 
@@ -95,18 +96,23 @@ interface FailedDevice {
   reason: string;
 }
 
+/** A stale attempt has no stored error code; its reason is the catalog's. */
+const STALE_OUTCOME_CODE = "stale-lease";
+
 function failedDevices(project: ProgressProject): FailedDevice[] {
   const failed: FailedDevice[] = [];
   for (const page of project.pages) {
     for (const device of page.devices) {
-      if (device.latest?.state !== "failed" || !device.retryable) continue;
+      const latest = device.latest;
+      if (!latest || !device.retryable) continue;
+      if (latest.state !== "failed" && latest.state !== "stale") continue;
+      const code = latest.state === "stale" ? STALE_OUTCOME_CODE : latest.errorCode;
       failed.push({
         pageId: page.id,
         variant: device.variant,
         page: shortPageName(page.normalizedUrl),
         reason:
-          (device.latest.errorCode ? outcomeMessages.get(device.latest.errorCode) : undefined) ??
-          "That capture did not complete.",
+          (code ? outcomeMessages.get(code) : undefined) ?? "That capture did not complete.",
       });
     }
   }

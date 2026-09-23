@@ -13,7 +13,16 @@
 //   automatically again (MAX_AUTOMATIC_CAPTURE_RETRIES, the project-wide
 //   attempt cap still applies);
 // - the next pending attempt of the same project is scheduled to run after
-//   the current response, so a project chains to completion on its own.
+//   the current response, so a project chains to completion on its own;
+//   when that project has nothing pending, the oldest pending attempts of
+//   any project take the free slots, so a project that found both slots
+//   busy is not left for the sweep (D095).
+//
+// Every continuation runs inside the invocation that started it, which dies
+// at its maxDuration. Before starting another capture the drive checks that
+// the invocation still has room for a whole one (TOTAL_CAPTURE_TIMEOUT_MS
+// plus CAPTURE_CONTINUATION_MARGIN_MS); when it does not, it hands the chain
+// to a fresh invocation through the sweep route instead (D095).
 //
 // The durable lease table stays the only concurrency authority: every path
 // here claims through it, and a claim that finds every slot held leaves the
@@ -22,14 +31,24 @@
 // same attempt are settled by the fenced transition, never by this module.
 
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { MAX_ACTIVE_CAPTURES, MAX_AUTOMATIC_CAPTURE_RETRIES } from "../../boundaries";
+import {
+  CAPTURE_CONTINUATION_MARGIN_MS,
+  CAPTURE_INVOCATION_MAX_DURATION_MS,
+  MAX_ACTIVE_CAPTURES,
+  MAX_AUTOMATIC_CAPTURE_RETRIES,
+  TOTAL_CAPTURE_TIMEOUT_MS,
+} from "../../boundaries";
 import { schema, type Database } from "../db/client";
 import { CAPTURE_VARIANTS } from "../db/schema";
 import type { AdmissionDeps } from "./admission";
-import { serverCaptureEnabled, type ContinuationScheduler } from "./continuation";
+import {
+  serverCaptureEnabled,
+  type CaptureHandoff,
+  type ContinuationScheduler,
+} from "./continuation";
 import { dispatchCapture } from "./dispatch";
 import { executeCapture, type CaptureExecutionDeps, type ReadyCapture } from "./execute";
-import { releaseCaptureLease } from "./leases";
+import { countActiveCaptureLeases, releaseCaptureLease } from "./leases";
 import { defaultCaptureRetryDeps, retryCapture, type CaptureRetryDeps } from "./retry";
 import { captureAttemptState, summarizeVariant } from "./status";
 
@@ -40,6 +59,37 @@ export interface CaptureDriveDeps {
   after: ContinuationScheduler;
   retry?: CaptureRetryDeps;
   now?: () => number;
+  /**
+   * The function invocation these deps drive in (D095): when it started,
+   * measured on `now`, and whether it already handed off. Shared by reference
+   * across every continuation of one request. Absent means no budget applies
+   * (scripts and focused tests that run nothing after a response).
+   */
+  invocation?: CaptureInvocation;
+  /** Starts a fresh invocation to continue; absent leaves it to other drivers. */
+  handoff?: CaptureHandoff;
+}
+
+export interface CaptureInvocation {
+  startedAt: number;
+  handedOff?: boolean;
+}
+
+/**
+ * Whether this invocation can still run one whole capture before its
+ * maxDuration: the capture deadline plus the margin for preflight,
+ * finalization, and a handoff must fit in what is left.
+ */
+export function invocationHasCaptureBudget(
+  deps: Pick<CaptureDriveDeps, "invocation" | "now">,
+): boolean {
+  if (!deps.invocation) return true;
+  const now = deps.now?.() ?? Date.now();
+  const elapsed = now - deps.invocation.startedAt;
+  return (
+    elapsed + TOTAL_CAPTURE_TIMEOUT_MS + CAPTURE_CONTINUATION_MARGIN_MS <=
+    CAPTURE_INVOCATION_MAX_DURATION_MS
+  );
 }
 
 export type DriveCaptureResult =
@@ -130,10 +180,46 @@ async function continueAfterFinalization(
     // attempt into a failed response. The sweep sees the same rows later.
   }
   if (!projectId) return;
+  if (!invocationHasCaptureBudget(deps) && handOff(db, deps)) return;
   const owner = projectId;
   deps.after(async () => {
-    await driveProject(db, owner, deps);
+    const driven = await driveProject(db, owner, deps);
+    // Nothing left here: give the freed slot to whichever project has been
+    // waiting longest, so one that found both slots busy is resumed by the
+    // server rather than by the sweep (D095).
+    if (driven.scheduled.length === 0) await driveOldestPending(db, deps);
   });
+}
+
+/**
+ * Hand the chain to a fresh invocation, once per invocation, and only when
+ * pending work exists; true when the chain is now the fresh invocation's (or
+ * a sibling continuation already handed it over). Without a handoff (no
+ * deployment origin or sweep secret, as in local development, which has no
+ * duration limit) it answers false and the caller keeps today's behavior:
+ * continue here, and if the platform stops the invocation, the stale
+ * recovery, the client driver, and the cron pick the rows up. Never throws
+ * into the caller.
+ */
+function handOff(db: Database, deps: CaptureDriveDeps): boolean {
+  const handoff = deps.handoff;
+  if (!handoff || !deps.invocation) return false;
+  if (deps.invocation.handedOff) return true;
+  deps.invocation.handedOff = true;
+  deps.after(async () => {
+    try {
+      const pending = await db
+        .select({ id: schema.captures.id })
+        .from(schema.captures)
+        .where(eq(schema.captures.status, "pending"))
+        .limit(1);
+      if (pending.length === 0) return;
+      await handoff();
+    } catch {
+      // Best effort: the rows stay pending for the other drivers.
+    }
+  });
+  return true;
 }
 
 export type AutomaticRetryResult = {
@@ -201,6 +287,40 @@ export async function scheduleAutomaticRetry(
   return { projectId, created: result.ok && result.created };
 }
 
+/**
+ * Give stale newest attempts a reader just noticed the same one automatic
+ * retry the sweep would give them, then drive the projects that gained a
+ * pending attempt (D095). Without this a stale attempt waited for the daily
+ * sweep. It is safe to call from a read because it is idempotent per stale
+ * attempt: the retry key is derived from the attempt id, and once the
+ * automatic attempt exists the stale row is no longer the newest, so later
+ * calls read two rows and write nothing. An attempt whose automatic retry is
+ * already spent is not retried again; the editor retries it by hand. Off
+ * while PINATA_SERVER_CAPTURE is off, like the sweep.
+ */
+export async function recoverStaleAttempts(
+  db: Database,
+  captureIds: readonly string[],
+  deps: CaptureDriveDeps,
+): Promise<{ created: number }> {
+  if (captureIds.length === 0 || !serverCaptureEnabled()) return { created: 0 };
+  let created = 0;
+  const projects = new Set<string>();
+  for (const captureId of captureIds) {
+    const retried = await scheduleAutomaticRetry(db, captureId, deps);
+    if (retried.created && retried.projectId) {
+      created += 1;
+      projects.add(retried.projectId);
+    }
+  }
+  for (const projectId of [...projects].sort()) {
+    deps.after(async () => {
+      await driveProject(db, projectId, deps);
+    });
+  }
+  return { created };
+}
+
 export interface DriveProjectResult {
   /** Attempt ids handed to the scheduler, in hierarchy order. */
   scheduled: string[];
@@ -246,6 +366,52 @@ export async function driveProject(
 ): Promise<DriveProjectResult> {
   const pending = await pendingAttemptIds(db, projectId);
   const scheduled = pending.slice(0, MAX_ACTIVE_CAPTURES);
+  for (const captureId of scheduled) {
+    deps.after(async () => {
+      await driveCapture(db, captureId, deps);
+    });
+  }
+  return { scheduled };
+}
+
+/**
+ * Schedule the oldest pending attempts across every project, at most the
+ * slots free right now. Age is the attempt's creation time; within one
+ * project's batch the hierarchy order breaks ties. Like driveProject, a task
+ * whose claim finds every slot held stops quietly.
+ */
+export async function driveOldestPending(
+  db: Database,
+  deps: CaptureDriveDeps,
+): Promise<DriveProjectResult> {
+  const now = deps.now?.() ?? Date.now();
+  const free = MAX_ACTIVE_CAPTURES - (await countActiveCaptureLeases(db, now));
+  if (free <= 0) return { scheduled: [] };
+  const rows = await db
+    .select({
+      id: schema.captures.id,
+      variant: schema.captures.variant,
+      attempt: schema.captures.attempt,
+      createdAt: schema.captures.createdAt,
+      sortIndex: schema.pages.sortIndex,
+      pageId: schema.pages.id,
+    })
+    .from(schema.captures)
+    .innerJoin(schema.pages, eq(schema.captures.pageId, schema.pages.id))
+    .where(eq(schema.captures.status, "pending"));
+  const deviceOrder = (variant: string) =>
+    (CAPTURE_VARIANTS as readonly string[]).indexOf(variant);
+  const scheduled = rows
+    .sort(
+      (a, b) =>
+        a.createdAt - b.createdAt ||
+        a.sortIndex - b.sortIndex ||
+        (a.pageId < b.pageId ? -1 : a.pageId > b.pageId ? 1 : 0) ||
+        deviceOrder(a.variant) - deviceOrder(b.variant) ||
+        a.attempt - b.attempt,
+    )
+    .slice(0, free)
+    .map((row) => row.id);
   for (const captureId of scheduled) {
     deps.after(async () => {
       await driveCapture(db, captureId, deps);

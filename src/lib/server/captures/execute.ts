@@ -299,7 +299,15 @@ async function runClaimedCapture(
 
   if (result.layoutNonce !== layoutNonce) return fail("browserless-provider");
   if (result.variant !== capture.variant) return fail("browserless-provider");
-  if (!finalUrlIsConsistent(capture.finalUrl, result.finalUrl)) return fail("unsafe-redirect");
+  // Admission already approved this target, and the in-function guard blocks
+  // any request to a non-public address, so a different origin here is a
+  // provider-session inconsistency (D054 recorded one on Chickpea mobile that
+  // no browser reproduced), not a policy verdict. Nothing from the run is
+  // stored; the attempt fails retryably, where an admission-time
+  // unsafe-redirect stays final (D095).
+  if (!finalUrlIsConsistent(capture.finalUrl, result.finalUrl)) {
+    return fail("browserless-provider");
+  }
   if (result.document.height > MAX_DOCUMENT_HEIGHT_PX) return fail("document-too-tall");
   if (result.document.height * result.document.width > MAX_DOCUMENT_PIXELS) {
     return fail("too-many-pixels");

@@ -168,6 +168,7 @@ describe("the catalog is exactly the documented matrix", () => {
       ["invalid-url", "failed", false, 422, false, false],
       ["dns-failed", "failed", true, 502, true, false],
       ["unsafe-redirect", "failed", false, 422, true, false],
+      ["target-unreachable", "failed", true, 502, true, false],
       ["browserless-auth", "failed", false, 502, true, false],
       ["browserless-provider", "failed", true, 502, true, false],
       ["navigation-timeout", "failed", true, 504, true, false],
@@ -247,6 +248,20 @@ describe("every reachable outcome behaves as its catalog row", () => {
             resolve6: () => Promise.reject(Object.assign(new Error("x"), { code: "ENODATA" })),
           },
           probe: () => Promise.resolve({ status: 302, location: "http://93.184.216.34/" }),
+          dnsTimeoutMs: 50,
+        }),
+    },
+    {
+      // The preflight could not read the target at all (D095).
+      code: "target-unreachable",
+      setup: () =>
+        __setAdmissionDepsForTests({
+          resolver: {
+            resolveCname: () => Promise.reject(Object.assign(new Error("x"), { code: "ENODATA" })),
+            resolve4: () => Promise.resolve(["93.184.216.34"]),
+            resolve6: () => Promise.reject(Object.assign(new Error("x"), { code: "ENODATA" })),
+          },
+          probe: () => Promise.reject(new Error("socket hang up")),
           dnsTimeoutMs: 50,
         }),
     },
