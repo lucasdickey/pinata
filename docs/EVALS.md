@@ -550,15 +550,22 @@ application instances, and both recover after exactly the published window.
 | `REPLY_MAX_PER_WINDOW` | 30 | Founder replies accepted per window. |
 | `REPLY_WINDOW_MS` | 3,600,000 ms (1 hour) | Reply rate-limit window and recovery interval. |
 
-Login enforcement semantics: failed editor logins are counted in one shared
-`rate_limit_buckets` row keyed by the SHA-256 digest of the `editor-login`
-scope — never a password, secret, or client identifier — so the threshold
-holds for the single editor credential across tabs and application instances.
-The window is fixed at the first failure in the window; throttled attempts
-receive the same generic `429` with a bounded `Retry-After` header and never
+Login enforcement semantics (`D098`, superseding the single shared bucket
+of `D026`): every attempt is counted in two `rate_limit_buckets` rows before
+the password is checked — a per-client row keyed by the SHA-256 digest of the
+`editor-login` scope and the client address (Vercel's `x-real-ip`, else the
+first `x-forwarded-for` entry, else a fixed `unknown`), limited to
+`LOGIN_MAX_FAILURES`, and a global row keyed by the scope alone, limited to
+`LOGIN_GLOBAL_MAX_FAILURES`. Keys are digests; a password or secret is never
+part of one. Reserving before verifying means parallel requests cannot
+multiply the guesses a window allows, and the per-client row means one
+guessing address cannot lock the editor out, while the global row still
+bounds guessing spread across many addresses. The window is fixed at the
+first attempt in it; throttled attempts receive the same generic `429` with a
+bounded `Retry-After` header, never reach the password check, and never
 extend the window. A correct attempt succeeds immediately once
-`window_started_at + LOGIN_WINDOW_MS` has passed, and a successful login
-clears the bucket.
+`window_started_at + LOGIN_WINDOW_MS` has passed; a successful login clears
+its client row and returns its one slot to the global row.
 
 ### Feedback, annotation, and interaction limits
 
