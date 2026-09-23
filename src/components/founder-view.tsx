@@ -22,6 +22,12 @@
 // thread, and nothing here prints coordinates, versions, or hashes. On a
 // phone the list comes first, then the screenshot, then the panel; tapping
 // an entry scrolls the screenshot into view with that mark in the middle.
+//
+// The view stays current on its own (D097): while the tab is visible it
+// quietly re-reads the hierarchy, the open capture's marks, and the open
+// thread, so Lucas's follow-up or reopen shows up without a reload. It opens
+// on the first page that has notes, under one line that says how many notes
+// are waiting and where.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -34,8 +40,14 @@ import {
   pinsOf,
   rectanglesOf,
 } from "../lib/canvas/marks";
-import { PIN_STATUS_LABELS, pinFeedbackPath } from "../lib/feedback-counts";
+import {
+  PIN_STATUS_LABELS,
+  captureFeedback,
+  pageFeedback,
+  pinFeedbackPath,
+} from "../lib/feedback-counts";
 import { readFounderCsrfProof } from "../lib/founder-csrf";
+import { useLiveRefresh } from "../lib/live-refresh";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { variantLabel } from "./capture-panel";
@@ -46,7 +58,12 @@ type Phase =
   | { status: "exchanging" }
   | { status: "loading" }
   | { status: "ready"; project: WorkspaceProject }
-  | { status: "denied" }
+  // Denied has two causes the founder can tell apart (D097): the link itself
+  // was refused ("link": replaced, turned off, or mistyped), or there was no
+  // link in the address and no working session to read with ("session": the
+  // session ended, or this is a new browser), which reopening the original
+  // link usually fixes.
+  | { status: "denied"; reason: "link" | "session" }
   | { status: "failed" };
 
 interface Selection {
@@ -76,7 +93,59 @@ function firstReadable(project: WorkspaceProject): Selection | null {
   return null;
 }
 
-export function FounderView({ publicId }: { publicId: string }) {
+/**
+ * Where the founder lands (D097): the first readable plane that carries
+ * notes, in the same order, so the view opens on something to read rather
+ * than on a root page Lucas may not have marked at all. Falls back to the
+ * first readable plane.
+ */
+export function firstWithNotes(project: WorkspaceProject): Selection | null {
+  for (const page of project.pages) {
+    for (const device of page.devices) {
+      if (device.usable && captureFeedback(project, device.selectedCaptureId).pins > 0) {
+        return { pageId: page.id, variant: device.variant };
+      }
+    }
+  }
+  return firstReadable(project);
+}
+
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/**
+ * The one-line arrival summary (D097), from the founder's own hierarchy
+ * counts: how many notes, on how many pages, and what to do with them.
+ */
+export function arrivalSummary(project: WorkspaceProject): string {
+  let notes = 0;
+  let pages = 0;
+  for (const page of project.pages) {
+    const count = pageFeedback(project, page).pins;
+    notes += count;
+    if (count > 0) pages += 1;
+  }
+  if (notes === 0) return "Lucas hasn't left any notes yet. Check back soon.";
+  return `Lucas left ${plural(notes, "note", "notes")} on ${plural(pages, "page", "pages")}. Reply to any of them, or mark one resolved when it's handled.`;
+}
+
+/** A page's note count for the rail, with anything new called out. */
+function pageNotesLabel(project: WorkspaceProject, page: WorkspaceProject["pages"][number]) {
+  const counts = pageFeedback(project, page);
+  if (counts.pins === 0) return null;
+  const notes = plural(counts.pins, "note", "notes");
+  return counts.unreadReplies > 0 ? `${notes} · ${counts.unreadReplies} new` : notes;
+}
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+export function FounderView({
+  publicId,
+  liveRefreshMs,
+}: {
+  publicId: string;
+  liveRefreshMs?: number;
+}) {
   const [phase, setPhase] = useState<Phase>({ status: "exchanging" });
   const [selection, setSelection] = useState<Selection | null>(null);
   // Every live mark on the capture: pins, rectangles (D079), circles (D082),
@@ -110,7 +179,7 @@ export function FounderView({ publicId }: { publicId: string }) {
         cache: "no-store",
       });
       if (response.status === 401 || response.status === 404) {
-        setPhase({ status: "denied" });
+        setPhase({ status: "denied", reason: "session" });
         return;
       }
       if (!response.ok) {
@@ -119,7 +188,7 @@ export function FounderView({ publicId }: { publicId: string }) {
       }
       const payload = (await response.json()) as { project: WorkspaceProject };
       setPhase({ status: "ready", project: payload.project });
-      setSelection((current) => current ?? firstReadable(payload.project));
+      setSelection((current) => current ?? firstWithNotes(payload.project));
     } catch {
       setPhase({ status: "failed" });
     }
@@ -151,7 +220,7 @@ export function FounderView({ publicId }: { publicId: string }) {
             },
           );
           if (!response.ok) {
-            setPhase({ status: "denied" });
+            setPhase({ status: "denied", reason: "link" });
             return;
           }
         } catch {
@@ -192,6 +261,34 @@ export function FounderView({ publicId }: { publicId: string }) {
     } catch {
       if (pinsRequestRef.current !== id) return;
       setPinsState({ captureId: id, status: "failed", pins: [] });
+    }
+  }, []);
+
+  /**
+   * Re-read one capture's marks without a loading state (D097), applied
+   * only while that capture's list is still the one shown. Used after a
+   * reply, whose status change (open to replied, D075) the append response
+   * does not carry, and by the live refresh.
+   */
+  const reloadPinsQuietly = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/captures/${encodeURIComponent(id)}/annotations`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const payload = (await response.json()) as PinListResponse;
+      if (!Array.isArray(payload.annotations)) return;
+      setPinsState((current) =>
+        current &&
+        current.captureId === id &&
+        current.status === "ready" &&
+        pinsRequestRef.current === id &&
+        !sameJson(current.pins, payload.annotations)
+          ? { captureId: id, status: "ready", pins: payload.annotations }
+          : current,
+      );
+    } catch {
+      // Best effort: the next read tells the truth.
     }
   }, []);
 
@@ -311,10 +408,14 @@ export function FounderView({ publicId }: { publicId: string }) {
       setReplyBody("");
       setReplyKey(null);
       setReplyState("idle");
+      // The server moved the mark from open to replied in the same write
+      // (D075), but the append answers with the entry only; re-read the
+      // list so the founder's own status line follows (D097).
+      void reloadPinsQuietly(captureId);
     } catch {
       setReplyState("failed");
     }
-  }, [captureId, selectedPinId, replyState, replyBody, replyKey]);
+  }, [captureId, selectedPinId, replyState, replyBody, replyKey, reloadPinsQuietly]);
 
   // Resolve or reopen the selected pin as the founder (D075). The returned
   // record replaces the listed pin and the status entry joins the thread;
@@ -365,6 +466,54 @@ export function FounderView({ publicId }: { publicId: string }) {
     [captureId, selectedPinId, statusState],
   );
 
+  // ---- live refresh (D097) ---------------------------------------------------
+  // Quiet re-reads while the tab is visible: the hierarchy (counts and the
+  // page rail), the open capture's marks, and the open thread. Nothing here
+  // shows a loading state or touches the selection, the camera, or a typed
+  // reply; each answer is applied only if the state it replaces is still the
+  // one the read started from. A session that stopped verifying is left for
+  // the next reply to report, so a half-typed reply is never torn away.
+  const refreshProjectQuietly = async () => {
+    const response = await fetch(`/api/founder/${encodeURIComponent(publicId)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const payload = (await response.json()) as { project: WorkspaceProject };
+    if (!payload.project) return;
+    setPhase((current) =>
+      current.status === "ready" && !sameJson(current.project, payload.project)
+        ? { status: "ready", project: payload.project }
+        : current,
+    );
+  };
+  const refreshThreadQuietly = async (id: string, annotationId: string) => {
+    const before = threadState;
+    if (!before || before.annotationId !== annotationId || before.status !== "ready") return;
+    const response = await fetch(
+      `/api/captures/${encodeURIComponent(id)}/annotations/${encodeURIComponent(annotationId)}/thread`,
+      { cache: "no-store" },
+    );
+    if (!response.ok) return;
+    const payload = (await response.json()) as ThreadListResponse;
+    if (!Array.isArray(payload.entries)) return;
+    setThreadState((current) =>
+      current === before && !sameJson(current.entries, payload.entries)
+        ? { annotationId, status: "ready", entries: payload.entries }
+        : current,
+    );
+  };
+  useLiveRefresh(
+    async () => {
+      await Promise.all([
+        refreshProjectQuietly(),
+        captureId ? reloadPinsQuietly(captureId) : null,
+        captureId && selectedPinId ? refreshThreadQuietly(captureId, selectedPinId) : null,
+      ]);
+    },
+    { enabled: phase.status === "ready", intervalMs: liveRefreshMs },
+  );
+  // ---- end live refresh ------------------------------------------------------
+
   const activePins = useMemo(
     () =>
       pinsState && pinsState.captureId === captureId && pinsState.status === "ready"
@@ -410,10 +559,22 @@ export function FounderView({ publicId }: { publicId: string }) {
     );
   }
   if (phase.status === "denied") {
-    return (
+    // A missing or ended session is usually fixed by the link the founder
+    // already has, so say that first and send them to Lucas only after it
+    // fails (D097). A refused link cannot be fixed from here.
+    return phase.reason === "session" ? (
+      <main className="founder-shell">
+        <h1>Open your review link again</h1>
+        <p data-testid="founder-denied" data-reason="session">
+          Your review session has ended, or this browser hasn&apos;t opened the review yet.
+          Open the link from Lucas&apos;s message again to pick up where you left off. If it
+          still doesn&apos;t open, ask Lucas for a fresh link.
+        </p>
+      </main>
+    ) : (
       <main className="founder-shell">
         <h1>This link is not valid</h1>
-        <p data-testid="founder-denied">
+        <p data-testid="founder-denied" data-reason="link">
           The review link may have been replaced or turned off. Ask Lucas for a fresh link.
         </p>
       </main>
@@ -434,6 +595,9 @@ export function FounderView({ publicId }: { publicId: string }) {
         <p className="founder-badge">Viewing as founder</p>
         <h1>{project.title}</h1>
         <p className="founder-root">{project.rootUrl}</p>
+        <p className="founder-summary" data-testid="founder-summary">
+          {arrivalSummary(project)}
+        </p>
         <p className="workspace-hint">
           Click a mark, or its entry in the list, to read the note and reply.
         </p>
@@ -442,34 +606,48 @@ export function FounderView({ publicId }: { publicId: string }) {
       <div className="workspace">
         <nav className="workspace-tree" aria-label="Pages and devices">
           <ol>
-            {project.pages.map((page) => (
-              <li key={page.id}>
-                <span className="page-url">{page.normalizedUrl}</span>
-                <ul className="page-devices">
-                  {page.devices
-                    .filter((device) => device.usable)
-                    .map((device) => {
-                      const isActive =
-                        selection?.pageId === page.id && selection.variant === device.variant;
-                      return (
-                        <li key={device.variant}>
-                          <button
-                            type="button"
-                            aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
-                            aria-current={isActive ? "true" : undefined}
-                            onClick={() => setSelection({ pageId: page.id, variant: device.variant })}
-                          >
-                            {variantLabel(device.variant)}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  {page.devices.every((device) => !device.usable) ? (
-                    <li className="device-status">No capture to show yet</li>
+            {project.pages.map((page) => {
+              // Per-page note counts (D097), beside the URL so the device
+              // buttons keep their names.
+              const notesLabel = pageNotesLabel(project, page);
+              return (
+                <li key={page.id}>
+                  <span className="page-url">{page.normalizedUrl}</span>
+                  {notesLabel ? (
+                    <span
+                      className="tree-count feedback-badge"
+                      data-testid="founder-page-count"
+                      aria-label={`${page.normalizedUrl}: ${notesLabel}`}
+                    >
+                      {notesLabel}
+                    </span>
                   ) : null}
-                </ul>
-              </li>
-            ))}
+                  <ul className="page-devices">
+                    {page.devices
+                      .filter((device) => device.usable)
+                      .map((device) => {
+                        const isActive =
+                          selection?.pageId === page.id && selection.variant === device.variant;
+                        return (
+                          <li key={device.variant}>
+                            <button
+                              type="button"
+                              aria-label={`${variantLabel(device.variant)} capture of ${page.normalizedUrl}`}
+                              aria-current={isActive ? "true" : undefined}
+                              onClick={() => setSelection({ pageId: page.id, variant: device.variant })}
+                            >
+                              {variantLabel(device.variant)}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    {page.devices.every((device) => !device.usable) ? (
+                      <li className="device-status">No capture to show yet</li>
+                    ) : null}
+                  </ul>
+                </li>
+              );
+            })}
           </ol>
         </nav>
 

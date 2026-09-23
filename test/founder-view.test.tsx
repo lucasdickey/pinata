@@ -7,7 +7,7 @@
 // with the founder CSRF proof, and a denied exchange shows no project data.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { FounderView } from "../src/components/founder-view";
@@ -164,12 +164,19 @@ function installFetch() {
     if (target.endsWith("/api/founder/pub-1")) {
       return Promise.resolve(
         projectStatus === 200
-          ? json({ actor: "founder", project })
+          ? json({ actor: "founder", project: hierarchy })
           : json({ error: "Authentication required." }, projectStatus),
       );
     }
     if (target.endsWith("/annotations")) {
-      return Promise.resolve(json({ annotations: [pin, secondPin, ...extraAnnotations] }));
+      // A founder message moves an open mark to replied on the server (D075).
+      const listed = [pin, secondPin, ...extraAnnotations].map((mark) => {
+        const record = mark as { id: string; status: string };
+        return repliedIds.has(record.id) && record.status === "open"
+          ? { ...record, status: "replied" }
+          : mark;
+      });
+      return Promise.resolve(json({ annotations: listed }));
     }
     if (target.endsWith("/seen") && method === "POST") {
       return Promise.resolve(json({ seen: true }));
@@ -192,9 +199,10 @@ function installFetch() {
       );
     }
     if (target.endsWith("/thread") && method === "GET") {
-      return Promise.resolve(json({ entries }));
+      return Promise.resolve(json({ entries: threadEntries }));
     }
     if (target.endsWith("/thread") && method === "POST") {
+      repliedIds.add(decodeURIComponent(target.split("/annotations/")[1]!.split("/")[0]!));
       return Promise.resolve(
         json(
           {
@@ -218,11 +226,20 @@ function installFetch() {
 
 /** Extra marks the annotations list returns for one test (D079 boxes). */
 let extraAnnotations: unknown[] = [];
+/** The hierarchy the founder route answers with; tests may swap it. */
+let hierarchy: unknown;
+/** The thread every thread read answers with; tests may append to it. */
+let threadEntries: unknown[];
+/** Marks a founder has replied to during the test. */
+let repliedIds: Set<string>;
 
 beforeEach(() => {
   exchangeStatus = 200;
   projectStatus = 200;
   extraAnnotations = [];
+  hierarchy = project;
+  threadEntries = [...entries];
+  repliedIds = new Set();
   installFetch();
   window.history.replaceState(null, "", `/f/pub-1#${TOKEN}`);
   document.cookie = `${FOUNDER_CSRF_COOKIE}=founder-proof-sentinel`;
@@ -278,7 +295,10 @@ describe("capability exchange", () => {
   test("a rejected exchange shows the generic denial and no project data", async () => {
     exchangeStatus = 404;
     render(<FounderView publicId="pub-1" />);
-    await screen.findByTestId("founder-denied");
+    const denied = await screen.findByTestId("founder-denied");
+    // A refused link cannot be fixed by reopening it: ask Lucas.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("This link is not valid");
+    expect(denied).toHaveTextContent("Ask Lucas for a fresh link.");
     expect(screen.queryByText("chickpea.co")).toBeNull();
     expect(calls.some((call) => call.url.endsWith("/api/founder/pub-1"))).toBe(false);
     expect(screen.queryByRole("img")).toBeNull();
@@ -288,8 +308,18 @@ describe("capability exchange", () => {
     window.history.replaceState(null, "", "/f/pub-1");
     projectStatus = 401;
     render(<FounderView publicId="pub-1" />);
-    await screen.findByTestId("founder-denied");
+    const denied = await screen.findByTestId("founder-denied");
     expect(screen.queryByText("chickpea.co")).toBeNull();
+    // No link in the address and no working session (D097): the original
+    // link usually still works, so that comes first, and Lucas second.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Open your review link again",
+    );
+    expect(denied).toHaveTextContent(/Open the link from Lucas's message again/);
+    expect(denied).toHaveTextContent(/If it still doesn't open, ask Lucas for a fresh link\./);
+    expect(denied.textContent!.indexOf("message again")).toBeLessThan(
+      denied.textContent!.indexOf("ask Lucas"),
+    );
   });
 });
 
@@ -739,5 +769,145 @@ describe("reading-first founder view (D078)", () => {
     await user.click(within(list).getAllByRole("button")[0]!);
     expect(within(list).getAllByRole("button")[0]).toHaveAttribute("aria-current", "true");
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+});
+
+// D097: the founder view stays current by itself, says on arrival what is
+// waiting, counts notes per page, opens where the notes are, and follows the
+// founder's own reply with the mark's new status.
+describe("arrival, live refresh, and reply status (D097)", () => {
+  /** The fixture project plus a pricing page that carries all the notes. */
+  function withPricingNotes() {
+    const pricingAttempt = {
+      ...project.pages[0]!.devices[0]!.attempts[0]!,
+      id: "pricing-d1",
+    };
+    return {
+      ...project,
+      pages: [
+        project.pages[0]!,
+        {
+          ...project.pages[0]!,
+          id: "page-pricing",
+          requestedUrl: "https://chickpea.co/pricing",
+          normalizedUrl: "https://chickpea.co/pricing",
+          sortIndex: 1,
+          devices: [
+            {
+              ...project.pages[0]!.devices[0]!,
+              attempts: [pricingAttempt],
+              selectedCaptureId: "pricing-d1",
+            },
+          ],
+        },
+      ],
+      feedback: { pins: 3, open: 2, resolved: 1, unreadReplies: 1 },
+      captureFeedback: {
+        "pricing-d1": { pins: 3, open: 2, resolved: 1, unreadReplies: 1 },
+      },
+    };
+  }
+
+  test("a one-line summary counts the notes and pages, the rail counts each page, and the view opens on the first page with notes", async () => {
+    hierarchy = withPricingNotes();
+    render(<FounderView publicId="pub-1" />);
+    await screen.findByTestId("founder-view");
+    expect(screen.getByTestId("founder-summary")).toHaveTextContent(
+      "Lucas left 3 notes on 1 page. Reply to any of them, or mark one resolved when it's handled.",
+    );
+    const counts = screen.getAllByTestId("founder-page-count");
+    expect(counts).toHaveLength(1);
+    expect(counts[0]).toHaveTextContent("3 notes · 1 new");
+    expect(counts[0]).toHaveAttribute("aria-label", "https://chickpea.co/pricing: 3 notes · 1 new");
+    // Not the root page, which has nothing on it.
+    await screen.findByRole("img", {
+      name: "Screenshot of https://chickpea.co/pricing (Desktop, version 1)",
+    });
+    expect(
+      screen.getByRole("button", { name: "Desktop capture of https://chickpea.co/pricing" }),
+    ).toHaveAttribute("aria-current", "true");
+  });
+
+  test("with no notes yet the summary says so plainly", async () => {
+    await renderReady();
+    expect(screen.getByTestId("founder-summary")).toHaveTextContent(
+      "Lucas hasn't left any notes yet.",
+    );
+    expect(screen.queryByTestId("founder-page-count")).toBeNull();
+  });
+
+  test("the founder's reply moves the mark's own status from Open to Replied", async () => {
+    const user = userEvent.setup();
+    extraAnnotations = [{ ...pin, id: "ann-7", number: 7, status: "open", unreadReplies: 0 }];
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    await user.click(within(list).getByRole("button", { name: /^Pin 7 ·/ }));
+    const panel = screen.getByTestId("founder-panel");
+    await within(panel).findByTestId("thread");
+    expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Open");
+    await user.type(within(panel).getByLabelText("Reply as founder"), "On it.");
+    await user.click(within(panel).getByRole("button", { name: "Send reply" }));
+    await waitFor(() =>
+      expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Replied"),
+    );
+    expect(within(list).getByRole("button", { name: /^Pin 7 ·/ })).toHaveTextContent("Replied");
+    // The selection held through the re-read.
+    expect(within(list).getByRole("button", { name: /^Pin 7 ·/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  test("a live refresh brings Lucas's follow-up into the open thread and keeps the typed reply", async () => {
+    const user = userEvent.setup();
+    await renderReady();
+    const list = await screen.findByTestId("founder-pin-list");
+    await user.click(within(list).getAllByRole("button")[0]!);
+    const panel = screen.getByTestId("founder-panel");
+    const thread = await within(panel).findByTestId("thread");
+    await within(thread).findByText("Thanks!");
+    await user.type(within(panel).getByLabelText("Reply as founder"), "Still typing");
+    const reads = () =>
+      calls.filter((call) => call.method === "GET" && call.url === "/api/founder/pub-1").length;
+    const before = reads();
+
+    threadEntries = [
+      ...entries,
+      {
+        id: "thr-3",
+        annotationId: "ann-1",
+        actorRole: "editor",
+        authorLabel: "Lucas",
+        kind: "message",
+        body: "One more thing on this one.",
+        createdAt: 1_800_000_004_000,
+      },
+    ];
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await within(thread).findByText("One more thing on this one.");
+    expect(reads()).toBe(before + 1);
+    expect(within(panel).getByLabelText("Reply as founder")).toHaveValue("Still typing");
+    expect(within(list).getAllByRole("button")[0]).toHaveAttribute("aria-current", "true");
+    // Quiet: the review never went back to its opening state.
+    expect(screen.queryByText("Opening the review…")).toBeNull();
+  });
+
+  test("a hidden tab reads nothing on focus", async () => {
+    await renderReady();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    try {
+      const before = calls.length;
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      expect(calls.length).toBe(before);
+    } finally {
+      delete (document as { visibilityState?: unknown }).visibilityState;
+    }
   });
 });
