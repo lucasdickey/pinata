@@ -188,6 +188,31 @@ describe("click versus drag", () => {
     expect(draftNodes()).toHaveLength(1);
   });
 
+  test("a pinch whose first finger barely moves drops nothing (D096)", () => {
+    const onDraftChange = vi.fn();
+    render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
+    // First finger down, second finger down (a pinch), then the first one
+    // lifts inside the placement slop: the camera zoomed, and no pin may
+    // appear under the first finger.
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerDown(frameImage(), { clientX: 500, clientY: 400, isPrimary: false, pointerId: 2 });
+    fireEvent.pointerUp(frameImage(), { clientX: 402, clientY: 301, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerUp(frameImage(), { clientX: 500, clientY: 400, isPrimary: false, pointerId: 2 });
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  test("a right- or middle-click drops nothing (D096)", () => {
+    const onDraftChange = vi.fn();
+    render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
+    for (const button of [1, 2]) {
+      fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button });
+      fireEvent.pointerUp(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button });
+    }
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
   test("a click that lands outside the screenshot drops nothing", () => {
     const onDraftChange = vi.fn();
     render(<CaptureCanvas {...props} onDraftChange={onDraftChange} />);
@@ -295,6 +320,15 @@ describe("the composer popover", () => {
     expect(draftNodes()).toHaveLength(1);
   });
 
+  test("moving the open draft hands focus back to the comment (D096)", () => {
+    render(<CaptureCanvas {...props} composer={composerProps()} />);
+    tap(frameImage(), 400, 300);
+    // A real click on the pane focuses the region (tabIndex 0) on press.
+    region().focus();
+    tap(frameImage(), 410, 450);
+    expect(within(composer()!).getByLabelText("Comment")).toHaveFocus();
+  });
+
   test("focus returns to the canvas region when the draft closes", async () => {
     const { rerender } = render(
       <CaptureCanvas {...props} composer={composerProps()} draftResetSignal={0} />,
@@ -390,9 +424,40 @@ describe("keyboard shortcuts on the canvas region", () => {
     expect(onSelectPin).toHaveBeenCalledWith(null);
     // The composer opens for it like any click-placed draft.
     expect(composer()).not.toBeNull();
-    // A second N moves the same draft; it never stacks.
+    // A second N while that draft is open is the editor typing, not a
+    // shortcut (D096): the draft stays where it is, and it never stacks.
     fireEvent.keyDown(region(), { key: "N" });
     expect(draftNodes()).toHaveLength(1);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+  });
+
+  test("while a draft is open, letters on the region are never shortcuts; Escape still is (D096)", () => {
+    const onSelectPin = vi.fn();
+    const onStepPin = vi.fn();
+    const onDraftSettled = vi.fn();
+    render(
+      <CaptureCanvas
+        {...props}
+        pins={pins}
+        onSelectPin={onSelectPin}
+        onStepPin={onStepPin}
+        onDraftSettled={onDraftSettled}
+        composer={composerProps()}
+      />,
+    );
+    tap(frameImage(), 400, 300);
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    // Focus slipped to the region: what follows is the comment being typed.
+    for (const key of ["n", "N", "j", "k", "b", "c", "a", "J"]) {
+      fireEvent.keyDown(region(), { key });
+    }
+    expect(onDraftSettled).toHaveBeenCalledTimes(1);
+    expect(onStepPin).not.toHaveBeenCalled();
+    expect(onSelectPin).not.toHaveBeenCalled();
+    expect(region()).not.toHaveAttribute("data-draw-armed");
+    expect(draftNodes()).toHaveLength(1);
+    fireEvent.keyDown(region(), { key: "Escape" });
+    expect(draftNodes()).toHaveLength(0);
   });
 
   test("shortcuts ignore modifier combinations", () => {
@@ -895,7 +960,9 @@ describe("rectangles (D079)", () => {
     const user = userEvent.setup();
     await renderZoomed();
     await user.click(drawToggle());
-    drag(frameImage(), { x: 400, y: 300 }, { x: 402, y: 302 });
+    // Past the placement slop, so a drag; 5 by 2.5 natural px at 4x, so
+    // below the minimum.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 420, y: 310 });
     expect(draftRectangleNodes()).toHaveLength(0);
     expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
 
@@ -903,6 +970,53 @@ describe("rectangles (D079)", () => {
     expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a click with a tool armed draws nothing and keeps the tool for the next drag (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    // A press and release inside the placement slop is a click, not a drag.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 402, y: 302 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
+    // The drag that follows still draws.
+    drag(frameImage(), { x: 400, y: 300 }, { x: 480, y: 360 });
+    expect(draftRectangleNodes()).toHaveLength(1);
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a right-click with a tool armed never starts a draw (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, button: 2 });
+    expect(region()).not.toHaveAttribute("data-drawing");
+    fireEvent.pointerMove(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, button: 2 });
+    fireEvent.pointerUp(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, button: 2 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
+    expect(drawToggle()).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("a second finger mid-draw abandons the draw: a pinch draws nothing (D096)", async () => {
+    const user = userEvent.setup();
+    const onDraftChange = vi.fn();
+    await renderZoomed({ onDraftChange });
+    await user.click(drawToggle());
+    fireEvent.pointerDown(frameImage(), { clientX: 400, clientY: 300, isPrimary: true, pointerId: 1 });
+    fireEvent.pointerMove(frameImage(), { clientX: 440, clientY: 340, isPrimary: true, pointerId: 1 });
+    expect(region()).toHaveAttribute("data-drawing", "true");
+    fireEvent.pointerDown(frameImage(), { clientX: 600, clientY: 500, isPrimary: false, pointerId: 2 });
+    expect(region()).not.toHaveAttribute("data-drawing");
+    fireEvent.pointerUp(frameImage(), { clientX: 480, clientY: 360, isPrimary: true, pointerId: 1 });
+    expect(draftRectangleNodes()).toHaveLength(0);
+    expect(draftNodes()).toHaveLength(0);
+    expect(onDraftChange).not.toHaveBeenCalled();
   });
 
   test("the draft box has eight handles and resizing one re-settles the draft", async () => {

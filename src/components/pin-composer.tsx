@@ -58,6 +58,12 @@ export interface PinComposerProps {
    * workspace state can leave it out. Defaults to a pin.
    */
   draftKind?: MarkKind;
+  /**
+   * Changes every time the draft is placed or moved (D096); each change
+   * hands focus back to the comment. The canvas sets it, so callers
+   * building the props from workspace state can leave it out.
+   */
+  placement?: number;
 }
 
 /** Human label for one candidate or snapshot: kind, tag, and a snippet. */
@@ -89,6 +95,7 @@ export function PinComposer({
   onCancelDraft,
   saveState,
   draftKind = "pin",
+  placement = 0,
 }: PinComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -96,10 +103,12 @@ export function PinComposer({
   const noun = markKindNoun(draftKind);
 
   // The comment is what the editor came to write: focus it as soon as the
-  // draft appears, without scrolling the page under the pin.
+  // draft appears, and again whenever it is re-placed or moved (D096) —
+  // that click lands focus on the canvas region, where the next letters
+  // would be read as shortcuts — without scrolling the page under the pin.
   useEffect(() => {
     textareaRef.current?.focus({ preventScroll: true });
-  }, []);
+  }, [placement]);
 
   const status = draftCandidates?.status ?? "loading";
   const items = draftCandidates?.status === "ready" ? draftCandidates.items : [];

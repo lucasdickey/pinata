@@ -725,7 +725,13 @@ function DraftComposerPopover({
 
 /** A pointer gesture the canvas owns from press to release. */
 type Gesture =
-  | { type: "draw"; tool: MarkTool; start: NaturalPoint }
+  | {
+      type: "draw";
+      tool: MarkTool;
+      start: NaturalPoint;
+      /** Where the press landed on screen, to tell a click from a drag. */
+      startScreen: { x: number; y: number };
+    }
   | {
       type: "resize";
       target: { draft: true } | { draft: false; id: string };
@@ -952,6 +958,19 @@ function CaptureCanvasInner({
   const [armed, setArmed] = useState<MarkTool | null>(null);
   const armedRef = useRef(armed);
   armedRef.current = armed;
+  // Counts every time the draft is placed or moved (D096). The composer
+  // re-focuses its comment on each change: a click that moves an open draft
+  // lands focus on the canvas region, and the next keystrokes would
+  // otherwise be read as shortcuts instead of the comment being typed.
+  const [draftPlacement, setDraftPlacement] = useState(0);
+  /** The draft's geometry is final for now: re-query context, re-focus. */
+  const settleDraft = useCallback(
+    (mark: DraftMark) => {
+      setDraftPlacement((value) => value + 1);
+      onDraftSettled?.(mark);
+    },
+    [onDraftSettled],
+  );
   // The gesture in flight (a draw or a resize) and a state mirror that
   // mounts the window listeners for it.
   const gestureRef = useRef<Gesture | null>(null);
@@ -1354,18 +1373,27 @@ function CaptureCanvasInner({
       gestureRef.current = null;
       setGestureActive(false);
       if (gesture.type === "draw") {
+        setDrawing(null);
+        // A release within the placement slop was a click, not a drag
+        // (D074): it draws nothing and leaves the tool armed, so the drag
+        // the editor makes next still draws (D096). Disarming here spent
+        // the tool silently on a click that showed nothing.
+        const travel = Math.hypot(
+          event.clientX - gesture.startScreen.x,
+          event.clientY - gesture.startScreen.y,
+        );
+        if (travel <= PLACEMENT_SLOP_SCREEN_PX) return;
         const natural = naturalAt({ x: event.clientX, y: event.clientY });
         const end = natural
           ? clampNaturalPointToCapture(natural, doc)
           : (drawingRef.current?.current ?? gesture.start);
         const mark = drawnMark(gesture.tool, gesture.start, end, doc);
-        setDrawing(null);
         // The tool armed exactly this drag, whatever it produced.
         setArmed(null);
         // Too small to be a mark: nothing is drafted and nothing changes.
         if (!drawnMarkIsBigEnough(mark)) return;
         setDraft(mark);
-        onDraftSettled?.(mark);
+        settleDraft(mark);
         syncZoom();
         return;
       }
@@ -1377,7 +1405,7 @@ function CaptureCanvasInner({
         // A draft resize or endpoint drag commits nothing; it re-anchors the
         // nearby context query on the final geometry.
         const current = draftRef.current;
-        if (current && current.kind === startMark.kind) onDraftSettled?.(current);
+        if (current && current.kind === startMark.kind) settleDraft(current);
         return;
       }
       const drop = regionDragRef.current;
@@ -1398,7 +1426,7 @@ function CaptureCanvasInner({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onCancel);
     };
-  }, [gestureActive, doc, naturalAt, cancelGesture, onDraftSettled, commitRegion, syncZoom]);
+  }, [gestureActive, doc, naturalAt, cancelGesture, settleDraft, commitRegion, syncZoom]);
 
   const gestures = useMemo<RegionGestures>(
     () => ({
@@ -1521,10 +1549,10 @@ function CaptureCanvasInner({
     (natural: NaturalPoint) => {
       const mark: DraftMark = { kind: "pin", tip: natural };
       setDraft(mark);
-      onDraftSettled?.(mark);
+      settleDraft(mark);
       syncZoom();
     },
-    [onDraftSettled, syncZoom],
+    [settleDraft, syncZoom],
   );
 
   // A click on the screenshot: a press/release pair with no more than the
@@ -1536,8 +1564,20 @@ function CaptureCanvasInner({
 
   const onWrapperPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     // isPrimary is undefined on some synthetic event surfaces; only an
-    // explicit non-primary pointer is ignored.
-    if (event.isPrimary === false) return;
+    // explicit non-primary pointer is ignored. A second finger means a
+    // pinch (D096): the first finger's press is no longer a click, so it
+    // must not drop a pin when it lifts, and a draw it began is abandoned.
+    if (event.isPrimary === false) {
+      pressStart.current = null;
+      if (gestureRef.current) cancelGesture();
+      return;
+    }
+    // Only the primary button places or draws (D096): a right-click opens
+    // the context menu and a middle-click scrolls; neither is a mark.
+    if (event.button !== 0) {
+      pressStart.current = null;
+      return;
+    }
     if (!readOnly && !gestureRef.current && (event.shiftKey || armedRef.current !== null)) {
       // A draw begins: the press point, clamped to the frame, is one corner.
       // Shift is the box shortcut (D079); otherwise the armed tool decides.
@@ -1545,7 +1585,12 @@ function CaptureCanvasInner({
       if (!natural) return;
       const tool: MarkTool = armedRef.current ?? "rectangle";
       const start = clampNaturalPointToCapture(natural, doc);
-      gestureRef.current = { type: "draw", tool, start };
+      gestureRef.current = {
+        type: "draw",
+        tool,
+        start,
+        startScreen: { x: event.clientX, y: event.clientY },
+      };
       setDrawing({ tool, start, current: start });
       setGestureActive(true);
       pressStart.current = null;
@@ -1632,6 +1677,12 @@ function CaptureCanvasInner({
     // Never while typing, and never as part of a browser or OS shortcut.
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     if (isTextEntry(event.target)) return;
+    // While a draft is open its comment is what the editor is typing, even
+    // when focus slipped to the region (a click that moved the draft puts it
+    // there for a moment): a letter must never re-place the draft, arm a
+    // tool, or step away and lose the comment (D096). Escape is handled by
+    // the window listener above and keeps working.
+    if (draftRef.current && event.key.length === 1) return;
     // One key per mark tool (D082): it arms the next drag exactly as the
     // button does, and pressing it again disarms.
     const tool = MARK_TOOLS.find((candidate) => candidate.key === event.key.toLowerCase());
@@ -1844,7 +1895,7 @@ function CaptureCanvasInner({
               } else if (DRAFT_TYPES.includes(node.type ?? "") && draftRef.current) {
                 // A draft drag commits nothing; it only re-anchors the nearby
                 // context query on the final geometry.
-                onDraftSettled?.(draftRef.current);
+                settleDraft(draftRef.current);
               }
               dragGrab.current = null;
               arrowDrag.current = null;
@@ -1895,7 +1946,7 @@ function CaptureCanvasInner({
           read-only plane has no drafts and no composer. */}
       {draft && composer && !readOnly && !drawing ? (
         <DraftComposerPopover draft={draft} frameRef={wrapperRef}>
-          <PinComposer {...composer} draftKind={draft.kind} />
+          <PinComposer {...composer} draftKind={draft.kind} placement={draftPlacement} />
         </DraftComposerPopover>
       ) : null}
     </div>
