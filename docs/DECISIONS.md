@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 25 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093 |
+| Human directed | 26 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D095 |
 | Agent proposed, human approved | 16 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **94** | |
+| **Total** | **95** | |
 
 ## Key decisions
 
@@ -150,6 +150,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D092](#d092--flag-the-product-and-architecture-decisions-a-reviewer-should-read-first-and-surface-them-ahead-of-the-full-log-in-markdown-the-dashboard-and-reqsdecisions) | wrap | Flag the product and architecture decisions a reviewer should read first, and surface them ahead of the full log in Markdown, the dashboard, and /reqs/decisions | Human directed | accepted |
 | [D093](#d093--cross-review-the-repository-with-a-second-agent-harness-and-adopt-its-findings-selectively-rather-than-merging-its-branch) | wrap | Cross-review the repository with a second agent harness and adopt its findings selectively, rather than merging its branch | Human directed | accepted |
 | [D094](#d094--defer-runtime-element-matching-with-a-system-one-model-until-the-deterministic-pre-selection-has-been-measured) | build | Defer runtime element matching with a System One model until the deterministic pre-selection has been measured | Raised and deferred | pending |
+| [D095](#d095--raise-the-editor-login-failure-limit-from-5-to-20-per-window-keeping-the-throttle) | validate | Raise the editor login failure limit from 5 to 20 per window, keeping the throttle | Human directed | accepted |
 
 ---
 
@@ -3723,4 +3724,40 @@ Human instruction:
 
 ---
 
-<sub>Generated from 94 record(s) as of 2026-09-19 · source `4e29b245cfff`</sub>
+## D095 — Raise the editor login failure limit from 5 to 20 per window, keeping the throttle
+
+*2026-09-24 · phase: validate · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+During the milestone-2/3 live checkpoint the owner was locked out of editor sign-in by the durable login throttle after five failed attempts, with a thirteen-minute wait. The failures were not an attack and not owner error: the agent had copied EDITOR_PASSWORD out of .env.local with its surrounding double quotes still attached, so three of the attempts were mechanically doomed. The throttle behaved exactly as specified, but the specification treats a solo operator who keeps the password in a git-ignored file the same as a distributed guesser. The owner asked for the blocker to be relaxed, then narrowed that to the failure count alone.
+
+**Decision**
+
+Raise LOGIN_MAX_FAILURES from 5 to 20 and leave LOGIN_WINDOW_MS at 900,000 ms (15 minutes). The throttle, its single global bucket, its durable Turso storage, and its generic throttled response are all unchanged. POLICY_VERSION moves to 2026-09-24.1 and both published catalogs move with it.
+
+**Alternatives considered**
+
+- *Remove the brute-force blocker entirely* — The owner first asked for this and the agent pushed back: one shared password is the only control between the internet and the editor account on a live deployment, and the throttle is already built, durable, and covered by unit and integration tests. The owner narrowed the request rather than insisting.
+- *Clear the throttle bucket whenever the checkpoint trips it* — It was the agent's recommendation and it costs nothing, but it leaves a real ergonomic defect in the product for a solo operator and makes the agent a required participant in the owner's own sign-in.
+- *Shorten the window instead of raising the count* — Not chosen by the owner. It would reduce the punishment without reducing how easily the limit is reached, and the complaint was about being stopped at five, not about the length of the wait.
+
+**Rationale**
+
+Twenty failures per fifteen minutes is still a hard ceiling on guessing an eleven-character secret; the exposure added over five is arithmetically negligible against that keyspace, while the ergonomic difference for one person with a password manager is the difference between working and waiting. Keeping the window fixed preserves the exact recovery boundary the integration test asserts. Every test imports LOGIN_MAX_FAILURES rather than hardcoding five, so the change is absorbed by the suite without weakening any assertion.
+
+**Consequences**
+
+- POLICY_VERSION is 2026-09-24.1; docs/EVALS.md and docs/ARCHITECTURE.md publish the new value and the drift test pins all three together.
+- The throttle is looser, not gone: a distributed guesser still meets a durable global ceiling that holds across tabs and instances.
+- If the product ever gains more than one editor, the single global bucket becomes the wrong shape and this value should be revisited with it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> raise the failure count. i am not stressed here yet
+
+---
+
+<sub>Generated from 95 record(s) as of 2026-09-24 · source `b4830282f044`</sub>

@@ -4186,6 +4186,42 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D095",
+      "date": "2026-09-24",
+      "phase": "validate",
+      "title": "Raise the editor login failure limit from 5 to 20 per window, keeping the throttle",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "During the milestone-2/3 live checkpoint the owner was locked out of editor sign-in by the durable login throttle after five failed attempts, with a thirteen-minute wait. The failures were not an attack and not owner error: the agent had copied EDITOR_PASSWORD out of .env.local with its surrounding double quotes still attached, so three of the attempts were mechanically doomed. The throttle behaved exactly as specified, but the specification treats a solo operator who keeps the password in a git-ignored file the same as a distributed guesser. The owner asked for the blocker to be relaxed, then narrowed that to the failure count alone.",
+      "decision": "Raise LOGIN_MAX_FAILURES from 5 to 20 and leave LOGIN_WINDOW_MS at 900,000 ms (15 minutes). The throttle, its single global bucket, its durable Turso storage, and its generic throttled response are all unchanged. POLICY_VERSION moves to 2026-09-24.1 and both published catalogs move with it.",
+      "alternatives": [
+        {
+          "option": "Remove the brute-force blocker entirely",
+          "why_not": "The owner first asked for this and the agent pushed back: one shared password is the only control between the internet and the editor account on a live deployment, and the throttle is already built, durable, and covered by unit and integration tests. The owner narrowed the request rather than insisting."
+        },
+        {
+          "option": "Clear the throttle bucket whenever the checkpoint trips it",
+          "why_not": "It was the agent's recommendation and it costs nothing, but it leaves a real ergonomic defect in the product for a solo operator and makes the agent a required participant in the owner's own sign-in."
+        },
+        {
+          "option": "Shorten the window instead of raising the count",
+          "why_not": "Not chosen by the owner. It would reduce the punishment without reducing how easily the limit is reached, and the complaint was about being stopped at five, not about the length of the wait."
+        }
+      ],
+      "rationale": "Twenty failures per fifteen minutes is still a hard ceiling on guessing an eleven-character secret; the exposure added over five is arithmetically negligible against that keyspace, while the ergonomic difference for one person with a password manager is the difference between working and waiting. Keeping the window fixed preserves the exact recovery boundary the integration test asserts. Every test imports LOGIN_MAX_FAILURES rather than hardcoding five, so the change is absorbed by the suite without weakening any assertion.",
+      "consequences": [
+        "POLICY_VERSION is 2026-09-24.1; docs/EVALS.md and docs/ARCHITECTURE.md publish the new value and the drift test pins all three together.",
+        "The throttle is looser, not gone: a distributed guesser still meets a durable global ceiling that holds across tabs and instances.",
+        "If the product ever gains more than one editor, the single global bucket becomes the wrong shape and this value should be revisited with it."
+      ],
+      "transcript": {
+        "request": "raise the failure count. i am not stressed here yet"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

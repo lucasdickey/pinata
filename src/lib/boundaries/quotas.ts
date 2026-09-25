@@ -3,7 +3,7 @@
 // instances, and both recover after exactly the published window.
 
 /** Failed editor logins allowed per window before throttling. */
-export const LOGIN_MAX_FAILURES = 5;
+export const LOGIN_MAX_FAILURES = 20;
 
 /** Login throttle window and recovery interval: 15 minutes. */
 export const LOGIN_WINDOW_MS = 900_000;
