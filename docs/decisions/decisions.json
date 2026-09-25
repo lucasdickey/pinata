@@ -4461,6 +4461,47 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D101",
+      "date": "2026-09-25",
+      "phase": "validate",
+      "title": "Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "On the first turn of the milestone-2/3 live checkpoint the owner was locked out of editor sign-in after five failed attempts and told to wait thirteen minutes. The failures were mechanical rather than hostile: the agent had copied EDITOR_PASSWORD out of .env.local with its surrounding double quotes still attached, so several attempts could not have succeeded. D098 had already replaced D026's single shared bucket with a per-client bucket plus a global backstop, which stops one noisy client locking the editor out — but the per-client key falls back to a fixed key when there is no x-real-ip or x-forwarded-for, which is exactly the local checkpoint case. So the limit that stopped the owner is still five, and a solo operator running the checkpoint on 127.0.0.1 meets it as easily as before.",
+      "decision": "Raise LOGIN_MAX_FAILURES from 5 to 10. LOGIN_GLOBAL_MAX_FAILURES stays at 100, LOGIN_WINDOW_MS stays at 900,000 ms, and D098's reserve-then-verify ordering, two-bucket accounting, 429 answer, and success-clears-the-client-bucket behaviour are all untouched. POLICY_VERSION moves to 2026-09-25.1.",
+      "alternatives": [
+        {
+          "option": "Remove the brute-force blocker entirely",
+          "why_not": "What the owner first asked for. The agent raised the exposure — one shared password is the only control in front of the editor account on a live deployment — and the owner narrowed the request to the failure count in the same breath."
+        },
+        {
+          "option": "Raise the per-client limit to 20 and the global ceiling to 200 to match",
+          "why_not": "The agent tried exactly this first and the gate refused it: test/boundaries.test.ts asserts LOGIN_GLOBAL_MAX_FAILURES >= 10 * LOGIN_MAX_FAILURES so that one client can never exhaust the backstop. Keeping the ratio by doubling the global ceiling would have doubled the distributed-guessing budget to buy headroom nobody asked for. Ten is the largest per-client value the published invariant allows without touching the global ceiling."
+        },
+        {
+          "option": "Leave it at five and clear the bucket whenever the checkpoint trips it",
+          "why_not": "The agent had already done this once by hand. It costs nothing but leaves the defect in the product and makes the agent a required participant in the owner signing in."
+        },
+        {
+          "option": "Give the local fixed-key fallback its own higher limit",
+          "why_not": "It would put an environment-shaped exception inside a published boundary, and the published catalog is deliberately one value per policy. If local ergonomics and deployed exposure ever really diverge, that is a boundary change with its own record, not a hidden branch."
+        }
+      ],
+      "rationale": "Ten per client per fifteen minutes is still a hard ceiling against an eleven-character secret, and the control that actually matters against a distributed guesser — the global backstop of 100 — does not move at all. What changes is only how quickly a single well-meaning operator can lock themselves out, which is the whole of the observed problem. Ten is also the largest value D098's published invariant permits while leaving the global ceiling alone, so the change takes the available headroom rather than inventing new exposure. Every test imports LOGIN_MAX_FAILURES rather than hardcoding five, so no assertion weakens.",
+      "consequences": [
+        "POLICY_VERSION is 2026-09-25.1; docs/EVALS.md and docs/ARCHITECTURE.md republish the value and the drift test keeps code, docs, and the rendered /reqs routes pinned together.",
+        "A single client now gets ten guesses per window instead of five; ten such clients still exactly exhaust the unchanged global backstop, which is the behaviour D098 intended.",
+        "D098's per-client key still degenerates to a fixed key off Vercel, so local runs share one bucket; this record raises the limit rather than changing that key.",
+        "The per-client limit is now at the ceiling of D098's 10x invariant, so any future raise has to move LOGIN_GLOBAL_MAX_FAILURES with it and argue for the added exposure."
+      ],
+      "transcript": {
+        "request": "raise the failure count. i'm not stressed here yet"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 26 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100 |
+| Human directed | 27 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **100** | |
+| **Total** | **101** | |
 
 ## Key decisions
 
@@ -160,6 +160,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) | build | Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session | Agent proposed, human approved | accepted |
 | [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) | build | Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits | Agent proposed, human approved | accepted |
 | [D100](#d100--serve-production-at-yourpinatadev-and-correct-what-d099-assumed-about-the-deployment) | build | Serve production at yourpinata.dev, and correct what D099 assumed about the deployment | Human directed | accepted |
+| [D101](#d101--raise-the-per-client-editor-login-failure-limit-from-5-to-10-keeping-the-global-backstop-at-100) | validate | Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100 | Human directed | accepted |
 
 ---
 
@@ -3994,4 +3995,42 @@ Human instruction:
 
 ---
 
-<sub>Generated from 100 record(s) as of 2026-09-23 · source `4de9fb74e0fa`</sub>
+## D101 — Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100
+
+*2026-09-25 · phase: validate · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+On the first turn of the milestone-2/3 live checkpoint the owner was locked out of editor sign-in after five failed attempts and told to wait thirteen minutes. The failures were mechanical rather than hostile: the agent had copied EDITOR_PASSWORD out of .env.local with its surrounding double quotes still attached, so several attempts could not have succeeded. D098 had already replaced D026's single shared bucket with a per-client bucket plus a global backstop, which stops one noisy client locking the editor out — but the per-client key falls back to a fixed key when there is no x-real-ip or x-forwarded-for, which is exactly the local checkpoint case. So the limit that stopped the owner is still five, and a solo operator running the checkpoint on 127.0.0.1 meets it as easily as before.
+
+**Decision**
+
+Raise LOGIN_MAX_FAILURES from 5 to 10. LOGIN_GLOBAL_MAX_FAILURES stays at 100, LOGIN_WINDOW_MS stays at 900,000 ms, and D098's reserve-then-verify ordering, two-bucket accounting, 429 answer, and success-clears-the-client-bucket behaviour are all untouched. POLICY_VERSION moves to 2026-09-25.1.
+
+**Alternatives considered**
+
+- *Remove the brute-force blocker entirely* — What the owner first asked for. The agent raised the exposure — one shared password is the only control in front of the editor account on a live deployment — and the owner narrowed the request to the failure count in the same breath.
+- *Raise the per-client limit to 20 and the global ceiling to 200 to match* — The agent tried exactly this first and the gate refused it: test/boundaries.test.ts asserts LOGIN_GLOBAL_MAX_FAILURES >= 10 * LOGIN_MAX_FAILURES so that one client can never exhaust the backstop. Keeping the ratio by doubling the global ceiling would have doubled the distributed-guessing budget to buy headroom nobody asked for. Ten is the largest per-client value the published invariant allows without touching the global ceiling.
+- *Leave it at five and clear the bucket whenever the checkpoint trips it* — The agent had already done this once by hand. It costs nothing but leaves the defect in the product and makes the agent a required participant in the owner signing in.
+- *Give the local fixed-key fallback its own higher limit* — It would put an environment-shaped exception inside a published boundary, and the published catalog is deliberately one value per policy. If local ergonomics and deployed exposure ever really diverge, that is a boundary change with its own record, not a hidden branch.
+
+**Rationale**
+
+Ten per client per fifteen minutes is still a hard ceiling against an eleven-character secret, and the control that actually matters against a distributed guesser — the global backstop of 100 — does not move at all. What changes is only how quickly a single well-meaning operator can lock themselves out, which is the whole of the observed problem. Ten is also the largest value D098's published invariant permits while leaving the global ceiling alone, so the change takes the available headroom rather than inventing new exposure. Every test imports LOGIN_MAX_FAILURES rather than hardcoding five, so no assertion weakens.
+
+**Consequences**
+
+- POLICY_VERSION is 2026-09-25.1; docs/EVALS.md and docs/ARCHITECTURE.md republish the value and the drift test keeps code, docs, and the rendered /reqs routes pinned together.
+- A single client now gets ten guesses per window instead of five; ten such clients still exactly exhaust the unchanged global backstop, which is the behaviour D098 intended.
+- D098's per-client key still degenerates to a fixed key off Vercel, so local runs share one bucket; this record raises the limit rather than changing that key.
+- The per-client limit is now at the ceiling of D098's 10x invariant, so any future raise has to move LOGIN_GLOBAL_MAX_FAILURES with it and argue for the added exposure.
+
+**Provenance evidence**
+
+Human instruction:
+
+> raise the failure count. i'm not stressed here yet
+
+---
+
+<sub>Generated from 101 record(s) as of 2026-09-25 · source `91d9562ccc9f`</sub>
