@@ -3,7 +3,7 @@
 // instances, and both recover after exactly the published window.
 
 /** Failed editor logins allowed per client per window before throttling. */
-export const LOGIN_MAX_FAILURES = 5;
+export const LOGIN_MAX_FAILURES = 10;
 
 /**
  * Failed editor logins allowed per window across all clients (D098): the
