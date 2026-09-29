@@ -69,24 +69,24 @@ Representative scenarios:
 ## Landing page scenarios
 
 How a first-time visitor meets Pinata (VAL-LANDING-001, VAL-LANDING-002,
-VAL-LANDING-003, D066/D067):
+VAL-LANDING-003, D066, D103):
 
 1. An anonymous visitor opening `/` sees the pinata mark — the same inline
-   SVG mark as the favicon — directly above the URL capture entry (a required
-   root URL, an optional add-more-URLs control, and one visible primary
-   action), plus a brief value proposition. The page renders with no console
-   errors, no `/api/*` traffic, and no external image requests.
+   SVG mark as the favicon — ahead of the name, a brief value proposition,
+   and a call to sign in that leads to the sign-in form. There is no address
+   field and no capture action before sign-in (D103). The page renders with
+   no console errors, no `/api/*` traffic, and no external requests.
 2. Below the hero, a fully static example shows a marked-up capture: a
-   screenshot region with two numbered pins, a two-entry comment thread, and
-   a visible DOM metadata panel. It renders from bundled fixture data with no
+   captured pricing page with one numbered mark of each kind (a pin, a
+   circle, an arrow, and a box), a two-entry comment thread, and a visible
+   DOM metadata panel. It renders from bundled fixture data with no
    database or API dependency and depicts saved comments only — no reply
    control.
-3. An anonymous visitor who submits the capture entry is routed to the
-   sign-in prompt (focus lands on the password field) without any project
-   write; after signing in, the editor lands back on `/` with the entered
-   URLs retained in the always-active form, and creating the project issues
-   exactly one `POST /api/projects` answered `201`, with the project listed
-   on the same page.
+3. The landing's call to sign in reaches the sign-in form without any
+   project write; signing in lands on `/pins`, the project form is one link
+   away at `/pins/new`, and creating the project there issues exactly one
+   `POST /api/projects` answered `201`, with the project listed in the
+   workspace.
 
 ## Editor entry scenarios
 

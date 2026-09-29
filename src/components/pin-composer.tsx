@@ -254,7 +254,7 @@ export function PinComposer({
         ) : null}
       </div>
       <p className="panel-actions">
-        <button type="button" onClick={onSaveDraft} disabled={saveDisabled}>
+        <button type="button" className="button-primary" onClick={onSaveDraft} disabled={saveDisabled}>
           {saveState === "saving" ? "Saving…" : `Save ${noun}`}
         </button>
         <button type="button" onClick={onCancelDraft} disabled={saveState === "saving"}>

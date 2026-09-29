@@ -1,32 +1,40 @@
 // The branded landing page composition (VAL-LANDING-001/002, D066). The same
-// hero — the pinata mark directly above the URL capture entry, with a brief
-// value proposition — opens the page for everyone: anonymous visitors get the
-// parking CaptureEntryForm, the static example render, and the sign-in path;
-// a signed-in editor gets the always-active project form with the project
-// list below (see editor-home.tsx). Kept free of server-only APIs so the
-// same components render under React Testing Library in jsdom.
+// hero — the pinata mark, the name, and a brief value proposition — opens
+// the public landing and /pins/new. Only /pins/new, behind sign-in, carries
+// the project form: the public landing asks a visitor to sign in instead of
+// taking an address first (D103), then shows the static example and the
+// sign-in form itself. Kept free of server-only APIs so the same components
+// render under React Testing Library in jsdom.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
-import { CaptureEntryForm } from "./capture-entry-form";
 import { ExampleCapture } from "./example-capture";
 import { LoginForm } from "./login-form";
 import { PinataLogo } from "./pinata-logo";
 
 /**
- * The hero: logo, wordmark, and value proposition above whichever capture
- * form the visitor's role gets. The logo is the last hero element before the
- * form region, so the mark sits directly above the capture entry.
+ * The hero: the name and the statement above whichever capture form the
+ * visitor's role gets. The name and the statement share one size in two
+ * tones, the name in ink and the promise in gray (D102). Where the page has
+ * no top bar (/pins/new) the mark opens the hero; on the anonymous landing
+ * it rides in the top bar instead (VAL-LANDING-001).
  */
-export function LandingHero({ children }: { children: ReactNode }) {
+export function LandingHero({
+  children,
+  showMark = true,
+}: {
+  children: ReactNode;
+  showMark?: boolean;
+}) {
   return (
     <header className="landing-hero">
-      <PinataLogo />
-      <h1>pinata</h1>
-      <p className="landing-tagline">
+      {showMark ? <PinataLogo /> : null}
+      <p className="landing-eyebrow">
         <strong>pin</strong> + <strong>annotate</strong> + at <strong>ya</strong>
       </p>
+      <h1>pinata</h1>
+      <p className="landing-statement">feedback pinned to the exact pixel, sent in one link</p>
       <p className="landing-prop">
         Drop in a public page address and Pinata captures it — then pin plain,
         directional notes to the exact pixel and share one link with the
@@ -59,20 +67,125 @@ export function LandingLinks() {
   );
 }
 
-/** The anonymous landing: hero + parked-entry form, static example, sign-in. */
+/** The quiet top bar: the mark and name at left, three plain links at right. */
+function SiteBar() {
+  return (
+    <div className="site-bar">
+      <Link href="/" className="site-mark" aria-label="pinata home">
+        <PinataLogo size={30} />
+        <span aria-hidden="true">pinata</span>
+      </Link>
+      <nav aria-label="Site">
+        <ul className="site-links">
+          <li>
+            <Link href="/walkthrough">Walkthrough</Link>
+          </li>
+          <li className="site-link-docs">
+            <Link href="/reqs">How it's built</Link>
+          </li>
+          <li>
+            <a href="#editor-login">Sign in</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  );
+}
+
+/** The three steps, in the landing's point format: a short title, one line. */
+function HowItWorks() {
+  return (
+    <section className="landing-section" aria-labelledby="how-heading">
+      <p className="section-eyebrow">how it works</p>
+      <h2 id="how-heading">a two-minute comment should take two minutes</h2>
+      <ul className="landing-points">
+        <li>
+          <h3>capture the page</h3>
+          <p>
+            Every address you list is captured on desktop and mobile as a full
+            static page, with a small map of what is where.
+          </p>
+        </li>
+        <li>
+          <h3>pin it where it happens</h3>
+          <p>
+            Drop a pin, draw a box or a circle, or point an arrow, and say what
+            you mean in a line. Each mark stays on its pixel at any zoom.
+          </p>
+        </li>
+        <li>
+          <h3>send one link</h3>
+          <p>
+            The founder opens it without an account, reads each note in place,
+            and replies. You see the reply without reloading.
+          </p>
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <div>
+        <h2>product</h2>
+        <ul>
+          <li>
+            <Link href="/walkthrough" className="quiet-link">
+              the ten-chapter walkthrough
+            </Link>
+          </li>
+          <li>
+            <a href="#editor-login" className="quiet-link">
+              editor sign in
+            </a>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h2>how it's built</h2>
+        <LandingLinks />
+      </div>
+      <p className="footer-note">
+        Public pages only, static captures only, directional feedback only.
+      </p>
+    </footer>
+  );
+}
+
+/**
+ * The hero's way in for a visitor: sign in to start a review. There is no
+ * address field before sign-in (D103); the form lives on /pins/new.
+ */
+function LandingCta() {
+  return (
+    <p className="landing-cta">
+      <a className="button-link button-primary" href="#editor-login">
+        Sign in to start a review
+      </a>
+      <a className="quiet-link" href="#example-heading">
+        see an example →
+      </a>
+    </p>
+  );
+}
+
+/** The anonymous landing: bar, hero + sign-in call, the static example,
+ * how it works, sign-in, and the footer. */
 export function AnonymousLanding() {
   return (
-    <main className="home-main">
-      <LandingHero>
-        <CaptureEntryForm />
+    <main className="home-main home-main--landing">
+      <SiteBar />
+      <LandingHero showMark={false}>
+        <LandingCta />
       </LandingHero>
+      {/* The example is the hero's picture: the product, marked up, right
+          under the promise (D103). */}
       <ExampleCapture />
+      <HowItWorks />
       <LoginForm />
-      <LandingLinks />
-      <p className="home-walkthrough">
-        New here? <Link href="/walkthrough">Watch the ten-chapter walkthrough</Link> of what
-        Pinata is and how it works.
-      </p>
+      <SiteFooter />
     </main>
   );
 }

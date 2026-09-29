@@ -3387,3 +3387,78 @@ against real services.
 - D095–D098 (agent-proposed, user-approved as one pass): capture recovery,
   canvas input, live refresh and founder arrival, sign-in hardening.
 - D099 (agent-proposed, user-approved): runbook, custom domain, disclosure.
+
+---
+
+## 2026-09-29 — design direction from paper.design (D102)
+
+Harness: Claude Code, in a cloud session.
+
+### What happened
+
+- **Reading Paper.** Live screenshots of paper.design were not possible
+  from the build environment, so the direction was read from the site's own
+  HTML and stylesheets: its palette (a warm off-white sheet, cream, neutral
+  grays, near-black, a soft blue), its type scale (18/28 body, 40–64px
+  headlines at weight 360), its hairline rules, its 4px buttons in solid
+  ink, and its voice (lowercase lines, a two-tone headline, sections opened
+  by a plain line and a large light heading).
+- **Tokens first.** Almost every color in `app/globals.css` already went
+  through a custom property, so new values carried the direction through
+  the editor, canvas panels, founder view, `/reqs`, and the walkthrough at
+  once. Every text pairing was measured for WCAG AA before it was picked;
+  the accent became `#c9381a`, the brand spark deepened to clear 4.5:1.
+- **Controls.** Buttons and inputs had been left to the browser. One base
+  style at zero specificity (`:where()`) gave them a single look without
+  overriding any component rule.
+- **The landing** was rebuilt around a top bar, the two-tone headline, a
+  "how it works" section, the example, sign-in, and a footer, keeping every
+  accessible name the tests rely on.
+- **Checked by eye** against a local production build: the landing at 1440
+  and 390px, `/reqs`, `/pins/new`, and a real editor flow against a scratch
+  local database (create a project, open the workspace, issue a founder
+  link, open the founder view on desktop and phone). Fixes from that look:
+  right-aligned top-bar links, a two-line headline, a working-size hero
+  inside the app, rail navigation as rows rather than stacked buttons, ink
+  for selected tools and the docs tab, and a quiet founder badge.
+
+### What broke
+
+- One test pinned the pressed camera mode to a red outline; it now pins the
+  ink fill, which is what makes the pressed mode distinct.
+- The first headline gray (`#9a9a96`) measured 2.75:1, under the 3:1 floor
+  for large text; replaced with `#868682` (3.56:1).
+
+### Decisions
+
+- D102 (user-directed): design direction from paper.design.
+
+---
+
+## 2026-09-29 — creation behind sign-in, and a better example (D103)
+
+Harness: Claude Code, in a cloud session.
+
+- **The landing takes no address.** The anonymous capture form, the
+  tab-scoped draft it parked (D067), and sign-in's routing to that draft
+  are gone. The hero ends in "Sign in to start a review"; the project form
+  lives only on `/pins/new`. The landing's unit and e2e tests now assert the
+  absence of an address field, and the credentialed e2e drives sign-in from
+  the call and creates the project on `/pins/new`.
+- **The example is a page you can read.** The gray wireframe with two pins
+  became a pricing page drawn in the captured site's own green palette,
+  carrying one mark of each kind in the product's real geometry shapes: a
+  pin on the toggle, a circle on an ambiguous price, an arrow moving "Most
+  popular" to Pro, and a box on a low call to action. Mark strokes keep
+  their screen width at any size and badges scale with the picture, so it
+  holds at 390px.
+- **Checked by eye** at 1440 and 390px. The first draw had the pin covering
+  its own label, the arrowhead hiding "Pro", the circle's badge on "Team",
+  and "/mo" crowding the prices; each was moved until clear. With the form
+  gone the hero was all text, so the example moved up to sit directly under
+  it, and it takes two thirds of the width on the landing.
+
+### Decisions
+
+- D103 (user-directed): creation behind sign-in; the four-mark example.
+  Supersedes D067.

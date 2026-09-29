@@ -71,3 +71,7 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   current link again would mean storing the token recoverably, a change to
   the capability posture (`D018`, `D089`) that `D097` declined to make
   quietly.
+- No dark theme (`D102`). Paper, the design direction, has one; Pinata's
+  tokens would carry most of it, but the brand mark is ink on a light tile
+  and the canvas chrome wants its own look against dark surfaces, so it
+  was left for a pass of its own.
