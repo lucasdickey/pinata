@@ -344,7 +344,7 @@ pre code {
 
 .home-main--landing .landing-hero {
   max-width: var(--wide);
-  margin: 0 0 clamp(3rem, 8vw, 6rem);
+  margin: 0 0 clamp(2.5rem, 6vw, 4rem);
 }
 
 .pinata-logo {
@@ -389,9 +389,43 @@ pre code {
   color: var(--ink-soft);
 }
 
-.capture-entry {
-  max-width: 40rem;
-  text-align: left;
+/* The hero's call to action: one solid-ink button and a quiet link. */
+.landing-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin: 0;
+}
+
+/* A link that is the page's primary action looks like the primary button. */
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1.1rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--ink);
+  font-weight: 480;
+  text-decoration: none;
+  transition:
+    background-color 150ms ease-out,
+    transform 150ms ease-out;
+}
+
+.button-link.button-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.button-link.button-primary:hover {
+  background: #000;
+}
+
+.button-link:active {
+  transform: scale(0.97);
 }
 
 /* Inside the app (/pins/new) the hero is a heading for a working page, not
@@ -506,6 +540,16 @@ pre code {
   margin: 0 0 clamp(3.5rem, 9vw, 7rem);
 }
 
+.home-main--landing .example-grid {
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+}
+
+@media (max-width: 48rem) {
+  .home-main--landing .example-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .home-main--landing .login-section {
   max-width: 28rem;
   margin: 0 0 clamp(3.5rem, 9vw, 6rem);
@@ -574,36 +618,118 @@ pre code {
   height: 100%;
 }
 
-/* The decorative page mock paints with tokens only. */
-.mock-page {
-  fill: var(--surface);
+/* The captured page in the example is someone else's site, so it paints in
+   its own colors (a green brand) rather than Pinata's tokens; that is what
+   lets the marks on top read as ours (D103). */
+.example-mock,
+.example-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.mock-chrome,
-.mock-block {
-  fill: var(--line);
+.example-mock text {
+  font-family: var(--font-sans);
+  letter-spacing: -0.01em;
 }
 
-.mock-page-block {
-  fill: var(--surface);
+.site-bg {
+  fill: #ffffff;
 }
 
-.mock-ink {
-  fill: var(--ink-soft);
+.site-chrome {
+  fill: #eeeeea;
 }
 
-.mock-card {
-  fill: var(--bg);
-  stroke: var(--line);
+.site-chrome-dot {
+  fill: #d4d4cf;
 }
 
-.mock-toggle {
-  fill: var(--accent-soft);
+.site-urlbar {
+  fill: #ffffff;
+}
+
+.site-ink {
+  fill: #1d2b24;
+}
+
+.site-soft {
+  fill: #5d6b63;
+}
+
+.site-brand {
+  fill: #2f6b4f;
+}
+
+.site-brand-stroke {
+  stroke: #2f6b4f;
+}
+
+.site-on-brand {
+  fill: #ffffff;
+}
+
+.site-tint {
+  fill: #eaf1ec;
+}
+
+.site-card {
+  fill: #ffffff;
+  stroke: #e1e5e1;
+  stroke-width: 2;
+}
+
+.site-card-featured {
+  stroke: #2f6b4f;
+}
+
+.site-button {
+  fill: #eef2ef;
+}
+
+/* The marks, drawn as the canvas draws them: an accent stroke that keeps
+   its screen width at any size, the selected mark in ink. */
+.example-marks {
+  pointer-events: none;
+  overflow: visible;
+}
+
+.example-mark-stroke {
+  fill: none;
   stroke: var(--accent);
+  stroke-width: 2.5px;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.8));
 }
 
-.mock-cta {
+.example-mark-stroke[data-selected="true"] {
+  stroke: var(--ink);
+}
+
+.example-mark-head {
   fill: var(--accent);
+}
+
+/* Badges scale with the example so they stay in proportion to the page they
+   sit on: about 30px across at full width. */
+.example-shot {
+  container-type: inline-size;
+}
+
+.pin-badge-example {
+  width: 4.4%;
+  aspect-ratio: 1;
+}
+
+.pin-badge-example .pin-badge-number {
+  font-size: max(9px, 1.55cqi);
+}
+
+.pin-badge-example[data-selected="true"] svg {
+  stroke: var(--ink);
+  stroke-width: 1.6;
 }
 
 .example-panel {

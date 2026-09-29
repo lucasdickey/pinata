@@ -2937,7 +2937,7 @@ window.PINATA = {
       "phase": "build",
       "title": "Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once",
       "origin": "agent-autonomous",
-      "status": "accepted",
+      "status": "superseded",
       "problem": "VAL-LANDING-003 requires the anonymous capture entry to survive the sign-in round trip: submit as anonymous, sign in, land back on / with the URL input retained, then create the project with exactly one POST /api/projects. The handoff mechanism had to move user-typed URLs from the anonymous page to the post-login editor form without an unauthorized write.",
       "decision": "The anonymous entry validates a non-blank root client-side, parks { rootUrl, urls } in sessionStorage under pinata:capture-draft, and routes to the existing on-page sign-in section by moving focus to the password field (scroll honoring prefers-reduced-motion) — no request is made. After sign-in, the server re-renders / for the verified session; the editor home reads and removes the draft in a mount effect (StrictMode-safe: the first read wins), and the always-active project form initializes straight from it. Creating the project is the form's existing single POST with its own idempotency key.",
       "alternatives": [
@@ -2974,7 +2974,7 @@ window.PINATA = {
         }
       ],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D103"
     },
     {
       "id": "D068",
@@ -4563,8 +4563,61 @@ window.PINATA = {
       "supersedes": null,
       "superseded_by": null,
       "key": true
+    },
+    {
+      "id": "D103",
+      "date": "2026-09-29",
+      "phase": "build",
+      "title": "Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The public landing opened with a working capture form. An anonymous visitor could type addresses that were parked in the tab until they signed in (D067), so the first thing a stranger saw was a tool only the editor can use, and the page's top spent its space on a form rather than on showing what Pinata does. The static example below it was a gray wireframe with two pins: it showed that pins exist but not what a page looks like marked up, and none of the other three mark kinds appeared anywhere a visitor would see them.",
+      "decision": "The landing takes no address. Its hero ends in a call to sign in ('Sign in to start a review', a link to the sign-in form) beside a quiet link to the example; creating a project happens only on /pins/new, behind sign-in, and sign-in always lands on /pins. The anonymous entry form, the tab-scoped draft, and sign-in's draft routing are removed. The example becomes the hero's picture, placed directly under it: a readable captured pricing page (nav, headline, a monthly/annual toggle, three plan cards with prices, features, and buttons, a 'Most popular' tag) drawn in the captured site's own green palette so it reads as someone else's page, with one numbered mark of each kind drawn the way the canvas draws them — pin 1 on the toggle (the selected mark, with its thread and DOM context), circle 2 around a price that doesn't say per what, arrow 3 from 'Most popular' to the Pro plan, box 4 around the Pro card's call to action — and the panel lists all four by the product's own names.",
+      "alternatives": [
+        {
+          "option": "Keep the form but collapse it behind a button",
+          "why_not": "It keeps a path that only the editor can finish in front of every visitor, and keeps the draft-parking machinery alive for it."
+        },
+        {
+          "option": "Keep the example as a wireframe and add the other mark kinds",
+          "why_not": "Marks on gray blocks don't show what they point at; the value is seeing a mark sit on a real button or price."
+        },
+        {
+          "option": "Use a real screenshot of Chickpea as the example",
+          "why_not": "Chickpea captures are internal test and demo material, not reusable marketing assets (REQUIREMENTS, Evaluation targets), and a raster would not scale crisply or stay in step with the marks' geometry."
+        },
+        {
+          "option": "Draw the example page in Pinata's own colors",
+          "why_not": "The marks would blend into the page; the captured site in its own palette is what makes the marks read as the feedback layer."
+        }
+      ],
+      "rationale": "Only the editor can create a project, so the public page's job is to show the product and point to sign-in. The example now carries the whole vocabulary on a page a visitor can read, using the same mark geometry shapes, badge placement, and names the product uses, so it teaches the product truthfully rather than approximately.",
+      "consequences": [
+        "Removed: src/components/capture-entry-form.tsx, src/lib/capture-draft.ts, and their tests; sign-in always routes to /pins; /pins/new renders the form directly.",
+        "REQUIREMENTS item 9 and the EVALS landing scenarios describe the sign-in call and the four-mark example; the landing e2e drives sign-in from the call and creates the project on /pins/new.",
+        "The example fixture (src/lib/example-capture.ts) holds marks of every kind with their real geometry shapes and a shared page layout; its badges carry data-mark-number and data-mark-kind.",
+        "D067's parked-entry handoff is superseded by this record; D066's landing stands with its capture-entry clause replaced by the call to sign in."
+      ],
+      "transcript": {
+        "request": "Let's move the actual project creation behind the authorization wall so that the landing page doesn't actually have that part up top. Let's also see if we can improve upon the static graphic that's included."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/example-capture.tsx",
+          "caption": "The example page and its four marks."
+        },
+        {
+          "type": "file",
+          "path": "src/components/landing.tsx",
+          "caption": "The landing, with the call to sign in."
+        }
+      ],
+      "supersedes": "D067",
+      "superseded_by": null,
+      "key": true
     }
   ],
   "as_of": "2026-09-29",
-  "source_hash": "c4c9e1d0adf5"
+  "source_hash": "e44f1d54321f"
 };

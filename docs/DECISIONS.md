@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 28 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102 |
+| Human directed | 29 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **102** | |
+| **Total** | **103** | |
 
 ## Key decisions
 
@@ -56,6 +56,7 @@ The product and architecture decisions to read first. The full index follows.
 - [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) — Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session *(Agent proposed, human approved)*
 - [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) — Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits *(Agent proposed, human approved)*
 - [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) — Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks *(Human directed)*
+- [D103](#d103--take-project-creation-off-the-public-landing-and-make-the-example-a-readable-captured-page-carrying-one-mark-of-each-kind) — Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind *(Human directed)*
 
 ## Index
 
@@ -127,7 +128,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D064](#d064--candidate-context-preview-as-a-transient-inert-react-flow-node-a-quiescent-marker-for-the-context-panel-and-an-authorized-verbatim-manifest-read-route) | build | Candidate context preview as a transient inert React Flow node, a quiescent marker for the context panel, and an authorized verbatim manifest read route | Agent decided alone | accepted |
 | [D065](#d065--run-scoped-e2e-cleanup-runs-in-the-playwright-global-teardown-never-in-afterall) | build | Run-scoped e2e cleanup runs in the Playwright global teardown, never in afterAll | Agent decided alone | accepted |
 | [D066](#d066--the-root-route-is-a-branded-landing-page-the-pinata-mark-directly-above-the-url-capture-entry-a-brief-value-proposition-a-fully-static-example-of-a-marked-up-capture-and-a-clear-sign-in-path) | build | The root route is a branded landing page: the pinata mark directly above the URL capture entry, a brief value proposition, a fully static example of a marked-up capture, and a clear sign-in path | Human directed | accepted |
-| [D067](#d067--anonymous-capture-entries-park-in-same-tab-sessionstorage-and-route-to-the-on-page-sign-in-prompt-the-editor-form-consumes-the-draft-exactly-once) | build | Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once | Agent decided alone | accepted |
+| [D067](#d067--anonymous-capture-entries-park-in-same-tab-sessionstorage-and-route-to-the-on-page-sign-in-prompt-the-editor-form-consumes-the-draft-exactly-once) | build | Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once | Agent decided alone | superseded |
 | [D068](#d068--deploy-to-vercel-production-behind-sso-protection-fixing-the-framework-preset-and-adding-a-protection-bypass-for-automation-secret-for-the-smoke) | build | Deploy to Vercel production behind SSO protection, fixing the framework preset and adding a Protection-Bypass-for-Automation secret for the smoke | Agent decided alone | accepted |
 | [D069](#d069--split-the-public-landing-from-the-editor-workspace--stays-marketing-pins-is-the-app-pinsnew-holds-the-project-form) | build | Split the public landing from the editor workspace: / stays marketing, /pins is the app, /pins/new holds the project form | Human directed | accepted |
 | [D070](#d070--collapse-the-project-rail-into-nested-native-disclosures-open-only-around-the-current-selection) | build | Collapse the project rail into nested native disclosures, open only around the current selection | Human directed | accepted |
@@ -163,6 +164,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D100](#d100--serve-production-at-yourpinatadev-and-correct-what-d099-assumed-about-the-deployment) | build | Serve production at yourpinata.dev, and correct what D099 assumed about the deployment | Human directed | accepted |
 | [D101](#d101--raise-the-per-client-editor-login-failure-limit-from-5-to-10-keeping-the-global-backstop-at-100) | validate | Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100 | Human directed | accepted |
 | [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) | build | Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks | Human directed | accepted |
+| [D103](#d103--take-project-creation-off-the-public-landing-and-make-the-example-a-readable-captured-page-carrying-one-mark-of-each-kind) | build | Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind | Human directed | accepted |
 
 ---
 
@@ -2612,7 +2614,8 @@ Human instruction:
 
 ## D067 — Anonymous capture entries park in same-tab sessionStorage and route to the on-page sign-in prompt; the editor form consumes the draft exactly once
 
-*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **accepted***
+*2026-09-10 · phase: build · origin: **Agent decided alone** · status: **superseded***
+*Superseded by D103.*
 
 **Problem**
 
@@ -4080,4 +4083,48 @@ Human instruction:
 
 ---
 
-<sub>Generated from 102 record(s) as of 2026-09-29 · source `c4c9e1d0adf5`</sub>
+## D103 — Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind
+
+*2026-09-29 · phase: build · origin: **Human directed** · status: **accepted***
+*Supersedes D067.*
+
+**Problem**
+
+The public landing opened with a working capture form. An anonymous visitor could type addresses that were parked in the tab until they signed in (D067), so the first thing a stranger saw was a tool only the editor can use, and the page's top spent its space on a form rather than on showing what Pinata does. The static example below it was a gray wireframe with two pins: it showed that pins exist but not what a page looks like marked up, and none of the other three mark kinds appeared anywhere a visitor would see them.
+
+**Decision**
+
+The landing takes no address. Its hero ends in a call to sign in ('Sign in to start a review', a link to the sign-in form) beside a quiet link to the example; creating a project happens only on /pins/new, behind sign-in, and sign-in always lands on /pins. The anonymous entry form, the tab-scoped draft, and sign-in's draft routing are removed. The example becomes the hero's picture, placed directly under it: a readable captured pricing page (nav, headline, a monthly/annual toggle, three plan cards with prices, features, and buttons, a 'Most popular' tag) drawn in the captured site's own green palette so it reads as someone else's page, with one numbered mark of each kind drawn the way the canvas draws them — pin 1 on the toggle (the selected mark, with its thread and DOM context), circle 2 around a price that doesn't say per what, arrow 3 from 'Most popular' to the Pro plan, box 4 around the Pro card's call to action — and the panel lists all four by the product's own names.
+
+**Alternatives considered**
+
+- *Keep the form but collapse it behind a button* — It keeps a path that only the editor can finish in front of every visitor, and keeps the draft-parking machinery alive for it.
+- *Keep the example as a wireframe and add the other mark kinds* — Marks on gray blocks don't show what they point at; the value is seeing a mark sit on a real button or price.
+- *Use a real screenshot of Chickpea as the example* — Chickpea captures are internal test and demo material, not reusable marketing assets (REQUIREMENTS, Evaluation targets), and a raster would not scale crisply or stay in step with the marks' geometry.
+- *Draw the example page in Pinata's own colors* — The marks would blend into the page; the captured site in its own palette is what makes the marks read as the feedback layer.
+
+**Rationale**
+
+Only the editor can create a project, so the public page's job is to show the product and point to sign-in. The example now carries the whole vocabulary on a page a visitor can read, using the same mark geometry shapes, badge placement, and names the product uses, so it teaches the product truthfully rather than approximately.
+
+**Consequences**
+
+- Removed: src/components/capture-entry-form.tsx, src/lib/capture-draft.ts, and their tests; sign-in always routes to /pins; /pins/new renders the form directly.
+- REQUIREMENTS item 9 and the EVALS landing scenarios describe the sign-in call and the four-mark example; the landing e2e drives sign-in from the call and creates the project on /pins/new.
+- The example fixture (src/lib/example-capture.ts) holds marks of every kind with their real geometry shapes and a shared page layout; its badges carry data-mark-number and data-mark-kind.
+- D067's parked-entry handoff is superseded by this record; D066's landing stands with its capture-entry clause replaced by the call to sign in.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Let's move the actual project creation behind the authorization wall so that the landing page doesn't actually have that part up top. Let's also see if we can improve upon the static graphic that's included.
+
+**Artifacts**
+
+- `src/components/example-capture.tsx` — The example page and its four marks.
+- `src/components/landing.tsx` — The landing, with the call to sign in.
+
+---
+
+<sub>Generated from 103 record(s) as of 2026-09-29 · source `e44f1d54321f`</sub>

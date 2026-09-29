@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 // The anonymous landing page (VAL-LANDING-001, VAL-LANDING-002): the pinata
-// mark sits directly above the URL capture entry (required root URL, optional
-// additional rows, one visible primary action), a brief value proposition, a
-// fully static example of a marked-up capture (two numbered pins, a two-entry
-// comment thread, a DOM metadata panel), and a clear sign-in path — with no
-// network traffic of any kind on render.
+// mark, the name, a brief value proposition, and a call to sign in — with no
+// address field before sign-in (D103) — then a fully static example of a
+// marked-up capture, and the sign-in form itself, with no network traffic of
+// any kind on render.
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { CAPTURE_DRAFT_STORAGE_KEY } from "../src/lib/capture-draft";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -22,7 +20,6 @@ import { EXAMPLE_CAPTURE } from "../src/lib/example-capture";
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  sessionStorage.clear();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -33,28 +30,29 @@ afterEach(() => {
 });
 
 describe("anonymous landing", () => {
-  test("renders the brand mark directly above the capture entry form", () => {
+  test("renders the brand and a sign-in call, and takes no address before sign-in", () => {
     render(<AnonymousLanding />);
     expect(screen.getByRole("heading", { level: 1, name: "pinata" })).toBeInTheDocument();
     const logo = screen.getByRole("img", { name: "pinata logo" });
     expect(logo.tagName.toLowerCase()).toBe("svg");
-    const rootField = screen.getByLabelText("Root URL");
-    // DOM order: the logo precedes the capture form.
-    expect(
-      logo.compareDocumentPosition(rootField) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    // The form contract: required root URL, add-more-URLs control, one
-    // visible primary action.
-    expect(rootField).toBeRequired();
-    expect(screen.getByRole("button", { name: "Add URL" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start capturing" })).toBeInTheDocument();
+    // The mark opens the page, ahead of the heading.
+    const heading = screen.getByRole("heading", { level: 1, name: "pinata" });
+    expect(logo.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // A brief value proposition.
     expect(screen.getByText(/pin plain, directional notes/i)).toBeInTheDocument();
+    // D103: creating a project lives behind sign-in, so the public page has
+    // no address field and no capture action at all.
+    expect(screen.queryByLabelText("Root URL")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start capturing" })).toBeNull();
+    // The hero's way in is a call to sign in, pointing at the sign-in form.
+    const cta = screen.getByRole("link", { name: "Sign in to start a review" });
+    expect(cta).toHaveAttribute("href", "#editor-login");
+    expect(document.getElementById("editor-login")).not.toBeNull();
     // Rendering the page fired no request at all.
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("renders the static example: pins, comment thread, and DOM metadata", () => {
+  test("renders the static example: one mark of each kind, a thread, and DOM metadata", () => {
     const { container } = render(<AnonymousLanding />);
     const shot = screen.getByTestId("example-shot");
     // The screenshot region names its project/page/device/version context.
@@ -63,18 +61,30 @@ describe("anonymous landing", () => {
       expect.stringContaining(EXAMPLE_CAPTURE.pageUrl),
     );
     expect(shot.getAttribute("aria-label")).toContain(EXAMPLE_CAPTURE.device);
-    // At least two numbered pins inside the screenshot region.
-    const pins = shot.querySelectorAll("[data-pin-number]");
-    expect(pins.length).toBeGreaterThanOrEqual(2);
-    expect([...pins].map((p) => p.getAttribute("data-pin-number"))).toContain("1");
+    // D103: one numbered mark of each kind inside the screenshot region,
+    // numbered 1 to 4 the way a capture numbers its marks.
+    const marks = [...shot.querySelectorAll("[data-mark-number]")];
+    expect(marks.map((m) => m.getAttribute("data-mark-number"))).toEqual(["1", "2", "3", "4"]);
+    expect(new Set(marks.map((m) => m.getAttribute("data-mark-kind")))).toEqual(
+      new Set(["pin", "circle", "arrow", "rectangle"]),
+    );
+    // The panel lists every mark by the product's own names.
+    const list = screen.getByRole("list", { name: "Example marks" });
+    const names = within(list).getAllByRole("listitem").map((item) => item.textContent);
+    expect(names.map((name) => name!.split(" · ")[0])).toEqual([
+      "Pin 1",
+      "Circle 2",
+      "Arrow 3",
+      "Box 4",
+    ]);
     // A comment thread with at least two entries.
     const thread = screen.getByRole("list", { name: "Example thread" });
     expect(within(thread).getAllByRole("listitem").length).toBeGreaterThanOrEqual(2);
     // A visible DOM metadata panel.
     expect(screen.getByRole("heading", { name: "DOM context" })).toBeInTheDocument();
     const example = container.querySelector(".landing-example")!;
-    expect(example.textContent).toContain(EXAMPLE_CAPTURE.pins[0]!.element!.text);
-    expect(example.textContent).toContain(EXAMPLE_CAPTURE.pins[0]!.element!.role);
+    expect(example.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.text);
+    expect(example.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.role);
     // No interactive reply or editing control is depicted (threads are
     // deferred, D051): the example contains no form controls at all.
     expect(example.querySelector("input, textarea, button, select")).toBeNull();
@@ -99,88 +109,5 @@ describe("anonymous landing", () => {
     render(<AnonymousLanding />);
     expect(screen.getByRole("heading", { name: "Editor sign in" })).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
-  });
-
-  test("submitting the entry parks a draft and routes to sign-in, with no request", () => {
-    render(<AnonymousLanding />);
-    fireEvent.change(screen.getByLabelText("Root URL"), {
-      target: { value: "https://chickpea.co/" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add URL" }));
-    fireEvent.change(screen.getByLabelText("URL 2"), {
-      target: { value: "https://chickpea.co/pricing" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
-
-    // The draft is parked for the editor form to consume after sign-in.
-    expect(JSON.parse(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)!)).toEqual({
-      rootUrl: "https://chickpea.co/",
-      urls: ["https://chickpea.co/pricing"],
-    });
-    // Routed to the sign-in prompt: focus lands on the password field, and a
-    // status line explains the handoff. No request was made.
-    expect(screen.getByLabelText("Password")).toHaveFocus();
-    expect(screen.getByRole("status")).toHaveTextContent(/sign in/i);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  test("a blank root URL is a named inline error and parks nothing", () => {
-    render(<AnonymousLanding />);
-    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/public https/i);
-    expect(screen.getByLabelText("Root URL")).toHaveFocus();
-    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
-
-// D097: the landing entry finishes bare addresses the same way the project
-// form does, and checks them with the server's rules before parking, so a
-// mistake is named here rather than only after signing in.
-describe("landing address completion and checks (D097)", () => {
-  test("a bare domain and a / row are completed, shown, and parked completed", () => {
-    render(<AnonymousLanding />);
-    fireEvent.change(screen.getByLabelText("Root URL"), { target: { value: "chickpea.co" } });
-    fireEvent.blur(screen.getByLabelText("Root URL"));
-    expect(screen.getByLabelText("Root URL")).toHaveValue("https://chickpea.co");
-    fireEvent.click(screen.getByRole("button", { name: "Add URL" }));
-    fireEvent.change(screen.getByLabelText("URL 2"), { target: { value: "/pricing" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
-    expect(screen.getByLabelText("URL 2")).toHaveValue("https://chickpea.co/pricing");
-    expect(JSON.parse(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)!)).toEqual({
-      rootUrl: "https://chickpea.co",
-      urls: ["https://chickpea.co/pricing"],
-    });
-    expect(screen.getByLabelText("Password")).toHaveFocus();
-  });
-
-  test("an address the server would refuse is named inline and nothing is parked", () => {
-    render(<AnonymousLanding />);
-    fireEvent.change(screen.getByLabelText("Root URL"), {
-      target: { value: "http://chickpea.co" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Only public https:// addresses can be captured.",
-    );
-    expect(screen.getByLabelText("Root URL")).toHaveFocus();
-    expect(screen.getByLabelText("Root URL")).toHaveAttribute("aria-invalid", "true");
-    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
-    expect(screen.queryByRole("status")).toBeNull();
-  });
-
-  test("a bad extra row is marked on that row and blocks parking", () => {
-    render(<AnonymousLanding />);
-    fireEvent.change(screen.getByLabelText("Root URL"), {
-      target: { value: "https://chickpea.co/" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add URL" }));
-    fireEvent.change(screen.getByLabelText("URL 2"), { target: { value: "localhost:3000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start capturing" }));
-    const row = screen.getByLabelText("URL 2");
-    expect(row).toHaveAttribute("aria-invalid", "true");
-    expect(row).toHaveFocus();
-    expect(screen.getByRole("alert")).toHaveTextContent(/https:\/\//);
-    expect(sessionStorage.getItem(CAPTURE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 });

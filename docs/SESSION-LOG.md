@@ -3432,3 +3432,33 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D102 (user-directed): design direction from paper.design.
+
+---
+
+## 2026-09-29 — creation behind sign-in, and a better example (D103)
+
+Harness: Claude Code, in a cloud session.
+
+- **The landing takes no address.** The anonymous capture form, the
+  tab-scoped draft it parked (D067), and sign-in's routing to that draft
+  are gone. The hero ends in "Sign in to start a review"; the project form
+  lives only on `/pins/new`. The landing's unit and e2e tests now assert the
+  absence of an address field, and the credentialed e2e drives sign-in from
+  the call and creates the project on `/pins/new`.
+- **The example is a page you can read.** The gray wireframe with two pins
+  became a pricing page drawn in the captured site's own green palette,
+  carrying one mark of each kind in the product's real geometry shapes: a
+  pin on the toggle, a circle on an ambiguous price, an arrow moving "Most
+  popular" to Pro, and a box on a low call to action. Mark strokes keep
+  their screen width at any size and badges scale with the picture, so it
+  holds at 390px.
+- **Checked by eye** at 1440 and 390px. The first draw had the pin covering
+  its own label, the arrowhead hiding "Pro", the circle's badge on "Team",
+  and "/mo" crowding the prices; each was moved until clear. With the form
+  gone the hero was all text, so the example moved up to sit directly under
+  it, and it takes two thirds of the width on the landing.
+
+### Decisions
+
+- D103 (user-directed): creation behind sign-in; the four-mark example.
+  Supersedes D067.

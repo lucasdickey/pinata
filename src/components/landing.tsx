@@ -1,15 +1,14 @@
 // The branded landing page composition (VAL-LANDING-001/002, D066). The same
-// hero — the pinata mark directly above the URL capture entry, with a brief
-// value proposition — opens the page for everyone: anonymous visitors get the
-// parking CaptureEntryForm, the static example render, and the sign-in path;
-// a signed-in editor gets the always-active project form with the project
-// list below (see editor-home.tsx). Kept free of server-only APIs so the
-// same components render under React Testing Library in jsdom.
+// hero — the pinata mark, the name, and a brief value proposition — opens
+// the public landing and /pins/new. Only /pins/new, behind sign-in, carries
+// the project form: the public landing asks a visitor to sign in instead of
+// taking an address first (D103), then shows the static example and the
+// sign-in form itself. Kept free of server-only APIs so the same components
+// render under React Testing Library in jsdom.
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
-import { CaptureEntryForm } from "./capture-entry-form";
 import { ExampleCapture } from "./example-capture";
 import { LoginForm } from "./login-form";
 import { PinataLogo } from "./pinata-logo";
@@ -19,8 +18,7 @@ import { PinataLogo } from "./pinata-logo";
  * visitor's role gets. The name and the statement share one size in two
  * tones, the name in ink and the promise in gray (D102). Where the page has
  * no top bar (/pins/new) the mark opens the hero; on the anonymous landing
- * it rides in the top bar instead, which still puts it ahead of the capture
- * entry in the document (VAL-LANDING-001).
+ * it rides in the top bar instead (VAL-LANDING-001).
  */
 export function LandingHero({
   children,
@@ -156,17 +154,36 @@ function SiteFooter() {
   );
 }
 
-/** The anonymous landing: bar, hero + parked-entry form, how it works, the
- * static example, sign-in, and the footer. */
+/**
+ * The hero's way in for a visitor: sign in to start a review. There is no
+ * address field before sign-in (D103); the form lives on /pins/new.
+ */
+function LandingCta() {
+  return (
+    <p className="landing-cta">
+      <a className="button-link button-primary" href="#editor-login">
+        Sign in to start a review
+      </a>
+      <a className="quiet-link" href="#example-heading">
+        see an example →
+      </a>
+    </p>
+  );
+}
+
+/** The anonymous landing: bar, hero + sign-in call, the static example,
+ * how it works, sign-in, and the footer. */
 export function AnonymousLanding() {
   return (
     <main className="home-main home-main--landing">
       <SiteBar />
       <LandingHero showMark={false}>
-        <CaptureEntryForm />
+        <LandingCta />
       </LandingHero>
-      <HowItWorks />
+      {/* The example is the hero's picture: the product, marked up, right
+          under the promise (D103). */}
       <ExampleCapture />
+      <HowItWorks />
       <LoginForm />
       <SiteFooter />
     </main>

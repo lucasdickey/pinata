@@ -2,11 +2,13 @@
 // (VAL-LANDING-001, VAL-LANDING-002, VAL-LANDING-003, D066).
 //
 // The first test is fully anonymous and needs no configuration, so it runs in
-// CI too: brand mark above the capture entry, value proposition, the static
-// example render, the sign-in path, zero /api/* traffic, zero external
-// requests, and no horizontal overflow at the narrow breakpoints.
+// CI too: brand mark and value proposition, a call to sign in and no address
+// field before sign-in (D103), the static example render, the sign-in path,
+// zero /api/* traffic, zero external requests, and no horizontal overflow at
+// the narrow breakpoints.
 //
-// The second test is the landing-to-project-create flow. Credentialed sign-in
+// The second test is the landing-to-project-create flow: sign in from the
+// landing, then create the project on /pins/new. Credentialed sign-in
 // is driven here in Playwright (never agent-browser) so the editor password
 // is read from the environment inside the test process and never appears in a
 // command line. The project it creates carries a run id on the fixtures host
@@ -34,7 +36,7 @@ const RUN_ID = `e2e-landing-${Date.now().toString(36)}`;
 const ROOT = `https://pinata-fixtures.vercel.app/echo-v1.html?landing=${RUN_ID}`;
 const EXTRA = `https://pinata-fixtures.vercel.app/links-v1.html?landing=${RUN_ID}`;
 
-test("anonymous landing: brand, entry form, static example, sign-in path, no api traffic", async ({
+test("anonymous landing: brand, sign-in call, static example, sign-in path, no api traffic", async ({
   page,
 }) => {
   const consoleErrors: string[] = [];
@@ -59,33 +61,36 @@ test("anonymous landing: brand, entry form, static example, sign-in path, no api
   await expect(page).toHaveTitle(/pinata/);
   await expect(page.getByRole("heading", { level: 1, name: "pinata" })).toBeVisible();
 
-  // VAL-LANDING-001: the inline-SVG logo directly above the URL capture form.
+  // VAL-LANDING-001: the inline-SVG logo opens the page, ahead of the name.
   const logo = page.getByRole("img", { name: "pinata logo" });
   await expect(logo).toBeVisible();
-  const logoAboveForm = await page.evaluate(() => {
+  const logoFirst = await page.evaluate(() => {
     const mark = document.querySelector(".pinata-logo");
-    const field = document.getElementById("entry-root-url");
-    return mark && field
-      ? Boolean(mark.compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const heading = document.querySelector("h1");
+    return mark && heading
+      ? Boolean(mark.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING)
       : false;
   });
-  expect(logoAboveForm).toBe(true);
+  expect(logoFirst).toBe(true);
 
-  // Required root URL, add-more-URLs control, one visible primary action.
-  const rootField = page.getByLabel("Root URL");
-  await expect(rootField).toBeVisible();
-  await expect(rootField).toHaveAttribute("required", "");
-  await expect(page.getByRole("button", { name: "Add URL" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start capturing" })).toBeVisible();
+  // D103: no address field before sign-in; the hero's way in is a call to
+  // sign in that lands on the sign-in form.
+  await expect(page.getByLabel("Root URL")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start capturing" })).toHaveCount(0);
+  const cta = page.getByRole("link", { name: "Sign in to start a review" });
+  await expect(cta).toBeVisible();
+  await cta.click();
+  await expect(page).toHaveURL(/#editor-login$/);
+  await expect(page.getByLabel("Password")).toBeInViewport();
   // The brief value proposition.
   await expect(page.getByText(/pin plain, directional notes/i)).toBeVisible();
 
   // VAL-LANDING-002: the self-contained static example — a screenshot region
-  // with two numbered pins, a two-entry comment thread, and a visible DOM
-  // metadata panel.
+  // with one numbered mark of each kind (D103), a two-entry comment thread,
+  // and a visible DOM metadata panel.
   const shot = page.getByTestId("example-shot");
   await expect(shot).toBeVisible();
-  await expect(shot.locator("[data-pin-number]")).toHaveCount(2);
+  await expect(shot.locator("[data-mark-number]")).toHaveCount(4);
   await expect(
     page.getByRole("list", { name: "Example thread" }).getByRole("listitem"),
   ).toHaveCount(2);
@@ -123,7 +128,7 @@ test("anonymous landing: brand, entry form, static example, sign-in path, no api
   expect(consoleErrors).toEqual([]);
 });
 
-test("anonymous entry routes to sign-in, retains the draft, and creates exactly one project", async ({
+test("the landing's sign-in call leads to the workspace, and /pins/new creates exactly one project", async ({
   page,
 }) => {
   test.skip(!createEnv.ready, createEnv.reason);
@@ -154,22 +159,21 @@ test("anonymous entry routes to sign-in, retains the draft, and creates exactly 
   await stubDispatchQuota(page);
   await page.goto("/");
 
-  // Anonymous entry: the submit parks the draft and routes to sign-in without
-  // touching the projects API.
+  // The landing takes no address (D103): its call leads to the sign-in
+  // form without touching the projects API.
+  await page.getByRole("link", { name: "Sign in to start a review" }).click();
+  await expect(page.getByLabel("Password")).toBeInViewport();
+  expect(projectPosts).toBe(0);
+
+  // Sign in lands on the workspace; the project form is one link away.
+  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/pins$/);
+  await page.getByRole("link", { name: "New project" }).click();
+  await expect(page).toHaveURL(/\/pins\/new$/);
   await page.getByLabel("Root URL").fill(ROOT);
   await page.getByRole("button", { name: "Add URL" }).click();
   await page.getByRole("textbox", { name: "URL 2" }).fill(EXTRA);
-  await page.getByRole("button", { name: "Start capturing" }).click();
-  await expect(page.getByLabel("Password")).toBeFocused();
-  expect(projectPosts).toBe(0);
-
-  // Sign in. A parked draft routes the editor to the project form at
-  // /pins/new (D069) rather than the workspace, and the draft is retained.
-  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/pins\/new$/);
-  await expect(page.getByLabel("Root URL")).toHaveValue(ROOT);
-  await expect(page.getByRole("textbox", { name: "URL 2" })).toHaveValue(EXTRA);
 
   // Creating the project issues exactly one POST /api/projects, answered 201,
   // and hands off to the workspace, where the project is listed.
