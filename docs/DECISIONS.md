@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 27 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101 |
+| Human directed | 28 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **101** | |
+| **Total** | **102** | |
 
 ## Key decisions
 
@@ -55,6 +55,7 @@ The product and architecture decisions to read first. The full index follows.
 - [D097](#d097--both-sides-see-replies-without-reloading-addresses-are-completed-on-the-client-the-founder-arrives-oriented-and-link-rotation-asks-first) — Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first *(Agent proposed, human approved)*
 - [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) — Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session *(Agent proposed, human approved)*
 - [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) — Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits *(Agent proposed, human approved)*
+- [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) — Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks *(Human directed)*
 
 ## Index
 
@@ -161,6 +162,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) | build | Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits | Agent proposed, human approved | accepted |
 | [D100](#d100--serve-production-at-yourpinatadev-and-correct-what-d099-assumed-about-the-deployment) | build | Serve production at yourpinata.dev, and correct what D099 assumed about the deployment | Human directed | accepted |
 | [D101](#d101--raise-the-per-client-editor-login-failure-limit-from-5-to-10-keeping-the-global-backstop-at-100) | validate | Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100 | Human directed | accepted |
+| [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) | build | Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks | Human directed | accepted |
 
 ---
 
@@ -4033,4 +4035,49 @@ Human instruction:
 
 ---
 
-<sub>Generated from 101 record(s) as of 2026-09-25 · source `91d9562ccc9f`</sub>
+## D102 — Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks
+
+*2026-09-29 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Pinata looked like a first build: a cream-and-brown palette with a red that also colored links, the wordmark, headings, selected tools and badges; a rounded system font; and buttons and inputs left almost entirely to the browser default, so every control looked slightly different. The owner asked for the landing page and the application to take their direction from paper.design, a design tool whose own site is a quiet, near-monochrome sheet with large light type.
+
+**Decision**
+
+Adopt Paper's system as direction, not as a copy. Paper's site was read from its published HTML and stylesheets (live screenshots were not possible from the build environment). Tokens: a warm off-white sheet (--bg #fcfcf9), white cards, a cream for anything raised (#f3f2eb), near-black ink (#141414), a neutral gray for secondary text (#666666, 5.59:1), a lighter gray only for the second tone of large headlines (#868682, 3.56:1), hairline rules (0.5px on high-density screens), 4/8/12px radii, and blue focus rings (#2d6fcd). The accent becomes #c9381a, the brand spark deepened until it clears 4.5:1 on every surface it sits on, and is reserved for the marks, badges, unread counts and errors; links, the wordmark, headings and selected controls go to ink. Type is Inter, self-hosted as one variable file under the SIL Open Font License, so the in-between weights Paper uses (360 for large headlines, 480 for controls, 550 for emphasis) are available with no third-party request. Buttons and inputs get one base style at zero specificity, so every existing component rule still wins: cream secondary buttons, solid-ink primary buttons, a press that scales to 97%. The landing gains a quiet top bar, a two-tone headline (the name in ink, the promise in gray at the same size), sections introduced by a plain lowercase line and a large light heading, a three-point 'how it works', and a footer. Inside the app, rail and list navigation read as rows rather than stacked buttons, selected tools and toggles are solid ink, capture cards are white paper cards, and the founder view's uppercase badge becomes a quiet lowercase line.
+
+**Alternatives considered**
+
+- *Use Paper's own typeface, Matter* — It is a commercial typeface licensed to Paper; copying its file would not be ours to ship. Inter is what Paper's own interface uses beside it and covers the same weights.
+- *Load a font from Google Fonts or a CDN* — The landing contract forbids third-party requests (VAL-LANDING-001, asserted in e2e/landing.spec.ts).
+- *Drop the accent and go fully monochrome, as Paper's site does* — Pins sit on arbitrary screenshots and have to be found at a glance; one warm accent, used only for marks and their signals, is what lets the interface stay quiet around them.
+- *Add a dark theme in the same pass* — The brand mark is ink on a light tile and would vanish on a dark one, and the canvas needs its own review against dark chrome; better as its own change than a side effect of this one.
+- *Lowercase the copy itself everywhere* — Lowercasing is applied where Paper's voice lives (the landing's lines, the top bar, the footer, section openers) and left alone in working labels, whose exact names the tests and screen readers rely on.
+
+**Rationale**
+
+Almost every color in the stylesheet already went through a custom property, so new token values carried the direction through the editor, the canvas panels, the founder view, the requirements hub and the walkthrough at once, and the few structural changes could concentrate on the landing. Every text pairing was measured against WCAG AA before it was chosen, and the tests that pin the tokens (visual-tokens, walkthrough-slides, brand-mark) now pin the new values.
+
+**Consequences**
+
+- public/fonts/ carries inter-latin-wght-normal.woff2 (Inter 5.3, 48 KB) and its licence; the brand mark's tile, app/icon.svg, and the walkthrough theme move to the new surface and palette together, as their tests require.
+- The requirements hub's current-page tab is solid ink rather than red; test/visual-tokens.test.ts still checks surface text on the accent, which pin badges use.
+- test/canvas/canvas-layout.test.ts now asserts the pressed camera mode by its ink fill rather than a red outline.
+- The composer's Save and a thread's Send are primary (solid ink) buttons.
+- Dark mode is not built; NEXT.md records it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Update the Pinata root/landing page and the app itself to take design direction from paper.design
+
+**Artifacts**
+
+- [paper.design, the direction; read from its HTML and stylesheets on 2026-09-29.](https://paper.design)
+- `app/globals.css` — Tokens, base controls, and the landing layout.
+
+---
+
+<sub>Generated from 102 record(s) as of 2026-09-29 · source `c4c9e1d0adf5`</sub>

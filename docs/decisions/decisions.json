@@ -4502,6 +4502,64 @@
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D102",
+      "date": "2026-09-29",
+      "phase": "build",
+      "title": "Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Pinata looked like a first build: a cream-and-brown palette with a red that also colored links, the wordmark, headings, selected tools and badges; a rounded system font; and buttons and inputs left almost entirely to the browser default, so every control looked slightly different. The owner asked for the landing page and the application to take their direction from paper.design, a design tool whose own site is a quiet, near-monochrome sheet with large light type.",
+      "decision": "Adopt Paper's system as direction, not as a copy. Paper's site was read from its published HTML and stylesheets (live screenshots were not possible from the build environment). Tokens: a warm off-white sheet (--bg #fcfcf9), white cards, a cream for anything raised (#f3f2eb), near-black ink (#141414), a neutral gray for secondary text (#666666, 5.59:1), a lighter gray only for the second tone of large headlines (#868682, 3.56:1), hairline rules (0.5px on high-density screens), 4/8/12px radii, and blue focus rings (#2d6fcd). The accent becomes #c9381a, the brand spark deepened until it clears 4.5:1 on every surface it sits on, and is reserved for the marks, badges, unread counts and errors; links, the wordmark, headings and selected controls go to ink. Type is Inter, self-hosted as one variable file under the SIL Open Font License, so the in-between weights Paper uses (360 for large headlines, 480 for controls, 550 for emphasis) are available with no third-party request. Buttons and inputs get one base style at zero specificity, so every existing component rule still wins: cream secondary buttons, solid-ink primary buttons, a press that scales to 97%. The landing gains a quiet top bar, a two-tone headline (the name in ink, the promise in gray at the same size), sections introduced by a plain lowercase line and a large light heading, a three-point 'how it works', and a footer. Inside the app, rail and list navigation read as rows rather than stacked buttons, selected tools and toggles are solid ink, capture cards are white paper cards, and the founder view's uppercase badge becomes a quiet lowercase line.",
+      "alternatives": [
+        {
+          "option": "Use Paper's own typeface, Matter",
+          "why_not": "It is a commercial typeface licensed to Paper; copying its file would not be ours to ship. Inter is what Paper's own interface uses beside it and covers the same weights."
+        },
+        {
+          "option": "Load a font from Google Fonts or a CDN",
+          "why_not": "The landing contract forbids third-party requests (VAL-LANDING-001, asserted in e2e/landing.spec.ts)."
+        },
+        {
+          "option": "Drop the accent and go fully monochrome, as Paper's site does",
+          "why_not": "Pins sit on arbitrary screenshots and have to be found at a glance; one warm accent, used only for marks and their signals, is what lets the interface stay quiet around them."
+        },
+        {
+          "option": "Add a dark theme in the same pass",
+          "why_not": "The brand mark is ink on a light tile and would vanish on a dark one, and the canvas needs its own review against dark chrome; better as its own change than a side effect of this one."
+        },
+        {
+          "option": "Lowercase the copy itself everywhere",
+          "why_not": "Lowercasing is applied where Paper's voice lives (the landing's lines, the top bar, the footer, section openers) and left alone in working labels, whose exact names the tests and screen readers rely on."
+        }
+      ],
+      "rationale": "Almost every color in the stylesheet already went through a custom property, so new token values carried the direction through the editor, the canvas panels, the founder view, the requirements hub and the walkthrough at once, and the few structural changes could concentrate on the landing. Every text pairing was measured against WCAG AA before it was chosen, and the tests that pin the tokens (visual-tokens, walkthrough-slides, brand-mark) now pin the new values.",
+      "consequences": [
+        "public/fonts/ carries inter-latin-wght-normal.woff2 (Inter 5.3, 48 KB) and its licence; the brand mark's tile, app/icon.svg, and the walkthrough theme move to the new surface and palette together, as their tests require.",
+        "The requirements hub's current-page tab is solid ink rather than red; test/visual-tokens.test.ts still checks surface text on the accent, which pin badges use.",
+        "test/canvas/canvas-layout.test.ts now asserts the pressed camera mode by its ink fill rather than a red outline.",
+        "The composer's Save and a thread's Send are primary (solid ink) buttons.",
+        "Dark mode is not built; NEXT.md records it."
+      ],
+      "transcript": {
+        "request": "Update the Pinata root/landing page and the app itself to take design direction from paper.design"
+      },
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://paper.design",
+          "caption": "paper.design, the direction; read from its HTML and stylesheets on 2026-09-29."
+        },
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "Tokens, base controls, and the landing layout."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "key": true
     }
   ]
 }

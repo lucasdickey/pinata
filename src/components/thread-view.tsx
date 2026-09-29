@@ -126,7 +126,12 @@ export function ThreadView({
         />
       </label>
       <p className="panel-actions">
-        <button type="button" onClick={onSendReply} disabled={sendDisabled}>
+        <button
+          type="button"
+          className="button-primary"
+          onClick={onSendReply}
+          disabled={sendDisabled}
+        >
           {sendState === "sending" ? "Sending…" : sendLabel}
         </button>
       </p>

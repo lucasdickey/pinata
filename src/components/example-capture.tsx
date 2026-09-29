@@ -81,7 +81,8 @@ export function ExampleCapture() {
   const selected = EXAMPLE_CAPTURE.pins[0]!;
   return (
     <section className="landing-example" aria-labelledby="example-heading">
-      <h2 id="example-heading">See what a marked-up capture looks like</h2>
+      <p className="section-eyebrow">what the founder sees</p>
+      <h2 id="example-heading">a marked-up capture, notes pinned where they belong</h2>
       <p className="hint">
         A static example drawn from bundled fixture data — nothing here calls a server.
       </p>

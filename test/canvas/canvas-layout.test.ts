@@ -92,7 +92,10 @@ describe("camera controls", () => {
   test("the pressed named mode is visibly distinct", () => {
     const pressed = css.match(/\.capture-camera\s+button\[aria-pressed="true"\]\s*\{([^}]*)\}/);
     if (!pressed) throw new Error("pressed camera-mode rule not found");
-    expect(pressed[1]).toMatch(/border-color:\s*var\(--accent\)/);
+    // Solid ink since D102 (a red outline before): the fill, not a hairline,
+    // is what tells the pressed mode apart.
+    expect(pressed[1]).toMatch(/background:\s*var\(--ink\)/);
+    expect(pressed[1]).toMatch(/color:\s*var\(--bg\)/);
   });
 
   test("the named non-ready state placeholder still exists", () => {

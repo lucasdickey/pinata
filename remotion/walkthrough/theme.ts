@@ -4,14 +4,14 @@
 // it); the two dark values come from the brand exploration board that the
 // title slide borrows (public/walkthrough/brand-board.webp).
 export const THEME = {
-  bg: "#fdf6ec",
-  surface: "#fffdf8",
-  ink: "#33261a",
-  inkSoft: "#6b5a48",
-  accent: "#c43448",
-  accentSoft: "#f6dfd3",
-  line: "#ead9c2",
-  codeBg: "#f5ead9",
+  bg: "#fcfcf9",
+  surface: "#ffffff",
+  ink: "#141414",
+  inkSoft: "#666666",
+  accent: "#c9381a",
+  accentSoft: "#fbe7df",
+  line: "#e2e1dc",
+  codeBg: "#f3f2eb",
   /** Near-black from the brand board. */
   night: "#151312",
   /** The board's orange, used only as a highlight on dark surfaces. */
@@ -26,6 +26,7 @@ export const ORIGIN_COLORS = {
   "user-deferred": "#6e7781",
 } as const;
 
+/** The application's face (D102): Inter, self-hosted under public/fonts. */
 export const FONT =
-  'ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif';
+  '"Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 export const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
