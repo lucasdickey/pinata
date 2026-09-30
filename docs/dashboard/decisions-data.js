@@ -4616,8 +4616,60 @@ window.PINATA = {
       "supersedes": "D067",
       "superseded_by": null,
       "key": true
+    },
+    {
+      "id": "D104",
+      "date": "2026-09-30",
+      "phase": "build",
+      "title": "A dark theme that follows the device, with a toggle that remembers the visitor's choice",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Pinata had one theme. D102 left dark mode out because the brand mark, the canvas, and a handful of hard-coded colors each needed attention first, and Paper, the design direction, has a dark sheet of its own. The owner asked for a dark mode toggle.",
+      "decision": "Add a dark theme as a second set of token values, Paper's dark sheet as direction: page #181818, cards #1f1f1e, raised #2a2a27, cream ink #efefe4, gray #a8a8a2, a large-text gray #7c7c77, the accent lifted to #ff6b47 so it reads as text on dark and still carries dark text on pin badges, Paper's soft blue #81adec for focus, and dark-appropriate decision status colors. With no saved choice the page follows prefers-color-scheme; a toggle (a moon or sun icon button named 'Dark mode' whose pressed state says whether dark is showing) saves an explicit choice in localStorage. A small script in <head> copies the saved choice onto <html data-theme> before the first paint, following Next's 'preventing flash before hydration' guide, with suppressHydrationWarning on <html>. The toggle sits in the landing's top bar, the editor bar, the requirements hub header, and the founder view. The primary button's hover and the decision status colors became tokens so they flip with the theme; color-scheme makes native controls and scrollbars follow.",
+      "alternatives": [
+        {
+          "option": "Follow the device only, with no toggle",
+          "why_not": "The owner asked for a toggle, and a founder reading on a bright laptop at night should be able to choose."
+        },
+        {
+          "option": "Store the choice in a cookie and render the theme on the server",
+          "why_not": "Reading a cookie in the root layout opts every page out of static prerendering; the inline script gets the same no-flash result without it."
+        },
+        {
+          "option": "A three-state control (light, dark, device)",
+          "why_not": "More to explain for little gain; clearing site data returns to the device setting, and one pressed-or-not button is simpler to read."
+        },
+        {
+          "option": "Darken the landing example's captured page too",
+          "why_not": "It depicts someone else's light website, exactly as a real screenshot would look; darkening it would misrepresent what a capture is."
+        }
+      ],
+      "rationale": "Nearly every color already went through a custom property (D102), so a dark theme is a second value set rather than a second stylesheet. Every dark text pairing was measured before it was chosen and is locked by the same contrast suite as the light theme, and the public surfaces pass the same axe sweep in dark.",
+      "consequences": [
+        "src/lib/theme.ts holds the storage key, the <head> script, and the apply/read helpers; src/components/theme-toggle.tsx is the button.",
+        "The dark values are written twice (device preference, saved choice); test/visual-tokens.test.ts asserts the two copies agree and every dark pairing clears AA.",
+        "e2e/theme.spec.ts runs in CI: the toggle switches and remembers across a reload and to /reqs, a device that prefers dark gets dark with no click, and /, /reqs, and /reqs/decisions pass axe in dark.",
+        "Stays light on purpose: the landing example's captured page, real screenshots, the brand mark's white tile, and the walkthrough video's palette."
+      ],
+      "transcript": {
+        "request": "add a dark mode toggle"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/theme.ts",
+          "caption": "Storage key, boot script, and helpers."
+        },
+        {
+          "type": "file",
+          "path": "src/components/theme-toggle.tsx",
+          "caption": "The toggle."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-29",
-  "source_hash": "e44f1d54321f"
+  "as_of": "2026-09-30",
+  "source_hash": "c33f36b32c9f"
 };

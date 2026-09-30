@@ -51,6 +51,62 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --max: 46rem;
   --wide: 72rem;
+  /* The primary button's hover: one step past --ink. */
+  --ink-strong: #000000;
+  /* Decision status text on cards (D054): accepted, superseded, pending. */
+  --status-accepted: #1a7f37;
+  --status-superseded: #9a6700;
+  --status-pending: #57606a;
+  color-scheme: light;
+}
+
+/* The dark theme (D104), Paper's dark sheet as direction: a near-black page,
+   cream ink, the accent lifted until it reads on dark. Written twice with the
+   same values: once for a device that prefers dark while no choice is saved,
+   once for a saved "dark". Every text pairing is measured and locked by
+   test/visual-tokens.test.ts: ink 15.3:1 on --bg, --ink-soft 6.0 on
+   --raised, --accent 5.1 on --raised and 5.85 behind --surface text,
+   --ink-quiet 4.2 (large text only). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #181818;
+    --surface: #1f1f1e;
+    --raised: #2a2a27;
+    --ink: #efefe4;
+    --ink-soft: #a8a8a2;
+    --ink-quiet: #7c7c77;
+    --accent: #ff6b47;
+    --accent-soft: #3a211a;
+    --focus: #81adec;
+    --line: #2e2e2b;
+    --line-strong: #464641;
+    --code-bg: #262623;
+    --ink-strong: #ffffff;
+    --status-accepted: #4ac26b;
+    --status-superseded: #d4a72c;
+    --status-pending: #9198a1;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #181818;
+  --surface: #1f1f1e;
+  --raised: #2a2a27;
+  --ink: #efefe4;
+  --ink-soft: #a8a8a2;
+  --ink-quiet: #7c7c77;
+  --accent: #ff6b47;
+  --accent-soft: #3a211a;
+  --focus: #81adec;
+  --line: #2e2e2b;
+  --line-strong: #464641;
+  --code-bg: #262623;
+  --ink-strong: #ffffff;
+  --status-accepted: #4ac26b;
+  --status-superseded: #d4a72c;
+  --status-pending: #9198a1;
+  color-scheme: dark;
 }
 
 /* On high-density screens a rule is half a CSS pixel: one device pixel. */
@@ -180,7 +236,7 @@ summary:focus-visible,
 }
 
 :where(button[type="submit"], .button-primary):hover {
-  background: #000;
+  background: var(--ink-strong);
 }
 
 :where(button):disabled {
@@ -323,6 +379,57 @@ pre code {
   opacity: 1;
 }
 
+/* The light/dark switch (D104): a quiet icon button that sits in every bar
+   without competing with its links. */
+.theme-toggle {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  opacity: 0.75;
+  transition:
+    opacity 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+  background: var(--raised);
+}
+
+.theme-toggle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.site-links {
+  align-items: center;
+}
+
+.reqs-theme-toggle {
+  margin-left: auto;
+  align-self: center;
+}
+
+.pins-actions .theme-toggle {
+  align-self: center;
+}
+
+.founder-header {
+  position: relative;
+}
+
+.founder-theme-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
 /* On a phone the bar keeps two links; the documentation is in the footer. */
 @media (max-width: 30rem) {
   .site-links {
@@ -421,7 +528,7 @@ pre code {
 }
 
 .button-link.button-primary:hover {
-  background: #000;
+  background: var(--ink-strong);
 }
 
 .button-link:active {
@@ -2099,12 +2206,12 @@ pre code {
 }
 
 .decision-meta .status-accepted {
-  color: #1a7f37;
+  color: var(--status-accepted);
   font-weight: 550;
 }
 
 .decision-meta .status-superseded {
-  color: #9a6700;
+  color: var(--status-superseded);
   font-weight: 550;
 }
 
@@ -2113,7 +2220,7 @@ pre code {
      surface and failed the axe sweep the first time a pending decision
      rendered (D054); #57606a measures 6.39:1 on --surface and 6.22:1 on
      --bg. Do not lighten below 4.5:1. */
-  color: #57606a;
+  color: var(--status-pending);
   font-weight: 550;
 }
 

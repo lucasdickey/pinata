@@ -26,6 +26,7 @@ import {
 import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
 import { readCsrfProof } from "../lib/csrf";
 import { LandingLinks } from "./landing";
+import { ThemeToggle } from "./theme-toggle";
 import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
@@ -216,6 +217,7 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
           <Link href="/pins/new" className="pins-new-link">
             New project
           </Link>
+          <ThemeToggle />
           <button type="button" onClick={logout} disabled={pending}>
             {pending ? "Signing out…" : "Sign out"}
           </button>

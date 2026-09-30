@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 29 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103 |
+| Human directed | 30 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **103** | |
+| **Total** | **104** | |
 
 ## Key decisions
 
@@ -165,6 +165,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D101](#d101--raise-the-per-client-editor-login-failure-limit-from-5-to-10-keeping-the-global-backstop-at-100) | validate | Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100 | Human directed | accepted |
 | [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) | build | Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks | Human directed | accepted |
 | [D103](#d103--take-project-creation-off-the-public-landing-and-make-the-example-a-readable-captured-page-carrying-one-mark-of-each-kind) | build | Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind | Human directed | accepted |
+| [D104](#d104--a-dark-theme-that-follows-the-device-with-a-toggle-that-remembers-the-visitors-choice) | build | A dark theme that follows the device, with a toggle that remembers the visitor's choice | Human directed | accepted |
 
 ---
 
@@ -4127,4 +4128,47 @@ Human instruction:
 
 ---
 
-<sub>Generated from 103 record(s) as of 2026-09-29 · source `e44f1d54321f`</sub>
+## D104 — A dark theme that follows the device, with a toggle that remembers the visitor's choice
+
+*2026-09-30 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Pinata had one theme. D102 left dark mode out because the brand mark, the canvas, and a handful of hard-coded colors each needed attention first, and Paper, the design direction, has a dark sheet of its own. The owner asked for a dark mode toggle.
+
+**Decision**
+
+Add a dark theme as a second set of token values, Paper's dark sheet as direction: page #181818, cards #1f1f1e, raised #2a2a27, cream ink #efefe4, gray #a8a8a2, a large-text gray #7c7c77, the accent lifted to #ff6b47 so it reads as text on dark and still carries dark text on pin badges, Paper's soft blue #81adec for focus, and dark-appropriate decision status colors. With no saved choice the page follows prefers-color-scheme; a toggle (a moon or sun icon button named 'Dark mode' whose pressed state says whether dark is showing) saves an explicit choice in localStorage. A small script in <head> copies the saved choice onto <html data-theme> before the first paint, following Next's 'preventing flash before hydration' guide, with suppressHydrationWarning on <html>. The toggle sits in the landing's top bar, the editor bar, the requirements hub header, and the founder view. The primary button's hover and the decision status colors became tokens so they flip with the theme; color-scheme makes native controls and scrollbars follow.
+
+**Alternatives considered**
+
+- *Follow the device only, with no toggle* — The owner asked for a toggle, and a founder reading on a bright laptop at night should be able to choose.
+- *Store the choice in a cookie and render the theme on the server* — Reading a cookie in the root layout opts every page out of static prerendering; the inline script gets the same no-flash result without it.
+- *A three-state control (light, dark, device)* — More to explain for little gain; clearing site data returns to the device setting, and one pressed-or-not button is simpler to read.
+- *Darken the landing example's captured page too* — It depicts someone else's light website, exactly as a real screenshot would look; darkening it would misrepresent what a capture is.
+
+**Rationale**
+
+Nearly every color already went through a custom property (D102), so a dark theme is a second value set rather than a second stylesheet. Every dark text pairing was measured before it was chosen and is locked by the same contrast suite as the light theme, and the public surfaces pass the same axe sweep in dark.
+
+**Consequences**
+
+- src/lib/theme.ts holds the storage key, the <head> script, and the apply/read helpers; src/components/theme-toggle.tsx is the button.
+- The dark values are written twice (device preference, saved choice); test/visual-tokens.test.ts asserts the two copies agree and every dark pairing clears AA.
+- e2e/theme.spec.ts runs in CI: the toggle switches and remembers across a reload and to /reqs, a device that prefers dark gets dark with no click, and /, /reqs, and /reqs/decisions pass axe in dark.
+- Stays light on purpose: the landing example's captured page, real screenshots, the brand mark's white tile, and the walkthrough video's palette.
+
+**Provenance evidence**
+
+Human instruction:
+
+> add a dark mode toggle
+
+**Artifacts**
+
+- `src/lib/theme.ts` — Storage key, boot script, and helpers.
+- `src/components/theme-toggle.tsx` — The toggle.
+
+---
+
+<sub>Generated from 104 record(s) as of 2026-09-30 · source `c33f36b32c9f`</sub>
