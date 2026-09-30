@@ -14,6 +14,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CAPTURE_POLL_INITIAL_INTERVAL_MS } from "../src/lib/boundaries";
 import { EditorHome } from "../src/components/editor-home";
+import { openRail } from "./helpers/rail";
 import type {
   AttemptView,
   DeviceView,
@@ -129,6 +130,8 @@ describe("editor project-entry states", () => {
     fetchMock.mockResolvedValueOnce(Response.json({ projects: [projectWith("ready")] }));
     render(<EditorHome />);
     await flush();
+    // Project names live in the project drawer, closed until opened (D106).
+    openRail();
     expect(
       screen.getByRole("heading", { name: "Chickpea review" }),
     ).toBeInTheDocument();

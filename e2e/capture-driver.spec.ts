@@ -26,6 +26,7 @@ import { MAX_ACTIVE_CAPTURES } from "../src/lib/boundaries";
 import { databaseFromClient, schema } from "../src/lib/server/db/client";
 import { createVercelBlobStore, type ScreenshotStore } from "../src/lib/server/providers/blob";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
+import { openRail } from "./rail";
 
 const gate = localEnvGate([
   "EDITOR_PASSWORD",
@@ -256,7 +257,7 @@ test("a project created outside the browser is driven to ready with no manual di
   // The progress line (D076) reads the same server-computed block: with the
   // project's root page open (on its ready Desktop capture, D077), it
   // reports every capture ready.
-  const tree = page.getByRole("navigation", { name: "Projects and pages" });
+  const tree = await openRail(page);
   await tree.getByRole("button", { name: ROOT_URL, exact: true }).click();
   await expect(
     page.getByRole("region", { name: "Selected capture" }).getByTestId("capture-progress"),
@@ -323,7 +324,7 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
   }
 
   // Neither device is usable, so the page opens on Desktop (D077).
-  const tree = page.getByRole("navigation", { name: "Projects and pages" });
+  const tree = await openRail(page);
   await tree.getByRole("button", { name: FAIL_URL, exact: true }).click();
   const detail = page.getByRole("region", { name: "Selected capture" });
   await expect(detail.getByRole("alert"))

@@ -20,6 +20,7 @@ import {
   type WorkspaceProject,
 } from "../src/components/project-workspace";
 import { installReactFlowMocks } from "./helpers/react-flow";
+import { openRail } from "./helpers/rail";
 
 installReactFlowMocks();
 
@@ -212,7 +213,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const tree = () => screen.getByRole("navigation", { name: "Projects and pages" });
+const tree = () => openRail();
 const overview = () => screen.getByRole("region", { name: "Project overview" });
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
 const cards = () => within(overview()).getAllByTestId("overview-card");

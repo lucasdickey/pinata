@@ -25,6 +25,7 @@ import {
   type WorkspaceProject,
 } from "../src/components/project-workspace";
 import { installReactFlowMocks } from "./helpers/react-flow";
+import { openRail } from "./helpers/rail";
 
 installReactFlowMocks();
 
@@ -338,7 +339,7 @@ describe("in the workspace", () => {
   /** Open the home page's Desktop capture from the rail (the workspace opens on the overview, D077). */
   const openHome = () =>
     fireEvent.click(
-      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
+      within(openRail()).getByRole("button", {
         name: "https://chickpea.co/",
       }),
     );

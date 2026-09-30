@@ -3514,3 +3514,27 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D105 (user-directed): collapsible sidebar, fixed footer, taller canvas.
+
+---
+
+## 2026-09-30 — the rail becomes an overlay drawer (D106)
+
+Harness: Claude Code, in a cloud session.
+
+- **The shift was the grid.** D105's rail changed a grid track when it
+  opened or closed, so the canvas slid sideways each time. Now the grid
+  keeps one fixed 2.25rem strip and the rail is a drawer over the canvas:
+  measured, the canvas column's box is identical open and closed.
+- **Behaves like a drawer.** Starts closed; closes on a choice, on Escape,
+  and on a click on the veil behind it (which never reaches the canvas);
+  focus moves in on open and back to the toggle on close. No longer
+  remembered.
+- **Tests** reach the rail through `openRail` helpers, as a reader would.
+  Two unit tests had asserted things only visible with the rail open (a
+  project's hidden heading, the old grid track); they now open it first or
+  match the new track. The credentialed e2e specs reopen the drawer after
+  choosing a page; they could not be run here.
+
+### Decisions
+
+- D106 (user-directed): the rail as an overlay drawer.

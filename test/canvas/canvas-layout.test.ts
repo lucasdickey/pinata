@@ -45,9 +45,8 @@ describe("canvas frame bounds", () => {
     // minmax(0, 1fr) on the grid track plus min-width 0 on the flex item:
     // without both, a natural-size capture pins the layout to its intrinsic
     // width and pushes the document horizontally (the round-2 bug).
-    expect(rule(".workspace")).toMatch(
-      /grid-template-columns:\s*minmax\(16rem,\s*22rem\)\s*minmax\(0,\s*1fr\)/,
-    );
+    // D106: the first track is the drawer's fixed strip.
+    expect(rule(".workspace")).toMatch(/grid-template-columns:\s*2\.25rem\s*minmax\(0,\s*1fr\)/);
     expect(rule(".workspace-detail")).toMatch(/min-width:\s*0/);
     const column = css.match(/\.workspace-body\s*>\s*\.capture-stage\s*\{([^}]*)\}/);
     if (!column) throw new Error("rule .workspace-body > .capture-stage not found");

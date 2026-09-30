@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 31 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105 |
+| Human directed | 32 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **105** | |
+| **Total** | **106** | |
 
 ## Key decisions
 
@@ -167,6 +167,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D103](#d103--take-project-creation-off-the-public-landing-and-make-the-example-a-readable-captured-page-carrying-one-mark-of-each-kind) | build | Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind | Human directed | accepted |
 | [D104](#d104--a-dark-theme-that-follows-the-device-with-a-toggle-that-remembers-the-visitors-choice) | build | A dark theme that follows the device, with a toggle that remembers the visitor's choice | Human directed | accepted |
 | [D105](#d105--give-the-canvas-the-window-a-collapsible-project-sidebar-a-fixed-documentation-footer-and-a-canvas-as-tall-as-the-window-allows) | build | Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows | Human directed | accepted |
+| [D106](#d106--the-project-rail-becomes-a-drawer-that-overlays-the-canvas-so-opening-it-never-shifts-the-layout) | build | The project rail becomes a drawer that overlays the canvas, so opening it never shifts the layout | Human directed | accepted |
 
 ---
 
@@ -4214,4 +4215,45 @@ Human instruction:
 
 ---
 
-<sub>Generated from 105 record(s) as of 2026-09-30 · source `6a0b47f33b8e`</sub>
+## D106 — The project rail becomes a drawer that overlays the canvas, so opening it never shifts the layout
+
+*2026-09-30 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+D105's collapsible sidebar took a grid column when open and a strip when collapsed, so every toggle reflowed the canvas and the panel sideways: the capture under the editor's cursor moved each time the rail opened or closed. The owner asked for the left navigation to be an overlay that sits on top of the canvas instead.
+
+**Decision**
+
+The workspace grid keeps one fixed 2.25rem strip for the toggle and never changes. The rail is a drawer that hangs from a sticky dock in that strip and overlays the canvas: a surface card with a shadow, above a faint veil that takes an outside click so it never reaches the canvas. It starts closed and closes itself when a page or an overview is chosen, on Escape, or on a click on the veil; focus moves to its 'Hide projects' control on open and back to 'Show projects' on close. Being transient, it is no longer remembered in the browser. On a phone the dock sits in the flow above the canvas and the drawer still overlays.
+
+**Alternatives considered**
+
+- *Keep D105's column with a slide animation* — An animated reflow is still a reflow; the capture still moves under the cursor.
+- *Overlay with no veil* — A click outside would also reach the canvas and could place a mark while the editor only meant to dismiss the drawer.
+- *Keep remembering the open state* — An overlay remembered open would cover the canvas on every load; a drawer that closes after each choice has nothing worth remembering.
+- *Start open* — The workspace opens on the project overview, whose grid is itself a way into the captures; the drawer is for switching projects, one click away.
+
+**Rationale**
+
+The fixed strip is what removes the shift: nothing the drawer does changes a grid track, which the checks confirmed (the canvas column's box is identical with the drawer open and closed). Closing on a choice keeps the overlay out of the way of the work it serves.
+
+**Consequences**
+
+- Replaces D105's collapsible column and its remembered state; D105's fixed footer and taller canvas stand.
+- Tests reach the rail the way a reader does, through openRail helpers (test/helpers/rail.ts, e2e/rail.ts); the credentialed specs reopen the drawer after each page choice.
+- test/project-workspace.test.tsx covers the closed start, focus in and out, closing on a choice, on Escape, and on an outside click, and that the grid never changes.
+
+**Provenance evidence**
+
+Human instruction:
+
+> left's change the left-hand nav to an overlay that sits on top of the canvas, instead of putting at the same z-index and pushing the content left/right with layout shifting
+
+**Artifacts**
+
+- `src/components/project-workspace.tsx` — The project drawer.
+
+---
+
+<sub>Generated from 106 record(s) as of 2026-09-30 · source `99bbcb173138`</sub>

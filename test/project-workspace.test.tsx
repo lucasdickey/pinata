@@ -18,10 +18,10 @@ import {
   type AttemptView,
   type DeviceView,
   type WorkspaceProject,
-  SIDEBAR_STORAGE_KEY,
 } from "../src/components/project-workspace";
 import { MIN_ARROW_LENGTH_PX, MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
+import { openRail } from "./helpers/rail";
 
 installReactFlowMocks();
 
@@ -152,7 +152,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const tree = () => screen.getByRole("navigation", { name: "Projects and pages" });
+const tree = () => openRail();
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
 /** The rail's page button; opening a page shows its Desktop capture (D077). */
 const pageButton = (url: string) => within(tree()).getByRole("button", { name: url });
@@ -1573,7 +1573,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
       const header = within(detail()).getByTestId("project-header");
       expect(within(header).getByTestId("project-title")).toHaveTextContent("chickpea.co");
-      // The rail's hidden heading stays the only heading with the project's name.
+      // The rail's hidden heading stays the only heading with the project's
+      // name; the rail is a closed drawer (D106), so open it to look.
+      tree();
       expect(screen.getAllByRole("heading", { name: "chickpea.co" })).toHaveLength(1);
       expect(within(header).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
       expect(within(tree()).queryByRole("button", { name: "Share with founder" })).toBeNull();
@@ -2078,39 +2080,49 @@ describe("arrow drafts (D083)", () => {
   });
 });
 
-// D105: the rail is a collapsible sidebar. Collapsing hides the whole column
-// behind a thin strip so the canvas takes the width, and the choice is
-// remembered in this browser.
-describe("collapsible sidebar (D105)", () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  test("hiding the projects collapses the whole rail, and showing brings it back", () => {
-    const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    const workspace = container.querySelector(".workspace")!;
-    expect(workspace).toHaveAttribute("data-sidebar", "open");
-
-    const hide = screen.getByRole("button", { name: "Hide projects" });
-    expect(hide).toHaveAttribute("aria-expanded", "true");
-    fireEvent.click(hide);
-    expect(workspace).toHaveAttribute("data-sidebar", "collapsed");
+// D106: the rail is a drawer that overlays the canvas. It starts closed,
+// opens from a fixed strip, and closes on a choice, on Escape, or on a click
+// outside it, with focus moving in and back out.
+describe("project drawer (D106)", () => {
+  test("starts closed; opening moves focus in; choosing a page closes it and returns focus", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
-    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("collapsed");
-
     const show = screen.getByRole("button", { name: "Show projects" });
     expect(show).toHaveAttribute("aria-expanded", "false");
+
     fireEvent.click(show);
-    expect(workspace).toHaveAttribute("data-sidebar", "open");
-    expect(tree()).toBeVisible();
-    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("open");
+    const hide = screen.getByRole("button", { name: "Hide projects" });
+    expect(hide).toHaveFocus();
+    expect(hide).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(
+      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
+        name: "https://chickpea.co/",
+      }),
+    );
+    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Show projects" })).toHaveFocus();
+    // The choice still took effect underneath.
+    expect(detail()).toBeInTheDocument();
   });
 
-  test("a remembered collapsed sidebar starts collapsed", async () => {
-    localStorage.setItem(SIDEBAR_STORAGE_KEY, "collapsed");
+  test("Escape and a click outside both close it", () => {
     const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await act(async () => {});
-    expect(container.querySelector(".workspace")).toHaveAttribute("data-sidebar", "collapsed");
-    expect(screen.getByRole("button", { name: "Show projects" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show projects" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show projects" }));
+    fireEvent.click(container.querySelector(".rail-scrim")!);
+    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+  });
+
+  test("the drawer never changes the layout: the grid keeps one fixed strip", () => {
+    const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const workspace = container.querySelector(".workspace")!;
+    expect(workspace).not.toHaveAttribute("data-sidebar");
+    fireEvent.click(screen.getByRole("button", { name: "Show projects" }));
+    expect(workspace).not.toHaveAttribute("data-sidebar");
+    expect(workspace.firstElementChild).toHaveClass("rail-dock");
   });
 });
