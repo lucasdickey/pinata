@@ -7,6 +7,7 @@
 // render under React Testing Library in jsdom.
 
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { ExampleCapture } from "./example-capture";
@@ -104,6 +105,10 @@ function HowItWorks() {
       <h2 id="how-heading">a two-minute comment should take two minutes</h2>
       <ul className="landing-points">
         <li>
+          <div className="process-art" aria-hidden="true">
+            <Image src="/illustrations/process-capture.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+          </div>
+          <p className="process-number" aria-hidden="true">01 / capture</p>
           <h3>capture the page</h3>
           <p>
             Every address you list is captured on desktop and mobile as a full
@@ -111,6 +116,10 @@ function HowItWorks() {
           </p>
         </li>
         <li>
+          <div className="process-art" aria-hidden="true">
+            <Image src="/illustrations/process-annotate.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+          </div>
+          <p className="process-number" aria-hidden="true">02 / annotate</p>
           <h3>pin it where it happens</h3>
           <p>
             Drop a pin, draw a box or a circle, or point an arrow, and say what
@@ -118,6 +127,10 @@ function HowItWorks() {
           </p>
         </li>
         <li>
+          <div className="process-art" aria-hidden="true">
+            <Image src="/illustrations/process-share.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+          </div>
+          <p className="process-number" aria-hidden="true">03 / share</p>
           <h3>send one link</h3>
           <p>
             The founder opens it without an account, reads each note in place,
@@ -132,6 +145,12 @@ function HowItWorks() {
 function SiteFooter() {
   return (
     <footer className="site-footer">
+      <div className="footer-brand">
+        <div className="footer-mascot" aria-hidden="true">
+          <Image src="/illustrations/mascot-resting.png" alt="" width={1254} height={1254} sizes="112px" />
+        </div>
+        <p>pinata<span>a little feedback goes a long way.</span></p>
+      </div>
       <div>
         <h2>product</h2>
         <ul>
@@ -181,14 +200,26 @@ export function AnonymousLanding() {
   return (
     <main className="home-main home-main--landing">
       <SiteBar />
-      <LandingHero showMark={false}>
-        <LandingCta />
-      </LandingHero>
-      {/* The example is the hero's picture: the product, marked up, right
-          under the promise (D103). */}
-      <ExampleCapture />
+      <div className="illustrated-hero">
+        <LandingHero showMark={false}>
+          <LandingCta />
+        </LandingHero>
+        <div className="hero-art" aria-hidden="true">
+          <Image src="/illustrations/hero.png" alt="" width={1536} height={1024} sizes="(max-width: 60rem) 92vw, 560px" preload />
+          <span className="hero-art-caption">a little note. right where it matters.</span>
+        </div>
+      </div>
       <HowItWorks />
-      <LoginForm />
+      <ExampleCapture />
+      <div className="landing-invitation">
+        <div className="invitation-copy">
+          <p className="section-eyebrow">your next good idea starts here</p>
+          <h2>got notes?<br />let’s pin them.</h2>
+          <p>Give your feedback a place to land.</p>
+          <Image src="/illustrations/mascot-pencil.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 140px, 200px" />
+        </div>
+        <LoginForm />
+      </div>
       <SiteFooter />
     </main>
   );

@@ -7,7 +7,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -68,6 +68,10 @@ describe("anonymous landing", () => {
     expect(new Set(marks.map((m) => m.getAttribute("data-mark-kind")))).toEqual(
       new Set(["pin", "circle", "arrow", "rectangle"]),
     );
+    // D107: technical details are available on demand, below the example.
+    const details = container.querySelector("details")!;
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(within(details).getByText("Explore the details behind each pin"));
     // The panel lists every mark by the product's own names.
     const list = screen.getByRole("list", { name: "Example marks" });
     const names = within(list).getAllByRole("listitem").map((item) => item.textContent);

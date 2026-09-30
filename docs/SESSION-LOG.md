@@ -3538,3 +3538,20 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D106 (user-directed): the rail as an overlay drawer.
+
+
+## 2026-09-30 — Illustrated public homepage (D107)
+
+The owner approved the generated paper-cut asset pack and requested implementation on the root page. The original checkout had unrelated, uncommitted design work; a separate detached worktree from current origin/main preserved it. The managed worktree tool was unavailable because this chat is rooted in the home directory, so Git created the isolated checkout.
+
+Added seven self-hosted PNGs, a split illustrated hero, three process cards, a sign-in invitation, and a footer mascot. The example now pairs the capture with the comment thread; its detailed DOM context and marks list live in a native disclosure below. Existing sign-in and editor routes are unchanged. Next Image provides responsive image delivery, only the hero is preloaded, decorative images have empty alt text, and motion respects reduced-motion preferences.
+
+Initial validation: TypeScript and all four landing component tests pass. Desktop light and mobile light/dark layouts were inspected in the browser, including the sign-in anchor. Full repository validation and deployment follow. Elapsed implementation time so far: approximately 15 minutes, outside the original assignment timebox.
+
+The first complete gate passed lint, typecheck, 1,757 unit/component checks, documentation freshness, and the production build. Browser tests passed for the public homepage, but 11 editor-flow tests failed because existing helpers searched for accessible headings inside closed project disclosures or expected the now-closed drawer to be visible (D106). Corrected only the test navigation: include hidden headings when locating the owning disclosure, open project summaries before visibility checks, and open the drawer for the post-sign-in project assertion. No editor product behavior changed. The complete gate is rerun with those helpers corrected.
+
+The second gate attempt exposed additional baseline editor failures (including a canvas coordinate assertion), so it was stopped rather than expanding a visual homepage change into an editor repair. The experimental shared-helper edits were saved outside the repo as a follow-up patch and removed from this change. The landing's own sign-in test now explicitly opens the existing drawer before looking for the newly created project. Publication remains pending the repository validation requirement; the focused homepage tests and review screenshots are checked separately.
+
+Focused final verification passed: both production-build homepage browser tests, including actual configured sign-in → workspace → project creation and run-scoped cleanup. All six illustrated images decoded; no external or API requests occurred on the anonymous root; no console errors or horizontal overflow at 390px and 320px. Saved desktop (1440px) and mobile (390px) screenshots under docs/dashboard/screenshots/D107-homepage-*.png. The application build and 1,757 unit/component tests passed, with 44 configured skips; the complete repository gate remains red in existing editor/capture flows. No commit, push, or production deployment has been performed.
+
+The owner then instructed: “Go ahead and create a PR, and then merge your changes upon CI being green.” This explicitly authorizes a PR and CI-gated merge after the local editor-suite limitation was disclosed, superseding the default direct-to-main workflow and full local gate for this release. The PR will retain the complete validation limitation for reviewers; CI runs the repository gate with its normal unconfigured integration skips.

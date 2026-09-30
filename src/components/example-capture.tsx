@@ -358,7 +358,7 @@ export function ExampleCapture() {
       <p className="section-eyebrow">what the founder sees</p>
       <h2 id="example-heading">a marked-up capture, notes pinned where they belong</h2>
       <p className="hint">
-        A static example drawn from bundled fixture data — nothing here calls a server.
+        A real conversation, right beside the exact thing it’s about. Here’s an example.
       </p>
       <div className="example-grid">
         <figure className="example-figure">
@@ -413,8 +413,13 @@ export function ExampleCapture() {
               </li>
             ))}
           </ol>
+        </div>
+      </div>
+      <details className="example-details">
+        <summary>Explore the details behind each pin</summary>
+        <div className="example-details-grid">
           {selected.element ? (
-            <>
+            <div className="example-detail-panel">
               <h3>DOM context</h3>
               <dl className="panel-facts">
                 <dt>Element</dt>
@@ -435,21 +440,23 @@ export function ExampleCapture() {
                   {selected.element.rect.width} × {selected.element.rect.height} px
                 </dd>
               </dl>
-            </>
+            </div>
           ) : null}
-          <h3>Marks on this capture</h3>
-          <ol className="example-pins" aria-label="Example marks">
-            {EXAMPLE_CAPTURE.marks.map((mark) => (
-              <li
-                key={mark.number}
-                aria-current={mark.number === selected.number ? "true" : undefined}
-              >
-                {exampleMarkLabel(mark)}
-              </li>
-            ))}
-          </ol>
+          <div className="example-detail-panel">
+            <h3>Marks on this capture</h3>
+            <ol className="example-pins" aria-label="Example marks">
+              {EXAMPLE_CAPTURE.marks.map((mark) => (
+                <li
+                  key={mark.number}
+                  aria-current={mark.number === selected.number ? "true" : undefined}
+                >
+                  {exampleMarkLabel(mark)}
+                </li>
+              ))}
+            </ol>
+          </div>
         </div>
-      </div>
+      </details>
     </section>
   );
 }

@@ -929,6 +929,330 @@ pre code {
   border: 0;
 }
 
+/* D107: paper-cut artwork lives only on the public landing. The ivory
+   illustration mats deliberately stay light in both themes so the black
+   character remains legible; text outside them follows the theme tokens. */
+.illustrated-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  margin-bottom: clamp(4rem, 9vw, 7rem);
+}
+
+.illustrated-hero .landing-hero {
+  margin: 0;
+}
+
+.illustrated-hero .landing-statement,
+.illustrated-hero h1 {
+  font-size: clamp(2.5rem, 4.5vw, 3.45rem);
+  line-height: 1.07;
+}
+
+.illustrated-hero .landing-prop {
+  font-size: 1rem;
+  margin: 1.5rem 0 1.75rem;
+}
+
+.illustrated-hero .landing-eyebrow {
+  display: flex;
+  align-items: center;
+  white-space: pre-wrap;
+  gap: 0.2em;
+}
+
+.illustrated-hero .landing-eyebrow::before {
+  content: "";
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  margin-right: 0.35rem;
+  background: url("/illustrations/decorative-elements.png") 0 0 / 400% 200% no-repeat;
+}
+
+.hero-art {
+  background: #f6f0e7;
+  border-radius: 48% 48% 14% 14% / 28% 28% 12% 12%;
+  padding: 2.25rem 0.5rem 1.75rem;
+  transform: rotate(2deg);
+}
+
+.hero-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transform: rotate(-2deg);
+}
+
+.hero-art-caption {
+  display: block;
+  padding: 1rem 0.5rem 0;
+  color: #65594e;
+  text-align: center;
+  font-size: 0.8rem;
+  transform: rotate(-2deg);
+}
+
+.home-main--landing .landing-points {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+}
+
+.process-art {
+  display: grid;
+  place-items: center;
+  background: #f7f2e9;
+  border-radius: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  aspect-ratio: 1.25;
+}
+
+.process-art img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 230px;
+  object-fit: contain;
+  transition: transform 220ms ease-out;
+}
+
+.landing-points li:hover .process-art img {
+  transform: translateY(-4px) rotate(-2deg);
+}
+
+.landing-points .process-number {
+  margin: 0 0 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 550;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.home-main--landing .landing-points h3 {
+  font-size: 1.15rem;
+  margin-bottom: 0.6rem;
+}
+
+.home-main--landing .example-grid {
+  padding: clamp(1rem, 2.5vw, 2rem);
+  border: var(--hairline) solid var(--line);
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--bg));
+  align-items: center;
+}
+
+.home-main--landing .example-panel {
+  padding: 1.25rem;
+  border-radius: 1rem;
+}
+
+.home-main--landing .example-figure figcaption {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.example-details {
+  margin-top: 1rem;
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+.example-details summary {
+  padding: 1rem 0;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.example-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 0.5rem 0 1.75rem;
+}
+
+.example-detail-panel h3 {
+  font-size: 1rem;
+  margin-top: 0;
+}
+
+.example-details .example-pins li + li {
+  margin-top: 0.65rem;
+}
+
+.landing-invitation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 2rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  margin-bottom: 5rem;
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--bg));
+  border-radius: 1.5rem;
+}
+
+.invitation-copy {
+  position: relative;
+  padding-bottom: 9rem;
+}
+
+.invitation-copy h2 {
+  margin: 0;
+  font-size: clamp(2.25rem, 4vw, 3.25rem);
+  font-weight: 360;
+  line-height: 1.05;
+}
+
+.invitation-copy > p:last-of-type {
+  color: var(--ink-soft);
+  margin-bottom: 0;
+}
+
+.invitation-copy img {
+  position: absolute;
+  bottom: -1.5rem;
+  left: -0.5rem;
+  width: 170px;
+  height: auto;
+  padding: 0.5rem;
+  border-radius: 50%;
+  background: #f6f0e7;
+}
+
+.home-main--landing .landing-invitation .login-section {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  scroll-margin-top: 2rem;
+}
+
+.landing-invitation .login-section h2 {
+  margin-top: 0;
+  font-size: 1.35rem;
+}
+
+.landing-invitation .login-section input {
+  min-width: 0;
+  width: 100%;
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-right: auto;
+  align-self: flex-start;
+}
+
+.footer-mascot {
+  width: 96px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #f6f0e7;
+}
+
+.footer-mascot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.footer-brand p {
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 550;
+  margin: 0;
+}
+
+.footer-brand span {
+  display: block;
+  max-width: 18ch;
+  margin-top: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+@media (max-width: 60rem) {
+  .illustrated-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+
+  .hero-art {
+    max-width: 38rem;
+    width: 100%;
+    justify-self: center;
+  }
+
+  .illustrated-hero .landing-statement {
+    max-width: 22ch;
+  }
+
+  .home-main--landing .example-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .footer-brand {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 48rem) {
+  .home-main--landing .landing-points {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+
+  .process-art {
+    aspect-ratio: auto;
+    padding: 1rem;
+  }
+
+  .process-art img {
+    max-height: 210px;
+  }
+
+  .landing-invitation,
+  .example-details-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .invitation-copy {
+    padding-bottom: 8rem;
+  }
+
+  .invitation-copy img {
+    width: 140px;
+    bottom: -0.5rem;
+  }
+
+  .hero-art {
+    transform: none;
+  }
+
+  .hero-art img,
+  .hero-art-caption {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .process-art img {
+    transition: none;
+  }
+
+  .landing-points li:hover .process-art img {
+    transform: none;
+  }
+}
+
 /* ---- /pins: the editor working surface ---- */
 
 /* The workspace is a wide pan/zoom surface, not a reading column, and the
