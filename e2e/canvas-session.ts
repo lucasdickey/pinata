@@ -6,6 +6,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
 import { requireLocalEnvValue } from "./local-env";
+import { openRail } from "./rail";
 
 /** Sign in from the public landing and land on the workspace at /pins (D069). */
 export async function signIn(page: Page): Promise<void> {
@@ -187,9 +188,8 @@ async function pageIsOpen(page: Page, target: ReadyTarget): Promise<boolean> {
  */
 export async function revealPlane(page: Page, target: ReadyTarget): Promise<void> {
   if (await pageIsOpen(page, target)) return;
-  // The sidebar may be collapsed (D105, remembered per browser).
-  const showSidebar = page.getByRole("button", { name: "Show projects" });
-  if ((await showSidebar.count()) > 0) await showSidebar.click();
+  // The project drawer starts closed and closes after each choice (D106).
+  await openRail(page);
   const entry = pageButton(page, target);
   if (!(await entry.isVisible())) {
     const owner = target.projectTitle

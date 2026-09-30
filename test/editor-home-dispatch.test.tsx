@@ -26,6 +26,7 @@ import type {
   DeviceView,
   WorkspaceProject,
 } from "../src/components/project-workspace";
+import { openRail } from "./helpers/rail";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -253,7 +254,7 @@ describe("capture dispatch driver", () => {
       "Failed",
     ]);
     fireEvent.click(
-      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
+      within(openRail()).getByRole("button", {
         name: "https://safe.example/",
       }),
     );

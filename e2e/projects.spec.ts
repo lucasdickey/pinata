@@ -13,6 +13,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { openRail } from "./rail";
 
 const projectEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -162,9 +163,8 @@ test("the URL array editor corrects rows, cancels cleanly, and creates one proje
   // shows up exactly once with its capture progress — no manual route entry.
   await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByRole("heading", { name: `${RUN_ID} review` })).toHaveCount(1);
-  await expect(
-    page.getByRole("navigation", { name: "Projects and pages" }),
-  ).toBeVisible();
+  // The workspace is up: the project drawer's toggle is showing (D106).
+  await expect(page.getByRole("button", { name: "Show projects" })).toBeVisible();
 
   // Reload and Back/Forward traversal never resubmit the form and never
   // create a second project. Back lands on the (now empty) form route, so
@@ -272,7 +272,7 @@ test("the workspace keeps one active device, retries one variant, and survives r
   }
 
   await page.reload();
-  const tree = page.getByRole("navigation", { name: "Projects and pages" });
+  const tree = await openRail(page);
   await expect(tree.getByText(`${RUN_ID} review`)).toBeVisible();
   // Exactly one rail entry is current at a time: the shown project's
   // overview until a page is opened, then that page (D077).
@@ -280,7 +280,10 @@ test("the workspace keeps one active device, retries one variant, and survives r
 
   const detail = page.getByRole("region", { name: "Selected capture" });
   await tree.getByRole("button", { name: PRICING, exact: true }).click();
+  // Choosing a page closes the drawer (D106); reopen it to read the rail.
+  await openRail(page);
   await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
+  await page.keyboard.press("Escape");
   // The device is a toggle above the canvas with exactly one device pressed.
   const deviceToggle = detail.getByRole("group", { name: "Device" });
   await deviceToggle.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
@@ -314,7 +317,7 @@ test("the workspace keeps one active device, retries one variant, and survives r
   // The organization is durable, not browser-local: a hard reload rebuilds it
   // from the database with the same versions.
   await page.reload();
-  await tree.getByRole("button", { name: PRICING, exact: true }).click();
+  await (await openRail(page)).getByRole("button", { name: PRICING, exact: true }).click();
   await detail
     .getByRole("group", { name: "Device" })
     .getByRole("button", { name: `Mobile capture of ${PRICING}` })
@@ -381,16 +384,14 @@ test("a failed list load retries with exactly one read and never loses logout", 
   // recovers to the populated list.
   const readsBeforeRetry = listReads;
   await page.getByRole("button", { name: "Try again" }).click();
-  await expect(
-    page.getByRole("navigation", { name: "Projects and pages" }),
-  ).toBeVisible();
+  // The workspace is up: the project drawer's toggle is showing (D106).
+  await expect(page.getByRole("button", { name: "Show projects" })).toBeVisible();
   expect(listReads).toBe(readsBeforeRetry + 1);
 
   // A reload re-reads but never writes.
   await page.reload();
-  await expect(
-    page.getByRole("navigation", { name: "Projects and pages" }),
-  ).toBeVisible();
+  // The workspace is up: the project drawer's toggle is showing (D106).
+  await expect(page.getByRole("button", { name: "Show projects" })).toBeVisible();
   expect(projectWrites).toBe(0);
   expect(consoleErrors).toEqual([]);
 });

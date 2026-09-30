@@ -1095,29 +1095,48 @@ pre code {
      detail column to a natural-size capture's intrinsic width and pushes
      the whole document past the viewport. The zero minimum lets the column
      shrink so the canvas takes the overflow as pan/zoom instead. */
-  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
-  align-items: start;
-}
-
-/* The collapsed sidebar (D105): a thin strip holding the way back, and the
-   canvas column takes everything else. */
-.workspace[data-sidebar="collapsed"] {
+  /* A fixed 2.25rem strip for the project drawer's toggle (D106): the
+     drawer overlays the canvas rather than taking a column, so opening or
+     closing it never moves anything. */
   grid-template-columns: 2.25rem minmax(0, 1fr);
   gap: 1rem;
+  align-items: start;
+  position: relative;
 }
 
-.rail-strip {
+/* The dock stays in view while the page scrolls, and the drawer hangs from
+   it, so the projects are always one click away. */
+.rail-dock {
   position: sticky;
   top: 1rem;
+  z-index: 30;
 }
 
-/* The open rail stays in view and scrolls on its own, so a long project
-   list never pushes the canvas down the page. */
-.workspace-tree {
-  position: sticky;
-  top: 1rem;
+.rail-drawer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: min(20rem, calc(100vw - 2.5rem));
   max-height: calc(100dvh - 2rem - var(--footer-height));
   overflow-y: auto;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.18);
+}
+
+.rail-drawer[hidden] {
+  display: none;
+}
+
+/* Behind the open drawer: a faint veil that takes the click meant to close
+   it, so that click never reaches the canvas (D106). */
+.rail-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.12);
 }
 
 .tree-root-head {
@@ -1165,10 +1184,11 @@ pre code {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Stacked above the canvas, the rail sits in the flow (D105). */
-  .workspace-tree {
-    position: static;
-    max-height: none;
+  /* On a phone the toggle rides above the canvas and scrolls with the
+     page; the drawer still overlays (D106). */
+  .rail-dock {
+    position: relative;
+    top: 0;
   }
 }
 

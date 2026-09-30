@@ -192,27 +192,32 @@ export function ProjectWorkspace({
   const [tableScope, setTableScope] = useState<PinTableScope>("capture");
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
-  // The sidebar (D105): the whole rail column collapses to a thin strip so
-  // the canvas takes the width. Unlike the per-project disclosures below
-  // (D070, session-only on purpose), whether the sidebar is open is a layout
-  // preference like the theme, so it is remembered in this browser. It is
-  // read after mount so the server and the first client render agree.
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // The project drawer (D106): an overlay that slides over the canvas from
+  // a fixed 2.25rem strip, so opening or closing it never moves the canvas.
+  // It starts closed and closes itself once a page or an overview is chosen,
+  // on Escape, or on a click outside it; being transient, it is not
+  // remembered. Focus moves into it on open and back to its toggle on close.
+  const [railOpen, setRailOpen] = useState(false);
+  const railShowRef = useRef<HTMLButtonElement>(null);
+  const railHideRef = useRef<HTMLButtonElement>(null);
+  const railWasOpened = useRef(false);
+  const closeRail = useCallback(() => setRailOpen(false), []);
   useEffect(() => {
-    try {
-      if (localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed") setSidebarOpen(false);
-    } catch {
-      // Blocked storage: the sidebar simply starts open.
+    if (railOpen) {
+      railWasOpened.current = true;
+      railHideRef.current?.focus();
+    } else if (railWasOpened.current) {
+      railShowRef.current?.focus();
     }
-  }, []);
-  const showSidebar = useCallback((open: boolean) => {
-    setSidebarOpen(open);
-    try {
-      localStorage.setItem(SIDEBAR_STORAGE_KEY, open ? "open" : "collapsed");
-    } catch {
-      // Blocked storage costs only the memory, never the toggle.
-    }
-  }, []);
+  }, [railOpen]);
+  useEffect(() => {
+    if (!railOpen) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setRailOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [railOpen]);
   // Per-project disclosure state (D070), session-only and deliberately
   // unpersisted. `openProjects` holds only projects the reader has explicitly
   // toggled; anything absent falls back to "open when it holds the selection".
@@ -1317,136 +1322,147 @@ export function ProjectWorkspace({
   // ---- end live refresh --------------------------------------------------------
 
   return (
-    <div className="workspace" data-sidebar={sidebarOpen ? "open" : "collapsed"}>
-      {sidebarOpen ? null : (
-        <div className="rail-strip">
+    <div className="workspace">
+      <div className="rail-dock">
+        {railOpen ? null : (
           <button
+            ref={railShowRef}
             type="button"
             className="rail-toggle"
             aria-label="Show projects"
             title="Show projects"
             aria-expanded="false"
             aria-controls="workspace-rail"
-            onClick={() => showSidebar(true)}
+            onClick={() => setRailOpen(true)}
           >
             <RailChevron direction="right" />
           </button>
-        </div>
-      )}
-      <nav
-        id="workspace-rail"
-        className="workspace-tree"
-        aria-label="Projects and pages"
-        hidden={!sidebarOpen}
-      >
-        {/* The sidebar collapses as a whole (D105); inside it, each project
-            is a native <details> (D070) — keyboard-operable and announced
-            with no script. Since D077 the rail lists projects and pages
-            only; the device is chosen above the canvas. */}
-        <div className="tree-root-head">
-          <span className="tree-summary-label">Projects</span>
-          <span className="tree-count">{projects.length}</span>
-          <button
-            type="button"
-            className="rail-toggle"
-            aria-label="Hide projects"
-            title="Hide projects"
-            aria-expanded="true"
-            aria-controls="workspace-rail"
-            onClick={() => showSidebar(false)}
-          >
-            <RailChevron direction="left" />
-          </button>
-        </div>
-        <ul>
-          {projects.map((project) => {
-            // The project the detail area shows stays open; the rest
-            // start collapsed. Collapsing the shown project would hide
-            // the controls that produced what the detail area is showing.
-            const holdsActive = activeProject.projectId === project.projectId;
-            const expanded = openProjects[project.projectId] ?? holdsActive;
-            return (
-              <li key={project.projectId}>
-                <details
-                  className="tree-project"
-                  open={expanded}
-                  onToggle={(event) => {
-                    // Read the element before the updater runs: React has
-                    // detached the synthetic event by then and
-                    // currentTarget is null inside the callback.
-                    const isOpen = event.currentTarget.open;
-                    setOpenProjects((current) => ({
-                      ...current,
-                      [project.projectId]: isOpen,
-                    }));
-                  }}
-                >
-                  <summary>
-                    <span className="tree-summary-label">{project.title}</span>
-                    <span className="tree-count">{project.counts.pages}</span>
-                  </summary>
-                  {/* The heading stays in the tree so assistive technology
-                      and the e2e specs can still address a project by
-                      name, but it now lives inside the disclosure. */}
-                  <h3 className="visually-hidden">{project.title}</h3>
-                  <p className="project-counts">
-                    {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
-                    {project.counts.failed} failed · {project.counts.inProgress} in progress
-                  </p>
-                  {/* Feedback counts for the editor (D075); the share
-                      control now lives in the selected project's header. */}
-                  <p className="project-counts" data-testid="project-feedback-summary">
-                    {feedbackSummary(projectFeedback(project, seenAdjust))}
-                  </p>
-                  {/* The project's overview (D077): the way to select a
-                      project without opening one of its captures. */}
-                  <button
-                    type="button"
-                    className="tree-overview"
-                    aria-label={`Overview of ${project.title}`}
-                    aria-current={holdsActive && !active ? "true" : undefined}
-                    onClick={() => showOverview(project.projectId)}
+        )}
+        {/* A click outside the drawer closes it and goes no further, so it
+            can never also place a mark on the canvas underneath (D106). */}
+        {railOpen ? <div className="rail-scrim" aria-hidden="true" onClick={closeRail} /> : null}
+        <nav
+          id="workspace-rail"
+          className="workspace-tree rail-drawer"
+          aria-label="Projects and pages"
+          hidden={!railOpen}
+        >
+          {/* Inside the drawer each project is a native <details> (D070):
+              keyboard-operable and announced with no script. Since D077 the
+              rail lists projects and pages only; the device is chosen above
+              the canvas. */}
+          <div className="tree-root-head">
+            <span className="tree-summary-label">Projects</span>
+            <span className="tree-count">{projects.length}</span>
+            <button
+              type="button"
+              className="rail-toggle"
+              ref={railHideRef}
+              aria-label="Hide projects"
+              title="Hide projects"
+              aria-expanded="true"
+              aria-controls="workspace-rail"
+              onClick={closeRail}
+            >
+              <RailChevron direction="left" />
+            </button>
+          </div>
+          <ul>
+            {projects.map((project) => {
+              // The project the detail area shows stays open; the rest
+              // start collapsed. Collapsing the shown project would hide
+              // the controls that produced what the detail area is showing.
+              const holdsActive = activeProject.projectId === project.projectId;
+              const expanded = openProjects[project.projectId] ?? holdsActive;
+              return (
+                <li key={project.projectId}>
+                  <details
+                    className="tree-project"
+                    open={expanded}
+                    onToggle={(event) => {
+                      // Read the element before the updater runs: React has
+                      // detached the synthetic event by then and
+                      // currentTarget is null inside the callback.
+                      const isOpen = event.currentTarget.open;
+                      setOpenProjects((current) => ({
+                        ...current,
+                        [project.projectId]: isOpen,
+                      }));
+                    }}
                   >
-                    Overview
-                  </button>
-                  <ol className="tree-pages">
-                    {project.pages.map((page) => {
-                      const isActive = holdsActive && active?.page.id === page.id;
-                      // Unread and open counts summed over the page's
-                      // devices (D075, D077), beside the button so its
-                      // accessible name stays the page URL.
-                      const feedback = pageFeedback(project, page, seenAdjust);
-                      const badge = feedbackBadge(feedback);
-                      return (
-                        <li key={page.id}>
-                          <button
-                            type="button"
-                            className="page-url"
-                            aria-current={isActive ? "true" : undefined}
-                            onClick={() => openPage(project.projectId, page)}
-                          >
-                            {page.normalizedUrl}
-                          </button>
-                          {badge ? (
-                            <span
-                              className="tree-count feedback-badge"
-                              data-testid="feedback-badge"
-                              data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
-                              aria-label={`${page.normalizedUrl}: ${badge}`}
+                    <summary>
+                      <span className="tree-summary-label">{project.title}</span>
+                      <span className="tree-count">{project.counts.pages}</span>
+                    </summary>
+                    {/* The heading stays in the tree so assistive technology
+                        and the e2e specs can still address a project by
+                        name, but it now lives inside the disclosure. */}
+                    <h3 className="visually-hidden">{project.title}</h3>
+                    <p className="project-counts">
+                      {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
+                      {project.counts.failed} failed · {project.counts.inProgress} in progress
+                    </p>
+                    {/* Feedback counts for the editor (D075); the share
+                        control now lives in the selected project's header. */}
+                    <p className="project-counts" data-testid="project-feedback-summary">
+                      {feedbackSummary(projectFeedback(project, seenAdjust))}
+                    </p>
+                    {/* The project's overview (D077): the way to select a
+                        project without opening one of its captures. */}
+                    <button
+                      type="button"
+                      className="tree-overview"
+                      aria-label={`Overview of ${project.title}`}
+                      aria-current={holdsActive && !active ? "true" : undefined}
+                      onClick={() => {
+                        showOverview(project.projectId);
+                        closeRail();
+                      }}
+                    >
+                      Overview
+                    </button>
+                    <ol className="tree-pages">
+                      {project.pages.map((page) => {
+                        const isActive = holdsActive && active?.page.id === page.id;
+                        // Unread and open counts summed over the page's
+                        // devices (D075, D077), beside the button so its
+                        // accessible name stays the page URL.
+                        const feedback = pageFeedback(project, page, seenAdjust);
+                        const badge = feedbackBadge(feedback);
+                        return (
+                          <li key={page.id}>
+                            <button
+                              type="button"
+                              className="page-url"
+                              aria-current={isActive ? "true" : undefined}
+                              onClick={() => {
+                                openPage(project.projectId, page);
+                                closeRail();
+                              }}
                             >
-                              {badge}
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                </details>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                              {page.normalizedUrl}
+                            </button>
+                            {badge ? (
+                              <span
+                                className="tree-count feedback-badge"
+                                data-testid="feedback-badge"
+                                data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
+                                aria-label={`${page.normalizedUrl}: ${badge}`}
+                              >
+                                {badge}
+                              </span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </details>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
 
       <section
         className="workspace-detail"
@@ -1754,10 +1770,8 @@ export function ProjectWorkspace({
   );
 }
 
-/** Where the sidebar's open/collapsed choice is remembered (D105). */
-export const SIDEBAR_STORAGE_KEY = "pinata:sidebar";
 
-/** The sidebar toggle's chevron: pointing left to hide, right to show. */
+/** The drawer toggle's chevron: pointing left to hide, right to show. */
 function RailChevron({ direction }: { direction: "left" | "right" }) {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">

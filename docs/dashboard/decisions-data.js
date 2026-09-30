@@ -4719,8 +4719,54 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D106",
+      "date": "2026-09-30",
+      "phase": "build",
+      "title": "The project rail becomes a drawer that overlays the canvas, so opening it never shifts the layout",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "D105's collapsible sidebar took a grid column when open and a strip when collapsed, so every toggle reflowed the canvas and the panel sideways: the capture under the editor's cursor moved each time the rail opened or closed. The owner asked for the left navigation to be an overlay that sits on top of the canvas instead.",
+      "decision": "The workspace grid keeps one fixed 2.25rem strip for the toggle and never changes. The rail is a drawer that hangs from a sticky dock in that strip and overlays the canvas: a surface card with a shadow, above a faint veil that takes an outside click so it never reaches the canvas. It starts closed and closes itself when a page or an overview is chosen, on Escape, or on a click on the veil; focus moves to its 'Hide projects' control on open and back to 'Show projects' on close. Being transient, it is no longer remembered in the browser. On a phone the dock sits in the flow above the canvas and the drawer still overlays.",
+      "alternatives": [
+        {
+          "option": "Keep D105's column with a slide animation",
+          "why_not": "An animated reflow is still a reflow; the capture still moves under the cursor."
+        },
+        {
+          "option": "Overlay with no veil",
+          "why_not": "A click outside would also reach the canvas and could place a mark while the editor only meant to dismiss the drawer."
+        },
+        {
+          "option": "Keep remembering the open state",
+          "why_not": "An overlay remembered open would cover the canvas on every load; a drawer that closes after each choice has nothing worth remembering."
+        },
+        {
+          "option": "Start open",
+          "why_not": "The workspace opens on the project overview, whose grid is itself a way into the captures; the drawer is for switching projects, one click away."
+        }
+      ],
+      "rationale": "The fixed strip is what removes the shift: nothing the drawer does changes a grid track, which the checks confirmed (the canvas column's box is identical with the drawer open and closed). Closing on a choice keeps the overlay out of the way of the work it serves.",
+      "consequences": [
+        "Replaces D105's collapsible column and its remembered state; D105's fixed footer and taller canvas stand.",
+        "Tests reach the rail the way a reader does, through openRail helpers (test/helpers/rail.ts, e2e/rail.ts); the credentialed specs reopen the drawer after each page choice.",
+        "test/project-workspace.test.tsx covers the closed start, focus in and out, closing on a choice, on Escape, and on an outside click, and that the grid never changes."
+      ],
+      "transcript": {
+        "request": "left's change the left-hand nav to an overlay that sits on top of the canvas, instead of putting at the same z-index and pushing the content left/right with layout shifting"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "The project drawer."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-30",
-  "source_hash": "6a0b47f33b8e"
+  "source_hash": "99bbcb173138"
 };
