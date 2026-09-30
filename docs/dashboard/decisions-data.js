@@ -4765,8 +4765,65 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D107",
+      "date": "2026-09-30",
+      "phase": "design",
+      "title": "Bring the piñata character into the public homepage with a coordinated illustration set",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The public homepage kept the brand character in its small header logo; long example metadata made the page feel text-heavy and left a large gap beside the capture.",
+      "decision": "Use the approved image-generation assets for a split hero, three illustrated process steps, a pencil mascot beside sign-in, a resting footer mascot, and a decorative burst from the asset sheet. Keep the example capture and comment thread visible and move its DOM context and mark list into a native details disclosure. Scope the layout to the anonymous root page. Use local Next Image assets, preload only the hero, reserve intrinsic dimensions, and keep pale paper illustration mats legible in both themes.",
+      "alternatives": [
+        {
+          "option": "Repeat the small header logo without a full illustration system",
+          "why_not": "Would not explain the process visually or provide the personality the owner approved."
+        },
+        {
+          "option": "Keep all example metadata expanded beside the screenshot",
+          "why_not": "The long panel dominates the demonstration and creates empty space under the capture."
+        }
+      ],
+      "rationale": "The owner approved the paper-cut visual direction and generated assets, then explicitly requested implementation. An isolated checkout of current origin/main preserves the unrelated unfinished design checkout. Existing authentication, capture behavior, and editor styling remain in their established components.",
+      "consequences": [
+        "Seven self-hosted PNG assets and their original generation prompts are retained.",
+        "The public landing introduces capture, annotation, and sharing before showing the working example.",
+        "Technical example details remain keyboard-accessible through native HTML disclosure without adding a client component.",
+        "Landing tests open the disclosure before checking context and verify illustration loading and narrow-screen overflow.",
+        "After disclosure of unrelated credentialed editor-suite failures, the owner explicitly directed a pull request and merge when CI is green. This release uses that instruction in place of the default direct-to-main workflow and complete local gate requirement."
+      ],
+      "transcript": {
+        "proposal": "The direction is set: playful paper-cut illustrations, the existing piñata character, and restrained orange accents. Start with the hero and three process illustrations, then carry that same style into the sign-in area and footer.",
+        "approval": "okay, this is all amazing! can you go ahead and impliment it on the pinata root page for us?",
+        "release_authorization": "Go ahead and create a PR, and then merge your changes upon CI being green."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/landing.tsx",
+          "caption": "Illustrated public homepage."
+        },
+        {
+          "type": "file",
+          "path": "docs/brand/homepage-illustration-prompts.json",
+          "caption": "Prompts for the approved generated artwork."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D107-homepage-desktop.png",
+          "caption": "Illustrated homepage at desktop width."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D107-homepage-mobile.png",
+          "caption": "Illustrated homepage at mobile width."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-09-30",
-  "source_hash": "99bbcb173138"
+  "source_hash": "1afe0a0a722b"
 };

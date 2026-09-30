@@ -17,10 +17,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 32 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106 |
-| Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
+| Agent proposed, human approved | 22 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **106** | |
+| **Total** | **107** | |
 
 ## Key decisions
 
@@ -168,6 +168,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D104](#d104--a-dark-theme-that-follows-the-device-with-a-toggle-that-remembers-the-visitors-choice) | build | A dark theme that follows the device, with a toggle that remembers the visitor's choice | Human directed | accepted |
 | [D105](#d105--give-the-canvas-the-window-a-collapsible-project-sidebar-a-fixed-documentation-footer-and-a-canvas-as-tall-as-the-window-allows) | build | Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows | Human directed | accepted |
 | [D106](#d106--the-project-rail-becomes-a-drawer-that-overlays-the-canvas-so-opening-it-never-shifts-the-layout) | build | The project rail becomes a drawer that overlays the canvas, so opening it never shifts the layout | Human directed | accepted |
+| [D107](#d107--bring-the-piata-character-into-the-public-homepage-with-a-coordinated-illustration-set) | design | Bring the piñata character into the public homepage with a coordinated illustration set | Agent proposed, human approved | accepted |
 
 ---
 
@@ -4256,4 +4257,52 @@ Human instruction:
 
 ---
 
-<sub>Generated from 106 record(s) as of 2026-09-30 · source `99bbcb173138`</sub>
+## D107 — Bring the piñata character into the public homepage with a coordinated illustration set
+
+*2026-09-30 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The public homepage kept the brand character in its small header logo; long example metadata made the page feel text-heavy and left a large gap beside the capture.
+
+**Decision**
+
+Use the approved image-generation assets for a split hero, three illustrated process steps, a pencil mascot beside sign-in, a resting footer mascot, and a decorative burst from the asset sheet. Keep the example capture and comment thread visible and move its DOM context and mark list into a native details disclosure. Scope the layout to the anonymous root page. Use local Next Image assets, preload only the hero, reserve intrinsic dimensions, and keep pale paper illustration mats legible in both themes.
+
+**Alternatives considered**
+
+- *Repeat the small header logo without a full illustration system* — Would not explain the process visually or provide the personality the owner approved.
+- *Keep all example metadata expanded beside the screenshot* — The long panel dominates the demonstration and creates empty space under the capture.
+
+**Rationale**
+
+The owner approved the paper-cut visual direction and generated assets, then explicitly requested implementation. An isolated checkout of current origin/main preserves the unrelated unfinished design checkout. Existing authentication, capture behavior, and editor styling remain in their established components.
+
+**Consequences**
+
+- Seven self-hosted PNG assets and their original generation prompts are retained.
+- The public landing introduces capture, annotation, and sharing before showing the working example.
+- Technical example details remain keyboard-accessible through native HTML disclosure without adding a client component.
+- Landing tests open the disclosure before checking context and verify illustration loading and narrow-screen overflow.
+- After disclosure of unrelated credentialed editor-suite failures, the owner explicitly directed a pull request and merge when CI is green. This release uses that instruction in place of the default direct-to-main workflow and complete local gate requirement.
+
+**Provenance evidence**
+
+Agent asked:
+
+> The direction is set: playful paper-cut illustrations, the existing piñata character, and restrained orange accents. Start with the hero and three process illustrations, then carry that same style into the sign-in area and footer.
+
+Human approved:
+
+> okay, this is all amazing! can you go ahead and impliment it on the pinata root page for us?
+
+**Artifacts**
+
+- `src/components/landing.tsx` — Illustrated public homepage.
+- `docs/brand/homepage-illustration-prompts.json` — Prompts for the approved generated artwork.
+- ![Illustrated homepage at desktop width.](dashboard/screenshots/D107-homepage-desktop.png) — Illustrated homepage at desktop width.
+- ![Illustrated homepage at mobile width.](dashboard/screenshots/D107-homepage-mobile.png) — Illustrated homepage at mobile width.
+
+---
+
+<sub>Generated from 107 record(s) as of 2026-09-30 · source `1afe0a0a722b`</sub>

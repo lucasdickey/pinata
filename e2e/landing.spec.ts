@@ -19,6 +19,7 @@ import { expect, test } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { registerRunCleanup } from "./run-cleanup";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { openRail } from "./rail";
 
 const createEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -94,6 +95,9 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   await expect(
     page.getByRole("list", { name: "Example thread" }).getByRole("listitem"),
   ).toHaveCount(2);
+  const details = page.locator(".example-details");
+  await expect(details).not.toHaveAttribute("open", "");
+  await details.locator("summary").click();
   await expect(page.getByRole("heading", { name: "DOM context" })).toBeVisible();
   // The element's text shows in the metadata panel, and (D078) the pin's
   // name carries it too, in the example's heading and its pins list.
@@ -113,6 +117,15 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   expect(iconResponse.status()).toBe(200);
   expect(iconResponse.headers()["content-type"]).toContain("image/svg");
 
+  // D107: the illustrations load from this origin and reserve their size.
+  const art = page.locator('img[src*="illustrations"], img[srcset*="illustrations"]');
+  await expect(art).toHaveCount(6);
+  for (const image of await art.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect(image).toHaveJSProperty("complete", true);
+    await expect(image).not.toHaveJSProperty("naturalWidth", 0);
+  }
+
   // Responsive: no horizontal document overflow at 390 or 320 CSS px.
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
@@ -122,6 +135,12 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
     );
     expect(overflow).toBeLessThanOrEqual(1);
   }
+
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await details.locator("summary").click();
+  await page.screenshot({ path: "test-results/homepage-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "test-results/homepage-mobile.png", fullPage: true });
 
   expect(apiRequests).toEqual([]);
   expect(externalRequests).toEqual([]);
@@ -180,7 +199,15 @@ test("the landing's sign-in call leads to the workspace, and /pins/new creates e
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
-  await expect(page.getByText(`landing=${RUN_ID}`).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show projects" })).toBeVisible();
+  const rail = await openRail(page);
+  const createdProject = rail.locator("details.tree-project").filter({
+    has: page.getByRole("button", { name: ROOT, exact: true, includeHidden: true }),
+  });
+  if ((await createdProject.getAttribute("open")) === null) {
+    await createdProject.locator("> summary").click();
+  }
+  await expect(createdProject.getByRole("button", { name: ROOT, exact: true })).toBeVisible();
   expect(projectPosts).toBe(1);
   expect(projectCreates).toBe(1);
   expect(consoleErrors).toEqual([]);
