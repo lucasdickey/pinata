@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ReqsNav } from "../../src/components/reqs-nav";
+import { ThemeToggle } from "../../src/components/theme-toggle";
 
 export const metadata: Metadata = {
   title: { default: "pinata — requirements", template: "pinata — %s" },
@@ -16,6 +17,7 @@ export default function ReqsLayout({ children }: { children: ReactNode }) {
           pinata
         </Link>
         <ReqsNav />
+        <ThemeToggle className="reqs-theme-toggle" />
       </header>
       <main>{children}</main>
     </div>

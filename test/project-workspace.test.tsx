@@ -18,6 +18,7 @@ import {
   type AttemptView,
   type DeviceView,
   type WorkspaceProject,
+  SIDEBAR_STORAGE_KEY,
 } from "../src/components/project-workspace";
 import { MIN_ARROW_LENGTH_PX, MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
@@ -2074,5 +2075,42 @@ describe("arrow drafts (D083)", () => {
       "aria-pressed",
       "false",
     );
+  });
+});
+
+// D105: the rail is a collapsible sidebar. Collapsing hides the whole column
+// behind a thin strip so the canvas takes the width, and the choice is
+// remembered in this browser.
+describe("collapsible sidebar (D105)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test("hiding the projects collapses the whole rail, and showing brings it back", () => {
+    const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const workspace = container.querySelector(".workspace")!;
+    expect(workspace).toHaveAttribute("data-sidebar", "open");
+
+    const hide = screen.getByRole("button", { name: "Hide projects" });
+    expect(hide).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(hide);
+    expect(workspace).toHaveAttribute("data-sidebar", "collapsed");
+    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("collapsed");
+
+    const show = screen.getByRole("button", { name: "Show projects" });
+    expect(show).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(show);
+    expect(workspace).toHaveAttribute("data-sidebar", "open");
+    expect(tree()).toBeVisible();
+    expect(localStorage.getItem(SIDEBAR_STORAGE_KEY)).toBe("open");
+  });
+
+  test("a remembered collapsed sidebar starts collapsed", async () => {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, "collapsed");
+    const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    await act(async () => {});
+    expect(container.querySelector(".workspace")).toHaveAttribute("data-sidebar", "collapsed");
+    expect(screen.getByRole("button", { name: "Show projects" })).toBeInTheDocument();
   });
 });

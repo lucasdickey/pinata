@@ -12,6 +12,7 @@ import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { ExampleCapture } from "./example-capture";
 import { LoginForm } from "./login-form";
 import { PinataLogo } from "./pinata-logo";
+import { ThemeToggle } from "./theme-toggle";
 
 /**
  * The hero: the name and the statement above whichever capture form the
@@ -85,6 +86,9 @@ function SiteBar() {
           </li>
           <li>
             <a href="#editor-login">Sign in</a>
+          </li>
+          <li>
+            <ThemeToggle />
           </li>
         </ul>
       </nav>

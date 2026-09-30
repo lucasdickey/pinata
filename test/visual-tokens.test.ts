@@ -51,3 +51,57 @@ describe("global color tokens meet WCAG AA", () => {
     expect(contrast(token("--accent"), token("--surface"))).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 });
+
+// D104: the dark theme is the same contract on a dark sheet. Its values are
+// written twice (the device preference and a saved choice); both copies must
+// agree, and every text pairing must clear AA.
+function block(selector: RegExp): Record<string, string> {
+  const match = css.match(selector);
+  if (!match) throw new Error(`block ${selector} not found in app/globals.css`);
+  const values: Record<string, string> = {};
+  for (const [, name, value] of match[1]!.matchAll(/(--[a-z-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) {
+    values[name!] = value!.toLowerCase();
+  }
+  return values;
+}
+
+const savedDark = block(/:root\[data-theme="dark"\]\s*\{([^}]*)\}/);
+const deviceDark = block(
+  /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/,
+);
+
+describe("dark color tokens meet WCAG AA (D104)", () => {
+  test("the device-preference and saved-choice blocks carry identical values", () => {
+    expect(Object.keys(savedDark).length).toBeGreaterThanOrEqual(12);
+    expect(deviceDark).toEqual(savedDark);
+  });
+
+  test("ink and secondary text pass 4.5:1 on every dark surface", () => {
+    for (const surface of ["--bg", "--surface", "--raised"]) {
+      expect(contrast(savedDark["--ink"]!, savedDark[surface]!)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+      expect(contrast(savedDark["--ink-soft"]!, savedDark[surface]!)).toBeGreaterThanOrEqual(
+        AA_NORMAL_TEXT,
+      );
+    }
+  });
+
+  test("the accent passes 4.5:1 as text on every dark surface and behind surface text", () => {
+    for (const surface of ["--bg", "--surface", "--raised"]) {
+      expect(contrast(savedDark["--accent"]!, savedDark[surface]!)).toBeGreaterThanOrEqual(
+        AA_NORMAL_TEXT,
+      );
+    }
+    expect(contrast(savedDark["--surface"]!, savedDark["--accent"]!)).toBeGreaterThanOrEqual(
+      AA_NORMAL_TEXT,
+    );
+  });
+
+  test("the large-text gray clears 3:1 and decision status colors clear 4.5:1", () => {
+    expect(contrast(savedDark["--ink-quiet"]!, savedDark["--bg"]!)).toBeGreaterThanOrEqual(3);
+    for (const status of ["--status-accepted", "--status-superseded", "--status-pending"]) {
+      expect(contrast(savedDark[status]!, savedDark["--surface"]!)).toBeGreaterThanOrEqual(
+        AA_NORMAL_TEXT,
+      );
+    }
+  });
+});

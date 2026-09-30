@@ -3462,3 +3462,55 @@ Harness: Claude Code, in a cloud session.
 
 - D103 (user-directed): creation behind sign-in; the four-mark example.
   Supersedes D067.
+
+---
+
+## 2026-09-30 — a dark theme and its toggle (D104)
+
+Harness: Claude Code, in a cloud session.
+
+- **Tokens, twice.** The dark theme is a second value set for the same
+  custom properties, written once for a device that prefers dark and once
+  for a saved choice; a test keeps the two copies identical. Every text
+  pairing was measured first: the accent lifts to `#ff6b47` (5.1:1 on the
+  raised surface, 5.85:1 behind the dark number on a pin badge).
+- **No flash.** A saved choice is applied by an inline script in `<head>`,
+  per Next's "preventing flash before hydration" guide; with none saved the
+  device setting decides. The toggle reads the real theme only after mount.
+- **Loose ends made tokens.** The primary button's `#000` hover and the
+  three decision status colors now flip with the theme.
+- **Checked** by the unit and contrast suites, a new CI-run e2e spec
+  (switch, remember across reload and routes, device preference, axe in
+  dark on three public routes), and by eye on the landing, the decisions
+  page, the editor workspace with the share panel open, and the founder
+  view.
+
+### Decisions
+
+- D104 (user-directed): a dark theme that follows the device, with a
+  toggle that remembers the choice.
+
+---
+
+## 2026-09-30 — the canvas gets the window (D105)
+
+Harness: Claude Code, in a cloud session.
+
+- **Why the old collapse did nothing.** D070's rail was a native disclosure:
+  folding it shortened the list but kept the column's 16–22rem width, so
+  the canvas never gained a pixel. The owner had asked for this before.
+- **A real sidebar.** "Hide projects" collapses the whole column to a
+  2.25rem strip with "Show projects"; the choice is remembered per browser.
+  The root disclosure went, leaving one way to collapse. The open rail is
+  sticky and scrolls on its own.
+- **A fixed footer** carries the documentation links in one 2.5rem line.
+  At 390px the first cut wrapped to two lines and spilled over the page;
+  it now stays on one line and scrolls sideways.
+- **A taller canvas**, min(100dvh − 11rem, 72rem), replacing 76vh.
+- **Checked** by unit tests (hide, show, remembered state) and by eye at
+  1440 and 390px against a scratch local database: open, collapsed, and
+  collapsed after a reload.
+
+### Decisions
+
+- D105 (user-directed): collapsible sidebar, fixed footer, taller canvas.

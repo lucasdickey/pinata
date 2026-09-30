@@ -51,6 +51,64 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --max: 46rem;
   --wide: 72rem;
+  /* The editor's fixed footer (D105); pages that show it pad by this much. */
+  --footer-height: 2.5rem;
+  /* The primary button's hover: one step past --ink. */
+  --ink-strong: #000000;
+  /* Decision status text on cards (D054): accepted, superseded, pending. */
+  --status-accepted: #1a7f37;
+  --status-superseded: #9a6700;
+  --status-pending: #57606a;
+  color-scheme: light;
+}
+
+/* The dark theme (D104), Paper's dark sheet as direction: a near-black page,
+   cream ink, the accent lifted until it reads on dark. Written twice with the
+   same values: once for a device that prefers dark while no choice is saved,
+   once for a saved "dark". Every text pairing is measured and locked by
+   test/visual-tokens.test.ts: ink 15.3:1 on --bg, --ink-soft 6.0 on
+   --raised, --accent 5.1 on --raised and 5.85 behind --surface text,
+   --ink-quiet 4.2 (large text only). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #181818;
+    --surface: #1f1f1e;
+    --raised: #2a2a27;
+    --ink: #efefe4;
+    --ink-soft: #a8a8a2;
+    --ink-quiet: #7c7c77;
+    --accent: #ff6b47;
+    --accent-soft: #3a211a;
+    --focus: #81adec;
+    --line: #2e2e2b;
+    --line-strong: #464641;
+    --code-bg: #262623;
+    --ink-strong: #ffffff;
+    --status-accepted: #4ac26b;
+    --status-superseded: #d4a72c;
+    --status-pending: #9198a1;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #181818;
+  --surface: #1f1f1e;
+  --raised: #2a2a27;
+  --ink: #efefe4;
+  --ink-soft: #a8a8a2;
+  --ink-quiet: #7c7c77;
+  --accent: #ff6b47;
+  --accent-soft: #3a211a;
+  --focus: #81adec;
+  --line: #2e2e2b;
+  --line-strong: #464641;
+  --code-bg: #262623;
+  --ink-strong: #ffffff;
+  --status-accepted: #4ac26b;
+  --status-superseded: #d4a72c;
+  --status-pending: #9198a1;
+  color-scheme: dark;
 }
 
 /* On high-density screens a rule is half a CSS pixel: one device pixel. */
@@ -180,7 +238,7 @@ summary:focus-visible,
 }
 
 :where(button[type="submit"], .button-primary):hover {
-  background: #000;
+  background: var(--ink-strong);
 }
 
 :where(button):disabled {
@@ -323,6 +381,57 @@ pre code {
   opacity: 1;
 }
 
+/* The light/dark switch (D104): a quiet icon button that sits in every bar
+   without competing with its links. */
+.theme-toggle {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+  opacity: 0.75;
+  transition:
+    opacity 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+  background: var(--raised);
+}
+
+.theme-toggle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.site-links {
+  align-items: center;
+}
+
+.reqs-theme-toggle {
+  margin-left: auto;
+  align-self: center;
+}
+
+.pins-actions .theme-toggle {
+  align-self: center;
+}
+
+.founder-header {
+  position: relative;
+}
+
+.founder-theme-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
 /* On a phone the bar keeps two links; the documentation is in the footer. */
 @media (max-width: 30rem) {
   .site-links {
@@ -421,7 +530,7 @@ pre code {
 }
 
 .button-link.button-primary:hover {
-  background: #000;
+  background: var(--ink-strong);
 }
 
 .button-link:active {
@@ -831,6 +940,61 @@ pre code {
   padding: 1.5rem 1.25rem 3rem;
 }
 
+/* The editor's documentation links ride in a thin fixed footer (D105)
+   instead of taking a row below the workspace. */
+.app-footer {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  /* Lines up with the editor's content edge (.pins-main's gutter). */
+  padding: 0 2.5rem;
+  border-top: var(--hairline) solid var(--line);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 0.85rem;
+}
+
+.app-footer .home-nav {
+  margin: 0;
+  min-width: 0;
+}
+
+/* One line, always: on a phone the links scroll sideways rather than wrap
+   out of the fixed bar. */
+.app-footer .home-nav ul {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+@media (max-width: 30rem) {
+  .app-footer {
+    padding: 0 1.25rem;
+    font-size: 0.8rem;
+  }
+
+  .app-footer .home-nav ul {
+    gap: 0 0.9rem;
+  }
+}
+
+.app-footer a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: var(--ink);
+}
+
+.pins-main:has(.app-footer) {
+  padding-bottom: calc(var(--footer-height) + 1.5rem);
+}
+
 .pins-header {
   display: flex;
   flex-wrap: wrap;
@@ -935,9 +1099,76 @@ pre code {
   align-items: start;
 }
 
+/* The collapsed sidebar (D105): a thin strip holding the way back, and the
+   canvas column takes everything else. */
+.workspace[data-sidebar="collapsed"] {
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.rail-strip {
+  position: sticky;
+  top: 1rem;
+}
+
+/* The open rail stays in view and scrolls on its own, so a long project
+   list never pushes the canvas down the page. */
+.workspace-tree {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100dvh - 2rem - var(--footer-height));
+  overflow-y: auto;
+}
+
+.tree-root-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: var(--hairline) solid var(--line);
+  font-weight: 550;
+}
+
+.tree-root-head .tree-count {
+  margin-left: 0;
+}
+
+.tree-root-head .rail-toggle {
+  margin-left: auto;
+}
+
+.rail-toggle {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.rail-toggle:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.rail-toggle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked above the canvas, the rail sits in the flow (D105). */
+  .workspace-tree {
+    position: static;
+    max-height: none;
   }
 }
 
@@ -957,10 +1188,9 @@ pre code {
   padding-left: 0.75rem;
 }
 
-/* Collapsible rail (D070). Both levels are native <details>, so the marker
-   and keyboard behavior come from the browser; only the summary row is
-   styled. */
-.tree-root > summary,
+/* Each project in the rail is a native <details> (D070), so the marker and
+   keyboard behavior come from the browser; only the summary row is styled.
+   The rail as a whole collapses as a sidebar (D105). */
 .tree-project > summary {
   display: flex;
   align-items: baseline;
@@ -968,11 +1198,6 @@ pre code {
   cursor: pointer;
   padding: 0.35rem 0;
   font-weight: 550;
-}
-
-.tree-root > summary {
-  border-bottom: var(--hairline) solid var(--line);
-  margin-bottom: 0.5rem;
 }
 
 .tree-project {
@@ -1386,7 +1611,9 @@ pre code {
    screenshot inside this frame; the document page itself never scrolls or
    overflows because of a capture. */
 .capture-canvas {
-  height: min(76vh, 60rem);
+  /* As tall as the window allows below the editor bar and above the fixed
+     footer (D105), bounded so a very tall screen still pans. */
+  height: min(calc(100dvh - 11rem), 72rem);
   min-height: 24rem;
   border: var(--hairline) solid var(--line);
   border-radius: 0.5rem;
@@ -2099,12 +2326,12 @@ pre code {
 }
 
 .decision-meta .status-accepted {
-  color: #1a7f37;
+  color: var(--status-accepted);
   font-weight: 550;
 }
 
 .decision-meta .status-superseded {
-  color: #9a6700;
+  color: var(--status-superseded);
   font-weight: 550;
 }
 
@@ -2113,7 +2340,7 @@ pre code {
      surface and failed the axe sweep the first time a pending decision
      rendered (D054); #57606a measures 6.39:1 on --surface and 6.22:1 on
      --bg. Do not lighten below 4.5:1. */
-  color: #57606a;
+  color: var(--status-pending);
   font-weight: 550;
 }
 

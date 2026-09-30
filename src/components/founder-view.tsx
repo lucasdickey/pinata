@@ -49,6 +49,7 @@ import {
 import { readFounderCsrfProof } from "../lib/founder-csrf";
 import { useLiveRefresh } from "../lib/live-refresh";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
+import { ThemeToggle } from "./theme-toggle";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { variantLabel } from "./capture-panel";
 import type { AttemptView, WorkspaceProject } from "./project-workspace";
@@ -592,6 +593,7 @@ export function FounderView({
   return (
     <main className="founder-shell" data-testid="founder-view">
       <header className="founder-header">
+        <ThemeToggle className="founder-theme-toggle" />
         <p className="founder-badge">Viewing as founder</p>
         <h1>{project.title}</h1>
         <p className="founder-root">{project.rootUrl}</p>

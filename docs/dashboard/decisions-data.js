@@ -4616,8 +4616,111 @@ window.PINATA = {
       "supersedes": "D067",
       "superseded_by": null,
       "key": true
+    },
+    {
+      "id": "D104",
+      "date": "2026-09-30",
+      "phase": "build",
+      "title": "A dark theme that follows the device, with a toggle that remembers the visitor's choice",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Pinata had one theme. D102 left dark mode out because the brand mark, the canvas, and a handful of hard-coded colors each needed attention first, and Paper, the design direction, has a dark sheet of its own. The owner asked for a dark mode toggle.",
+      "decision": "Add a dark theme as a second set of token values, Paper's dark sheet as direction: page #181818, cards #1f1f1e, raised #2a2a27, cream ink #efefe4, gray #a8a8a2, a large-text gray #7c7c77, the accent lifted to #ff6b47 so it reads as text on dark and still carries dark text on pin badges, Paper's soft blue #81adec for focus, and dark-appropriate decision status colors. With no saved choice the page follows prefers-color-scheme; a toggle (a moon or sun icon button named 'Dark mode' whose pressed state says whether dark is showing) saves an explicit choice in localStorage. A small script in <head> copies the saved choice onto <html data-theme> before the first paint, following Next's 'preventing flash before hydration' guide, with suppressHydrationWarning on <html>. The toggle sits in the landing's top bar, the editor bar, the requirements hub header, and the founder view. The primary button's hover and the decision status colors became tokens so they flip with the theme; color-scheme makes native controls and scrollbars follow.",
+      "alternatives": [
+        {
+          "option": "Follow the device only, with no toggle",
+          "why_not": "The owner asked for a toggle, and a founder reading on a bright laptop at night should be able to choose."
+        },
+        {
+          "option": "Store the choice in a cookie and render the theme on the server",
+          "why_not": "Reading a cookie in the root layout opts every page out of static prerendering; the inline script gets the same no-flash result without it."
+        },
+        {
+          "option": "A three-state control (light, dark, device)",
+          "why_not": "More to explain for little gain; clearing site data returns to the device setting, and one pressed-or-not button is simpler to read."
+        },
+        {
+          "option": "Darken the landing example's captured page too",
+          "why_not": "It depicts someone else's light website, exactly as a real screenshot would look; darkening it would misrepresent what a capture is."
+        }
+      ],
+      "rationale": "Nearly every color already went through a custom property (D102), so a dark theme is a second value set rather than a second stylesheet. Every dark text pairing was measured before it was chosen and is locked by the same contrast suite as the light theme, and the public surfaces pass the same axe sweep in dark.",
+      "consequences": [
+        "src/lib/theme.ts holds the storage key, the <head> script, and the apply/read helpers; src/components/theme-toggle.tsx is the button.",
+        "The dark values are written twice (device preference, saved choice); test/visual-tokens.test.ts asserts the two copies agree and every dark pairing clears AA.",
+        "e2e/theme.spec.ts runs in CI: the toggle switches and remembers across a reload and to /reqs, a device that prefers dark gets dark with no click, and /, /reqs, and /reqs/decisions pass axe in dark.",
+        "Stays light on purpose: the landing example's captured page, real screenshots, the brand mark's white tile, and the walkthrough video's palette."
+      ],
+      "transcript": {
+        "request": "add a dark mode toggle"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/theme.ts",
+          "caption": "Storage key, boot script, and helpers."
+        },
+        {
+          "type": "file",
+          "path": "src/components/theme-toggle.tsx",
+          "caption": "The toggle."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D105",
+      "date": "2026-09-30",
+      "phase": "build",
+      "title": "Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The editor spent width and height on things that are not the canvas. D070 made the project rail a native disclosure, but collapsing it only folded the list vertically: the column kept its full 16–22rem width, so the canvas gained nothing. The documentation links took a whole row under the workspace, and the canvas was capped at 76% of the window height. The owner asked for the rail to collapse as a sidebar and the links to become a fixed footer, to maximize the editing area.",
+      "decision": "The rail becomes a sidebar that collapses as a whole: a 'Hide projects' chevron in its header shrinks the column to a 2.25rem strip holding 'Show projects', and the canvas column takes the rest. Both buttons carry aria-expanded and aria-controls. The choice is remembered in the browser (localStorage 'pinata:sidebar'), read after mount so the server and first client render agree; the per-project disclosures inside stay session-only as D070 set. The old root disclosure is removed so there is one way to collapse, not two. The open rail is sticky and scrolls on its own; on a phone, where it stacks above the canvas, it sits in the flow. The documentation links move into a thin fixed footer (2.5rem, hairline top, one line that scrolls sideways on a phone), and the page pads by its height. The canvas grows to min(100dvh − 11rem, 72rem), still bounded.",
+      "alternatives": [
+        {
+          "option": "Keep the vertical disclosure and only shrink the column",
+          "why_not": "A column that stays even partly wide still steals width; the strip is the smallest thing that still offers the way back."
+        },
+        {
+          "option": "An overlay drawer for the rail",
+          "why_not": "It would cover the capture while open, which is when the editor is moving between pages and wants to see where they land."
+        },
+        {
+          "option": "Do not remember the collapsed state (as D070 did for the disclosures)",
+          "why_not": "Sidebar width is a layout preference like the theme; making the editor collapse it again on every load defeats the point."
+        },
+        {
+          "option": "Drop the documentation links from the editor",
+          "why_not": "They are part of the product's public record (D092) and a one-line footer costs 2.5rem."
+        }
+      ],
+      "rationale": "Each change returns space to the canvas without removing anything: the rail is one click away, the links are still on every editor screen, and the canvas stays bounded so the page itself never scrolls for it.",
+      "consequences": [
+        "The rail's root <details class=\"tree-root\"> is gone; e2e/canvas-session.ts clicks 'Show projects' when the sidebar is collapsed instead of opening that disclosure.",
+        "test/project-workspace.test.tsx covers hide, show, the saved choice, and restoring a saved collapsed sidebar; test/canvas/canvas-layout.test.ts pins the new bounded canvas height.",
+        "--footer-height is a token; the sticky rail's max height and the editor page's bottom padding follow it."
+      ],
+      "transcript": {
+        "request": "the yellow box should be collapsable as a side bar. i thought we already talked about this the red box should be a fixed footer. we're looking to maximize the edit/canvas area"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "The collapsible sidebar."
+        },
+        {
+          "type": "file",
+          "path": "src/components/editor-home.tsx",
+          "caption": "The fixed footer."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-29",
-  "source_hash": "e44f1d54321f"
+  "as_of": "2026-09-30",
+  "source_hash": "6a0b47f33b8e"
 };
