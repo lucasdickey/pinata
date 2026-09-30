@@ -7,7 +7,7 @@
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("anonymous landing", () => {
-  test("renders the brand and a sign-in call, and takes no address before sign-in", () => {
+  test("renders the brand and a sign-in call, and takes no address before sign-in", async () => {
     render(<AnonymousLanding />);
     expect(screen.getByRole("heading", { level: 1, name: "pinata" })).toBeInTheDocument();
     const logo = screen.getByRole("img", { name: "pinata logo" });
@@ -44,10 +44,11 @@ describe("anonymous landing", () => {
     // no address field and no capture action at all.
     expect(screen.queryByLabelText("Root URL")).toBeNull();
     expect(screen.queryByRole("button", { name: "Start capturing" })).toBeNull();
-    // The hero's way in is a call to sign in, pointing at the sign-in form.
-    const cta = screen.getByRole("link", { name: "Sign in to start a review" });
-    expect(cta).toHaveAttribute("href", "#editor-login");
-    expect(document.getElementById("editor-login")).not.toBeNull();
+    // The hero's way in opens the sign-in modal.
+    const cta = screen.getByRole("button", { name: "Sign in to start a review" });
+    expect(document.getElementById("editor-login")).toBeNull();
+    fireEvent.click(cta);
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Editor sign in" })).toBeInTheDocument());
     // Rendering the page fired no request at all.
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -105,9 +106,11 @@ describe("anonymous landing", () => {
     expect(fixture).not.toMatch(/fetch\(/);
   });
 
-  test("a clear sign-in path is part of the page", () => {
+  test("a clear sign-in path opens the modal", async () => {
     render(<AnonymousLanding />);
-    expect(screen.getByRole("heading", { name: "Editor sign in" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Editor sign in" })).toBeInTheDocument());
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
   });
 });

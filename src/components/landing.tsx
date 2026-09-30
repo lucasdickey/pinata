@@ -6,8 +6,10 @@
 // sign-in form itself. Kept free of server-only APIs so the same components
 // render under React Testing Library in jsdom.
 
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { ExampleCapture } from "./example-capture";
 import { LoginForm } from "./login-form";
@@ -69,7 +71,7 @@ export function LandingLinks() {
 }
 
 /** The quiet top bar: the mark and name at left, three plain links at right. */
-function SiteBar() {
+function SiteBar({ onSignIn }: { onSignIn: () => void }) {
   return (
     <div className="site-bar">
       <Link href="/" className="site-mark" aria-label="pinata home">
@@ -85,7 +87,9 @@ function SiteBar() {
             <Link href="/reqs">How it's built</Link>
           </li>
           <li>
-            <a href="#editor-login">Sign in</a>
+            <button type="button" className="site-sign-in" onClick={onSignIn}>
+              Sign in
+            </button>
           </li>
           <li>
             <ThemeToggle />
@@ -129,7 +133,7 @@ function HowItWorks() {
   );
 }
 
-function SiteFooter() {
+function SiteFooter({ onSignIn }: { onSignIn: () => void }) {
   return (
     <footer className="site-footer">
       <div>
@@ -141,9 +145,9 @@ function SiteFooter() {
             </Link>
           </li>
           <li>
-            <a href="#editor-login" className="quiet-link">
+            <button type="button" className="quiet-link footer-sign-in" onClick={onSignIn}>
               editor sign in
-            </a>
+            </button>
           </li>
         </ul>
       </div>
@@ -162,12 +166,12 @@ function SiteFooter() {
  * The hero's way in for a visitor: sign in to start a review. There is no
  * address field before sign-in (D103); the form lives on /pins/new.
  */
-function LandingCta() {
+function LandingCta({ onSignIn }: { onSignIn: () => void }) {
   return (
     <p className="landing-cta">
-      <a className="button-link button-primary" href="#editor-login">
+      <button type="button" className="button-link button-primary" onClick={onSignIn}>
         Sign in to start a review
-      </a>
+      </button>
       <a className="quiet-link" href="#example-heading">
         see an example →
       </a>
@@ -178,18 +182,20 @@ function LandingCta() {
 /** The anonymous landing: bar, hero + sign-in call, the static example,
  * how it works, sign-in, and the footer. */
 export function AnonymousLanding() {
+  const [loginOpen, setLoginOpen] = useState(false);
+
   return (
     <main className="home-main home-main--landing">
-      <SiteBar />
+      <SiteBar onSignIn={() => setLoginOpen(true)} />
       <LandingHero showMark={false}>
-        <LandingCta />
+        <LandingCta onSignIn={() => setLoginOpen(true)} />
       </LandingHero>
       {/* The example is the hero's picture: the product, marked up, right
           under the promise (D103). */}
       <ExampleCapture />
       <HowItWorks />
-      <LoginForm />
-      <SiteFooter />
+      <LoginForm open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <SiteFooter onSignIn={() => setLoginOpen(true)} />
     </main>
   );
 }

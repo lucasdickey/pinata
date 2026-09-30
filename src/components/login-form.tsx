@@ -7,13 +7,22 @@
 // but component state for the life of the request.
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
-export function LoginForm() {
+export function LoginForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, open]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,9 +67,17 @@ export function LoginForm() {
     }
   }
 
+  if (!open) return null;
+
   return (
-    <section id="editor-login" aria-labelledby="editor-login-heading" className="login-section">
-      <h2 id="editor-login-heading">Editor sign in</h2>
+    <div className="login-modal" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section id="editor-login" role="dialog" aria-modal="true" aria-labelledby="editor-login-heading" className="login-section">
+        <button type="button" className="login-modal-close" aria-label="Close sign in" onClick={onClose}>
+          ×
+        </button>
+        <h2 id="editor-login-heading">Editor sign in</h2>
       <form onSubmit={onSubmit}>
         <label htmlFor="editor-password">Password</label>
         <input
@@ -76,7 +93,8 @@ export function LoginForm() {
           {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
-      {error ? <p role="alert">{error}</p> : null}
-    </section>
+        {error ? <p role="alert">{error}</p> : null}
+      </section>
+    </div>
   );
 }
