@@ -51,6 +51,8 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --max: 46rem;
   --wide: 72rem;
+  /* The editor's fixed footer (D105); pages that show it pad by this much. */
+  --footer-height: 2.5rem;
   /* The primary button's hover: one step past --ink. */
   --ink-strong: #000000;
   /* Decision status text on cards (D054): accepted, superseded, pending. */
@@ -938,6 +940,61 @@ pre code {
   padding: 1.5rem 1.25rem 3rem;
 }
 
+/* The editor's documentation links ride in a thin fixed footer (D105)
+   instead of taking a row below the workspace. */
+.app-footer {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 20;
+  height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  /* Lines up with the editor's content edge (.pins-main's gutter). */
+  padding: 0 2.5rem;
+  border-top: var(--hairline) solid var(--line);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(6px);
+  font-size: 0.85rem;
+}
+
+.app-footer .home-nav {
+  margin: 0;
+  min-width: 0;
+}
+
+/* One line, always: on a phone the links scroll sideways rather than wrap
+   out of the fixed bar. */
+.app-footer .home-nav ul {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+@media (max-width: 30rem) {
+  .app-footer {
+    padding: 0 1.25rem;
+    font-size: 0.8rem;
+  }
+
+  .app-footer .home-nav ul {
+    gap: 0 0.9rem;
+  }
+}
+
+.app-footer a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: var(--ink);
+}
+
+.pins-main:has(.app-footer) {
+  padding-bottom: calc(var(--footer-height) + 1.5rem);
+}
+
 .pins-header {
   display: flex;
   flex-wrap: wrap;
@@ -1042,9 +1099,76 @@ pre code {
   align-items: start;
 }
 
+/* The collapsed sidebar (D105): a thin strip holding the way back, and the
+   canvas column takes everything else. */
+.workspace[data-sidebar="collapsed"] {
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.rail-strip {
+  position: sticky;
+  top: 1rem;
+}
+
+/* The open rail stays in view and scrolls on its own, so a long project
+   list never pushes the canvas down the page. */
+.workspace-tree {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100dvh - 2rem - var(--footer-height));
+  overflow-y: auto;
+}
+
+.tree-root-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: var(--hairline) solid var(--line);
+  font-weight: 550;
+}
+
+.tree-root-head .tree-count {
+  margin-left: 0;
+}
+
+.tree-root-head .rail-toggle {
+  margin-left: auto;
+}
+
+.rail-toggle {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.rail-toggle:hover {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.rail-toggle svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked above the canvas, the rail sits in the flow (D105). */
+  .workspace-tree {
+    position: static;
+    max-height: none;
   }
 }
 
@@ -1064,10 +1188,9 @@ pre code {
   padding-left: 0.75rem;
 }
 
-/* Collapsible rail (D070). Both levels are native <details>, so the marker
-   and keyboard behavior come from the browser; only the summary row is
-   styled. */
-.tree-root > summary,
+/* Each project in the rail is a native <details> (D070), so the marker and
+   keyboard behavior come from the browser; only the summary row is styled.
+   The rail as a whole collapses as a sidebar (D105). */
 .tree-project > summary {
   display: flex;
   align-items: baseline;
@@ -1075,11 +1198,6 @@ pre code {
   cursor: pointer;
   padding: 0.35rem 0;
   font-weight: 550;
-}
-
-.tree-root > summary {
-  border-bottom: var(--hairline) solid var(--line);
-  margin-bottom: 0.5rem;
 }
 
 .tree-project {
@@ -1493,7 +1611,9 @@ pre code {
    screenshot inside this frame; the document page itself never scrolls or
    overflows because of a capture. */
 .capture-canvas {
-  height: min(76vh, 60rem);
+  /* As tall as the window allows below the editor bar and above the fixed
+     footer (D105), bounded so a very tall screen still pans. */
+  height: min(calc(100dvh - 11rem), 72rem);
   min-height: 24rem;
   border: var(--hairline) solid var(--line);
   border-radius: 0.5rem;

@@ -26,7 +26,8 @@ function rule(selector: string): string {
 describe("canvas frame bounds", () => {
   test("the canvas is bounded in both dimensions so the page never scrolls for it", () => {
     const block = rule(".capture-canvas");
-    expect(block).toMatch(/height:\s*min\(76vh/);
+    // D105: as tall as the window allows, still bounded by min().
+    expect(block).toMatch(/height:\s*min\(calc\(100dvh/);
     expect(block).toMatch(/min-height:/);
     expect(block).toMatch(/overflow:\s*hidden/);
   });

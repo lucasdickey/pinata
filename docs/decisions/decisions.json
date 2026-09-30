@@ -4665,6 +4665,57 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D105",
+      "date": "2026-09-30",
+      "phase": "build",
+      "title": "Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The editor spent width and height on things that are not the canvas. D070 made the project rail a native disclosure, but collapsing it only folded the list vertically: the column kept its full 16–22rem width, so the canvas gained nothing. The documentation links took a whole row under the workspace, and the canvas was capped at 76% of the window height. The owner asked for the rail to collapse as a sidebar and the links to become a fixed footer, to maximize the editing area.",
+      "decision": "The rail becomes a sidebar that collapses as a whole: a 'Hide projects' chevron in its header shrinks the column to a 2.25rem strip holding 'Show projects', and the canvas column takes the rest. Both buttons carry aria-expanded and aria-controls. The choice is remembered in the browser (localStorage 'pinata:sidebar'), read after mount so the server and first client render agree; the per-project disclosures inside stay session-only as D070 set. The old root disclosure is removed so there is one way to collapse, not two. The open rail is sticky and scrolls on its own; on a phone, where it stacks above the canvas, it sits in the flow. The documentation links move into a thin fixed footer (2.5rem, hairline top, one line that scrolls sideways on a phone), and the page pads by its height. The canvas grows to min(100dvh − 11rem, 72rem), still bounded.",
+      "alternatives": [
+        {
+          "option": "Keep the vertical disclosure and only shrink the column",
+          "why_not": "A column that stays even partly wide still steals width; the strip is the smallest thing that still offers the way back."
+        },
+        {
+          "option": "An overlay drawer for the rail",
+          "why_not": "It would cover the capture while open, which is when the editor is moving between pages and wants to see where they land."
+        },
+        {
+          "option": "Do not remember the collapsed state (as D070 did for the disclosures)",
+          "why_not": "Sidebar width is a layout preference like the theme; making the editor collapse it again on every load defeats the point."
+        },
+        {
+          "option": "Drop the documentation links from the editor",
+          "why_not": "They are part of the product's public record (D092) and a one-line footer costs 2.5rem."
+        }
+      ],
+      "rationale": "Each change returns space to the canvas without removing anything: the rail is one click away, the links are still on every editor screen, and the canvas stays bounded so the page itself never scrolls for it.",
+      "consequences": [
+        "The rail's root <details class=\"tree-root\"> is gone; e2e/canvas-session.ts clicks 'Show projects' when the sidebar is collapsed instead of opening that disclosure.",
+        "test/project-workspace.test.tsx covers hide, show, the saved choice, and restoring a saved collapsed sidebar; test/canvas/canvas-layout.test.ts pins the new bounded canvas height.",
+        "--footer-height is a token; the sticky rail's max height and the editor page's bottom padding follow it."
+      ],
+      "transcript": {
+        "request": "the yellow box should be collapsable as a side bar. i thought we already talked about this the red box should be a fixed footer. we're looking to maximize the edit/canvas area"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "The collapsible sidebar."
+        },
+        {
+          "type": "file",
+          "path": "src/components/editor-home.tsx",
+          "caption": "The fixed footer."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

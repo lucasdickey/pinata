@@ -187,10 +187,9 @@ async function pageIsOpen(page: Page, target: ReadyTarget): Promise<boolean> {
  */
 export async function revealPlane(page: Page, target: ReadyTarget): Promise<void> {
   if (await pageIsOpen(page, target)) return;
-  const rail = page.locator("details.tree-root").first();
-  if ((await rail.count()) > 0 && !(await rail.evaluate((el: HTMLDetailsElement) => el.open))) {
-    await rail.locator("> summary").click();
-  }
+  // The sidebar may be collapsed (D105, remembered per browser).
+  const showSidebar = page.getByRole("button", { name: "Show projects" });
+  if ((await showSidebar.count()) > 0) await showSidebar.click();
   const entry = pageButton(page, target);
   if (!(await entry.isVisible())) {
     const owner = target.projectTitle

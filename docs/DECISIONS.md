@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 30 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104 |
+| Human directed | 31 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **104** | |
+| **Total** | **105** | |
 
 ## Key decisions
 
@@ -166,6 +166,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D102](#d102--take-design-direction-from-paperdesign-a-warm-off-white-sheet-near-black-type-in-light-weights-hairline-rules-and-one-accent-kept-for-the-marks) | build | Take design direction from paper.design: a warm off-white sheet, near-black type in light weights, hairline rules, and one accent kept for the marks | Human directed | accepted |
 | [D103](#d103--take-project-creation-off-the-public-landing-and-make-the-example-a-readable-captured-page-carrying-one-mark-of-each-kind) | build | Take project creation off the public landing, and make the example a readable captured page carrying one mark of each kind | Human directed | accepted |
 | [D104](#d104--a-dark-theme-that-follows-the-device-with-a-toggle-that-remembers-the-visitors-choice) | build | A dark theme that follows the device, with a toggle that remembers the visitor's choice | Human directed | accepted |
+| [D105](#d105--give-the-canvas-the-window-a-collapsible-project-sidebar-a-fixed-documentation-footer-and-a-canvas-as-tall-as-the-window-allows) | build | Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows | Human directed | accepted |
 
 ---
 
@@ -4171,4 +4172,46 @@ Human instruction:
 
 ---
 
-<sub>Generated from 104 record(s) as of 2026-09-30 · source `c33f36b32c9f`</sub>
+## D105 — Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows
+
+*2026-09-30 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The editor spent width and height on things that are not the canvas. D070 made the project rail a native disclosure, but collapsing it only folded the list vertically: the column kept its full 16–22rem width, so the canvas gained nothing. The documentation links took a whole row under the workspace, and the canvas was capped at 76% of the window height. The owner asked for the rail to collapse as a sidebar and the links to become a fixed footer, to maximize the editing area.
+
+**Decision**
+
+The rail becomes a sidebar that collapses as a whole: a 'Hide projects' chevron in its header shrinks the column to a 2.25rem strip holding 'Show projects', and the canvas column takes the rest. Both buttons carry aria-expanded and aria-controls. The choice is remembered in the browser (localStorage 'pinata:sidebar'), read after mount so the server and first client render agree; the per-project disclosures inside stay session-only as D070 set. The old root disclosure is removed so there is one way to collapse, not two. The open rail is sticky and scrolls on its own; on a phone, where it stacks above the canvas, it sits in the flow. The documentation links move into a thin fixed footer (2.5rem, hairline top, one line that scrolls sideways on a phone), and the page pads by its height. The canvas grows to min(100dvh − 11rem, 72rem), still bounded.
+
+**Alternatives considered**
+
+- *Keep the vertical disclosure and only shrink the column* — A column that stays even partly wide still steals width; the strip is the smallest thing that still offers the way back.
+- *An overlay drawer for the rail* — It would cover the capture while open, which is when the editor is moving between pages and wants to see where they land.
+- *Do not remember the collapsed state (as D070 did for the disclosures)* — Sidebar width is a layout preference like the theme; making the editor collapse it again on every load defeats the point.
+- *Drop the documentation links from the editor* — They are part of the product's public record (D092) and a one-line footer costs 2.5rem.
+
+**Rationale**
+
+Each change returns space to the canvas without removing anything: the rail is one click away, the links are still on every editor screen, and the canvas stays bounded so the page itself never scrolls for it.
+
+**Consequences**
+
+- The rail's root <details class="tree-root"> is gone; e2e/canvas-session.ts clicks 'Show projects' when the sidebar is collapsed instead of opening that disclosure.
+- test/project-workspace.test.tsx covers hide, show, the saved choice, and restoring a saved collapsed sidebar; test/canvas/canvas-layout.test.ts pins the new bounded canvas height.
+- --footer-height is a token; the sticky rail's max height and the editor page's bottom padding follow it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> the yellow box should be collapsable as a side bar. i thought we already talked about this the red box should be a fixed footer. we're looking to maximize the edit/canvas area
+
+**Artifacts**
+
+- `src/components/project-workspace.tsx` — The collapsible sidebar.
+- `src/components/editor-home.tsx` — The fixed footer.
+
+---
+
+<sub>Generated from 105 record(s) as of 2026-09-30 · source `6a0b47f33b8e`</sub>
