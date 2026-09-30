@@ -659,9 +659,57 @@ pre code {
   }
 }
 
-.home-main--landing .login-section {
-  max-width: 28rem;
-  margin: 0 0 clamp(3.5rem, 9vw, 6rem);
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+
+.login-modal .login-section {
+  position: relative;
+  width: min(100%, 28rem);
+  margin: 0;
+  padding: 1.5rem;
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 1rem 3rem color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.login-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.site-sign-in,
+.footer-sign-in {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.site-sign-in:hover,
+.footer-sign-in:hover {
+  background: transparent;
+}
+
+.login-section h2 {
+  margin-top: 0;
 }
 
 .login-section form {
