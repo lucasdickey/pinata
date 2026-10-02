@@ -380,7 +380,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   expect(await boxNode.getAttribute("class")).not.toMatch(/\bdraggable\b/);
   await boxEntry.click();
   await expect(founder.getByTestId("founder-panel").getByTestId("panel-mark-name")).toContainText(
-    `Box ${box.number} · “`,
+    `Box ${box.number}`,
   );
   await expect(founder.getByTestId("founder-panel")).toContainText(BOX_FIXTURE_BODY_PREFIX);
   // The founder sees no coordinates, hash, or version facts anywhere (D078).

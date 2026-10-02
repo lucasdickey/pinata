@@ -1329,7 +1329,7 @@ export function ProjectWorkspace({
   // ---- end live refresh --------------------------------------------------------
 
   return (
-    <div className="workspace">
+    <div className="workspace workspace-drawer">
       <div className="rail-dock">
         {railOpen ? null : (
           <button

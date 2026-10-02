@@ -28,17 +28,11 @@ import { useEffect, useState } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
-import {
-  elementShortLabel,
-  markKindLabel,
-  markKindNoun,
-  markLabel,
-  markPosition,
-  markTitle,
-} from "../lib/canvas/marks";
+import { markKindNoun, markPosition, markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
 import { CanvasIcon } from "./canvas-icons";
+import { PinBadge, PinRowContent, pinRowName } from "./pin-row";
 import { snapshotLabel } from "./pin-composer";
 import { ThreadView, type ThreadViewProps } from "./thread-view";
 
@@ -85,14 +79,6 @@ function writePanelCollapsed(collapsed: boolean): void {
   } catch {
     // Private windows and blocked storage: the choice lasts this visit only.
   }
-}
-
-/** One saved mark's row in the panel list's accessible name (D078, D113). */
-function pinRowName(pin: AnnotationView): string {
-  let name = markLabel(pin);
-  if (pin.status === "resolved") name += " · Resolved";
-  if (pin.unreadReplies > 0) name += ` · ${pin.unreadReplies} new`;
-  return name;
 }
 
 export function CapturePanel({
@@ -226,9 +212,7 @@ export function CapturePanel({
                 shortened name (D078) is never shown here; never coordinates
                 either, those are in Details. */}
             <p className="panel-mark-name" data-testid="panel-mark-name" data-kind={selectedPin.kind}>
-              <span className="pin-row-badge" data-kind={selectedPin.kind} aria-hidden="true">
-                {selectedPin.number}
-              </span>
+              <PinBadge pin={selectedPin} />
               <strong>{markTitle(selectedPin)}</strong>
             </p>
             {/* The pin lifecycle (D075): its status, and one control that
@@ -392,47 +376,22 @@ export function CapturePanel({
             ) : null}
             {pins.length > 0 ? (
               <ol className="pin-list" aria-label="Saved pins">
-                {pins.map((pin) => {
-                  const element = elementShortLabel(pin.elementSnapshot);
-                  return (
-                    <li key={pin.id}>
-                      {/* One row in parts (D113): the number as it is on the
-                          canvas, the comment as the main line, what it points
-                          at underneath, and its state. The name stays the
-                          mark's full label (D078). */}
-                      <button
-                        type="button"
-                        className="pin-row"
-                        aria-label={pinRowName(pin)}
-                        aria-current={pin.id === selectedPinId ? "true" : undefined}
-                        data-status={pin.status}
-                        onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
-                      >
-                        <span className="pin-row-badge" data-kind={pin.kind} aria-hidden="true">
-                          {pin.number}
-                        </span>
-                        <span className="pin-row-text" aria-hidden="true">
-                          <span className="pin-row-comment">
-                            {pin.body.trim() === "" ? markTitle(pin) : pin.body}
-                          </span>
-                          <span className="pin-row-element">
-                            {pin.kind === "pin" ? "" : `${markKindLabel(pin.kind)} · `}
-                            {element ?? "No element"}
-                          </span>
-                        </span>
-                        {pin.status === "resolved" || pin.unreadReplies > 0 ? (
-                          <span className="pin-row-meta" aria-hidden="true">
-                            {pin.unreadReplies > 0 ? (
-                              <span className="pin-unread">{pin.unreadReplies} new</span>
-                            ) : (
-                              <span className="pin-status">Resolved</span>
-                            )}
-                          </span>
-                        ) : null}
-                      </button>
-                    </li>
-                  );
-                })}
+                {pins.map((pin) => (
+                <li key={pin.id}>
+                  {/* One row in parts (D113), shared with the founder's
+                      list (D117). */}
+                  <button
+                    type="button"
+                    className="pin-row"
+                    aria-label={pinRowName(pin, "notable")}
+                    aria-current={pin.id === selectedPinId ? "true" : undefined}
+                    data-status={pin.status}
+                    onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
+                  >
+                    <PinRowContent pin={pin} status="notable" />
+                  </button>
+                </li>
+              ))}
               </ol>
             ) : null}
           </>

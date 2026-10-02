@@ -448,13 +448,17 @@ describe("pin list and lifecycle (D075)", () => {
     const list = await screen.findByTestId("founder-pin-list");
     const items = within(list).getAllByRole("button");
     expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent(
+    // Each name is still the mark's short name with its state (D078).
+    expect(items[0]).toHaveAccessibleName(
       "Pin 1 · “The hero headline duplicates the nav wordmark.” · Replied · 1 new",
     );
-    expect(items[1]).toHaveTextContent(/^Pin 2 · “This paragraph runs on far longer/);
-    // A long comment is cut to about 60 characters.
-    expect(items[1]!.textContent).toContain("…");
-    expect(items[1]!.textContent).not.toContain("somewhere sensible");
+    expect(items[1]).toHaveAccessibleName(/^Pin 2 · “This paragraph runs on far longer/);
+    // What shows is in parts (D117): badge, the whole comment (any clamp is
+    // CSS), status, and the unread marker.
+    expect(items[0]!.querySelector(".pin-row-badge")).toHaveTextContent("1");
+    expect(items[0]!.querySelector(".pin-row-meta")).toHaveTextContent("Replied1 new");
+    expect(items[1]!.querySelector(".pin-row-comment")).toHaveTextContent("somewhere sensible");
+    expect(items[1]!.textContent).not.toContain("…");
     expect(items[1]).toHaveTextContent("Resolved");
     expect(items[1]).not.toHaveTextContent("new");
     // The list comes before the canvas in reading order.
@@ -547,7 +551,7 @@ describe("rectangles for the founder (D079)", () => {
     const list = await screen.findByTestId("founder-pin-list");
     const items = within(list).getAllByRole("button");
     expect(items).toHaveLength(3);
-    expect(items[2]).toHaveTextContent(/^Box 3 · “This whole card needs more air.” · Open/);
+    expect(items[2]).toHaveAccessibleName(/^Box 3 · “This whole card needs more air.” · Open/);
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
     );
@@ -556,9 +560,7 @@ describe("rectangles for the founder (D079)", () => {
 
     await user.click(items[2]!);
     const panel = screen.getByTestId("founder-panel");
-    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
-      "Box 3 · “This whole card needs more air.”",
-    );
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^3Box 3$/);
     // The founder never sees the box's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
@@ -591,7 +593,7 @@ describe("circles for the founder (D082)", () => {
     const list = await screen.findByTestId("founder-pin-list");
     const items = within(list).getAllByRole("button");
     expect(items).toHaveLength(3);
-    expect(items[2]).toHaveTextContent(/^Circle 4 · “Draw the eye to this badge.” · Open/);
+    expect(items[2]).toHaveAccessibleName(/^Circle 4 · “Draw the eye to this badge.” · Open/);
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-circle")).toHaveLength(1),
     );
@@ -600,9 +602,7 @@ describe("circles for the founder (D082)", () => {
 
     await user.click(items[2]!);
     const panel = screen.getByTestId("founder-panel");
-    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
-      "Circle 4 · “Draw the eye to this badge.”",
-    );
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^4Circle 4$/);
     // The founder never sees the circle's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
@@ -634,7 +634,7 @@ describe("arrows for the founder (D083)", () => {
     await renderReady();
     const list = await screen.findByTestId("founder-pin-list");
     const items = within(list).getAllByRole("button");
-    expect(items[2]).toHaveTextContent(/^Arrow 5 · “Move this up into the header.” · Open/);
+    expect(items[2]).toHaveAccessibleName(/^Arrow 5 · “Move this up into the header.” · Open/);
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-arrow")).toHaveLength(1),
     );
@@ -644,9 +644,7 @@ describe("arrows for the founder (D083)", () => {
 
     await user.click(items[2]!);
     const panel = screen.getByTestId("founder-panel");
-    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
-      "Arrow 5 · “Move this up into the header.”",
-    );
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^5Arrow 5$/);
     // The founder never sees the arrow's coordinates (D078).
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
     expect(within(panel).getByRole("button", { name: "Resolve arrow" })).toBeInTheDocument();
@@ -684,14 +682,18 @@ describe("reading-first founder view (D078)", () => {
     await renderReady();
     const list = await screen.findByTestId("founder-pin-list");
     const entry = within(list).getByRole("button", { name: /^Pin 9 ·/ });
-    expect(entry).toHaveTextContent(
+    expect(entry).toHaveAccessibleName(
       "Pin 9 · “Say what the plan includes before the price.” · Starter plan · Open",
     );
+    expect(entry.querySelector(".pin-row-element")).toHaveTextContent("Starter plan");
     await user.click(entry);
     const panel = screen.getByTestId("founder-panel");
     await within(panel).findByTestId("thread");
-    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(
-      "Pin 9 · “Say what the plan includes before the price.” · Starter plan",
+    // The title is the kind and number; what it points at follows in full
+    // (D117), and the comment opens the thread.
+    expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^9Pin 9$/);
+    expect(within(panel).getByTestId("panel-element")).toHaveTextContent(
+      "Points at: “Starter plan”",
     );
     // The whole view: no coordinates, no hash, no version or state facts,
     // no element internals, and no long instructions. ("Natural size" the

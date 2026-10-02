@@ -705,6 +705,48 @@ describe("per-capture session camera", () => {
     expect(modePressed(stage(), "Entire page")).toBe("false");
   });
 
+  test("the fit menu takes focus, moves with the arrow keys, and hands focus back (D118)", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} />);
+    const toggle = within(stage()).getByRole("button", { name: "Zoom and fit" });
+    await user.click(toggle);
+    // Focus lands on the pressed mode, as a menu's does.
+    const named = (name: string) => within(stage()).getByRole("button", { name });
+    expect(named("Entire page")).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(named("Fit width")).toHaveFocus();
+    await user.keyboard("{End}");
+    expect(named("Natural size")).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(named("Entire page")).toHaveFocus();
+    await user.keyboard("{ArrowUp}{Home}");
+    expect(named("Entire page")).toHaveFocus();
+    // Escape closes it and returns focus to the button that opened it.
+    await user.keyboard("{Escape}");
+    expect(within(stage()).queryByRole("button", { name: "Fit width" })).toBeNull();
+    expect(toggle).toHaveFocus();
+    // A choice does the same.
+    await user.click(toggle);
+    await user.keyboard("{ArrowDown}{Enter}");
+    expect(within(stage()).queryByRole("button", { name: "Fit width" })).toBeNull();
+    expect(toggle).toHaveFocus();
+    expect(modePressed(stage(), "Fit width")).toBe("true");
+  });
+
+  test("help takes focus when it opens and gives it back on Escape (D118)", async () => {
+    const user = userEvent.setup();
+    render(<CaptureCanvas {...props} help={<p>drop a pin: click the page</p>} />);
+    const toggle = within(stage()).getByRole("button", { name: "How the canvas works" });
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const popup = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(popup).toHaveFocus();
+    expect(popup).toHaveTextContent("drop a pin: click the page");
+    await user.keyboard("{Escape}");
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBeNull();
+    expect(toggle).toHaveFocus();
+  });
+
   test("camera reports carry the mode and follow flag, never just a transform", async () => {
     const user = userEvent.setup();
     const onCameraChange = vi.fn();

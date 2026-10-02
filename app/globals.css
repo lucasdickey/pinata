@@ -1419,12 +1419,17 @@ pre code {
      detail column to a natural-size capture's intrinsic width and pushes
      the whole document past the viewport. The zero minimum lets the column
      shrink so the canvas takes the overflow as pan/zoom instead. */
-  /* A fixed 2.25rem strip for the project drawer's toggle (D106): the
-     drawer overlays the canvas rather than taking a column, so opening or
-     closing it never moves anything. */
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+/* The editor's grid: a fixed 2.25rem strip for the project drawer's toggle
+   (D106). The drawer overlays the canvas rather than taking a column, so
+   opening or closing it never moves anything. Only the editor has the
+   drawer; the founder's page list keeps the column above (D117). */
+.workspace-drawer {
   grid-template-columns: 2.25rem minmax(0, 1fr);
   gap: 1rem;
-  align-items: start;
   position: relative;
 }
 
@@ -1759,7 +1764,7 @@ pre code {
   border-radius: var(--radius-sm);
 }
 
-.pin-row[data-status="resolved"] .pin-row-badge,
+.pin-row-badge[data-status="resolved"],
 .panel-strip-badge[data-status="resolved"] {
   background: var(--ink-quiet);
 }
@@ -1841,11 +1846,13 @@ pre code {
   padding: 0;
 }
 
-.pin-list li + li {
+.pin-list li + li,
+.founder-pin-list li + li {
   border-top: var(--hairline) solid var(--line);
 }
 
-.pin-list .pin-row {
+.pin-list .pin-row,
+.founder-pin-list .pin-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
@@ -1858,7 +1865,8 @@ pre code {
   line-height: 1.35;
 }
 
-.pin-list .pin-row[aria-current="true"] {
+.pin-list .pin-row[aria-current="true"],
+.founder-pin-list .pin-row[aria-current="true"] {
   font-weight: 400;
 }
 
@@ -1897,6 +1905,10 @@ pre code {
 }
 
 .pin-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
   font-size: 0.72rem;
   white-space: nowrap;
 }
@@ -2195,7 +2207,9 @@ pre code {
   bottom: calc(100% + 0.5rem);
   left: 50%;
   transform: translateX(-50%);
-  display: none;
+  display: inline-flex;
+  visibility: hidden;
+  opacity: 0;
   align-items: center;
   gap: 0.4rem;
   padding: 0.2rem 0.5rem;
@@ -2208,20 +2222,41 @@ pre code {
   pointer-events: none;
 }
 
+/* The shortcut as a small key cap, as Geist's Kbd draws it (D118). */
 .tool-tip kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border: var(--hairline) solid color-mix(in srgb, var(--bg) 35%, transparent);
+  border-radius: var(--radius-sm);
   font: inherit;
-  font-size: 0.72rem;
-  opacity: 0.7;
+  font-size: 0.7rem;
+  line-height: 1;
 }
 
-.tool-button:hover > .tool-tip,
+/* A short pause on hover so sliding along the toolbar does not flash every
+   tip; at once on keyboard focus, where the tip is the only label in view
+   (D118). */
+.tool-button:hover > .tool-tip {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 120ms ease-out 400ms,
+    visibility 0s linear 400ms;
+}
+
 .tool-button:focus-visible > .tool-tip {
-  display: inline-flex;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* While a popup is open its button's tip would sit on top of it. */
 .tool-button[aria-expanded="true"] > .tool-tip {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
 }
 
 /* The fit modes and the help open upward from the pill. */
@@ -2269,6 +2304,12 @@ pre code {
 
 .canvas-help-popup p {
   margin: 0;
+}
+
+/* The help text takes focus when it opens so Escape and screen readers
+   start there; it is not a control, so it draws no ring. */
+.canvas-help-popup:focus {
+  outline: none;
 }
 
 /* The clear veil under an open popup: an outside press closes the popup
@@ -2747,18 +2788,13 @@ pre code {
 }
 
 /* The founder's pin list above the canvas. */
+/* The founder's list uses the editor's rows in parts (D117). */
 .founder-pin-list {
   list-style: none;
   margin: 0 0 0.75rem;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-}
-
-.founder-pin-list button {
-  text-align: left;
-  width: 100%;
 }
 
 .founder-pin-list button[aria-current="true"] {

@@ -245,6 +245,19 @@ export function elementShortLabel(element: MarkElementSource | null | undefined)
 }
 
 /**
+ * The attached element's words in full (D117): its visible text, else its
+ * accessible name, else its tag, collapsed to one line and never cut. For
+ * places with room to show it whole, or that clip it with CSS alone.
+ */
+export function elementText(element: MarkElementSource | null | undefined): string | null {
+  if (!element) return null;
+  const source = [element.text, element.accessibleName, element.tag].find(
+    (candidate) => typeof candidate === "string" && candidate.trim() !== "",
+  );
+  return source ? source.replace(/\s+/g, " ").trim() : null;
+}
+
+/**
  * A mark's name (D078): what it says and what it points at, never where it
  * sits. "Pin 3 · “This toggle reads the same in both states” · Annual
  * (save 20%)" or "Box 2 · “More air around these” · pricing cards". The

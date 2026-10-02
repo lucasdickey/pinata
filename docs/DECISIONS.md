@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 39 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116 |
+| Human directed | 40 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
-| Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
+| Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **116** | |
+| **Total** | **118** | |
 
 ## Key decisions
 
@@ -178,6 +178,8 @@ The product and architecture decisions to read first. The full index follows.
 | [D114](#d114--the-selected-pins-actions-fit-on-one-line) | build | The selected pin's actions fit on one line | Human directed | accepted |
 | [D115](#d115--pin-text-is-never-cut-in-the-table-the-markdown-or-the-selection) | build | Pin text is never cut in the table, the Markdown, or the selection | Human directed | accepted |
 | [D116](#d116--letting-go-of-a-selected-pin-a--in-the-panel-and-escape) | build | Letting go of a selected pin: a × in the panel, and Escape | Human directed | accepted |
+| [D117](#d117--the-founder-view-shows-pin-text-whole-and-its-page-list-gets-its-column-back) | build | The founder view shows pin text whole, and its page list gets its column back | Human directed | accepted |
+| [D118](#d118--interactive-patterns-from-vercels-geist-menu-focus-tooltip-timing-key-caps) | build | Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps | Agent decided alone | accepted |
 
 ---
 
@@ -4622,7 +4624,7 @@ The owner saw truncated pin text in the view and in the Markdown and called it o
 **Consequences**
 
 - Pasted Markdown headings are shorter; the comment is still verbatim in the quote below them.
-- The founder view still shows the short name for its selected mark; it was left as is to keep this change in the editor.
+- The founder view, left with the short name here, is brought in line by D117.
 
 **Provenance evidence**
 
@@ -4677,4 +4679,77 @@ Human instruction:
 
 ---
 
-<sub>Generated from 116 record(s) as of 2026-10-02 · source `0f8aac1a8182`</sub>
+## D117 — The founder view shows pin text whole, and its page list gets its column back
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The founder's pin list and selection title still used the mark's short name (D078), which cuts the comment and the element with an ellipsis (left as a known gap by D115). Checking the founder page also showed its page list crushed into a 2.25rem column: D106 changed the shared .workspace grid for the editor's drawer toggle, and the founder page uses the same grid with a real list in that column.
+
+**Decision**
+
+The founder's list uses the same rows in parts as the editor's (D113), from one shared component, showing every status (Open, Replied, Resolved) since the founder acts on Open. The founder's selection title is the badge and "Pin 2", with "Points at: “…”" giving the element's text in full; the comment opens the thread below as before. The 2.25rem drawer strip moves to a .workspace-drawer modifier the editor alone uses, and .workspace returns to its 16–22rem first column for the founder.
+
+**Alternatives considered**
+
+- *Show the founder only the title, with no element line* — The short name was the founder's one hint at what a mark points at; the full text keeps it without internals (no tag, no path).
+
+**Rationale**
+
+The owner asked for the founder view to match. One shared row component keeps the two lists from drifting apart. The grid regression came from D106 and was live in production; scoping the drawer grid to the editor restores the founder layout without touching the editor's.
+
+**Consequences**
+
+- Each founder row's accessible name is unchanged (the short name and its status), so assistive tech and the tests address the same entries.
+- The list's element line uses the element's full text and is clipped by CSS only; the 40-character cut no longer applies anywhere a row shows it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> yes, watch it and fix the founder view too
+
+**Artifacts**
+
+- `src/components/pin-row.tsx` — The shared row.
+- `src/components/founder-view.tsx` — The founder list and selection.
+- ![The founder view: rows in parts, the page list in its column, and the selection title (light).](dashboard/screenshots/D117-founder-light.png) — The founder view: rows in parts, the page list in its column, and the selection title (light).
+- ![The founder view (dark).](dashboard/screenshots/D117-founder-dark.png) — The founder view (dark).
+
+---
+
+## D118 — Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps
+
+*2026-10-02 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+The owner invited using Vercel's design library and its interactive element patterns where they help ("if there's anything to be gained from using vercel's design library and interactive element patterns feel free"). The floating toolbar's popups (D111) left focus on their button, so a keyboard user had to Tab around, and focus fell to the page when a popup closed. Tooltips appeared instantly on hover, so sliding along the toolbar flashed every tip.
+
+**Decision**
+
+Adopt three Geist patterns without adding a dependency: the fit-mode popup behaves like a menu (focus moves to the pressed mode on open; arrow keys, Home and End move between modes; Escape or a choice returns focus to the button that opened it, and an outside press closes it without moving focus), and the help popup takes focus on open and returns it on Escape; tooltips show after a 400ms hover pause but at once on keyboard focus; shortcuts in tooltips are drawn as small key caps, as Geist's Kbd does.
+
+**Alternatives considered**
+
+- *Add Geist's React components* — New dependencies are blocked by scripts/lib/approved-deps.mjs, and the components would bring their own styling alongside the Paper direction (D102).
+- *Switch the type to the Geist font* — The Inter type is part of the Paper direction the owner chose (D102); a font change is a design decision for the owner, not a pattern.
+
+**Rationale**
+
+These are the patterns that change how the controls feel in use, especially from the keyboard, and they fit in a few dozen lines of the existing component and stylesheet. The rest of Geist's value is its visual language, which the owner already set differently.
+
+**Consequences**
+
+- The fit modes stay plain buttons with aria-pressed (not ARIA menu items), so their names and states are unchanged for tests and assistive tech.
+- Tooltip delay is CSS only; the tip fades rather than moves, so reduced-motion settings are unaffected.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — Popup focus handling and arrow keys.
+- ![A tooltip with its key cap.](dashboard/screenshots/D118-tooltip-light.png) — A tooltip with its key cap.
+
+---
+
+<sub>Generated from 118 record(s) as of 2026-10-02 · source `15d2a4edb25d`</sub>

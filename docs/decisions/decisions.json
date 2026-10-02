@@ -5176,7 +5176,7 @@
       "rationale": "The owner saw truncated pin text in the view and in the Markdown and called it out. The short name stays the accessible name of the list and table buttons, where brevity helps, but nothing visible or copied is cut.",
       "consequences": [
         "Pasted Markdown headings are shorter; the comment is still verbatim in the quote below them.",
-        "The founder view still shows the short name for its selected mark; it was left as is to keep this change in the editor."
+        "The founder view, left with the short name here, is brought in line by D117."
       ],
       "transcript": {
         "request": "the pin copy is truncated in the view and in the markdown"
@@ -5239,6 +5239,94 @@
           "type": "file",
           "path": "src/components/capture-panel.tsx",
           "caption": "The Clear selection button."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D117",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The founder view shows pin text whole, and its page list gets its column back",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The founder's pin list and selection title still used the mark's short name (D078), which cuts the comment and the element with an ellipsis (left as a known gap by D115). Checking the founder page also showed its page list crushed into a 2.25rem column: D106 changed the shared .workspace grid for the editor's drawer toggle, and the founder page uses the same grid with a real list in that column.",
+      "decision": "The founder's list uses the same rows in parts as the editor's (D113), from one shared component, showing every status (Open, Replied, Resolved) since the founder acts on Open. The founder's selection title is the badge and \"Pin 2\", with \"Points at: “…”\" giving the element's text in full; the comment opens the thread below as before. The 2.25rem drawer strip moves to a .workspace-drawer modifier the editor alone uses, and .workspace returns to its 16–22rem first column for the founder.",
+      "alternatives": [
+        {
+          "option": "Show the founder only the title, with no element line",
+          "why_not": "The short name was the founder's one hint at what a mark points at; the full text keeps it without internals (no tag, no path)."
+        }
+      ],
+      "rationale": "The owner asked for the founder view to match. One shared row component keeps the two lists from drifting apart. The grid regression came from D106 and was live in production; scoping the drawer grid to the editor restores the founder layout without touching the editor's.",
+      "consequences": [
+        "Each founder row's accessible name is unchanged (the short name and its status), so assistive tech and the tests address the same entries.",
+        "The list's element line uses the element's full text and is clipped by CSS only; the 40-character cut no longer applies anywhere a row shows it."
+      ],
+      "transcript": {
+        "request": "yes, watch it and fix the founder view too"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/pin-row.tsx",
+          "caption": "The shared row."
+        },
+        {
+          "type": "file",
+          "path": "src/components/founder-view.tsx",
+          "caption": "The founder list and selection."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D117-founder-light.png",
+          "caption": "The founder view: rows in parts, the page list in its column, and the selection title (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D117-founder-dark.png",
+          "caption": "The founder view (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D118",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The owner invited using Vercel's design library and its interactive element patterns where they help (\"if there's anything to be gained from using vercel's design library and interactive element patterns feel free\"). The floating toolbar's popups (D111) left focus on their button, so a keyboard user had to Tab around, and focus fell to the page when a popup closed. Tooltips appeared instantly on hover, so sliding along the toolbar flashed every tip.",
+      "decision": "Adopt three Geist patterns without adding a dependency: the fit-mode popup behaves like a menu (focus moves to the pressed mode on open; arrow keys, Home and End move between modes; Escape or a choice returns focus to the button that opened it, and an outside press closes it without moving focus), and the help popup takes focus on open and returns it on Escape; tooltips show after a 400ms hover pause but at once on keyboard focus; shortcuts in tooltips are drawn as small key caps, as Geist's Kbd does.",
+      "alternatives": [
+        {
+          "option": "Add Geist's React components",
+          "why_not": "New dependencies are blocked by scripts/lib/approved-deps.mjs, and the components would bring their own styling alongside the Paper direction (D102)."
+        },
+        {
+          "option": "Switch the type to the Geist font",
+          "why_not": "The Inter type is part of the Paper direction the owner chose (D102); a font change is a design decision for the owner, not a pattern."
+        }
+      ],
+      "rationale": "These are the patterns that change how the controls feel in use, especially from the keyboard, and they fit in a few dozen lines of the existing component and stylesheet. The rest of Geist's value is its visual language, which the owner already set differently.",
+      "consequences": [
+        "The fit modes stay plain buttons with aria-pressed (not ARIA menu items), so their names and states are unchanged for tests and assistive tech.",
+        "Tooltip delay is CSS only; the tip fades rather than moves, so reduced-motion settings are unaffected."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "Popup focus handling and arrow keys."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D118-tooltip-light.png",
+          "caption": "A tooltip with its key cap."
         }
       ],
       "supersedes": null,

@@ -3634,3 +3634,17 @@ for the archive patch (D108–D110) to land.
 - D114 (user-directed): action buttons fit one line.
 - D115 (user-directed): pin text never cut in the table, Markdown, or selection.
 - D116 (user-directed): a × and Escape let go of a selected pin.
+
+### Follow-up on the same PR (D117, D118)
+
+- **Founder view (D117).** Its list now uses the editor's rows in parts
+  through one shared component (`pin-row.tsx`), and its selection title is
+  the badge and "Pin 2" with the element's text in full. Looking at it
+  showed a live regression from D106: the founder's page list had been
+  squeezed into the editor's 2.25rem drawer strip. The strip now belongs
+  to a `.workspace-drawer` modifier only the editor uses.
+- **Geist patterns (D118).** The owner left it open; Geist's components
+  and font were not adopted (new dependencies are blocked, and the font
+  is the Paper direction's). Three patterns were: the fit-mode popup takes
+  and returns focus and moves with arrow keys, tooltips wait 400ms on
+  hover but show at once on keyboard focus, and shortcuts are key caps.

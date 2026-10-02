@@ -975,17 +975,59 @@ function CaptureCanvasInner({
   // it closes on a choice or an outside press.
   const [popup, setPopup] = useState<"camera" | "help" | null>(null);
   const menuIds = useId();
+  // Focus follows the popup, as menus in Vercel's Geist and most design
+  // systems do (D118): opening moves focus into it (the pressed fit mode,
+  // or the help text), and Escape or a choice hands it back to the button
+  // that opened it. An outside press closes it without taking focus.
+  const cameraToggleRef = useRef<HTMLButtonElement | null>(null);
+  const helpToggleRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const closePopup = useCallback(
+    (returnFocus: boolean) => {
+      const toggle = popup === "camera" ? cameraToggleRef.current : helpToggleRef.current;
+      setPopup(null);
+      if (returnFocus) toggle?.focus();
+    },
+    [popup],
+  );
+  useEffect(() => {
+    const node = popupRef.current;
+    if (!popup || !node) return;
+    const target =
+      node.querySelector<HTMLElement>('button[aria-pressed="true"]') ??
+      node.querySelector<HTMLElement>("button") ??
+      node;
+    target.focus({ preventScroll: true });
+  }, [popup]);
   useEffect(() => {
     if (!popup) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      setPopup(null);
+      closePopup(true);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [popup]);
+  }, [popup, closePopup]);
+  /** Arrow keys, Home and End move between the fit modes (D118). */
+  const onFitMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button"));
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      event.key === "ArrowDown"
+        ? (at + 1) % items.length
+        : event.key === "ArrowUp"
+          ? (at - 1 + items.length) % items.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : -1;
+    if (next === -1) return;
+    event.preventDefault();
+    items[next]?.focus();
+  };
   const armedRef = useRef(armed);
   armedRef.current = armed;
   // Counts every time the draft is placed or moved (D096). The composer
@@ -1780,7 +1822,7 @@ function CaptureCanvasInner({
           open, a clear veil over the canvas takes the outside click that
           closes it (as the drawer's does, D106). */}
       {popup ? (
-        <div className="canvas-veil" aria-hidden="true" onPointerDown={() => setPopup(null)} />
+        <div className="canvas-veil" aria-hidden="true" onPointerDown={() => closePopup(false)} />
       ) : null}
       <div className="canvas-toolbar-float" data-testid="canvas-toolbar-float">
         {readOnly ? null : (
@@ -1827,6 +1869,7 @@ function CaptureCanvasInner({
             </span>
           </button>
           <button
+            ref={cameraToggleRef}
             type="button"
             className="tool-button zoom-menu-toggle"
             aria-label="Zoom and fit"
@@ -1852,7 +1895,12 @@ function CaptureCanvasInner({
             </span>
           </button>
           {popup === "camera" ? (
-            <div className="canvas-popup canvas-fit-menu" id={`${menuIds}-camera`}>
+            <div
+              ref={popupRef}
+              className="canvas-popup canvas-fit-menu"
+              id={`${menuIds}-camera`}
+              onKeyDown={onFitMenuKeyDown}
+            >
               {CAMERA_MODES.map((candidate) => (
                 <button
                   key={candidate.id}
@@ -1860,7 +1908,7 @@ function CaptureCanvasInner({
                   aria-pressed={mode === candidate.id}
                   onClick={() => {
                     applyMode(candidate.id);
-                    setPopup(null);
+                    closePopup(true);
                   }}
                 >
                   {candidate.label}
@@ -1872,6 +1920,7 @@ function CaptureCanvasInner({
         {help ? (
           <div className="canvas-help">
             <button
+              ref={helpToggleRef}
               type="button"
               className="tool-button"
               aria-label="How the canvas works"
@@ -1882,7 +1931,12 @@ function CaptureCanvasInner({
               <CanvasIcon name="help" />
             </button>
             {popup === "help" ? (
-              <div className="canvas-popup canvas-help-popup" id={`${menuIds}-help`}>
+              <div
+                ref={popupRef}
+                className="canvas-popup canvas-help-popup"
+                id={`${menuIds}-help`}
+                tabIndex={-1}
+              >
                 {help}
               </div>
             ) : null}
