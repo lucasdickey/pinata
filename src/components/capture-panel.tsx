@@ -24,12 +24,15 @@
 // pin-composer.tsx. The panel keeps showing the selected saved pin, if any,
 // while a draft is open.
 
+import { useEffect, useState } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
 import type { NaturalPoint } from "../lib/canvas/camera";
-import { markKindNoun, markLabel, markPosition } from "../lib/canvas/marks";
+import { markKindNoun, markPosition, markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
+import { CanvasIcon } from "./canvas-icons";
+import { PinBadge, PinRowContent, pinRowName } from "./pin-row";
 import { snapshotLabel } from "./pin-composer";
 import { ThreadView, type ThreadViewProps } from "./thread-view";
 
@@ -54,6 +57,29 @@ const MARK_DETAIL_LABELS: Record<AnnotationView["kind"], string> = {
   circle: "Circle",
   arrow: "Arrow",
 };
+
+/**
+ * Where the panel's collapsed state is remembered (D112), per browser. A
+ * convenience only: read after mount, every access guarded, and a missing
+ * or blocked store simply means the panel opens.
+ */
+export const PANEL_STORAGE_KEY = "pinata.capture-panel";
+
+function readPanelCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(PANEL_STORAGE_KEY) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+function writePanelCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(PANEL_STORAGE_KEY, collapsed ? "collapsed" : "open");
+  } catch {
+    // Private windows and blocked storage: the choice lasts this visit only.
+  }
+}
 
 export function CapturePanel({
   attempt,
@@ -119,238 +145,315 @@ export function CapturePanel({
 }) {
   const selectedPin = pins.find((pin) => pin.id === selectedPinId) ?? null;
   const noun = selectedPin ? markKindNoun(selectedPin.kind) : "pin";
+  // Collapsing only hides the panel (D112): it stays mounted, so the
+  // workspace's writes, seen-marking, and live refresh carry on behind it.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    if (readPanelCollapsed()) setCollapsed(true);
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((current) => {
+      writePanelCollapsed(!current);
+      return !current;
+    });
+  };
   return (
     <aside
       className="workspace-panel"
       aria-label="Selection and capture details"
       data-testid="capture-panel"
+      data-collapsed={collapsed ? "true" : undefined}
     >
-      <h4>Selection</h4>
-      {selectedPin ? (
-        <div className="panel-pin" data-testid="panel-pin">
-          {/* The mark's name (D078): kind and number, then what it says and
-              what it points at. Never its coordinates; those are in Details. */}
-          <p className="panel-mark-name" data-testid="panel-mark-name" data-kind={selectedPin.kind}>
-            <strong>{markLabel(selectedPin)}</strong>
-          </p>
-          {/* The pin lifecycle (D075): its status, and one control that
-              resolves an open or replied pin or reopens a resolved one. */}
-          <p className="panel-status" data-testid="panel-status" data-status={selectedPin.status}>
-            Status: {PIN_STATUS_LABELS[selectedPin.status] ?? selectedPin.status}
-            {selectedPin.unreadReplies > 0 ? (
-              <span className="pin-unread"> · {selectedPin.unreadReplies} new</span>
-            ) : null}
-          </p>
-          {editing ? (
-            <label className="panel-field">
-              Edit comment
-              <textarea
-                value={editBody}
-                onChange={(event) => onEditBodyChange(event.target.value)}
-                maxLength={FEEDBACK_BODY_MAX_CHARS}
-                rows={3}
-              />
-            </label>
-          ) : (
-            <p className="panel-pin-body">{selectedPin.body}</p>
-          )}
-          <p className="panel-snapshot" data-testid="panel-snapshot">
-            {selectedPin.elementSnapshot
-              ? `Element: ${snapshotLabel(selectedPin.elementSnapshot)}`
-              : "Element: No element"}
-          </p>
-          {editing ? (
-            <p className="panel-actions">
-              <button
-                type="button"
-                onClick={onSaveEdit}
-                disabled={editState === "saving" || editBody.trim().length === 0}
-              >
-                {editState === "saving" ? "Saving…" : "Save edit"}
-              </button>
-              <button type="button" onClick={onCancelEdit} disabled={editState === "saving"}>
-                Cancel edit
-              </button>
-            </p>
-          ) : confirmingDelete ? (
-            <p className="panel-actions">
-              <button
-                type="button"
-                onClick={onConfirmDelete}
-                disabled={deleteState === "deleting"}
-              >
-                {deleteState === "deleting" ? "Deleting…" : "Confirm delete"}
-              </button>
-              <button
-                type="button"
-                onClick={onCancelDelete}
-                disabled={deleteState === "deleting"}
-              >
-                Keep {noun}
-              </button>
-            </p>
-          ) : (
-            <p className="panel-actions">
-              <button type="button" onClick={onStartEdit}>
-                Edit comment
-              </button>
-              <button type="button" onClick={onRequestDelete}>
-                Delete {noun}
-              </button>
-              {onSetPinStatus ? (
-                <button
-                  type="button"
-                  disabled={statusState === "saving"}
-                  onClick={() =>
-                    onSetPinStatus(selectedPin.status === "resolved" ? "reopen" : "resolve")
-                  }
-                >
-                  {statusState === "saving"
-                    ? "Saving…"
-                    : selectedPin.status === "resolved"
-                      ? `Reopen ${noun}`
-                      : `Resolve ${noun}`}
-                </button>
-              ) : null}
-            </p>
-          )}
-          {statusState === "failed" ? (
-            <p role="alert" className="capture-error">
-              That status change could not be saved. Try again.
-            </p>
-          ) : null}
-          {editState === "failed" ? (
-            <p role="alert" className="capture-error">
-              That edit could not be saved. Your text is still here — try again.
-            </p>
-          ) : null}
-          {deleteState === "failed" ? (
-            <p role="alert" className="capture-error">
-              That {noun} could not be deleted. Try again.
-            </p>
-          ) : null}
-          {editState === "conflict" || deleteState === "conflict" ? (
-            <p role="alert" className="capture-error">
-              This {noun} changed in another session. The latest version is now shown.
-            </p>
-          ) : null}
-          <p className="panel-note">
-            {selectedPin.kind === "rectangle"
-              ? "Drag the box's edge or badge to move it and its handles to resize it. Deleting a box retires its number forever."
-              : selectedPin.kind === "circle"
-                ? "Drag the circle's edge or badge to move it and its corner handles to resize it. Deleting a circle retires its number forever."
-                : selectedPin.kind === "arrow"
-                  ? "Drag the arrow's shaft or badge to move it and either end to re-aim it. Deleting an arrow retires its number forever."
-                  : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
-          </p>
-          {thread ? (
-            <>
-              <h4>Thread</h4>
-              <ThreadView {...thread} />
-            </>
+      <div className="panel-strip">
+        <button
+          type="button"
+          className="tool-button panel-toggle"
+          aria-label={collapsed ? "Show details panel" : "Hide details panel"}
+          aria-expanded={!collapsed}
+          aria-controls="capture-panel-body"
+          onClick={toggleCollapsed}
+        >
+          <CanvasIcon name={collapsed ? "panel-show" : "panel-hide"} />
+        </button>
+        {/* While collapsed, the selected mark shows as its number on the
+            strip instead of forcing the panel open (D112). */}
+        {collapsed && selectedPin ? (
+          <span
+            className="panel-strip-badge"
+            data-testid="panel-strip-badge"
+            data-status={selectedPin.status}
+            role="status"
+            aria-label={`${markTitle(selectedPin)} selected`}
+          >
+            {selectedPin.number}
+          </span>
+        ) : null}
+      </div>
+      <div className="panel-body" id="capture-panel-body" hidden={collapsed}>
+        <div className="panel-heading">
+          <h4>Selection</h4>
+          {/* The plain way out of a selection (D116); Escape does the same. */}
+          {selectedPin ? (
+            <button
+              type="button"
+              className="tool-button panel-clear"
+              aria-label="Clear selection"
+              aria-keyshortcuts="Escape"
+              onClick={() => onSelectPin(null)}
+            >
+              <CanvasIcon name="close" size={16} />
+            </button>
           ) : null}
         </div>
-      ) : (
-        <p className="panel-empty">Nothing selected.</p>
-      )}
-      {moveError ? (
-        <p role="alert" className="capture-error">
-          {moveError}
-        </p>
-      ) : null}
-
-      {ready ? (
-        <>
-          <h4>Pins on this capture</h4>
-          {pinsStatus === "loading" ? <p className="panel-note">Loading pins…</p> : null}
-          {pinsStatus === "failed" ? (
-            <p className="panel-note">
-              Pins could not be loaded. Switch to another capture and back to retry.
+        {selectedPin ? (
+          <div className="panel-pin" data-testid="panel-pin">
+            {/* The mark's kind and number with its canvas badge (D115). The
+                comment and the element follow in full just below, so the
+                shortened name (D078) is never shown here; never coordinates
+                either, those are in Details. */}
+            <p className="panel-mark-name" data-testid="panel-mark-name" data-kind={selectedPin.kind}>
+              <PinBadge pin={selectedPin} />
+              <strong>{markTitle(selectedPin)}</strong>
             </p>
-          ) : null}
-          {pinsStatus === "ready" && pins.length === 0 ? (
-            <p className="panel-note">No pins yet. Click or tap the page to drop the first one.</p>
-          ) : null}
-          {pins.length > 0 ? (
-            <ol className="pin-list" aria-label="Saved pins">
-              {pins.map((pin) => (
-                <li key={pin.id}>
+            {/* The pin lifecycle (D075): its status, and one control that
+                resolves an open or replied pin or reopens a resolved one. */}
+            <p className="panel-status" data-testid="panel-status" data-status={selectedPin.status}>
+              Status: {PIN_STATUS_LABELS[selectedPin.status] ?? selectedPin.status}
+              {selectedPin.unreadReplies > 0 ? (
+                <span className="pin-unread"> · {selectedPin.unreadReplies} new</span>
+              ) : null}
+            </p>
+            {editing ? (
+              <label className="panel-field">
+                Edit comment
+                <textarea
+                  value={editBody}
+                  onChange={(event) => onEditBodyChange(event.target.value)}
+                  maxLength={FEEDBACK_BODY_MAX_CHARS}
+                  rows={3}
+                />
+              </label>
+            ) : (
+              <p className="panel-pin-body">{selectedPin.body}</p>
+            )}
+            <p className="panel-snapshot" data-testid="panel-snapshot">
+              {selectedPin.elementSnapshot
+                ? `Element: ${snapshotLabel(selectedPin.elementSnapshot)}`
+                : "Element: No element"}
+            </p>
+            {editing ? (
+              <p className="panel-actions">
+                <button
+                  type="button"
+                  className="button-primary"
+                  aria-label={editState === "saving" ? undefined : "Save edit"}
+                  onClick={onSaveEdit}
+                  disabled={editState === "saving" || editBody.trim().length === 0}
+                >
+                  {editState === "saving" ? "Saving…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Cancel edit"
+                  onClick={onCancelEdit}
+                  disabled={editState === "saving"}
+                >
+                  Cancel
+                </button>
+              </p>
+            ) : confirmingDelete ? (
+              <p className="panel-actions">
+                <button
+                  type="button"
+                  className="button-primary"
+                  aria-label={deleteState === "deleting" ? undefined : "Confirm delete"}
+                  onClick={onConfirmDelete}
+                  disabled={deleteState === "deleting"}
+                >
+                  {deleteState === "deleting" ? "Deleting…" : "Delete"}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Keep ${noun}`}
+                  onClick={onCancelDelete}
+                  disabled={deleteState === "deleting"}
+                >
+                  Keep
+                </button>
+              </p>
+            ) : (
+              <p className="panel-actions">
+                {/* Short visible words so the row fits the panel on one line;
+                    each name still says what it acts on (D114). The lifecycle
+                    step comes first, as the usual next thing to do. */}
+                {onSetPinStatus ? (
                   <button
                     type="button"
+                    className="button-primary"
+                    aria-label={
+                      statusState === "saving"
+                        ? undefined
+                        : selectedPin.status === "resolved"
+                          ? `Reopen ${noun}`
+                          : `Resolve ${noun}`
+                    }
+                    disabled={statusState === "saving"}
+                    onClick={() =>
+                      onSetPinStatus(selectedPin.status === "resolved" ? "reopen" : "resolve")
+                    }
+                  >
+                    {statusState === "saving"
+                      ? "Saving…"
+                      : selectedPin.status === "resolved"
+                        ? "Reopen"
+                        : "Resolve"}
+                  </button>
+                ) : null}
+                <button type="button" aria-label="Edit comment" onClick={onStartEdit}>
+                  Edit
+                </button>
+                <button type="button" aria-label={`Delete ${noun}`} onClick={onRequestDelete}>
+                  Delete
+                </button>
+              </p>
+            )}
+            {statusState === "failed" ? (
+              <p role="alert" className="capture-error">
+                That status change could not be saved. Try again.
+              </p>
+            ) : null}
+            {editState === "failed" ? (
+              <p role="alert" className="capture-error">
+                That edit could not be saved. Your text is still here — try again.
+              </p>
+            ) : null}
+            {deleteState === "failed" ? (
+              <p role="alert" className="capture-error">
+                That {noun} could not be deleted. Try again.
+              </p>
+            ) : null}
+            {editState === "conflict" || deleteState === "conflict" ? (
+              <p role="alert" className="capture-error">
+                This {noun} changed in another session. The latest version is now shown.
+              </p>
+            ) : null}
+            <p className="panel-note">
+              {selectedPin.kind === "rectangle"
+                ? "Drag the box's edge or badge to move it and its handles to resize it. Deleting a box retires its number forever."
+                : selectedPin.kind === "circle"
+                  ? "Drag the circle's edge or badge to move it and its corner handles to resize it. Deleting a circle retires its number forever."
+                  : selectedPin.kind === "arrow"
+                    ? "Drag the arrow's shaft or badge to move it and either end to re-aim it. Deleting an arrow retires its number forever."
+                    : "Drag the pin on the screenshot to move it. Deleting a pin retires its number forever."}
+            </p>
+            {thread ? (
+              <>
+                <h4>Thread</h4>
+                <ThreadView {...thread} />
+              </>
+            ) : null}
+          </div>
+        ) : (
+          <p className="panel-empty">Nothing selected.</p>
+        )}
+        {moveError ? (
+          <p role="alert" className="capture-error">
+            {moveError}
+          </p>
+        ) : null}
+
+        {ready ? (
+          <>
+            <h4>Pins on this capture</h4>
+            {pinsStatus === "loading" ? <p className="panel-note">Loading pins…</p> : null}
+            {pinsStatus === "failed" ? (
+              <p className="panel-note">
+                Pins could not be loaded. Switch to another capture and back to retry.
+              </p>
+            ) : null}
+            {pinsStatus === "ready" && pins.length === 0 ? (
+              <p className="panel-note">No pins yet. Click or tap the page to drop the first one.</p>
+            ) : null}
+            {pins.length > 0 ? (
+              <ol className="pin-list" aria-label="Saved pins">
+                {pins.map((pin) => (
+                <li key={pin.id}>
+                  {/* One row in parts (D113), shared with the founder's
+                      list (D117). */}
+                  <button
+                    type="button"
+                    className="pin-row"
+                    aria-label={pinRowName(pin, "notable")}
                     aria-current={pin.id === selectedPinId ? "true" : undefined}
+                    data-status={pin.status}
                     onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                   >
-                    {markLabel(pin)}
-                    {pin.status === "resolved" ? (
-                      <span className="pin-status"> · Resolved</span>
-                    ) : null}
-                    {pin.unreadReplies > 0 ? (
-                      <span className="pin-unread"> · {pin.unreadReplies} new</span>
-                    ) : null}
+                    <PinRowContent pin={pin} status="notable" />
                   </button>
                 </li>
               ))}
-            </ol>
-          ) : null}
-        </>
-      ) : null}
+              </ol>
+            ) : null}
+          </>
+        ) : null}
 
-      <h4>Capture</h4>
-      <dl className="panel-facts">
-        <dt>Page</dt>
-        <dd className="panel-url">{pageUrl}</dd>
-        <dt>Device</dt>
-        <dd>{variantLabel(variant)}</dd>
-      </dl>
-
-      {/* The internals (D078), one click away and closed by default: where
-          the selected mark sits in screenshot pixels, the capture's version,
-          state, size, and image hash, and the keyboard shortcuts. A native
-          <details> so the browser supplies the toggle and its announcement. */}
-      <details className="panel-details" data-testid="panel-details">
-        <summary>Details</summary>
+        <h4>Capture</h4>
         <dl className="panel-facts">
-          {selectedPin ? (
-            <>
-              <dt>{MARK_DETAIL_LABELS[selectedPin.kind]}</dt>
-              <dd data-testid="panel-position" data-kind={selectedPin.kind}>
-                {markPosition(selectedPin)} px
-              </dd>
-            </>
-          ) : null}
-          <dt>Version</dt>
-          <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
-          <dt>State</dt>
-          <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
-          {attempt?.state === "ready" &&
-          attempt.documentWidth !== null &&
-          attempt.documentHeight !== null ? (
-            <>
-              <dt>Screenshot size</dt>
-              <dd>
-                {attempt.documentWidth} × {attempt.documentHeight} px
-              </dd>
-            </>
-          ) : null}
-          {attempt?.imageHash ? (
-            <>
-              <dt>Image hash</dt>
-              <dd>
-                <code>{attempt.imageHash.slice(0, 12)}…</code>
-              </dd>
-            </>
-          ) : null}
+          <dt>Page</dt>
+          <dd className="panel-url">{pageUrl}</dd>
+          <dt>Device</dt>
+          <dd>{variantLabel(variant)}</dd>
         </dl>
-        <p className="panel-facts-label">Keyboard</p>
-        <ul className="panel-keys" data-testid="panel-keys">
-          <li>Enter saves a comment; Shift+Enter starts a new line</li>
-          <li>Escape cancels</li>
-          <li>J and K, or the arrow keys, step through the marks</li>
-          <li>N drops a pin at the center of the view</li>
-          <li>B, C, or A arms the box, circle, or arrow tool for the next drag</li>
-          <li>Shift-drag also draws a box</li>
-        </ul>
-      </details>
+
+        {/* The internals (D078), one click away and closed by default: where
+            the selected mark sits in screenshot pixels, the capture's version,
+            state, size, and image hash, and the keyboard shortcuts. A native
+            <details> so the browser supplies the toggle and its announcement. */}
+        <details className="panel-details" data-testid="panel-details">
+          <summary>Details</summary>
+          <dl className="panel-facts">
+            {selectedPin ? (
+              <>
+                <dt>{MARK_DETAIL_LABELS[selectedPin.kind]}</dt>
+                <dd data-testid="panel-position" data-kind={selectedPin.kind}>
+                  {markPosition(selectedPin)} px
+                </dd>
+              </>
+            ) : null}
+            <dt>Version</dt>
+            <dd>{attempt ? `v${attempt.attempt}` : "—"}</dd>
+            <dt>State</dt>
+            <dd>{attempt ? STATE_LABELS[attempt.state] : "Not captured"}</dd>
+            {attempt?.state === "ready" &&
+            attempt.documentWidth !== null &&
+            attempt.documentHeight !== null ? (
+              <>
+                <dt>Screenshot size</dt>
+                <dd>
+                  {attempt.documentWidth} × {attempt.documentHeight} px
+                </dd>
+              </>
+            ) : null}
+            {attempt?.imageHash ? (
+              <>
+                <dt>Image hash</dt>
+                <dd>
+                  <code>{attempt.imageHash.slice(0, 12)}…</code>
+                </dd>
+              </>
+            ) : null}
+          </dl>
+          <p className="panel-facts-label">Keyboard</p>
+          <ul className="panel-keys" data-testid="panel-keys">
+            <li>Enter saves a comment; Shift+Enter starts a new line</li>
+            <li>Escape cancels, then lets go of the selected mark</li>
+            <li>J and K, or the arrow keys, step through the marks</li>
+            <li>N drops a pin at the center of the view</li>
+            <li>B, C, or A arms the box, circle, or arrow tool for the next drag</li>
+            <li>Shift-drag also draws a box</li>
+          </ul>
+        </details>
+      </div>
     </aside>
   );
 }

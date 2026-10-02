@@ -31,6 +31,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { cameraMode } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -278,7 +279,7 @@ test("the candidate highlight tracks the persisted manifest rect within one natu
   };
 
   // --- 1x ---------------------------------------------------------------
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   await rows.first().hover();
   await expect(page.locator(PREVIEW_NODE)).toHaveCount(1);

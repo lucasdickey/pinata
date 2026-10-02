@@ -3555,3 +3555,96 @@ The second gate attempt exposed additional baseline editor failures (including a
 Focused final verification passed: both production-build homepage browser tests, including actual configured sign-in → workspace → project creation and run-scoped cleanup. All six illustrated images decoded; no external or API requests occurred on the anonymous root; no console errors or horizontal overflow at 390px and 320px. Saved desktop (1440px) and mobile (390px) screenshots under docs/dashboard/screenshots/D107-homepage-*.png. The application build and 1,757 unit/component tests passed, with 44 configured skips; the complete repository gate remains red in existing editor/capture flows. No commit, push, or production deployment has been performed.
 
 The owner then instructed: “Go ahead and create a PR, and then merge your changes upon CI being green.” This explicitly authorizes a PR and CI-gated merge after the local editor-suite limitation was disclosed, superseding the default direct-to-main workflow and full local gate for this release. The PR will retain the complete validation limitation for reviewers; CI runs the repository gate with its normal unconfigured integration skips.
+
+
+## 2026-10-01 — archive a project (D108, D109, D110)
+
+Harness: Claude (Cowork), in a cloud session driven from the Chrome side panel.
+
+- **Asked for.** The drawer fills up with every project ever made. The owner
+  asked for a way to archive one and deferred unarchiving.
+- **Not a delete.** `deletedAt` is a tombstone that every read, the founder
+  link, and capture assets treat as gone, so archive got its own nullable
+  `archived_at` column (migration 0007) and one filter on the project list.
+- **Two calls put to the owner.** The button lives in the selected project's
+  header, and archiving leaves the founder link working. Both were the
+  recommended options (D110).
+- **One side effect noted.** Stale-capture recovery runs off the project
+  list, so an archived project's stuck captures wait for an unarchive.
+- **Environment.** The container had Node 22; nodejs.org was unreachable, so
+  Node 24 came from the npm registry's `node` package, and `npm ci` ran under
+  npm 11 because npm 10 reads the lockfile as out of sync.
+- **Also investigated:** the owner remembered an open ticket to move the
+  canvas controls (zoom, fit, draw tools) into floating overlays in the style
+  of Figma or Paper. No record, deferral, NEXT.md item, or log entry covers
+  it; the nearest are D102, D105, and D106. GitHub issues were not readable
+  from this session.
+
+### Decisions
+
+- D108 (user-directed): archive a project as its own column.
+- D109 (user-deferred, pending): a way to unarchive.
+- D110 (agent-proposed, user-approved): Archive in the project header; the
+  founder link keeps working.
+
+---
+
+## 2026-10-02 — compact capture view (D111–D116)
+
+Harness: Claude Code, in a cloud session, from a handoff that asked first
+for the archive patch (D108–D110) to land.
+
+- **The archive patch landed first, by its own commit.** `git am` was
+  refused by the session's permission check until the owner approved it;
+  its author was reset to Lucas. The cloud session holds no Turso
+  credentials, so `npm run db:migrate` could not run here: the owner chose
+  a pull request over a direct push, so nothing deploys until the
+  production migration has run and the PR is merged.
+- **Canvas controls (D111).** One floating pill over the canvas replaces
+  the hint line, the heading, and two rows of buttons: icon tools, zoom
+  with the fit modes in a popup, and "?" for the verbs. The row above the
+  canvas is one line. Measured on a 1440×900 window, the screenshot now
+  starts at 198px instead of 422px.
+- **Panel (D112–D114).** Collapses to a strip and stays mounted; a test
+  drops and saves a pin while it is collapsed. List rows are in parts
+  (badge, comment, element), headings share one rhythm, and the action
+  buttons fit one line (the owner's screenshot showed them wrapping).
+- **Mid-session requests.** The pin table and the copied Markdown cut the
+  comment short; now the table shows the whole comment beside "Pin 1",
+  the Markdown heading is just "## Pin 1" over the verbatim quote, and the
+  panel's selection title is the badge and "Pin 2" (D115). There was no
+  visible way to let go of a selection; now there is a × and Escape
+  (D116).
+- **Screenshots** were taken against the real `/pins` page on a local dev
+  server with a throwaway SQLite database for sign-in and the editor's
+  browser requests answered with sample data, since no real project could
+  be loaded here.
+- **Tests.** Fit modes are reached through `cameraMode`/`modePressed`/
+  `waitForMode` helpers (unit) and `cameraMode`/`expectModePressed` (e2e)
+  that open the popup first. A wait must never toggle the popup inside
+  `waitFor`: each toggle is a DOM change that re-runs the wait, which hung
+  the canvas suite until `waitForMode` opened it once outside the wait.
+  The credentialed e2e specs could not run here.
+
+### Decisions
+
+- D111 (user-directed): canvas controls as one floating toolbar.
+- D112 (user-directed): collapsible capture panel; data keeps writing.
+- D113 (user-directed): pin list rows in parts; one spacing rhythm.
+- D114 (user-directed): action buttons fit one line.
+- D115 (user-directed): pin text never cut in the table, Markdown, or selection.
+- D116 (user-directed): a × and Escape let go of a selected pin.
+
+### Follow-up on the same PR (D117, D118)
+
+- **Founder view (D117).** Its list now uses the editor's rows in parts
+  through one shared component (`pin-row.tsx`), and its selection title is
+  the badge and "Pin 2" with the element's text in full. Looking at it
+  showed a live regression from D106: the founder's page list had been
+  squeezed into the editor's 2.25rem drawer strip. The strip now belongs
+  to a `.workspace-drawer` modifier only the editor uses.
+- **Geist patterns (D118).** The owner left it open; Geist's components
+  and font were not adopted (new dependencies are blocked, and the font
+  is the Paper direction's). Three patterns were: the fit-mode popup takes
+  and returns focus and moves with arrow keys, tooltips wait 400ms on
+  hover but show at once on keyboard focus, and shortcuts are key caps.

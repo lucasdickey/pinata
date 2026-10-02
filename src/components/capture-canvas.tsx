@@ -90,6 +90,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -187,6 +188,7 @@ import {
   type NaturalRect,
   type ResizeHandle,
 } from "../lib/canvas/rectangle";
+import { CanvasIcon } from "./canvas-icons";
 import { PinComposer, type PinComposerProps } from "./pin-composer";
 
 /**
@@ -845,6 +847,7 @@ function CaptureCanvasInner({
   onStepPin,
   autoFocus,
   revealSelected,
+  help,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
@@ -918,6 +921,11 @@ function CaptureCanvasInner({
    * that a box wider or taller than the frame zooms out just enough to fit.
    */
   revealSelected?: number;
+  /**
+   * What the "?" button on the floating toolbar opens (D111): the verbs
+   * that used to sit in a line above the canvas. No button without it.
+   */
+  help?: ReactNode;
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -962,6 +970,64 @@ function CaptureCanvasInner({
   drawingRef.current = drawing;
   // The armed mark tool: it arms exactly the next drag, then disarms itself.
   const [armed, setArmed] = useState<MarkTool | null>(null);
+  // The floating toolbar's one open popup, if any (D111): the fit modes or
+  // the "?" help. Escape closes it before it can reach anything else, and
+  // it closes on a choice or an outside press.
+  const [popup, setPopup] = useState<"camera" | "help" | null>(null);
+  const menuIds = useId();
+  // Focus follows the popup, as menus in Vercel's Geist and most design
+  // systems do (D118): opening moves focus into it (the pressed fit mode,
+  // or the help text), and Escape or a choice hands it back to the button
+  // that opened it. An outside press closes it without taking focus.
+  const cameraToggleRef = useRef<HTMLButtonElement | null>(null);
+  const helpToggleRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const closePopup = useCallback(
+    (returnFocus: boolean) => {
+      const toggle = popup === "camera" ? cameraToggleRef.current : helpToggleRef.current;
+      setPopup(null);
+      if (returnFocus) toggle?.focus();
+    },
+    [popup],
+  );
+  useEffect(() => {
+    const node = popupRef.current;
+    if (!popup || !node) return;
+    const target =
+      node.querySelector<HTMLElement>('button[aria-pressed="true"]') ??
+      node.querySelector<HTMLElement>("button") ??
+      node;
+    target.focus({ preventScroll: true });
+  }, [popup]);
+  useEffect(() => {
+    if (!popup) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closePopup(true);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [popup, closePopup]);
+  /** Arrow keys, Home and End move between the fit modes (D118). */
+  const onFitMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("button"));
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      event.key === "ArrowDown"
+        ? (at + 1) % items.length
+        : event.key === "ArrowUp"
+          ? (at - 1 + items.length) % items.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : -1;
+    if (next === -1) return;
+    event.preventDefault();
+    items[next]?.focus();
+  };
   const armedRef = useRef(armed);
   armedRef.current = armed;
   // Counts every time the draft is placed or moved (D096). The composer
@@ -1267,11 +1333,15 @@ function CaptureCanvasInner({
 
   // Escape, in order of what is most transient: a draw or resize in flight
   // is abandoned; then an armed box toggle is disarmed; then the draft is
-  // cleared. It never fires while typing in an editable element (the
-  // composer handles its own Escape and stops it here), and it never
-  // touches persisted state.
+  // cleared; last, the selected mark is let go (D116), the one way out of a
+  // selection that is not a click on the same mark again. It never fires
+  // while typing in an editable element (the composer handles its own
+  // Escape and stops it here), never for an Escape something else already
+  // used (an open toolbar popup and the project drawer stop theirs before it
+  // gets here), and it never touches persisted state.
+  const hasSelection = Boolean(selectedPinId);
   useEffect(() => {
-    if (!draft && !armed && !gestureActive) return;
+    if (!draft && !armed && !gestureActive && !hasSelection) return;
     const onKey = (event: KeyboardEvent | globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (isTextEntry(event.target)) return;
@@ -1284,11 +1354,15 @@ function CaptureCanvasInner({
         setArmed(null);
         return;
       }
-      setDraft(null);
+      if (draftRef.current) {
+        setDraft(null);
+        return;
+      }
+      onSelectPin?.(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [draft, armed, gestureActive, cancelGesture]);
+  }, [draft, armed, gestureActive, hasSelection, cancelGesture, onSelectPin]);
 
   // A press that will draw must not also pan the camera or start a node
   // drag. Both of those begin on the native mousedown/touchstart that React
@@ -1741,69 +1815,134 @@ function CaptureCanvasInner({
 
   return (
     <div className="capture-stage capture-stage-canvas" data-testid="capture-stage">
-      <p className="capture-camera" role="group" aria-label="Camera modes and zoom">
-        {CAMERA_MODES.map((candidate) => (
+      {/* One floating toolbar over the canvas (D111), in the manner of
+          Figma's and Paper's: icon tools, then zoom with the fit modes in a
+          popup, then "?". It sits outside the canvas region's pointer
+          handlers, so a press on it can never drop a pin; while a popup is
+          open, a clear veil over the canvas takes the outside click that
+          closes it (as the drawer's does, D106). */}
+      {popup ? (
+        <div className="canvas-veil" aria-hidden="true" onPointerDown={() => closePopup(false)} />
+      ) : null}
+      <div className="canvas-toolbar-float" data-testid="canvas-toolbar-float">
+        {readOnly ? null : (
+          // The mark tools (D079, D082). Each arms exactly the next drag,
+          // then disarms itself; pressing it again, or Escape, disarms it
+          // early. Shift-drag stays the pointer shortcut for a box.
+          <div className="canvas-tools" role="group" aria-label="Mark tools">
+            {MARK_TOOLS.map((tool) => (
+              <button
+                key={tool.id}
+                type="button"
+                className="tool-button"
+                aria-label={tool.label}
+                aria-pressed={armed === tool.id}
+                aria-keyshortcuts={tool.key.toUpperCase()}
+                onClick={() => toggleTool(tool.id)}
+              >
+                <CanvasIcon name={tool.id} />
+                <span className="tool-tip" aria-hidden="true">
+                  {tool.label}
+                  <kbd>{tool.key.toUpperCase()}</kbd>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="canvas-camera" role="group" aria-label="Camera modes and zoom">
           <button
-            key={candidate.id}
             type="button"
-            aria-pressed={mode === candidate.id}
-            onClick={() => applyMode(candidate.id)}
+            className="tool-button"
+            aria-label="Zoom out"
+            onClick={() => {
+              // A deliberate camera gesture like any other: ends the named
+              // mode's resize-follow so the exact camera survives resizes and
+              // plane switches. (Programmatic zoom carries no source event, so
+              // onMoveStart cannot see it.)
+              autoFollow.current = false;
+              void instance.zoomOut();
+            }}
           >
-            {candidate.label}
+            <CanvasIcon name="zoom-out" />
+            <span className="tool-tip" aria-hidden="true">
+              Zoom out
+            </span>
           </button>
-        ))}
-        <button
-          type="button"
-          aria-label="Zoom out"
-          onClick={() => {
-            // A deliberate camera gesture like any other: ends the named
-            // mode's resize-follow so the exact camera survives resizes and
-            // plane switches. (Programmatic zoom carries no source event, so
-            // onMoveStart cannot see it.)
-            autoFollow.current = false;
-            void instance.zoomOut();
-          }}
-        >
-          −
-        </button>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          onClick={() => {
-            autoFollow.current = false;
-            void instance.zoomIn();
-          }}
-        >
-          +
-        </button>
-        <ZoomReadout />
-      </p>
-      {readOnly ? null : (
-        // The mark tools (D079, D082). Each arms exactly the next drag, then
-        // disarms itself; pressing it again, or Escape, disarms it early.
-        // Shift-drag stays the pointer shortcut for a box.
-        <p className="capture-tools" role="group" aria-label="Mark tools">
-          {MARK_TOOLS.map((tool) => (
-            <button
-              key={tool.id}
-              type="button"
-              className="capture-draw-toggle"
-              aria-pressed={armed === tool.id}
-              aria-keyshortcuts={tool.key.toUpperCase()}
-              title={
-                tool.id === "rectangle"
-                  ? "The next drag draws a box (or hold Shift while dragging)"
-                  : tool.id === "circle"
-                    ? "The next drag draws a circle"
-                    : "The next drag draws an arrow, from the tail to the head"
-              }
-              onClick={() => toggleTool(tool.id)}
+          <button
+            ref={cameraToggleRef}
+            type="button"
+            className="tool-button zoom-menu-toggle"
+            aria-label="Zoom and fit"
+            aria-expanded={popup === "camera"}
+            aria-controls={`${menuIds}-camera`}
+            onClick={() => setPopup((current) => (current === "camera" ? null : "camera"))}
+          >
+            <ZoomReadout />
+            <CanvasIcon name="caret-down" size={14} />
+          </button>
+          <button
+            type="button"
+            className="tool-button"
+            aria-label="Zoom in"
+            onClick={() => {
+              autoFollow.current = false;
+              void instance.zoomIn();
+            }}
+          >
+            <CanvasIcon name="zoom-in" />
+            <span className="tool-tip" aria-hidden="true">
+              Zoom in
+            </span>
+          </button>
+          {popup === "camera" ? (
+            <div
+              ref={popupRef}
+              className="canvas-popup canvas-fit-menu"
+              id={`${menuIds}-camera`}
+              onKeyDown={onFitMenuKeyDown}
             >
-              {tool.label}
+              {CAMERA_MODES.map((candidate) => (
+                <button
+                  key={candidate.id}
+                  type="button"
+                  aria-pressed={mode === candidate.id}
+                  onClick={() => {
+                    applyMode(candidate.id);
+                    closePopup(true);
+                  }}
+                >
+                  {candidate.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        {help ? (
+          <div className="canvas-help">
+            <button
+              ref={helpToggleRef}
+              type="button"
+              className="tool-button"
+              aria-label="How the canvas works"
+              aria-expanded={popup === "help"}
+              aria-controls={`${menuIds}-help`}
+              onClick={() => setPopup((current) => (current === "help" ? null : "help"))}
+            >
+              <CanvasIcon name="help" />
             </button>
-          ))}
-        </p>
-      )}
+            {popup === "help" ? (
+              <div
+                ref={popupRef}
+                className="canvas-popup canvas-help-popup"
+                id={`${menuIds}-help`}
+                tabIndex={-1}
+              >
+                {help}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       <div
         className="capture-canvas"
         ref={wrapperRef}
@@ -2006,6 +2145,7 @@ export function CaptureCanvas({
   onStepPin,
   autoFocus = false,
   revealSelected,
+  help,
 }: {
   captureId: string;
   pageUrl: string;
@@ -2048,6 +2188,8 @@ export function CaptureCanvas({
   autoFocus?: boolean;
   /** Increments to center the selected mark (D078); see CaptureCanvasInner. */
   revealSelected?: number;
+  /** The toolbar's "?" popover content (D111); see CaptureCanvasInner. */
+  help?: ReactNode;
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -2086,6 +2228,7 @@ export function CaptureCanvas({
         onStepPin={onStepPin}
         autoFocus={autoFocus}
         revealSelected={revealSelected}
+        help={help}
       />
     </ReactFlowProvider>
   );

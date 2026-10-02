@@ -31,6 +31,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { cameraMode, expectModePressed } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -185,7 +186,7 @@ test("a drag pans and a click places exactly one draft at the clicked natural pi
   // persisted pins at the default pane center (the pins spec writes there),
   // and a click on a saved pin is selection, not placement — so pan a
   // pin-free aim into view first.
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   await panUntilNaturalVisible(page, await findClearAim(page, target.captureId, doc));
   aim = await placeablePoint(page, doc);
@@ -266,7 +267,7 @@ test("draft dragging preserves grab offset and clamps inclusively at the frame, 
   const doc = { width: target.width, height: target.height };
   const tracked = await trackWrites(page);
 
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   // Pan a pin-free aim to the pane center before zooming deep: the focal
   // zoom then keeps the placement target clear of any persisted pins.
@@ -383,7 +384,7 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   // Desktop: natural-size camera plus a draft, placed at a pin-free aim so
   // a persisted pin badge can never swallow the tap.
   await openPlane(page, desktop!);
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   await panUntilNaturalVisible(
     page,
@@ -400,10 +401,7 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expect(page.getByTestId("pin-composer")).toHaveCount(0);
   await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
-  await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectModePressed(page, "Entire page", "true");
   const pane = await visiblePane(page);
   await waitForZoom(page, expectedContainZoom(pane, { width: mobile!.width, height: mobile!.height }));
 
@@ -411,10 +409,7 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   // old draft did not follow it.
   await openPlane(page, desktop!);
   await waitForZoom(page, 1);
-  await expect(page.getByRole("button", { name: "Natural size" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectModePressed(page, "Natural size", "true");
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
 
@@ -530,7 +525,7 @@ test("touch: one-finger pan, focal pinch, tap placement, and grab-offset drag", 
   // pixel. Reset to the contain view first so the tap target is a
   // deterministic on-document point regardless of where the pinch settled —
   // and pick a pin-free aim, since a tap on a saved pin is selection.
-  await page.getByRole("button", { name: "Entire page" }).click();
+  await (await cameraMode(page, "Entire page")).click();
   await waitForZoom(page, expectedContainZoom(await visiblePane(page), doc));
   pane = await visiblePane(page);
   const tapCamera = await readCamera(page);

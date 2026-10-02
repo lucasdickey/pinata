@@ -40,9 +40,9 @@ import {
   circlesOf,
   contextQuery,
   markKindNoun,
-  markLabel,
   markOf,
   markPayload,
+  markTitle,
   pinsOf,
   rectanglesOf,
   withMark,
@@ -69,11 +69,13 @@ import {
 } from "../lib/pin-order";
 import type { ThreadAppendResponse, ThreadEntryView, ThreadListResponse } from "../lib/threads";
 import { useLiveRefresh } from "../lib/live-refresh";
+import { CanvasIcon } from "./canvas-icons";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
+import { ArchiveProjectControl } from "./archive-project";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
@@ -213,7 +215,11 @@ export function ProjectWorkspace({
   useEffect(() => {
     if (!railOpen) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setRailOpen(false);
+      if (event.key !== "Escape") return;
+      // The drawer's Escape is spent here: it must not also let go of the
+      // selected mark on the canvas behind it (D116).
+      event.stopPropagation();
+      setRailOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1169,14 +1175,15 @@ export function ProjectWorkspace({
   const selectedStepIndex = selectedPinId
     ? orderedPins.findIndex((pin) => pin.id === selectedPinId)
     : -1;
-  // The position line names the selected mark the way every list does
-  // (D078), then says where it falls in the project's order.
+  // The position line names the selected mark by its title (D078; the
+  // comment is on the canvas and in the panel, D111), then says where it
+  // falls in the project's order.
   const stepPosition =
     orderedPins.length === 0
       ? "No pins in this project"
       : selectedStepIndex === -1
         ? `${orderedPins.length} pin${orderedPins.length === 1 ? "" : "s"} in this project`
-        : `${markLabel(orderedPins[selectedStepIndex]!)} · ${selectedStepIndex + 1} of ${
+        : `${markTitle(orderedPins[selectedStepIndex]!)} · ${selectedStepIndex + 1} of ${
             orderedPins.length
           }`;
 
@@ -1322,7 +1329,7 @@ export function ProjectWorkspace({
   // ---- end live refresh --------------------------------------------------------
 
   return (
-    <div className="workspace">
+    <div className="workspace workspace-drawer">
       <div className="rail-dock">
         {railOpen ? null : (
           <button
@@ -1480,6 +1487,14 @@ export function ProjectWorkspace({
           <p className="project-feedback" data-testid="project-feedback">
             {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
           </p>
+          {/* Archive (D108, D110): leaves the project list; nothing else
+              about the project changes. */}
+          <ArchiveProjectControl
+            key={`archive-${activeProject.publicId}`}
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+            onArchived={onChanged}
+          />
           <FounderShareControl
             key={activeProject.publicId}
             publicId={activeProject.publicId}
@@ -1492,16 +1507,20 @@ export function ProjectWorkspace({
 
         {active ? (
           <>
-            {/* The canvas view's controls (D077): back to the overview, the
-                device toggle for this page, and stepping through every pin
-                in the project. */}
+            {/* The canvas view's controls (D077), one compact row since
+                D111: back to the overview, the device toggle, the page as a
+                quiet caption, and stepping through every pin in the
+                project. The verbs that used to follow moved into the
+                canvas toolbar's "?" popup. */}
             <div className="canvas-toolbar" data-testid="canvas-toolbar">
               <button
                 type="button"
                 className="back-to-overview"
+                aria-label="Back to overview"
                 onClick={() => showOverview(activeProject.projectId)}
               >
-                Back to overview
+                <CanvasIcon name="back" size={16} />
+                Overview
               </button>
               <DeviceToggle
                 pageUrl={active.page.normalizedUrl}
@@ -1511,38 +1530,45 @@ export function ProjectWorkspace({
                   openCapture(activeProject.projectId, active.page.id, variant)
                 }
               />
+              {/* Still the capture's heading, by the same name; the device
+                  half is for assistive tech only, since the toggle beside
+                  it already shows which device is open. */}
+              <h3 className="capture-caption" title={active.page.normalizedUrl}>
+                <span className="visually-hidden">{variantLabel(active.device.variant)} —</span>{" "}
+                {active.page.normalizedUrl}
+              </h3>
               <p className="pin-step" role="group" aria-label="Step through pins">
-                <button
-                  type="button"
-                  disabled={orderedPins.length === 0}
-                  onClick={() => stepPin(-1, false)}
-                >
-                  Previous pin
-                </button>
-                <button
-                  type="button"
-                  disabled={orderedPins.length === 0}
-                  onClick={() => stepPin(1, false)}
-                >
-                  Next pin
-                </button>
                 <span className="pin-step-position" data-testid="pin-step-position">
                   {stepPosition}
                 </span>
+                <button
+                  type="button"
+                  className="tool-button"
+                  aria-label="Previous pin"
+                  disabled={orderedPins.length === 0}
+                  onClick={() => stepPin(-1, false)}
+                >
+                  <CanvasIcon name="previous" />
+                  <span className="tool-tip tool-tip-below" aria-hidden="true">
+                    Previous pin
+                    <kbd>K</kbd>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="tool-button"
+                  aria-label="Next pin"
+                  disabled={orderedPins.length === 0}
+                  onClick={() => stepPin(1, false)}
+                >
+                  <CanvasIcon name="next" />
+                  <span className="tool-tip tool-tip-below" aria-hidden="true">
+                    Next pin
+                    <kbd>J</kbd>
+                  </span>
+                </button>
               </p>
-              {/* The verb strip (VAL-CANVAS-009, D078): what a click, a
-                  shift-drag, and a drag do, beside the controls they sit
-                  with. A paragraph, never a heading. */}
-              {selectedReady ? (
-                <p className="workspace-verbs" data-testid="workspace-verbs">
-                  drop a pin: click the page · draw a box, circle, or arrow: pick a tool, then
-                  drag · move: drag it · read: click a mark
-                </p>
-              ) : null}
             </div>
-            <h3>
-              {variantLabel(active.device.variant)} — {active.page.normalizedUrl}
-            </h3>
 
             {active.device.attempts.length > 1 ? (
               <ul className="capture-versions" aria-label="Capture versions">
@@ -1608,6 +1634,14 @@ export function ProjectWorkspace({
                   draftResetSignal={draftResetSignal}
                   onStepPin={stepPinByKey}
                   autoFocus={focusCanvasFor === selectedReady.id}
+                  help={
+                    // The verb strip (VAL-CANVAS-009, D078), behind the
+                    // toolbar's "?" since D111. A paragraph, never a heading.
+                    <p className="workspace-verbs" data-testid="workspace-verbs">
+                      drop a pin: click the page · draw a box, circle, or arrow: pick a tool,
+                      then drag · move: drag it · read: click a mark
+                    </p>
+                  }
                   composer={{
                     draftBody,
                     onDraftBodyChange: setDraftBody,

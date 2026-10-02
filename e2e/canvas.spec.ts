@@ -34,6 +34,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { cameraMode, expectModePressed } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -82,16 +83,13 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   const historyBefore = await page.evaluate(() => history.length);
 
   // Initial camera: the named entire-capture mode, pressed, all corners in.
-  await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectModePressed(page, "Entire page", "true");
   let pane = await visiblePane(page);
   await waitForZoom(page, expectedContainZoom(pane, doc));
   await expectEntireCaptureVisible(page, doc);
 
   // Fit width: the capture fills the pane horizontally, top edge visible.
-  await page.getByRole("button", { name: "Fit width" }).click();
+  await (await cameraMode(page, "Fit width")).click();
   const expectedWidthZoom = (pane.width - 2 * CANVAS_PADDING_PX) / doc.width;
   await waitForZoom(page, expectedWidthZoom);
   const widthCamera = await readCamera(page);
@@ -100,12 +98,12 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   expect(Math.abs(widthTopLeft.y - CANVAS_PADDING_PX)).toBeLessThanOrEqual(1);
 
   // Natural size: exactly 1:1.
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   expect((await readCamera(page)).zoom).toBe(1);
 
   // Back to the overview; all four corners visible again.
-  await page.getByRole("button", { name: "Entire page" }).click();
+  await (await cameraMode(page, "Entire page")).click();
   await waitForZoom(page, expectedContainZoom(pane, doc));
   await expectEntireCaptureVisible(page, doc);
 
@@ -165,7 +163,7 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   expect(atCorner.zoom).toBeCloseTo(camera.zoom, 6);
 
   // Returning to 1x restores image-relative targeting.
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   const natural = await readCamera(page);
   expect(natural.zoom).toBe(1);
@@ -212,16 +210,13 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
 
   // Take the camera somewhere else, then reload: the camera is local state,
   // so the capture reopens in the entire-in-view default.
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   expect((await readCamera(page)).zoom).toBe(1);
   await page.reload();
   await clickPlane(page, target!);
   await expect(page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Entire page" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expectModePressed(page, "Entire page", "true");
   const pane = await paneRect(page);
   await waitForZoom(page, expectedContainZoom(pane, doc));
   await expectEntireCaptureVisible(page, doc);

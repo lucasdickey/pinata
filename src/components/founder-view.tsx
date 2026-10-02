@@ -35,8 +35,9 @@ import type { AnnotationView, PinListResponse, PinStatusResponse } from "../lib/
 import {
   arrowsOf,
   circlesOf,
+  elementText,
   markKindNoun,
-  markLabel,
+  markTitle,
   pinsOf,
   rectanglesOf,
 } from "../lib/canvas/marks";
@@ -53,6 +54,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { variantLabel } from "./capture-panel";
 import type { AttemptView, WorkspaceProject } from "./project-workspace";
+import { PinBadge, PinRowContent, pinRowName } from "./pin-row";
 import { ThreadView, type ReplySendState, type ThreadStatus } from "./thread-view";
 
 type Phase =
@@ -661,9 +663,10 @@ export function FounderView({
               </h2>
               {/* Every mark on this capture, in number order, above the canvas
                   (D075): the founder's list of what is waiting for them. Each
-                  entry is the mark's name (D078: kind, number, comment, and
-                  element), its status, and an unread marker. Choosing an
-                  entry selects the mark everywhere and brings it into view. */}
+                  entry is its number badge, the comment, what it points at,
+                  its status, and an unread marker (D117); its name is still
+                  the mark's name (D078). Choosing an entry selects the mark
+                  everywhere and brings it into view. */}
               <section className="founder-pins" aria-label="Pins on this capture">
                 <h3 className="visually-hidden">Pins on this capture</h3>
                 {pinsState?.status === "loading" ? (
@@ -679,20 +682,17 @@ export function FounderView({
                   <ol className="founder-pin-list" data-testid="founder-pin-list">
                     {activePins.map((pin) => (
                       <li key={pin.id}>
+                        {/* The same row in parts as the editor's list
+                            (D113, D117), with every status shown. */}
                         <button
                           type="button"
+                          className="pin-row"
+                          aria-label={pinRowName(pin, "always")}
                           aria-current={pin.id === selectedPinId ? "true" : undefined}
                           data-status={pin.status}
                           onClick={() => chooseFromList(pin)}
                         >
-                          {markLabel(pin)}
-                          <span className="pin-status">
-                            {" "}
-                            · {PIN_STATUS_LABELS[pin.status] ?? pin.status}
-                          </span>
-                          {pin.unreadReplies > 0 ? (
-                            <span className="pin-unread"> · {pin.unreadReplies} new</span>
-                          ) : null}
+                          <PinRowContent pin={pin} status="always" />
                         </button>
                       </li>
                     ))}
@@ -727,16 +727,23 @@ export function FounderView({
                   <h4>Selection</h4>
                   {selectedPin ? (
                     <div className="panel-pin" data-testid="panel-pin">
-                      {/* The mark's name (D078), its status, and the thread.
-                          No coordinates, no element internals: the name
-                          already says what the mark points at. */}
+                      {/* The mark's kind and number with its badge, what it
+                          points at in full, its status, and the thread, which
+                          opens with the whole comment (D117). No coordinates,
+                          no element internals (D078). */}
                       <p
                         className="panel-mark-name"
                         data-testid="panel-mark-name"
                         data-kind={selectedPin.kind}
                       >
-                        <strong>{markLabel(selectedPin)}</strong>
+                        <PinBadge pin={selectedPin} />
+                        <strong>{markTitle(selectedPin)}</strong>
                       </p>
+                      {elementText(selectedPin.elementSnapshot) ? (
+                        <p className="panel-snapshot" data-testid="panel-element">
+                          Points at: “{elementText(selectedPin.elementSnapshot)}”
+                        </p>
+                      ) : null}
                       <p
                         className="panel-status"
                         data-testid="panel-status"

@@ -4822,8 +4822,520 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D108",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Archive a project so it leaves the project list, as a separate column rather than a delete",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Every project the editor has ever made sits in the left-hand drawer, so the list grows with each friend's site and the ones still in play get harder to find. There was no way to put a finished project away short of deleting it, and the schema's deletedAt is a tombstone that every read treats as gone.",
+      "decision": "Projects gain a nullable archived_at column (migration 0007). POST /api/projects/[publicId]/archive stamps it, behind the standard editor mutation boundary (same origin, session, CSRF proof); archiving twice keeps the first timestamp, and a missing or deleted project is the generic 404. The editor's project list (GET /api/projects, listProjectHierarchies) leaves archived projects out. Nothing else changes: the single-project read, pages, captures, pins, threads, and the founder link all behave as before.",
+      "alternatives": [
+        {
+          "option": "Reuse deletedAt",
+          "why_not": "deletedAt is a tombstone that every read, the founder link, and capture assets treat as gone; an archive is meant to come back (D109), and conflating the two would make a later unarchive indistinguishable from undeleting."
+        },
+        {
+          "option": "Hide projects in the browser only",
+          "why_not": "The list would differ per browser and per device, and the next sign-in elsewhere would bring the clutter back."
+        },
+        {
+          "option": "A status enum on projects (active / archived)",
+          "why_not": "A timestamp answers the same question and also records when, in the same shape as deletedAt and shareRevokedAt."
+        }
+      ],
+      "rationale": "One nullable column and one filter is the smallest change that takes a project out of the drawer while keeping it whole, so undoing it later is a matter of clearing that column.",
+      "consequences": [
+        "drizzle/0007_project_archive.sql adds projects.archived_at; it must be applied to the deployed database (npm run db:migrate) before the archive route is used there.",
+        "Stale-capture recovery runs off the project list, so an archived project's stuck captures wait until it is unarchived.",
+        "Archiving the last project leaves the existing empty-list message, 'No projects yet.'",
+        "test/server/project-archive.test.ts covers the store function, the list filter, the founder link, and the route boundary; test/archive-project.test.tsx covers the control."
+      ],
+      "transcript": {
+        "request": "we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/archive.ts",
+          "caption": "The archive store function."
+        },
+        {
+          "type": "file",
+          "path": "app/api/projects/[publicId]/archive/route.ts",
+          "caption": "The editor-only archive route."
+        },
+        {
+          "type": "file",
+          "path": "drizzle/0007_project_archive.sql",
+          "caption": "The migration adding projects.archived_at."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D109",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Defer a way to unarchive a project",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "Archiving (D108) takes a project out of the list. Without a way back, an archive made by mistake can only be undone in the database.",
+      "decision": "Postponed by the owner in the same request that asked for archiving. The data is shaped for it: unarchiving is clearing projects.archived_at, and DELETE on /api/projects/[publicId]/archive is the natural route for it (it answers 405 until then). The interface needs a place to list archived projects to choose from.",
+      "alternatives": [
+        {
+          "option": "Build unarchive alongside archive",
+          "why_not": "The owner asked to save it for later; the immediate problem is a cluttered drawer."
+        }
+      ],
+      "rationale": "Recorded so the open question stays visible, and so the archive control's confirmation wording (nothing is lost) has a record to point at.",
+      "consequences": [
+        "Until this is answered, the archive control asks once before acting, because there is no button to undo it.",
+        "Answering it means a new record that supersedes this one, not an edit to it."
+      ],
+      "transcript": {
+        "request": "we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D110",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Archive lives in the selected project's header, and an archived project's founder link keeps working",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Two choices inside D108: where the Archive control goes, and whether archiving should also end the founder's access.",
+      "decision": "An Archive button sits at the right end of the selected project's title row, beside the founder-link control, with the same inline Confirm / Cancel step that Rotate and Revoke use. Its confirmation says the project leaves the list and that pins, threads, and the founder link stay as they are. Archiving does not touch the founder capability: a founder holding the link can still open the project and reply.",
+      "alternatives": [
+        {
+          "option": "An Archive button inside each project's entry in the drawer",
+          "why_not": "Puts a destructive-looking control in the list it is meant to tidy, and next to the Overview and page buttons a reader clicks most."
+        },
+        {
+          "option": "Archiving also revokes the founder link",
+          "why_not": "Revoke already exists as its own action; folding it into archive would make a tidy-up end a founder's access, and an unarchive (D109) could not bring the same link back."
+        }
+      ],
+      "rationale": "The header is where the other project-level actions already live, and keeping archive to the editor's own list makes it safe to do without thinking about who else holds a link.",
+      "consequences": [
+        "src/components/archive-project.tsx is the control; the workspace re-reads the list after an archive and falls back to the first remaining project.",
+        "To also end a founder's access, the editor uses Revoke before or after archiving."
+      ],
+      "transcript": {
+        "proposal": "Where should the Archive button live? Project header (Recommended): next to \"Share with founder\" on the open project — or inside each rail entry. What happens to an archived project's founder link? Keep it working (Recommended): archive only tidies your nav — or turn it off too.",
+        "approval": "\"Where should the Archive button live?\"=\"Project header (Recommended)\", \"What happens to an archived project's founder link?\"=\"Keep it working (Recommended)\""
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/archive-project.tsx",
+          "caption": "The Archive control with its inline confirmation."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D111",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Canvas controls float over the canvas as one compact toolbar",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Above the canvas sat a full-width hint line, a \"Desktop — URL\" heading, and two rows of text buttons (three fit modes, zoom out, zoom in, the zoom readout, then three draw tools), plus a row of text buttons for the overview and pin stepping. Together they took about 230px of height before the screenshot began. The owner also remembered an open request to move the canvas controls into overlays like Figma's or Paper's; no record of it existed, so this record is that request.",
+      "decision": "One floating toolbar sits over the bottom centre of the canvas: icon buttons for box, circle and arrow; zoom out; a \"19% ▾\" button that opens a small popup with Entire page, Fit width and Natural size; zoom in; and a \"?\" that opens the verb line which used to sit above the canvas. Icon buttons show their name and key in a tip on hover and keyboard focus, are solid ink while armed (D102), and take the shared blue focus ring. The row above the canvas becomes one compact line: a ‹ Overview button, the device toggle, the page address as a quiet caption (still the capture's h3, by the same name), and up/down buttons with \"Pin 2 · 2 of 4\". The canvas takes the height back (100dvh − 16rem).",
+      "alternatives": [
+        {
+          "option": "Keep the rows and shrink the buttons",
+          "why_not": "Saves little height and keeps the hint and heading lines the owner called space-consuming."
+        },
+        {
+          "option": "A vertical tool rail down the left edge of the canvas",
+          "why_not": "Would sit next to the project drawer's button (D106); one bottom pill keeps every canvas control in one place."
+        },
+        {
+          "option": "A pin (or select) tool that is pressed when nothing else is armed",
+          "why_not": "The tools arm one drag and then disarm (D074, D079); a standing pin tool would read as a mode the canvas does not have. A click on the page still drops a pin, and \"?\" says so."
+        }
+      ],
+      "rationale": "The owner asked for modern patterns: icons, clear interactive states, and dropdowns. Fit modes are used rarely, so they move behind the zoom readout as in Figma; the draw tools and zoom stay one click away. Every button keeps its accessible name as aria-label, so assistive tech and the tests address the same controls as before. The toolbar sits outside the canvas region's pointer handlers, so a press on it never drops a pin, and an open popup puts a clear veil over the canvas so an outside click closes it without reaching the canvas (as D106's drawer does). No dependency was added: the icons are inline SVG in the style of the drawer's chevron.",
+      "consequences": [
+        "The canvas starts about 225px higher on a laptop screen, and the toolbar is always in view above the fixed footer.",
+        "Escape closes an open popup before anything else sees the key.",
+        "Unit and end-to-end tests reach a fit mode through small helpers that open the popup first (test/helpers/camera.ts, e2e/camera.ts), as openRail does for D106.",
+        "The founder view's read-only canvas gets the same pill with zoom only; its own hint is unchanged.",
+        "Phone width: the control row wraps to two short lines and the pill fits inside the canvas."
+      ],
+      "transcript": {
+        "request": "this whole section is WAY toos pace consumptive. use modern UX/UI best practices to clean this up. consider icongraphy, interactive states, drop-downs/etc."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The floating toolbar."
+        },
+        {
+          "type": "file",
+          "path": "src/components/canvas-icons.tsx",
+          "caption": "The toolbar icons."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-light.png",
+          "caption": "Before: rows of controls above the canvas (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-light.png",
+          "caption": "After: one control row and the floating toolbar (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-dark.png",
+          "caption": "Before (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-dark.png",
+          "caption": "After (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-zoom-menu-light.png",
+          "caption": "The fit modes in the zoom popup."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-tooltip-dark.png",
+          "caption": "A tool's tip with its key (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-phone.png",
+          "caption": "Before at phone width."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-phone.png",
+          "caption": "After at phone width."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D112",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The capture panel collapses to a strip, and data keeps writing",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The right-hand panel (Selection, pins, Capture, Details) always took 17rem beside the canvas.",
+      "decision": "A toggle in the panel's top-right corner collapses it to a thin strip holding the toggle; the canvas widens to fill the space (this one reflows on purpose, unlike D106's drawer). Collapsing only hides the panel's content with the hidden attribute; the component stays mounted. The choice is remembered per browser in localStorage, read after mount, with every access in try/catch. A mark selected while collapsed shows as its number badge on the strip instead of forcing the panel open.",
+      "alternatives": [
+        {
+          "option": "Open the panel automatically when a mark is selected",
+          "why_not": "Undoes the owner's choice on every click; the badge says what is selected without taking the space back."
+        },
+        {
+          "option": "Unmount the panel while collapsed",
+          "why_not": "\"Even when collapsed, data will write\": hiding must not change what the workspace does, so the panel stays mounted."
+        }
+      ],
+      "rationale": "The owner wants more room for the canvas and asked that collapsing never stop writes. All writes, seen-marking and live refresh live in the workspace, not the panel, and a test drops and saves a pin while the panel is collapsed.",
+      "consequences": [
+        "Collapsed state survives reloads in the same browser; private windows and blocked storage simply open the panel.",
+        "On narrow screens the panel still stacks below the canvas; collapsed, it is one short row."
+      ],
+      "transcript": {
+        "request": "lets make this collapsable, and when collapsed the canvas gets more viewport space. even when collapsed, data will write."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The collapsible panel."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D112-collapsed-light.png",
+          "caption": "Collapsed: the strip with the selected pin's badge, and the wider canvas (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D112-collapsed-dark.png",
+          "caption": "Collapsed (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D113",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Pin list rows in parts, and one spacing rhythm in the panel",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Each pin in the panel list read as one run-on line (\"Pin 1 · “comment” · element text…\") in the same color, and the last pin sat flush against the \"Capture\" heading.",
+      "decision": "Each row is in parts: a number badge in the accent color matching the canvas marker (quiet grey once resolved, squared for a box), the comment as the main line clamped to two lines, and the element as a smaller, dimmer line clamped to one. A resolved row says so, and unread replies show as a small \"2 new\" pill (D075). Rows are split by a hairline; hover and the selected fill are unchanged. Every heading in the panel gets the same space above it. The two .pin-list rule blocks are merged into one.",
+      "alternatives": [
+        {
+          "option": "Keep one line and only change colors",
+          "why_not": "Still a wall of text: the number, comment and element need separate lines to scan."
+        }
+      ],
+      "rationale": "The badge ties a row to its marker on the canvas at a glance; the comment is what the editor reads first. Each row's accessible name stays the mark's full label (D078), so screen readers and tests hear the same thing as before.",
+      "consequences": [
+        "Row text is clamped by CSS only; the full comment is in the selection view and the table (D115)."
+      ],
+      "transcript": {
+        "request": "let's make the pin line items a little more diffentiated. it's just a wall of white text.",
+        "follow_up": "also, the spacing between teh pins and \"capture\" seems off."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "The .pin-list and .pin-row rules."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D113-list-light.png",
+          "caption": "The list in parts (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D113-list-dark.png",
+          "caption": "The list in parts (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D114",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The selected pin's actions fit on one line",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "In the 17rem panel, \"Edit comment\", \"Delete pin\" and \"Resolve pin\" each wrapped onto two lines and the last button spilled past the panel's edge.",
+      "decision": "The buttons show short words, \"Resolve\" (or \"Reopen\"), \"Edit\" and \"Delete\", and never wrap a label; a narrow panel wraps the row instead. Each keeps its full name (\"Resolve pin\", \"Edit comment\", \"Delete box\") as its accessible name, which begins with the visible word. Resolve comes first, in the solid primary style, as the usual next step; the edit and delete confirmations follow the same pattern.",
+      "alternatives": [
+        {
+          "option": "Icon-only actions",
+          "why_not": "Delete and resolve are consequential; a word is clearer than an icon here."
+        }
+      ],
+      "rationale": "The owner pointed at the wrapped buttons in a screenshot. Short labels fit the panel at its width in both themes without widening it.",
+      "consequences": [
+        "While a change is saving, the button shows and announces \"Saving…\"."
+      ],
+      "transcript": {
+        "request": "issue here ... see buttons"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The action row."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-light.png",
+          "caption": "The action row on one line, in the panel at right."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D115",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Pin text is never cut in the table, the Markdown, or the selection",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The pin table's Pin column, the copied Markdown's headings, and the panel's selection title all used the mark's short name (D078), which cuts the comment at 60 characters and the element at 40 with an ellipsis. The full comment was in the table, but in the last column, off the side of a wide table.",
+      "decision": "The table's Pin cell shows only the number badge and \"Pin 1\", and the whole comment moves to the column right after it (Page and Device stay first, D077). The Markdown heading is just \"## Pin 1\"; the element is on its own detail line and the comment is quoted in full under the details, with its replies after it (D097). The panel's selection title is the badge and \"Pin 2\"; the comment and element follow in full beneath it, and the pin-step line reads \"Pin 2 · 2 of 4\".",
+      "alternatives": [
+        {
+          "option": "Raise the excerpt limits",
+          "why_not": "Any limit still cuts some comment; the full text is already available, so show that instead."
+        },
+        {
+          "option": "Put the full comment in the Markdown heading",
+          "why_not": "A comment can run several lines, and a heading cannot."
+        }
+      ],
+      "rationale": "The owner saw truncated pin text in the view and in the Markdown and called it out. The short name stays the accessible name of the list and table buttons, where brevity helps, but nothing visible or copied is cut.",
+      "consequences": [
+        "Pasted Markdown headings are shorter; the comment is still verbatim in the quote below them.",
+        "The founder view, left with the short name here, is brought in line by D117."
+      ],
+      "transcript": {
+        "request": "the pin copy is truncated in the view and in the markdown"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/pin-table.tsx",
+          "caption": "The table's Pin and Comment columns."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/pin-export.ts",
+          "caption": "The Markdown heading."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D115-table-before-dark.png",
+          "caption": "Before: the Pin column repeats a cut-down comment."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D115-table-after-dark.png",
+          "caption": "After: \"Pin 1\" and the whole comment beside it."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D116",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Letting go of a selected pin: a × in the panel, and Escape",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Once a pin was selected there was no visible way to deselect it. Clicking empty canvas drops a new pin, and the only way out was clicking the same pin again in the list.",
+      "decision": "The panel's Selection heading carries a × \"Clear selection\" button while something is selected. Escape also lets go of the selection, as the last step after its existing order (a draw in progress, an armed tool, an open draft), and never while typing. An Escape that closes an open toolbar popup or the project drawer is used up there and does not also deselect.",
+      "alternatives": [
+        {
+          "option": "Deselect on a click on empty canvas",
+          "why_not": "A click on the page drops a pin (D074); making it deselect instead would change the main gesture."
+        }
+      ],
+      "rationale": "The owner could not find how to dismiss a selection. A visible control where the selection is shown, plus the key people already try, covers both pointer and keyboard.",
+      "consequences": [
+        "The panel's keyboard list says \"Escape cancels, then lets go of the selected mark\".",
+        "Letting go is not a write."
+      ],
+      "transcript": {
+        "request": "i also cna't figure out how to dismiss the focus on a single pin"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The Escape order."
+        },
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The Clear selection button."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D117",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The founder view shows pin text whole, and its page list gets its column back",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The founder's pin list and selection title still used the mark's short name (D078), which cuts the comment and the element with an ellipsis (left as a known gap by D115). Checking the founder page also showed its page list crushed into a 2.25rem column: D106 changed the shared .workspace grid for the editor's drawer toggle, and the founder page uses the same grid with a real list in that column.",
+      "decision": "The founder's list uses the same rows in parts as the editor's (D113), from one shared component, showing every status (Open, Replied, Resolved) since the founder acts on Open. The founder's selection title is the badge and \"Pin 2\", with \"Points at: “…”\" giving the element's text in full; the comment opens the thread below as before. The 2.25rem drawer strip moves to a .workspace-drawer modifier the editor alone uses, and .workspace returns to its 16–22rem first column for the founder.",
+      "alternatives": [
+        {
+          "option": "Show the founder only the title, with no element line",
+          "why_not": "The short name was the founder's one hint at what a mark points at; the full text keeps it without internals (no tag, no path)."
+        }
+      ],
+      "rationale": "The owner asked for the founder view to match. One shared row component keeps the two lists from drifting apart. The grid regression came from D106 and was live in production; scoping the drawer grid to the editor restores the founder layout without touching the editor's.",
+      "consequences": [
+        "Each founder row's accessible name is unchanged (the short name and its status), so assistive tech and the tests address the same entries.",
+        "The list's element line uses the element's full text and is clipped by CSS only; the 40-character cut no longer applies anywhere a row shows it."
+      ],
+      "transcript": {
+        "request": "yes, watch it and fix the founder view too"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/pin-row.tsx",
+          "caption": "The shared row."
+        },
+        {
+          "type": "file",
+          "path": "src/components/founder-view.tsx",
+          "caption": "The founder list and selection."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D117-founder-light.png",
+          "caption": "The founder view: rows in parts, the page list in its column, and the selection title (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D117-founder-dark.png",
+          "caption": "The founder view (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D118",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "The owner invited using Vercel's design library and its interactive element patterns where they help (\"if there's anything to be gained from using vercel's design library and interactive element patterns feel free\"). The floating toolbar's popups (D111) left focus on their button, so a keyboard user had to Tab around, and focus fell to the page when a popup closed. Tooltips appeared instantly on hover, so sliding along the toolbar flashed every tip.",
+      "decision": "Adopt three Geist patterns without adding a dependency: the fit-mode popup behaves like a menu (focus moves to the pressed mode on open; arrow keys, Home and End move between modes; Escape or a choice returns focus to the button that opened it, and an outside press closes it without moving focus), and the help popup takes focus on open and returns it on Escape; tooltips show after a 400ms hover pause but at once on keyboard focus; shortcuts in tooltips are drawn as small key caps, as Geist's Kbd does.",
+      "alternatives": [
+        {
+          "option": "Add Geist's React components",
+          "why_not": "New dependencies are blocked by scripts/lib/approved-deps.mjs, and the components would bring their own styling alongside the Paper direction (D102)."
+        },
+        {
+          "option": "Switch the type to the Geist font",
+          "why_not": "The Inter type is part of the Paper direction the owner chose (D102); a font change is a design decision for the owner, not a pattern."
+        }
+      ],
+      "rationale": "These are the patterns that change how the controls feel in use, especially from the keyboard, and they fit in a few dozen lines of the existing component and stylesheet. The rest of Geist's value is its visual language, which the owner already set differently.",
+      "consequences": [
+        "The fit modes stay plain buttons with aria-pressed (not ARIA menu items), so their names and states are unchanged for tests and assistive tech.",
+        "Tooltip delay is CSS only; the tip fades rather than moves, so reduced-motion settings are unaffected."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "Popup focus handling and arrow keys."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D118-tooltip-light.png",
+          "caption": "A tooltip with its key cap."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-09-30",
-  "source_hash": "1afe0a0a722b"
+  "as_of": "2026-10-02",
+  "source_hash": "15d2a4edb25d"
 };

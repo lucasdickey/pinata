@@ -39,6 +39,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { cameraMode } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -241,7 +242,7 @@ async function openDesktopPlane(page: Page): Promise<ReadyTarget> {
 /** Aim a fresh bottom-band point into view at 1x and return it. */
 async function aimBottomBand(page: Page, target: ReadyTarget): Promise<{ x: number; y: number }> {
   const doc = { width: target.width, height: target.height };
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   const aim = await findClearAim(page, target.captureId, doc, { from: 0.88, to: 0.97 });
   await panUntilNaturalVisible(page, aim);
@@ -743,7 +744,7 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
   // The panel names the box by its comment (D078) and keeps the bounds
   // behind Details; delete is the same two-step revisioned write.
   await page.getByRole("button", { name: new RegExp(`^Box ${number} · “`) }).click();
-  await expect(page.getByTestId("panel-mark-name")).toContainText(`Box ${number} · “`);
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Box ${number}`);
   const details = page.getByTestId("panel-details");
   await expect(details).not.toHaveAttribute("open", /.*/);
   await details.locator("summary").click();
@@ -908,7 +909,7 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   // The panel names the circle by its comment (D078) and keeps its center
   // and width behind Details; delete is the same two-step revisioned write.
   await page.getByRole("button", { name: new RegExp(`^Circle ${number} · “`) }).click();
-  await expect(page.getByTestId("panel-mark-name")).toContainText(`Circle ${number} · “`);
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Circle ${number}`);
   const details = page.getByTestId("panel-details");
   await details.locator("summary").click();
   await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "circle");
@@ -1100,7 +1101,7 @@ test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and 
   // The panel names the arrow by its comment (D078) and keeps both points
   // behind Details; delete is the same two-step revisioned write.
   await page.getByRole("button", { name: new RegExp(`^Arrow ${number} · “`) }).click();
-  await expect(page.getByTestId("panel-mark-name")).toContainText(`Arrow ${number} · “`);
+  await expect(page.getByTestId("panel-mark-name")).toContainText(`Arrow ${number}`);
   const details = page.getByTestId("panel-details");
   await details.locator("summary").click();
   await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "arrow");

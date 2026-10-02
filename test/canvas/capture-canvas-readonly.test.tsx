@@ -11,6 +11,7 @@ import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { CaptureCanvas } from "../../src/components/capture-canvas";
 import { installReactFlowMocks } from "../helpers/react-flow";
+import { cameraMode } from "../helpers/camera";
 
 installReactFlowMocks();
 
@@ -59,7 +60,7 @@ describe("readOnly canvas", () => {
   test("renders only camera controls and marks the region read-only", () => {
     render(<CaptureCanvas {...props} readOnly pins={pins} />);
     expect(within(stage()).getByRole("group", { name: "Camera modes and zoom" })).toBeInTheDocument();
-    expect(within(stage()).getByRole("button", { name: "Entire page" })).toBeInTheDocument();
+    expect(cameraMode(stage(), "Entire page")).toBeInTheDocument();
     expect(within(stage()).getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
     // No editing tool of any kind: no second toolbar, no composer.
     expect(within(stage()).queryByRole("group", { name: "Canvas tools" })).toBeNull();

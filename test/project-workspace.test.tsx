@@ -22,6 +22,7 @@ import {
 import { MIN_ARROW_LENGTH_PX, MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
 import { openRail } from "./helpers/rail";
+import { cameraMode, modePressed, waitForMode } from "./helpers/camera";
 
 installReactFlowMocks();
 
@@ -398,62 +399,48 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     // User-directed 2026-09-09: "it should be presented such that the entire
     // page is in view". Contain is the pressed default; width-fit and
     // natural-size remain reachable named modes.
-    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(within(detail()).getByRole("button", { name: "Fit width" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(modePressed(detail(), "Entire page")).toBe("true");
+    expect(modePressed(detail(), "Fit width")).toBe("false");
+    expect(modePressed(detail(), "Natural size")).toBe("false");
   });
 
   test("each named mode is reachable and exactly one is pressed", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    const entire = within(detail()).getByRole("button", { name: "Entire page" });
-    const width = within(detail()).getByRole("button", { name: "Fit width" });
-    const natural = within(detail()).getByRole("button", { name: "Natural size" });
+    // The modes live in the zoom popup (D111), which closes after a choice,
+    // so each one is looked up afresh.
+    const entire = () => cameraMode(detail(), "Entire page");
+    const width = () => cameraMode(detail(), "Fit width");
+    const natural = () => cameraMode(detail(), "Natural size");
 
-    await user.click(width);
-    expect(width).toHaveAttribute("aria-pressed", "true");
-    expect(entire).toHaveAttribute("aria-pressed", "false");
-    expect(natural).toHaveAttribute("aria-pressed", "false");
+    await user.click(width());
+    expect(within(detail()).queryByRole("button", { name: "Fit width" })).toBeNull();
+    expect(width()).toHaveAttribute("aria-pressed", "true");
+    expect(entire()).toHaveAttribute("aria-pressed", "false");
+    expect(natural()).toHaveAttribute("aria-pressed", "false");
 
-    await user.click(natural);
-    expect(natural).toHaveAttribute("aria-pressed", "true");
-    expect(width).toHaveAttribute("aria-pressed", "false");
+    await user.click(natural());
+    expect(natural()).toHaveAttribute("aria-pressed", "true");
+    expect(width()).toHaveAttribute("aria-pressed", "false");
 
-    await user.click(entire);
-    expect(entire).toHaveAttribute("aria-pressed", "true");
-    expect(natural).toHaveAttribute("aria-pressed", "false");
+    await user.click(entire());
+    expect(entire()).toHaveAttribute("aria-pressed", "true");
+    expect(natural()).toHaveAttribute("aria-pressed", "false");
   });
 
   test("changing the selected capture resets the camera to entire-in-view", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
-    expect(
-      within(detail()).getByRole("button", { name: "Natural size" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    await user.click(cameraMode(detail(), "Natural size"));
+    expect(modePressed(detail(), "Natural size")).toBe("true");
 
     await user.click(
       deviceButton("Mobile capture of https://chickpea.co/"),
     );
-    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(modePressed(detail(), "Entire page")).toBe("true");
+    expect(modePressed(detail(), "Natural size")).toBe("false");
 
     // Switching versions of the same device resets too.
     const mixed = project();
@@ -464,13 +451,10 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     cleanup();
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
     openHome();
-    await user.click(within(detail()).getByRole("button", { name: "Fit width" }));
+    await user.click(cameraMode(detail(), "Fit width"));
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     await user.click(within(versions).getByRole("button", { name: /Version 1 — Ready/ }));
-    expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(modePressed(detail(), "Entire page")).toBe("true");
   });
 
   test("zoom controls and a live zoom readout sit with the mode buttons", () => {
@@ -481,11 +465,17 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("a short verb strip beside the controls names the four verbs (VAL-CANVAS-009, D074, D078)", () => {
+  test("a short verb strip behind the toolbar's ? names the four verbs (VAL-CANVAS-009, D074, D078, D111)", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
     // Plain words, no modes, no jargon: the page teaches the whole workflow
     // in a handful of words, and there is no toggle anywhere to find first.
+    // Since D111 the words wait behind "?" instead of taking a line.
+    expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
+    const help = within(detail()).getByRole("button", { name: "How the canvas works" });
+    expect(help).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(help);
+    expect(help).toHaveAttribute("aria-expanded", "true");
     const strip = within(detail()).getByTestId("workspace-verbs");
     expect(strip.tagName.toLowerCase()).toBe("p");
     expect(strip).toHaveTextContent(
@@ -497,10 +487,13 @@ describe("camera modes (VAL-CANVAS-002)", () => {
       expect(lower).not.toContain(jargon);
     }
     expect(within(detail()).queryByRole("button", { name: /place pin|navigate/i })).toBeNull();
-    // Beside the canvas controls, in their toolbar, not a paragraph below the stage.
-    expect(strip.closest('[data-testid="canvas-toolbar"]')).not.toBeNull();
+    // In the canvas's own floating toolbar, not a paragraph below the stage.
+    expect(strip.closest('[data-testid="canvas-toolbar-float"]')).not.toBeNull();
     expect(detail().querySelector(".workspace-hint")).toBeNull();
     expect(within(detail()).queryByRole("heading", { name: /drop a pin/i })).toBeNull();
+    // Escape puts it away again.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
   });
 
   test("the verb strip is not shown for a capture that cannot be pinned", async () => {
@@ -509,39 +502,27 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     openHome();
     await openPricingMobile(user);
     expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
+    expect(within(detail()).queryByRole("button", { name: "How the canvas works" })).toBeNull();
   });
 
   test("each plane keeps its own camera for the session", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
-    expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    await user.click(cameraMode(detail(), "Natural size"));
+    expect(modePressed(detail(), "Natural size")).toBe("true");
 
     // An unvisited plane still opens in the entire-capture initial camera.
     await user.click(
       deviceButton("Mobile capture of https://chickpea.co/"),
     );
-    await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(detail(), "Entire page");
 
     // Returning to the first plane restores its own camera, not the other's.
     await user.click(
       deviceButton("Desktop capture of https://chickpea.co/"),
     );
-    await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(detail(), "Natural size");
   });
 });
 
@@ -1153,6 +1134,61 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(within(detail()).getByTestId("panel-snapshot")).toHaveTextContent(/Starter plan/);
   });
 
+  test("a pin dropped while the panel is collapsed still saves (D112)", async () => {
+    const user = userEvent.setup();
+    const { writes } = stubAnnotations();
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+    // "Even when collapsed, data will write": hiding the panel changes
+    // nothing about the workspace behind it.
+    await user.click(within(sidePanel()).getByRole("button", { name: "Hide details panel" }));
+    expect(sidePanel()).toHaveAttribute("data-collapsed", "true");
+    await placeDraft();
+    await settleCandidates();
+    await user.type(within(composer()).getByLabelText("Comment"), "Saved behind the strip.");
+    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]!.method).toBe("POST");
+    expect(writes[0]!.body.body).toBe("Saved behind the strip.");
+    await noComposer();
+    // Still collapsed; the new pin is waiting in the list when it opens.
+    expect(sidePanel()).toHaveAttribute("data-collapsed", "true");
+    await user.click(within(sidePanel()).getByRole("button", { name: "Show details panel" }));
+    await waitFor(() =>
+      expect(
+        within(sidePanel()).getByRole("button", { name: /^Pin 1 · “Saved behind the strip\.”/ }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  test("Escape lets go of the selected pin, and so does Clear selection (D116)", async () => {
+    const user = userEvent.setup();
+    stubAnnotations([savedPin]);
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    await settleAnnotations();
+    const row = () => within(sidePanel()).getByRole("button", { name: /^Pin 1 ·/ });
+    await waitFor(() => expect(row()).toBeInTheDocument());
+
+    await user.click(row());
+    expect(row()).toHaveAttribute("aria-current", "true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(row()).not.toHaveAttribute("aria-current"));
+    expect(within(sidePanel()).getByText("Nothing selected.")).toBeInTheDocument();
+
+    await user.click(row());
+    await user.click(within(sidePanel()).getByRole("button", { name: "Clear selection" }));
+    expect(row()).not.toHaveAttribute("aria-current");
+    // Letting go is not a write.
+    expect(
+      fetchMock.mock.calls.some(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+      ),
+    ).toBe(false);
+  });
+
   test("No element overrides the pre-selected candidate with one click", async () => {
     const user = userEvent.setup();
     const { writes } = stubAnnotations([], [candidateElement]);
@@ -1494,7 +1530,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
         "Another session rewrote this.",
       ),
     );
-    expect(within(detail()).queryByLabelText("Edit comment")).toBeNull();
+    expect(within(detail()).queryByRole("textbox", { name: "Edit comment" })).toBeNull();
   });
 
   test("deleting a saved pin is a two-step revisioned DELETE and the pin leaves the list", async () => {
@@ -1764,8 +1800,9 @@ describe("rectangle drafts (D079)", () => {
     expect(
       within(list).getByRole("button", { name: /^Box 1 · “This whole card needs more air.”/ }),
     ).toBeInTheDocument();
-    expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1 · “This whole card");
-    // The verb strip names the gesture.
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1This whole card");
+    // The verb strip, behind the toolbar's "?" (D111), names the gesture.
+    fireEvent.click(within(detail()).getByRole("button", { name: "How the canvas works" }));
     expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
       "draw a box, circle, or arrow: pick a tool, then drag",
     );
@@ -1963,7 +2000,7 @@ describe("circle drafts (D082)", () => {
     expect(
       within(list).getByRole("button", { name: /^Circle 1 · “Draw the eye to this badge.”/ }),
     ).toBeInTheDocument();
-    expect(within(detail()).getByRole("table")).toHaveTextContent("Circle 1 · “Draw the eye");
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Circle 1Draw the eye");
     // The tool disarmed itself after the one gesture it armed.
     expect(within(detail()).getByRole("button", { name: "Draw a circle" })).toHaveAttribute(
       "aria-pressed",
@@ -2072,7 +2109,7 @@ describe("arrow drafts (D083)", () => {
     expect(
       within(list).getByRole("button", { name: /^Arrow 1 · “Move this up into the header.”/ }),
     ).toBeInTheDocument();
-    expect(within(detail()).getByRole("table")).toHaveTextContent("Arrow 1 · “Move this up");
+    expect(within(detail()).getByRole("table")).toHaveTextContent("Arrow 1Move this up");
     expect(within(detail()).getByRole("button", { name: "Draw an arrow" })).toHaveAttribute(
       "aria-pressed",
       "false",
