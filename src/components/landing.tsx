@@ -199,6 +199,11 @@ function LandingCta() {
 export function AnonymousLanding() {
   return (
     <main className="home-main home-main--landing">
+      {/* Decorative halftone washes in the piñata orange (D119): pure CSS,
+          no image, behind the hero and the sign-in. */}
+      <div className="landing-halftone landing-halftone--hero" aria-hidden="true">
+        <span className="landing-halftone-glow" />
+      </div>
       <SiteBar />
       <div className="illustrated-hero">
         <LandingHero showMark={false}>
@@ -212,6 +217,9 @@ export function AnonymousLanding() {
       <HowItWorks />
       <ExampleCapture />
       <div className="landing-invitation">
+        <div className="landing-halftone landing-halftone--card" aria-hidden="true">
+          <span className="landing-halftone-glow" />
+        </div>
         <div className="invitation-copy">
           <p className="section-eyebrow">your next good idea starts here</p>
           <h2>got notes?<br />let’s pin them.</h2>

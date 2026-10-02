@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 40 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117 |
+| Human directed | 41 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **118** | |
+| **Total** | **119** | |
 
 ## Key decisions
 
@@ -180,6 +180,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D116](#d116--letting-go-of-a-selected-pin-a--in-the-panel-and-escape) | build | Letting go of a selected pin: a × in the panel, and Escape | Human directed | accepted |
 | [D117](#d117--the-founder-view-shows-pin-text-whole-and-its-page-list-gets-its-column-back) | build | The founder view shows pin text whole, and its page list gets its column back | Human directed | accepted |
 | [D118](#d118--interactive-patterns-from-vercels-geist-menu-focus-tooltip-timing-key-caps) | build | Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps | Agent decided alone | accepted |
+| [D119](#d119--a-halftone-wash-in-the-piata-orange-on-the-public-landing) | design | A halftone wash in the piñata orange on the public landing | Human directed | accepted |
 
 ---
 
@@ -4752,4 +4753,53 @@ These are the patterns that change how the controls feel in use, especially from
 
 ---
 
-<sub>Generated from 118 record(s) as of 2026-10-02 · source `15d2a4edb25d`</sub>
+## D119 — A halftone wash in the piñata orange on the public landing
+
+*2026-10-02 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The public landing's background was one flat colour: near-black in dark mode, which the owner found hard to look at, and plain cream in light. The piñata's orange appeared only in small accents and inside the illustrations.
+
+**Decision**
+
+Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, from its lower left behind the mascot. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.
+
+**Alternatives considered**
+
+- *A generated SVG or PNG halftone* — A file of thousands of dots costs bytes and cannot follow the theme tokens or the window width; the CSS version costs nothing to download and adapts to both.
+- *Change the dark background to a different solid colour* — Still one flat field; the owner asked for shading with a second colour, and the dot texture echoes the pins and the print-like paper style (D102).
+
+**Rationale**
+
+The owner asked for a second colour from the piñata palette, as dot-matrix gradient shading, paired with black or white, taking inspiration from a post on drawing patterns with code (generated SVG mosaics and backgrounds that cost less than an image). The accent orange is the piñata's own colour; orange on black in dark mode and orange on cream in light pair it with black and white as asked. The landing must make no third-party requests, which a CSS-only pattern keeps.
+
+**Consequences**
+
+- The landing's sections are positioned so they paint above the washes; the washes span the window without adding horizontal scroll (checked at 1440px and 390px).
+- The washes are aria-hidden, empty, and ignore the pointer.
+- The wash's group paints no background of its own (the orange is a layer inside it), so automated contrast checks measure the text against the page colour it actually sits on; a first version with a solid orange group background made axe judge every hero line against flat orange.
+
+**Provenance evidence**
+
+Human instruction:
+
+> take a quick look at the root for pinata (pre-sign in). i think the background needs at least one other color. solid black is really hard to look at. what about introducing some dot matrix gradient shading - maybe using one of the non-b&w pinata colors + either black or white to complement? 
+>
+> 
+>
+> maybe take some inspiration from this LI post: https://www.linkedin.com/pulse/think-bigger-maksim-surguy-rkdrc/
+
+**Artifacts**
+
+- `app/globals.css` — The .landing-halftone rules.
+- ![Before: the dark landing, one flat field.](dashboard/screenshots/D119-before-dark.png) — Before: the dark landing, one flat field.
+- ![After: the hero wash in dark.](dashboard/screenshots/D119-after-dark.png) — After: the hero wash in dark.
+- ![After: the hero wash in light.](dashboard/screenshots/D119-after-light.png) — After: the hero wash in light.
+- ![After: on a phone, behind the illustration.](dashboard/screenshots/D119-after-phone-dark.png) — After: on a phone, behind the illustration.
+- ![The sign-in card's wash (dark).](dashboard/screenshots/D119-card-dark.png) — The sign-in card's wash (dark).
+- ![The sign-in card's wash (light).](dashboard/screenshots/D119-card-light.png) — The sign-in card's wash (light).
+
+---
+
+<sub>Generated from 119 record(s) as of 2026-10-02 · source `c101e1b49ea8`</sub>

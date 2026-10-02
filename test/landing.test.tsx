@@ -109,6 +109,35 @@ describe("anonymous landing", () => {
     expect(fixture).not.toMatch(/fetch\(/);
   });
 
+  test("the halftone washes are decoration only, drawn by CSS with no image (D119)", () => {
+    render(<AnonymousLanding />);
+    const washes = document.querySelectorAll(".landing-halftone");
+    expect(washes).toHaveLength(2);
+    for (const wash of washes) {
+      // Hidden from assistive tech, empty, and not focusable.
+      expect(wash).toHaveAttribute("aria-hidden", "true");
+      // Nothing in it but its glow layer.
+      expect([...wash.children].map((child) => child.className)).toEqual(["landing-halftone-glow"]);
+      expect(wash.textContent).toBe("");
+    }
+    // One behind the hero, one inside the sign-in card.
+    expect(washes[0]).toHaveClass("landing-halftone--hero");
+    expect(washes[1]!.closest(".landing-invitation")).not.toBeNull();
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+    const block = css.slice(css.indexOf(".landing-halftone {"), css.indexOf(".landing-halftone--card {"));
+    // The dots are gradients, never a fetched image, and the ink is the
+    // accent token so both themes follow it.
+    expect(block).not.toMatch(/url\(/);
+    expect(block).toMatch(/background: var\(--accent\)/);
+    // The group itself paints nothing, so contrast checks see the page
+    // colour the text really sits on.
+    const group = css.slice(css.indexOf(".landing-halftone {"), css.indexOf("}", css.indexOf(".landing-halftone {")));
+    expect(group).not.toMatch(/background/);
+    expect(block).toMatch(/pointer-events: none/);
+    // Gone in forced-colors (high contrast) mode.
+    expect(css).toMatch(/@media \(forced-colors: active\) \{\s*\.landing-halftone \{\s*display: none;/);
+  });
+
   test("a clear sign-in path is part of the page", () => {
     render(<AnonymousLanding />);
     expect(screen.getByRole("heading", { name: "Editor sign in" })).toBeInTheDocument();

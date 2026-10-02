@@ -5331,6 +5331,74 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D119",
+      "date": "2026-10-02",
+      "phase": "design",
+      "title": "A halftone wash in the piñata orange on the public landing",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The public landing's background was one flat colour: near-black in dark mode, which the owner found hard to look at, and plain cream in light. The piñata's orange appeared only in small accents and inside the illustrations.",
+      "decision": "Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, from its lower left behind the mascot. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.",
+      "alternatives": [
+        {
+          "option": "A generated SVG or PNG halftone",
+          "why_not": "A file of thousands of dots costs bytes and cannot follow the theme tokens or the window width; the CSS version costs nothing to download and adapts to both."
+        },
+        {
+          "option": "Change the dark background to a different solid colour",
+          "why_not": "Still one flat field; the owner asked for shading with a second colour, and the dot texture echoes the pins and the print-like paper style (D102)."
+        }
+      ],
+      "rationale": "The owner asked for a second colour from the piñata palette, as dot-matrix gradient shading, paired with black or white, taking inspiration from a post on drawing patterns with code (generated SVG mosaics and backgrounds that cost less than an image). The accent orange is the piñata's own colour; orange on black in dark mode and orange on cream in light pair it with black and white as asked. The landing must make no third-party requests, which a CSS-only pattern keeps.",
+      "consequences": [
+        "The landing's sections are positioned so they paint above the washes; the washes span the window without adding horizontal scroll (checked at 1440px and 390px).",
+        "The washes are aria-hidden, empty, and ignore the pointer.",
+        "The wash's group paints no background of its own (the orange is a layer inside it), so automated contrast checks measure the text against the page colour it actually sits on; a first version with a solid orange group background made axe judge every hero line against flat orange."
+      ],
+      "transcript": {
+        "request": "take a quick look at the root for pinata (pre-sign in). i think the background needs at least one other color. solid black is really hard to look at. what about introducing some dot matrix gradient shading - maybe using one of the non-b&w pinata colors + either black or white to complement? \n\nmaybe take some inspiration from this LI post: https://www.linkedin.com/pulse/think-bigger-maksim-surguy-rkdrc/"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "The .landing-halftone rules."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-before-dark.png",
+          "caption": "Before: the dark landing, one flat field."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-after-dark.png",
+          "caption": "After: the hero wash in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-after-light.png",
+          "caption": "After: the hero wash in light."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-after-phone-dark.png",
+          "caption": "After: on a phone, behind the illustration."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-card-dark.png",
+          "caption": "The sign-in card's wash (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-card-light.png",
+          "caption": "The sign-in card's wash (light)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
