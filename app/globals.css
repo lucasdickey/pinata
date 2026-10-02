@@ -395,7 +395,7 @@ pre code {
   right: 0;
   bottom: 0;
   width: 42%;
-  background: radial-gradient(ellipse 100% 70% at var(--glow-at, 100% 40%), #c8c8c8, #fff 75%);
+  background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #c8c8c8, #fff 75%);
   mix-blend-mode: multiply;
 }
 
@@ -420,7 +420,7 @@ pre code {
     filter: contrast(28) invert(1);
   }
   :root:not([data-theme="light"]) .landing-halftone-glow {
-    background: radial-gradient(ellipse 100% 70% at var(--glow-at, 100% 40%), #6a6a6a, #000 75%);
+    background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #6a6a6a, #000 75%);
     mix-blend-mode: screen;
   }
   :root:not([data-theme="light"]) .landing-halftone::after {
@@ -438,7 +438,7 @@ pre code {
 }
 
 :root[data-theme="dark"] .landing-halftone-glow {
-  background: radial-gradient(ellipse 100% 70% at var(--glow-at, 100% 40%), #6a6a6a, #000 75%);
+  background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #6a6a6a, #000 75%);
   mix-blend-mode: screen;
 }
 
@@ -468,11 +468,12 @@ pre code {
   }
 }
 
-/* The second wash closes the page inside the sign-in card, from its lower
-   left behind the mascot, clipped to the card's corners. */
+/* The second wash closes the page inside the sign-in card: a halo around
+   the mascot in the card's middle column, clear of the copy on its left,
+   clipped to the card's corners. */
 .landing-halftone--card {
-  --halftone-at: 0% 100%;
-  --halftone-reach: 60% 90%;
+  --halftone-at: 50% 52%;
+  --halftone-reach: 21% 120%;
   top: 0;
   bottom: 0;
   height: auto;
@@ -489,11 +490,26 @@ pre code {
 }
 
 .landing-halftone--card .landing-halftone-glow {
-  top: 45%;
   right: auto;
-  left: 0;
-  width: 40%;
-  --glow-at: 0% 100%;
+  left: 34%;
+  width: 32%;
+  /* Fades out fully inside its own box, so no edge shows. */
+  --glow-shape: closest-side;
+}
+
+/* Stacked on a phone, the mascot sits between the copy and the sign-in
+   form, so the halo follows it there. */
+@media (max-width: 48rem) {
+  .landing-halftone--card {
+    --halftone-at: 50% 46%;
+    --halftone-reach: 75% 32%;
+  }
+  .landing-halftone--card .landing-halftone-glow {
+    top: 30%;
+    bottom: 38%;
+    left: 0;
+    width: 100%;
+  }
 }
 
 .landing-invitation > :not(.landing-halftone) {

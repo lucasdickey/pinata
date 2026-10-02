@@ -5340,7 +5340,7 @@
       "origin": "user-directed",
       "status": "accepted",
       "problem": "The public landing's background was one flat colour: near-black in dark mode, which the owner found hard to look at, and plain cream in light. The piñata's orange appeared only in small accents and inside the illustrations.",
-      "decision": "Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, from its lower left behind the mascot. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.",
+      "decision": "Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, a halo around the mascot in the card's middle column (where #17 moved it), clear of the copy beside it; on a phone, around the mascot between the copy and the sign-in form. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.",
       "alternatives": [
         {
           "option": "A generated SVG or PNG halftone",
@@ -5355,7 +5355,8 @@
       "consequences": [
         "The landing's sections are positioned so they paint above the washes; the washes span the window without adding horizontal scroll (checked at 1440px and 390px).",
         "The washes are aria-hidden, empty, and ignore the pointer.",
-        "The wash's group paints no background of its own (the orange is a layer inside it), so automated contrast checks measure the text against the page colour it actually sits on; a first version with a solid orange group background made axe judge every hero line against flat orange."
+        "The wash's group paints no background of its own (the orange is a layer inside it), so automated contrast checks measure the text against the page colour it actually sits on; a first version with a solid orange group background made axe judge every hero line against flat orange.",
+        "PR #17 moved the mascot out of the copy column into its own middle column before this landed; the card wash was re-aimed from the copy's lower left (where the dots would have run under the text) to a halo around the mascot."
       ],
       "transcript": {
         "request": "take a quick look at the root for pinata (pre-sign in). i think the background needs at least one other color. solid black is really hard to look at. what about introducing some dot matrix gradient shading - maybe using one of the non-b&w pinata colors + either black or white to complement? \n\nmaybe take some inspiration from this LI post: https://www.linkedin.com/pulse/think-bigger-maksim-surguy-rkdrc/"
@@ -5395,6 +5396,11 @@
           "type": "screenshot",
           "path": "screenshots/D119-card-light.png",
           "caption": "The sign-in card's wash (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D119-card-phone-dark.png",
+          "caption": "The sign-in card's halo on a phone (dark)."
         }
       ],
       "supersedes": null,

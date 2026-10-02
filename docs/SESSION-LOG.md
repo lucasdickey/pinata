@@ -3671,3 +3671,6 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D119 (user-directed): halftone wash in the piñata orange on the landing.
+- PR #17 (the mascot in its own column) merged first; the card wash then
+  became a halo around the mascot instead of the copy's lower left, where
+  its dots would have run under "Give your feedback a place to land."

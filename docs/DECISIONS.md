@@ -4763,7 +4763,7 @@ The public landing's background was one flat colour: near-black in dark mode, wh
 
 **Decision**
 
-Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, from its lower left behind the mascot. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.
+Two decorative halftone washes in the accent orange: one behind the hero, strongest at the right edge beside the illustration and fading out before the sections below, with a faint second source low on the left; one inside the sign-in card, a halo around the mascot in the card's middle column (where #17 moved it), clear of the copy beside it; on a phone, around the mascot between the copy and the sign-in form. Dots grow where the wash is strong and vanish where it fades, as print halftone does, over a soft glow of the same orange (an ember on black, a warm tint on cream). Both are pure CSS: a grid of soft dots added to a large gradient and thresholded with a contrast filter, then coloured through blend modes so the ink is always the accent token. The top bar stays clear; on a phone the hero wash moves down behind the illustration, clear of the paragraph; forced-colors (high contrast) mode hides both.
 
 **Alternatives considered**
 
@@ -4779,6 +4779,7 @@ The owner asked for a second colour from the piñata palette, as dot-matrix grad
 - The landing's sections are positioned so they paint above the washes; the washes span the window without adding horizontal scroll (checked at 1440px and 390px).
 - The washes are aria-hidden, empty, and ignore the pointer.
 - The wash's group paints no background of its own (the orange is a layer inside it), so automated contrast checks measure the text against the page colour it actually sits on; a first version with a solid orange group background made axe judge every hero line against flat orange.
+- PR #17 moved the mascot out of the copy column into its own middle column before this landed; the card wash was re-aimed from the copy's lower left (where the dots would have run under the text) to a halo around the mascot.
 
 **Provenance evidence**
 
@@ -4799,7 +4800,8 @@ Human instruction:
 - ![After: on a phone, behind the illustration.](dashboard/screenshots/D119-after-phone-dark.png) — After: on a phone, behind the illustration.
 - ![The sign-in card's wash (dark).](dashboard/screenshots/D119-card-dark.png) — The sign-in card's wash (dark).
 - ![The sign-in card's wash (light).](dashboard/screenshots/D119-card-light.png) — The sign-in card's wash (light).
+- ![The sign-in card's halo on a phone (dark).](dashboard/screenshots/D119-card-phone-dark.png) — The sign-in card's halo on a phone (dark).
 
 ---
 
-<sub>Generated from 119 record(s) as of 2026-10-02 · source `c101e1b49ea8`</sub>
+<sub>Generated from 119 record(s) as of 2026-10-02 · source `de301b108a01`</sub>
