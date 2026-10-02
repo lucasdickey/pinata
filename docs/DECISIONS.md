@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 32 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106 |
-| Agent proposed, human approved | 22 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107 |
+| Human directed | 33 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108 |
+| Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
-| Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **107** | |
+| Raised and deferred | 4 | D003, D054, D094, D109 |
+| **Total** | **110** | |
 
 ## Key decisions
 
@@ -169,6 +169,9 @@ The product and architecture decisions to read first. The full index follows.
 | [D105](#d105--give-the-canvas-the-window-a-collapsible-project-sidebar-a-fixed-documentation-footer-and-a-canvas-as-tall-as-the-window-allows) | build | Give the canvas the window: a collapsible project sidebar, a fixed documentation footer, and a canvas as tall as the window allows | Human directed | accepted |
 | [D106](#d106--the-project-rail-becomes-a-drawer-that-overlays-the-canvas-so-opening-it-never-shifts-the-layout) | build | The project rail becomes a drawer that overlays the canvas, so opening it never shifts the layout | Human directed | accepted |
 | [D107](#d107--bring-the-piata-character-into-the-public-homepage-with-a-coordinated-illustration-set) | design | Bring the piñata character into the public homepage with a coordinated illustration set | Agent proposed, human approved | accepted |
+| [D108](#d108--archive-a-project-so-it-leaves-the-project-list-as-a-separate-column-rather-than-a-delete) | build | Archive a project so it leaves the project list, as a separate column rather than a delete | Human directed | accepted |
+| [D109](#d109--defer-a-way-to-unarchive-a-project) | build | Defer a way to unarchive a project | Raised and deferred | pending |
+| [D110](#d110--archive-lives-in-the-selected-projects-header-and-an-archived-projects-founder-link-keeps-working) | build | Archive lives in the selected project's header, and an archived project's founder link keeps working | Agent proposed, human approved | accepted |
 
 ---
 
@@ -4305,4 +4308,122 @@ Human approved:
 
 ---
 
-<sub>Generated from 107 record(s) as of 2026-09-30 · source `1afe0a0a722b`</sub>
+## D108 — Archive a project so it leaves the project list, as a separate column rather than a delete
+
+*2026-10-01 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Every project the editor has ever made sits in the left-hand drawer, so the list grows with each friend's site and the ones still in play get harder to find. There was no way to put a finished project away short of deleting it, and the schema's deletedAt is a tombstone that every read treats as gone.
+
+**Decision**
+
+Projects gain a nullable archived_at column (migration 0007). POST /api/projects/[publicId]/archive stamps it, behind the standard editor mutation boundary (same origin, session, CSRF proof); archiving twice keeps the first timestamp, and a missing or deleted project is the generic 404. The editor's project list (GET /api/projects, listProjectHierarchies) leaves archived projects out. Nothing else changes: the single-project read, pages, captures, pins, threads, and the founder link all behave as before.
+
+**Alternatives considered**
+
+- *Reuse deletedAt* — deletedAt is a tombstone that every read, the founder link, and capture assets treat as gone; an archive is meant to come back (D109), and conflating the two would make a later unarchive indistinguishable from undeleting.
+- *Hide projects in the browser only* — The list would differ per browser and per device, and the next sign-in elsewhere would bring the clutter back.
+- *A status enum on projects (active / archived)* — A timestamp answers the same question and also records when, in the same shape as deletedAt and shareRevokedAt.
+
+**Rationale**
+
+One nullable column and one filter is the smallest change that takes a project out of the drawer while keeping it whole, so undoing it later is a matter of clearing that column.
+
+**Consequences**
+
+- drizzle/0007_project_archive.sql adds projects.archived_at; it must be applied to the deployed database (npm run db:migrate) before the archive route is used there.
+- Stale-capture recovery runs off the project list, so an archived project's stuck captures wait until it is unarchived.
+- Archiving the last project leaves the existing empty-list message, 'No projects yet.'
+- test/server/project-archive.test.ts covers the store function, the list filter, the founder link, and the route boundary; test/archive-project.test.tsx covers the control.
+
+**Provenance evidence**
+
+Human instruction:
+
+> we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive.
+
+**Artifacts**
+
+- `src/lib/server/projects/archive.ts` — The archive store function.
+- `app/api/projects/[publicId]/archive/route.ts` — The editor-only archive route.
+- `drizzle/0007_project_archive.sql` — The migration adding projects.archived_at.
+
+---
+
+## D109 — Defer a way to unarchive a project
+
+*2026-10-01 · phase: build · origin: **Raised and deferred** · status: **pending***
+
+**Problem**
+
+Archiving (D108) takes a project out of the list. Without a way back, an archive made by mistake can only be undone in the database.
+
+**Decision**
+
+Postponed by the owner in the same request that asked for archiving. The data is shaped for it: unarchiving is clearing projects.archived_at, and DELETE on /api/projects/[publicId]/archive is the natural route for it (it answers 405 until then). The interface needs a place to list archived projects to choose from.
+
+**Alternatives considered**
+
+- *Build unarchive alongside archive* — The owner asked to save it for later; the immediate problem is a cluttered drawer.
+
+**Rationale**
+
+Recorded so the open question stays visible, and so the archive control's confirmation wording (nothing is lost) has a record to point at.
+
+**Consequences**
+
+- Until this is answered, the archive control asks once before acting, because there is no button to undo it.
+- Answering it means a new record that supersedes this one, not an edit to it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive.
+
+---
+
+## D110 — Archive lives in the selected project's header, and an archived project's founder link keeps working
+
+*2026-10-01 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Two choices inside D108: where the Archive control goes, and whether archiving should also end the founder's access.
+
+**Decision**
+
+An Archive button sits at the right end of the selected project's title row, beside the founder-link control, with the same inline Confirm / Cancel step that Rotate and Revoke use. Its confirmation says the project leaves the list and that pins, threads, and the founder link stay as they are. Archiving does not touch the founder capability: a founder holding the link can still open the project and reply.
+
+**Alternatives considered**
+
+- *An Archive button inside each project's entry in the drawer* — Puts a destructive-looking control in the list it is meant to tidy, and next to the Overview and page buttons a reader clicks most.
+- *Archiving also revokes the founder link* — Revoke already exists as its own action; folding it into archive would make a tidy-up end a founder's access, and an unarchive (D109) could not bring the same link back.
+
+**Rationale**
+
+The header is where the other project-level actions already live, and keeping archive to the editor's own list makes it safe to do without thinking about who else holds a link.
+
+**Consequences**
+
+- src/components/archive-project.tsx is the control; the workspace re-reads the list after an archive and falls back to the first remaining project.
+- To also end a founder's access, the editor uses Revoke before or after archiving.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Where should the Archive button live? Project header (Recommended): next to "Share with founder" on the open project — or inside each rail entry. What happens to an archived project's founder link? Keep it working (Recommended): archive only tidies your nav — or turn it off too.
+
+Human approved:
+
+> "Where should the Archive button live?"="Project header (Recommended)", "What happens to an archived project's founder link?"="Keep it working (Recommended)"
+
+**Artifacts**
+
+- `src/components/archive-project.tsx` — The Archive control with its inline confirmation.
+
+---
+
+<sub>Generated from 110 record(s) as of 2026-10-01 · source `788aa8d28979`</sub>

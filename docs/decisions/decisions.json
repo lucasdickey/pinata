@@ -4819,6 +4819,124 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D108",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Archive a project so it leaves the project list, as a separate column rather than a delete",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Every project the editor has ever made sits in the left-hand drawer, so the list grows with each friend's site and the ones still in play get harder to find. There was no way to put a finished project away short of deleting it, and the schema's deletedAt is a tombstone that every read treats as gone.",
+      "decision": "Projects gain a nullable archived_at column (migration 0007). POST /api/projects/[publicId]/archive stamps it, behind the standard editor mutation boundary (same origin, session, CSRF proof); archiving twice keeps the first timestamp, and a missing or deleted project is the generic 404. The editor's project list (GET /api/projects, listProjectHierarchies) leaves archived projects out. Nothing else changes: the single-project read, pages, captures, pins, threads, and the founder link all behave as before.",
+      "alternatives": [
+        {
+          "option": "Reuse deletedAt",
+          "why_not": "deletedAt is a tombstone that every read, the founder link, and capture assets treat as gone; an archive is meant to come back (D109), and conflating the two would make a later unarchive indistinguishable from undeleting."
+        },
+        {
+          "option": "Hide projects in the browser only",
+          "why_not": "The list would differ per browser and per device, and the next sign-in elsewhere would bring the clutter back."
+        },
+        {
+          "option": "A status enum on projects (active / archived)",
+          "why_not": "A timestamp answers the same question and also records when, in the same shape as deletedAt and shareRevokedAt."
+        }
+      ],
+      "rationale": "One nullable column and one filter is the smallest change that takes a project out of the drawer while keeping it whole, so undoing it later is a matter of clearing that column.",
+      "consequences": [
+        "drizzle/0007_project_archive.sql adds projects.archived_at; it must be applied to the deployed database (npm run db:migrate) before the archive route is used there.",
+        "Stale-capture recovery runs off the project list, so an archived project's stuck captures wait until it is unarchived.",
+        "Archiving the last project leaves the existing empty-list message, 'No projects yet.'",
+        "test/server/project-archive.test.ts covers the store function, the list filter, the founder link, and the route boundary; test/archive-project.test.tsx covers the control."
+      ],
+      "transcript": {
+        "request": "we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/archive.ts",
+          "caption": "The archive store function."
+        },
+        {
+          "type": "file",
+          "path": "app/api/projects/[publicId]/archive/route.ts",
+          "caption": "The editor-only archive route."
+        },
+        {
+          "type": "file",
+          "path": "drizzle/0007_project_archive.sql",
+          "caption": "The migration adding projects.archived_at."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D109",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Defer a way to unarchive a project",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "Archiving (D108) takes a project out of the list. Without a way back, an archive made by mistake can only be undone in the database.",
+      "decision": "Postponed by the owner in the same request that asked for archiving. The data is shaped for it: unarchiving is clearing projects.archived_at, and DELETE on /api/projects/[publicId]/archive is the natural route for it (it answers 405 until then). The interface needs a place to list archived projects to choose from.",
+      "alternatives": [
+        {
+          "option": "Build unarchive alongside archive",
+          "why_not": "The owner asked to save it for later; the immediate problem is a cluttered drawer."
+        }
+      ],
+      "rationale": "Recorded so the open question stays visible, and so the archive control's confirmation wording (nothing is lost) has a record to point at.",
+      "consequences": [
+        "Until this is answered, the archive control asks once before acting, because there is no button to undo it.",
+        "Answering it means a new record that supersedes this one, not an edit to it."
+      ],
+      "transcript": {
+        "request": "we need to make a way to archive a project. the left-hand nav gets littered fast. we can save for later a means to unarchive."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D110",
+      "date": "2026-10-01",
+      "phase": "build",
+      "title": "Archive lives in the selected project's header, and an archived project's founder link keeps working",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Two choices inside D108: where the Archive control goes, and whether archiving should also end the founder's access.",
+      "decision": "An Archive button sits at the right end of the selected project's title row, beside the founder-link control, with the same inline Confirm / Cancel step that Rotate and Revoke use. Its confirmation says the project leaves the list and that pins, threads, and the founder link stay as they are. Archiving does not touch the founder capability: a founder holding the link can still open the project and reply.",
+      "alternatives": [
+        {
+          "option": "An Archive button inside each project's entry in the drawer",
+          "why_not": "Puts a destructive-looking control in the list it is meant to tidy, and next to the Overview and page buttons a reader clicks most."
+        },
+        {
+          "option": "Archiving also revokes the founder link",
+          "why_not": "Revoke already exists as its own action; folding it into archive would make a tidy-up end a founder's access, and an unarchive (D109) could not bring the same link back."
+        }
+      ],
+      "rationale": "The header is where the other project-level actions already live, and keeping archive to the editor's own list makes it safe to do without thinking about who else holds a link.",
+      "consequences": [
+        "src/components/archive-project.tsx is the control; the workspace re-reads the list after an archive and falls back to the first remaining project.",
+        "To also end a founder's access, the editor uses Revoke before or after archiving."
+      ],
+      "transcript": {
+        "proposal": "Where should the Archive button live? Project header (Recommended): next to \"Share with founder\" on the open project — or inside each rail entry. What happens to an archived project's founder link? Keep it working (Recommended): archive only tidies your nav — or turn it off too.",
+        "approval": "\"Where should the Archive button live?\"=\"Project header (Recommended)\", \"What happens to an archived project's founder link?\"=\"Keep it working (Recommended)\""
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/archive-project.tsx",
+          "caption": "The Archive control with its inline confirmation."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

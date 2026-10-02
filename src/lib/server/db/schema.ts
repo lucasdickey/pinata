@@ -42,6 +42,13 @@ export const projects = sqliteTable(
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     deletedAt: integer("deleted_at"),
+    /**
+     * Set when the editor archives the project (D108): it leaves the editor's
+     * project list, and nothing else changes — its pages, captures, pins,
+     * threads, and founder link all stay as they were. Distinct from
+     * deletedAt, which is a tombstone; an archive is meant to be undone.
+     */
+    archivedAt: integer("archived_at"),
   },
 );
 

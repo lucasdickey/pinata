@@ -50,6 +50,13 @@
       "when": 1789174967651,
       "tag": "0006_feedback_status_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790900414855,
+      "tag": "0007_project_archive",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@
 // anywhere in this path — and every level has a deterministic order with an
 // explicit tie-breaker so two reads can never disagree.
 
-import { asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { FeedbackCounts } from "../../annotations";
 import {
   EDITOR_VIEWER,
@@ -298,7 +298,9 @@ export function staleLatestCaptureIds(projects: readonly ProjectHierarchy[]): st
 }
 
 /**
- * Every live project with its ordered pages, devices, and attempt history.
+ * Every live, unarchived project with its ordered pages, devices, and
+ * attempt history. Archived projects (D108) are left out of this list only;
+ * readProjectHierarchy still returns them by public locator.
  * Feedback counts are computed for `viewer` (the editor unless told otherwise).
  */
 export async function listProjectHierarchies(
@@ -309,7 +311,7 @@ export async function listProjectHierarchies(
   const projectRows = await db
     .select()
     .from(schema.projects)
-    .where(isNull(schema.projects.deletedAt))
+    .where(and(isNull(schema.projects.deletedAt), isNull(schema.projects.archivedAt)))
     .orderBy(desc(schema.projects.createdAt), asc(schema.projects.id));
   return hydrate(db, projectRows, now, viewer);
 }

@@ -74,6 +74,7 @@ import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
+import { ArchiveProjectControl } from "./archive-project";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
@@ -1480,6 +1481,14 @@ export function ProjectWorkspace({
           <p className="project-feedback" data-testid="project-feedback">
             {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
           </p>
+          {/* Archive (D108, D110): leaves the project list; nothing else
+              about the project changes. */}
+          <ArchiveProjectControl
+            key={`archive-${activeProject.publicId}`}
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+            onArchived={onChanged}
+          />
           <FounderShareControl
             key={activeProject.publicId}
             publicId={activeProject.publicId}

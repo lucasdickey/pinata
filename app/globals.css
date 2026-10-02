@@ -2387,6 +2387,36 @@ pre code {
   flex-basis: 100%;
 }
 
+/* Archive (D108) sits at the right end of the title row. */
+.archive-project {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.archive-project-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.archive-project-note {
+  margin: 0;
+  max-width: 32rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.archive-project-error {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
 .founder-share-state {
   margin-left: 0.5rem;
   font-size: 0.85rem;

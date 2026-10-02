@@ -3555,3 +3555,34 @@ The second gate attempt exposed additional baseline editor failures (including a
 Focused final verification passed: both production-build homepage browser tests, including actual configured sign-in → workspace → project creation and run-scoped cleanup. All six illustrated images decoded; no external or API requests occurred on the anonymous root; no console errors or horizontal overflow at 390px and 320px. Saved desktop (1440px) and mobile (390px) screenshots under docs/dashboard/screenshots/D107-homepage-*.png. The application build and 1,757 unit/component tests passed, with 44 configured skips; the complete repository gate remains red in existing editor/capture flows. No commit, push, or production deployment has been performed.
 
 The owner then instructed: “Go ahead and create a PR, and then merge your changes upon CI being green.” This explicitly authorizes a PR and CI-gated merge after the local editor-suite limitation was disclosed, superseding the default direct-to-main workflow and full local gate for this release. The PR will retain the complete validation limitation for reviewers; CI runs the repository gate with its normal unconfigured integration skips.
+
+
+## 2026-10-01 — archive a project (D108, D109, D110)
+
+Harness: Claude (Cowork), in a cloud session driven from the Chrome side panel.
+
+- **Asked for.** The drawer fills up with every project ever made. The owner
+  asked for a way to archive one and deferred unarchiving.
+- **Not a delete.** `deletedAt` is a tombstone that every read, the founder
+  link, and capture assets treat as gone, so archive got its own nullable
+  `archived_at` column (migration 0007) and one filter on the project list.
+- **Two calls put to the owner.** The button lives in the selected project's
+  header, and archiving leaves the founder link working. Both were the
+  recommended options (D110).
+- **One side effect noted.** Stale-capture recovery runs off the project
+  list, so an archived project's stuck captures wait for an unarchive.
+- **Environment.** The container had Node 22; nodejs.org was unreachable, so
+  Node 24 came from the npm registry's `node` package, and `npm ci` ran under
+  npm 11 because npm 10 reads the lockfile as out of sync.
+- **Also investigated:** the owner remembered an open ticket to move the
+  canvas controls (zoom, fit, draw tools) into floating overlays in the style
+  of Figma or Paper. No record, deferral, NEXT.md item, or log entry covers
+  it; the nearest are D102, D105, and D106. GitHub issues were not readable
+  from this session.
+
+### Decisions
+
+- D108 (user-directed): archive a project as its own column.
+- D109 (user-deferred, pending): a way to unarchive.
+- D110 (agent-proposed, user-approved): Archive in the project header; the
+  founder link keeps working.
