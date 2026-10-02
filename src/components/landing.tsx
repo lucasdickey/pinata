@@ -216,7 +216,9 @@ export function AnonymousLanding() {
           <p className="section-eyebrow">your next good idea starts here</p>
           <h2>got notes?<br />let’s pin them.</h2>
           <p>Give your feedback a place to land.</p>
-          <Image src="/illustrations/mascot-pencil.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 140px, 200px" />
+        </div>
+        <div className="invitation-mascot" aria-hidden="true">
+          <Image src="/illustrations/mascot-pencil.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 120px, 140px" />
         </div>
         <LoginForm />
       </div>

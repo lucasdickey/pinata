@@ -1085,9 +1085,9 @@ pre code {
 
 .landing-invitation {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 2rem;
+  gap: clamp(1.25rem, 3vw, 2.5rem);
   padding: clamp(1.5rem, 4vw, 3rem);
   margin-bottom: 5rem;
   background: color-mix(in srgb, var(--accent-soft) 65%, var(--bg));
@@ -1095,8 +1095,20 @@ pre code {
 }
 
 .invitation-copy {
-  position: relative;
-  padding-bottom: 9rem;
+  min-width: 0;
+}
+
+.invitation-mascot {
+  width: clamp(96px, 10vw, 140px);
+  padding: 0.35rem;
+  border-radius: 50%;
+  background: #f6f0e7;
+}
+
+.invitation-mascot img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .invitation-copy h2 {
@@ -1109,17 +1121,6 @@ pre code {
 .invitation-copy > p:last-of-type {
   color: var(--ink-soft);
   margin-bottom: 0;
-}
-
-.invitation-copy img {
-  position: absolute;
-  bottom: -1.5rem;
-  left: -0.5rem;
-  width: 170px;
-  height: auto;
-  padding: 0.5rem;
-  border-radius: 50%;
-  background: #f6f0e7;
 }
 
 .home-main--landing .landing-invitation .login-section {
@@ -1224,13 +1225,9 @@ pre code {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .invitation-copy {
-    padding-bottom: 8rem;
-  }
-
-  .invitation-copy img {
-    width: 140px;
-    bottom: -0.5rem;
+  .invitation-mascot {
+    width: 120px;
+    justify-self: center;
   }
 
   .hero-art {
