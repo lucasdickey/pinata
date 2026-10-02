@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { FounderView } from "../src/components/founder-view";
 import { EDITOR_CSRF_HEADER, FOUNDER_CSRF_COOKIE } from "../src/lib/auth-constants";
 import { installReactFlowMocks } from "./helpers/react-flow";
+import { cameraMode } from "./helpers/camera";
 
 installReactFlowMocks();
 
@@ -363,7 +364,7 @@ describe("read/reply-only surface", () => {
       "true",
     );
     // Camera controls remain.
-    expect(screen.getByRole("button", { name: "Entire page" })).toBeInTheDocument();
+    expect(cameraMode(document.body, "Entire page")).toBeInTheDocument();
   });
 
   test("selecting a pin shows the original comment, the thread with server labels, and a reply composer", async () => {

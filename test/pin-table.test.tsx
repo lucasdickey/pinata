@@ -110,8 +110,9 @@ describe("the all-pins table", () => {
     const tableRows = screen.getAllByRole("row").slice(1); // drop the header row
     expect(tableRows).toHaveLength(2);
 
-    // The first column is the mark's name (D078): kind and number, then the
-    // comment excerpt, then the attached element.
+    // The pin's accessible name is the mark's name (D078); what it shows is
+    // only the kind and number, with the whole comment in the next cell
+    // (D115).
     expect(
       within(tableRows[0]!).getByRole("button", {
         name: "Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
@@ -122,6 +123,12 @@ describe("the all-pins table", () => {
     expect(tableRows[0]!).toHaveTextContent("392, 386");
     expect(tableRows[0]!).toHaveTextContent("main > section.pricing > div.billing-toggle");
     expect(tableRows[0]!).toHaveTextContent("This billing toggle reads the same in both states.");
+    const pinCell = within(tableRows[0]!).getByRole("rowheader");
+    expect(pinCell).toHaveTextContent(/^1Pin 1$/);
+    expect(pinCell.nextElementSibling).toHaveTextContent(
+      "This billing toggle reads the same in both states.",
+    );
+    expect(tableRows[0]!.textContent).not.toContain("…");
 
     // Two pins can share a number across captures (D077); the Device
     // column is what tells them apart.
@@ -135,10 +142,12 @@ describe("the all-pins table", () => {
     expect(tableRows[1]!).toHaveTextContent("No element");
   });
 
-  test("carries Page and Device columns before the pin number (D077)", () => {
+  test("carries Page and Device columns before the pin number (D077), the comment right after it (D115)", () => {
     renderTable();
     const headers = screen.getAllByRole("columnheader").map((header) => header.textContent);
-    expect(headers).toEqual(["Page", "Device", "Pin", "Status", "Position", "Element", "Comment"]);
+    // The comment sits right after the pin since D115, whole, so it is
+    // never off to the side of a wide table.
+    expect(headers).toEqual(["Page", "Device", "Pin", "Comment", "Status", "Position", "Element"]);
   });
 
   test("carries a Status column with the lifecycle state and the unread marker (D075)", () => {

@@ -355,15 +355,15 @@ describe("in the workspace", () => {
     expect(overviewLine.compareDocumentPosition(cards[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // In the canvas view: still right after the header, before the canvas
-    // and its one-line hint.
+    // and its control row (the one-line hint is behind "?" since D111).
     openHome();
     const line = within(detail()).getByTestId("capture-progress");
     expect(line).toHaveTextContent("Capturing 2 of 4 · chickpea.co · about 2 minutes left");
     expect(within(line).getByRole("status")).toBeInTheDocument();
     const canvasHeader = within(detail()).getByTestId("project-header");
     expect(canvasHeader.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const hint = within(detail()).getByText(/drop a pin/i);
-    expect(line.compareDocumentPosition(hint) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const controls = within(detail()).getByTestId("canvas-toolbar");
+    expect(line.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   test("pinning is available on the ready capture while its siblings still capture", () => {

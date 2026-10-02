@@ -13,8 +13,8 @@ import {
   arrowPosition,
   circlePosition,
   markCountLabel,
-  markLabel,
   markPosition,
+  markTitle,
   rectanglePosition,
 } from "./canvas/marks";
 import { PIN_STATUS_LABELS } from "./feedback-counts";
@@ -65,12 +65,14 @@ export function pinPosition(pin: AnnotationView): string {
 }
 
 /**
- * The heading line for one mark: its name (D078), "## Pin 3 · “comment” ·
- * element". The coordinates follow on their own detail line, because the
- * agent reading the paste needs them and the heading is for people.
+ * The heading line for one mark: its kind and number, "## Pin 3" (D115).
+ * It used to carry the mark's whole name (D078), but that name cuts the
+ * comment and the element short, and a pasted note must never read as
+ * truncated: the element is on its own detail line, and the comment is
+ * quoted in full under the details.
  */
 export function markHeading(annotation: AnnotationView): string {
-  return `## ${markLabel(annotation)}`;
+  return `## ${markTitle(annotation)}`;
 }
 
 /** The detail line a pin carries: its tip in natural pixels. */
@@ -170,6 +172,8 @@ export function formatPinsAsMarkdown(
       lines.push(`- Bounds: ${Math.round(width)} × ${Math.round(height)} px natural`);
     }
     lines.push("");
+    // The note itself, whole (D115: the heading no longer quotes it), with
+    // its conversation straight after it.
     for (const line of pin.body.split("\n")) lines.push(`> ${line}`);
     lines.push("");
     lines.push(...threadLines(context.threads?.get(pin.id) ?? []));

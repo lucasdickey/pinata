@@ -36,6 +36,7 @@ import {
 import { flowToScreen } from "../../src/lib/canvas/camera";
 import { PLACEMENT_SLOP_SCREEN_PX } from "../../src/lib/canvas/geometry";
 import { installReactFlowMocks, triggerObservedResize } from "../helpers/react-flow";
+import { cameraMode, modePressed, waitForMode } from "../helpers/camera";
 
 installReactFlowMocks();
 
@@ -259,10 +260,7 @@ describe("transient state lifecycle", () => {
     // mount with no draft and the entire-capture initial camera.
     render(<CaptureCanvas {...props} captureId="cap-root-mobile-v1" variant="Mobile" />);
     expect(draftNodes()).toHaveLength(0);
-    expect(within(stage()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(modePressed(stage(), "Entire page")).toBe("true");
   });
 });
 
@@ -703,23 +701,15 @@ describe("per-capture session camera", () => {
     const onCameraChange = vi.fn();
     render(<CaptureCanvas {...props} savedCamera={saved} onCameraChange={onCameraChange} />);
     // The restore lands when React Flow initializes (async under jsdom).
-    await waitFor(() =>
-      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
-    expect(within(stage()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    await waitForMode(stage(), "Natural size");
+    expect(modePressed(stage(), "Entire page")).toBe("false");
   });
 
   test("camera reports carry the mode and follow flag, never just a transform", async () => {
     const user = userEvent.setup();
     const onCameraChange = vi.fn();
     render(<CaptureCanvas {...props} onCameraChange={onCameraChange} />);
-    await user.click(within(stage()).getByRole("button", { name: "Natural size" }));
+    await user.click(cameraMode(stage(), "Natural size"));
     expect(onCameraChange).toHaveBeenCalled();
     const last = onCameraChange.mock.calls.at(-1)![0] as CaptureCameraState;
     expect(last.mode).toBe("natural");
@@ -800,12 +790,7 @@ describe("rectangles (D079)", () => {
   /** Mount at the known zoom and wait for the camera to land. */
   async function renderZoomed(extra: Record<string, unknown> = {}) {
     const result = render(<CaptureCanvas {...props} savedCamera={zoomed} {...extra} />);
-    await waitFor(() =>
-      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(stage(), "Natural size");
     return result;
   }
 
@@ -1250,12 +1235,7 @@ describe("circles (D082)", () => {
 
   async function renderZoomed(extra: Record<string, unknown> = {}) {
     const result = render(<CaptureCanvas {...props} savedCamera={zoomed} {...extra} />);
-    await waitFor(() =>
-      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(stage(), "Natural size");
     return result;
   }
 
@@ -1273,13 +1253,23 @@ describe("circles (D082)", () => {
   test("the tools are one labelled group of one-gesture toggles", () => {
     render(<CaptureCanvas {...props} />);
     const group = within(stage()).getByRole("group", { name: "Mark tools" });
-    expect(within(group).getAllByRole("button").map((button) => button.textContent)).toEqual([
+    // Icon buttons since D111: the name is the aria-label, and the visible
+    // tip repeats it with the key that arms the same tool.
+    const buttons = within(group).getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Draw a box",
       "Draw a circle",
       "Draw an arrow",
     ]);
-    for (const button of within(group).getAllByRole("button")) {
+    expect(buttons.map((button) => button.getAttribute("aria-keyshortcuts"))).toEqual([
+      "B",
+      "C",
+      "A",
+    ]);
+    for (const button of buttons) {
       expect(button).toHaveAttribute("aria-pressed", "false");
+      expect(button.querySelector("svg")).not.toBeNull();
+      expect(button.querySelector(".tool-tip")).toHaveAttribute("aria-hidden", "true");
     }
   });
 
@@ -1547,12 +1537,7 @@ describe("arrows (D083)", () => {
 
   async function renderZoomed(extra: Record<string, unknown> = {}) {
     const result = render(<CaptureCanvas {...props} savedCamera={zoomed} {...extra} />);
-    await waitFor(() =>
-      expect(within(stage()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(stage(), "Natural size");
     return result;
   }
 

@@ -90,12 +90,26 @@ describe("screen-fixed panel", () => {
 
 describe("camera controls", () => {
   test("the pressed named mode is visibly distinct", () => {
-    const pressed = css.match(/\.capture-camera\s+button\[aria-pressed="true"\]\s*\{([^}]*)\}/);
+    const pressed = css.match(/\.canvas-fit-menu\s+button\[aria-pressed="true"\]\s*\{([^}]*)\}/);
     if (!pressed) throw new Error("pressed camera-mode rule not found");
     // Solid ink since D102 (a red outline before): the fill, not a hairline,
     // is what tells the pressed mode apart.
     expect(pressed[1]).toMatch(/background:\s*var\(--ink\)/);
     expect(pressed[1]).toMatch(/color:\s*var\(--bg\)/);
+  });
+
+  test("an armed tool in the floating toolbar is solid ink too (D111)", () => {
+    const pressed = css.match(/\.tool-button\[aria-pressed="true"\],[^{]*\{([^}]*)\}/);
+    if (!pressed) throw new Error("pressed tool-button rule not found");
+    expect(pressed[1]).toMatch(/background:\s*var\(--ink\)/);
+    expect(pressed[1]).toMatch(/color:\s*var\(--bg\)/);
+  });
+
+  test("the toolbar floats over the canvas, above it in the stacking order (D111)", () => {
+    expect(rule(".capture-stage-canvas")).toMatch(/position:\s*relative/);
+    const bar = rule(".canvas-toolbar-float");
+    expect(bar).toMatch(/position:\s*absolute/);
+    expect(bar).toMatch(/z-index:/);
   });
 
   test("the named non-ready state placeholder still exists", () => {

@@ -18,13 +18,15 @@
 // side panel follow, so the table is a second route to the same state, never
 // a second copy of it.
 //
-// Rectangles (D079) are rows too: the first column names the mark the way
-// every surface does (D078: kind, number, comment excerpt, element) and the
-// position column shows the box's corner and size.
+// Rectangles (D079) are rows too, and the position column shows the box's
+// corner and size. The Pin column shows only the kind and number, with the
+// whole comment beside it (D115): the shortened name every list uses
+// (D078) stays the button's accessible name, but nothing visible here is
+// ever cut.
 
 import { useEffect, useState } from "react";
 import type { AnnotationView } from "../lib/annotations";
-import { markCountLabel, markLabel } from "../lib/canvas/marks";
+import { markCountLabel, markLabel, markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import { pinPosition, snapshotPath, snapshotSummary } from "../lib/pin-export";
 
@@ -153,10 +155,10 @@ export function PinTable({
                 <th scope="col">Page</th>
                 <th scope="col">Device</th>
                 <th scope="col">Pin</th>
+                <th scope="col">Comment</th>
                 <th scope="col">Status</th>
                 <th scope="col">Position</th>
                 <th scope="col">Element</th>
-                <th scope="col">Comment</th>
               </tr>
             </thead>
             <tbody>
@@ -176,12 +178,17 @@ export function PinTable({
                     <th scope="row">
                       <button
                         type="button"
+                        aria-label={markLabel(pin)}
                         aria-current={pin.id === selectedPinId ? "true" : undefined}
                         onClick={() => onSelectPin(pin.id === selectedPinId ? null : pin.id)}
                       >
-                        {markLabel(pin)}
+                        <span className="pin-row-badge" data-kind={pin.kind} aria-hidden="true">
+                          {pin.number}
+                        </span>
+                        {markTitle(pin)}
                       </button>
                     </th>
+                    <td className="pin-table-body">{pin.body}</td>
                     <td className="pin-table-status" data-status={pin.status}>
                       {PIN_STATUS_LABELS[pin.status] ?? pin.status}
                       {pin.unreadReplies > 0 ? (
@@ -197,7 +204,6 @@ export function PinTable({
                       </span>
                       {path ? <code className="pin-table-path">{path}</code> : null}
                     </td>
-                    <td className="pin-table-body">{pin.body}</td>
                   </tr>
                 );
               })}

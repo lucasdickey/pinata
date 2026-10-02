@@ -8,12 +8,20 @@
 // Details disclosure.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { CapturePanel } from "../../src/components/capture-panel";
+import { CapturePanel, PANEL_STORAGE_KEY } from "../../src/components/capture-panel";
 import type { PinElementSnapshot } from "../../src/lib/annotations";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  try {
+    window.localStorage.clear();
+  } catch {
+    // jsdom without storage: nothing to clear.
+  }
+});
 
 function candidate(id: string, overrides: Partial<PinElementSnapshot> = {}): PinElementSnapshot {
   return {
@@ -141,7 +149,11 @@ describe("rectangles in the panel (D079)", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "box-4" })} />);
     const name = screen.getByTestId("panel-mark-name");
     expect(name).toHaveAttribute("data-kind", "rectangle");
-    expect(name).toHaveTextContent("Box 4 · “This whole card needs more air.”");
+    expect(name).toHaveTextContent(/^4Box 4$/);
+    // The comment is shown whole beneath it, never cut (D115).
+    expect(screen.getByTestId("panel-pin").querySelector(".panel-pin-body")).toHaveTextContent(
+      "This whole card needs more air.",
+    );
     const position = within(screen.getByTestId("panel-details")).getByTestId("panel-position");
     expect(position).toHaveAttribute("data-kind", "rectangle");
     expect(position).toHaveTextContent("100, 201 · 300 × 151 px");
@@ -154,15 +166,35 @@ describe("rectangles in the panel (D079)", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box] })} />);
     const list = screen.getByRole("list", { name: "Saved pins" });
     const buttons = within(list).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual([
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Pin 1 · “the comment”",
       "Box 4 · “This whole card needs more air.”",
     ]);
   });
 
+  test("each row is in parts: number badge, comment, element line (D113)", () => {
+    const resolved = { ...pin, status: "resolved" as const };
+    const answered = { ...box, unreadReplies: 2 };
+    render(<CapturePanel {...panelProps({ pins: [resolved, answered] })} />);
+    const [first, second] = within(screen.getByRole("list", { name: "Saved pins" })).getAllByRole(
+      "button",
+    );
+    // The badge carries the number the canvas shows; the comment is the
+    // main line, whole (the clamp is CSS), and the element sits under it.
+    expect(first!.querySelector(".pin-row-badge")).toHaveTextContent("1");
+    expect(first!.querySelector(".pin-row-comment")).toHaveTextContent("the comment");
+    expect(first!.querySelector(".pin-row-element")).toHaveTextContent("No element");
+    expect(first).toHaveAttribute("data-status", "resolved");
+    expect(first).toHaveAccessibleName("Pin 1 · “the comment” · Resolved");
+    expect(second!.querySelector(".pin-row-badge")).toHaveAttribute("data-kind", "rectangle");
+    expect(second!.querySelector(".pin-row-element")).toHaveTextContent(/^Box · /);
+    expect(second!.querySelector(".pin-row-meta")).toHaveTextContent("2 new");
+    expect(second).toHaveAccessibleName("Box 4 · “This whole card needs more air.” · 2 new");
+  });
+
   test("a selected pin is named the same way", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box], selectedPinId: "ann-1" })} />);
-    expect(screen.getByTestId("panel-mark-name")).toHaveTextContent("Pin 1 · “the comment”");
+    expect(screen.getByTestId("panel-mark-name")).toHaveTextContent(/^1Pin 1$/);
     expect(within(screen.getByTestId("panel-details")).getByTestId("panel-position")).toHaveTextContent(
       "10, 10 px",
     );
@@ -186,7 +218,7 @@ describe("rectangles in the panel (D079)", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, circle], selectedPinId: "circle-5" })} />);
     const name = screen.getByTestId("panel-mark-name");
     expect(name).toHaveAttribute("data-kind", "circle");
-    expect(name).toHaveTextContent("Circle 5 · “Draw the eye to this badge.”");
+    expect(name).toHaveTextContent(/^5Circle 5$/);
     const details = screen.getByTestId("panel-details");
     expect(within(details).getByText("Circle")).toBeInTheDocument();
     const position = within(details).getByTestId("panel-position");
@@ -214,7 +246,7 @@ describe("rectangles in the panel (D079)", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, pointer], selectedPinId: "arrow-6" })} />);
     const name = screen.getByTestId("panel-mark-name");
     expect(name).toHaveAttribute("data-kind", "arrow");
-    expect(name).toHaveTextContent("Arrow 6 · “Move this up into the header.”");
+    expect(name).toHaveTextContent(/^6Arrow 6$/);
     const details = screen.getByTestId("panel-details");
     expect(within(details).getByText("Arrow")).toBeInTheDocument();
     const position = within(details).getByTestId("panel-position");
@@ -265,7 +297,10 @@ describe("Details disclosure (D078)", () => {
     expect(details).toHaveTextContent("hash");
     // The selection block itself names the pin without coordinates.
     const selection = screen.getByTestId("panel-pin");
-    expect(selection).toHaveTextContent("Pin 1 · “the comment” · Starter plan");
+    // Its title, then the comment and the element in full (D115).
+    expect(screen.getByTestId("panel-mark-name")).toHaveTextContent(/^1Pin 1$/);
+    expect(selection).toHaveTextContent("the comment");
+    expect(selection).toHaveTextContent("Starter plan");
     expect(selection.textContent).not.toMatch(/\d+, \d+/);
     expect(selection.textContent).not.toMatch(/natural pixel/i);
     // Page and device stay in plain view under Capture.
@@ -284,7 +319,7 @@ describe("Details disclosure (D078)", () => {
     const items = within(keys).getAllByRole("listitem").map((item) => item.textContent);
     expect(items).toEqual([
       "Enter saves a comment; Shift+Enter starts a new line",
-      "Escape cancels",
+      "Escape cancels, then lets go of the selected mark",
       "J and K, or the arrow keys, step through the marks",
       "N drops a pin at the center of the view",
       "B, C, or A arms the box, circle, or arrow tool for the next drag",
@@ -292,5 +327,114 @@ describe("Details disclosure (D078)", () => {
     ]);
     // With nothing selected there is no position row.
     expect(within(details).queryByTestId("panel-position")).toBeNull();
+  });
+});
+
+describe("collapsing the panel (D112)", () => {
+  const saved = {
+    id: "ann-2",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 2,
+    tip: { x: 10, y: 10 },
+    body: "Tighten this.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+  const panel = () => screen.getByTestId("capture-panel");
+  const body = () => document.getElementById("capture-panel-body")!;
+
+  test("the toggle hides the content but keeps it mounted, and shows it again", () => {
+    render(<CapturePanel {...panelProps({ pins: [saved] })} />);
+    const hide = screen.getByRole("button", { name: "Hide details panel" });
+    expect(hide).toHaveAttribute("aria-expanded", "true");
+    expect(hide).toHaveAttribute("aria-controls", "capture-panel-body");
+    fireEvent.click(hide);
+    expect(panel()).toHaveAttribute("data-collapsed", "true");
+    // Hidden, not removed: the list is still in the document.
+    expect(body()).not.toBeVisible();
+    expect(body().querySelector('[aria-label="Saved pins"]')).not.toBeNull();
+    expect(screen.queryByRole("list", { name: "Saved pins" })).toBeNull();
+    const show = screen.getByRole("button", { name: "Show details panel" });
+    expect(show).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(show);
+    expect(panel()).not.toHaveAttribute("data-collapsed");
+    expect(screen.getByRole("list", { name: "Saved pins" })).toBeInTheDocument();
+  });
+
+  test("the choice is remembered in this browser and read back after mount", async () => {
+    const first = render(<CapturePanel {...panelProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
+    expect(window.localStorage.getItem(PANEL_STORAGE_KEY)).toBe("collapsed");
+    first.unmount();
+    render(<CapturePanel {...panelProps()} />);
+    await waitFor(() => expect(panel()).toHaveAttribute("data-collapsed", "true"));
+    fireEvent.click(screen.getByRole("button", { name: "Show details panel" }));
+    expect(window.localStorage.getItem(PANEL_STORAGE_KEY)).toBe("open");
+  });
+
+  test("blocked storage never breaks the toggle", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    render(<CapturePanel {...panelProps()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
+    expect(panel()).toHaveAttribute("data-collapsed", "true");
+  });
+
+  test("a selection made while collapsed shows as a badge on the strip, without opening it", () => {
+    const view = render(<CapturePanel {...panelProps({ pins: [saved] })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hide details panel" }));
+    expect(screen.queryByTestId("panel-strip-badge")).toBeNull();
+    view.rerender(<CapturePanel {...panelProps({ pins: [saved], selectedPinId: "ann-2" })} />);
+    const badge = screen.getByTestId("panel-strip-badge");
+    expect(badge).toHaveTextContent("2");
+    expect(badge).toHaveAccessibleName("Pin 2 selected");
+    expect(panel()).toHaveAttribute("data-collapsed", "true");
+  });
+});
+
+describe("letting go of a selection (D116)", () => {
+  const saved = {
+    id: "ann-3",
+    captureId: "cap-1",
+    kind: "pin" as const,
+    number: 3,
+    tip: { x: 10, y: 10 },
+    body: "Too loud.",
+    elementSnapshot: null,
+    revision: 1,
+    status: "open" as const,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+
+  test("Clear selection is offered only while something is selected, and clears it", () => {
+    const onSelectPin = vi.fn();
+    const view = render(<CapturePanel {...panelProps({ pins: [saved], onSelectPin })} />);
+    expect(screen.queryByRole("button", { name: "Clear selection" })).toBeNull();
+    view.rerender(
+      <CapturePanel {...panelProps({ pins: [saved], onSelectPin, selectedPinId: "ann-3" })} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(onSelectPin).toHaveBeenCalledWith(null);
+  });
+
+  test("the actions fit on one line: short words, full names", () => {
+    render(
+      <CapturePanel
+        {...panelProps({ pins: [saved], selectedPinId: "ann-3", onSetPinStatus: vi.fn() })}
+      />,
+    );
+    const resolve = screen.getByRole("button", { name: "Resolve pin" });
+    expect(resolve).toHaveTextContent(/^Resolve$/);
+    expect(screen.getByRole("button", { name: "Edit comment" })).toHaveTextContent(/^Edit$/);
+    expect(screen.getByRole("button", { name: "Delete pin" })).toHaveTextContent(/^Delete$/);
   });
 });

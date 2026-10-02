@@ -21,6 +21,7 @@ import {
 } from "../src/components/project-workspace";
 import { installReactFlowMocks } from "./helpers/react-flow";
 import { openRail } from "./helpers/rail";
+import { cameraMode, modePressed, waitForMode } from "./helpers/camera";
 
 installReactFlowMocks();
 
@@ -323,12 +324,13 @@ describe("the workspace opens on the overview", () => {
     expect(table).toBeInTheDocument();
     await waitFor(() => expect(within(overview()).getAllByRole("row")).toHaveLength(5));
     const rows = within(overview()).getAllByRole("row").slice(1);
-    // Project order, whatever order the route answered in.
+    // Project order, whatever order the route answered in. Each Pin cell
+    // reads badge then title ("1Pin 1") since D115.
     expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringMatching(/^https:\/\/chickpea\.co\/Desktop v1Pin 1/),
-      expect.stringMatching(/^https:\/\/chickpea\.co\/Desktop v1Pin 2/),
-      expect.stringMatching(/^https:\/\/chickpea\.co\/Mobile v1Pin 1/),
-      expect.stringMatching(/^https:\/\/chickpea\.co\/pricingDesktop v1Pin 1/),
+      expect.stringMatching(/^https:\/\/chickpea\.co\/Desktop v11Pin 1/),
+      expect.stringMatching(/^https:\/\/chickpea\.co\/Desktop v12Pin 2/),
+      expect.stringMatching(/^https:\/\/chickpea\.co\/Mobile v11Pin 1/),
+      expect.stringMatching(/^https:\/\/chickpea\.co\/pricingDesktop v11Pin 1/),
     ]);
     expect(within(overview()).queryByRole("group", { name: "Pins shown" })).toBeNull();
     expect(
@@ -450,12 +452,12 @@ describe("cross-capture pin stepping", () => {
     await next();
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-1."));
     // The position line names the mark (D078), then its place in the order.
-    expect(stepPosition()).toHaveTextContent("Pin 1 · “Note rd-1.” · 1 of 4");
+    expect(stepPosition()).toHaveTextContent("Pin 1 · 1 of 4");
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-d1/asset");
 
     await next();
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-2."));
-    expect(stepPosition()).toHaveTextContent("Pin 2 · “Note rd-2.” · 2 of 4");
+    expect(stepPosition()).toHaveTextContent("Pin 2 · 2 of 4");
 
     // The last pin of the plane continues onto the next plane, not back to
     // the first pin of this one.
@@ -491,26 +493,16 @@ describe("cross-capture pin stepping", () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await openHome(user);
-    await user.click(within(detail()).getByRole("button", { name: "Natural size" }));
+    await user.click(cameraMode(detail(), "Natural size"));
     // Two steps: onto pin 2 here, then onto the Mobile plane.
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
-    await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: "Entire page" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(detail(), "Entire page");
     await user.click(within(detail()).getByRole("button", { name: "Previous pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-d1/asset");
-    await waitFor(() =>
-      expect(within(detail()).getByRole("button", { name: "Natural size" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      ),
-    );
+    await waitForMode(detail(), "Natural size");
   });
 
   test("J and K on the canvas step across planes too, and the new plane keeps the keyboard", async () => {
@@ -603,7 +595,7 @@ describe("the table scope toggle", () => {
       "## https://chickpea.co/ — Mobile",
       "## https://chickpea.co/pricing — Desktop",
     ]);
-    expect(markdown).toContain("### Pin 2 · “Note rd-2.”");
+    expect(markdown).toContain("### Pin 2\n");
     expect(markdown).toContain("- Position: 200, 400 px natural");
     // The zoom readout is an <output> (also a status), so address the table's own.
     expect(detail().querySelector(".pin-table-actions [role='status']")).toHaveTextContent(

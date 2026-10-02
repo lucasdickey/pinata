@@ -36,6 +36,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
+import { cameraMode } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -260,13 +261,16 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   const doc = { width: target.width, height: target.height };
 
   // The page documents itself (VAL-CANVAS-009, D074, D078): a verb strip
-  // beside the canvas controls names the verbs, and there is no mode toggle
-  // to find.
+  // names the verbs, behind the floating toolbar's "?" since D111, and
+  // there is no mode toggle to find.
+  await page.getByRole("button", { name: "How the canvas works" }).click();
   const verbs = page.getByTestId("workspace-verbs");
   await expect(verbs).toContainText("drop a pin: click the page");
-  await expect(verbs).toContainText("draw a box: shift-drag");
+  await expect(verbs).toContainText("draw a box, circle, or arrow: pick a tool, then drag");
   await expect(verbs).toContainText("move: drag it");
-  await expect(verbs).toContainText("read or reply: click a mark");
+  await expect(verbs).toContainText("read: click a mark");
+  await page.keyboard.press("Escape");
+  await expect(verbs).toHaveCount(0);
   await expect(page.getByRole("button", { name: /place pin|navigate/i })).toHaveCount(0);
 
   const before = await listPins(page, target.captureId);
@@ -281,7 +285,7 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   if (existing) {
     fixtureNumber = existing.number;
   } else {
-    await page.getByRole("button", { name: "Natural size" }).click();
+    await (await cameraMode(page, "Natural size")).click();
     await waitForZoom(page, 1);
     await panUntilNaturalVisible(page, corner);
     await placeAndSave(
@@ -353,7 +357,7 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   const maxBefore = before.reduce((max, pin) => Math.max(max, pin.number), 0);
   const writes = trackAnnotationWrites(page);
 
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   // Earlier runs of this spec leave pins near the default pane center by
   // design; this spec writes into the bottom band (see findClearAim) so its
@@ -427,9 +431,9 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   });
   await page.mouse.up();
   await page.mouse.wheel(0, 480);
-  await page.getByRole("button", { name: "Entire page" }).click();
-  await page.getByRole("button", { name: "Fit width" }).click();
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Entire page")).click();
+  await (await cameraMode(page, "Fit width")).click();
+  await (await cameraMode(page, "Natural size")).click();
   await page.getByRole("button", { name: "Zoom in" }).click();
   await page.getByRole("button", { name: "Zoom out" }).click();
   await page.waitForTimeout(300);
@@ -452,7 +456,7 @@ test("dragging a saved pin commits exactly one move with grab offset and clamps 
   const before = await listPins(page, target.captureId);
   const writes = trackAnnotationWrites(page);
 
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   await panUntilNaturalVisible(
     page,
@@ -566,7 +570,7 @@ test("the Draw a box toggle arms one drag; the box shares the pin numbering and 
   const before = await listPins(page, target.captureId);
   const writes = trackAnnotationWrites(page);
 
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   await panUntilNaturalVisible(
     page,

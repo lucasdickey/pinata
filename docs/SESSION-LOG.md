@@ -3586,3 +3586,51 @@ Harness: Claude (Cowork), in a cloud session driven from the Chrome side panel.
 - D109 (user-deferred, pending): a way to unarchive.
 - D110 (agent-proposed, user-approved): Archive in the project header; the
   founder link keeps working.
+
+---
+
+## 2026-10-02 — compact capture view (D111–D116)
+
+Harness: Claude Code, in a cloud session, from a handoff that asked first
+for the archive patch (D108–D110) to land.
+
+- **The archive patch landed first, by its own commit.** `git am` was
+  refused by the session's permission check until the owner approved it;
+  its author was reset to Lucas. The cloud session holds no Turso
+  credentials, so `npm run db:migrate` could not run here: the owner chose
+  a pull request over a direct push, so nothing deploys until the
+  production migration has run and the PR is merged.
+- **Canvas controls (D111).** One floating pill over the canvas replaces
+  the hint line, the heading, and two rows of buttons: icon tools, zoom
+  with the fit modes in a popup, and "?" for the verbs. The row above the
+  canvas is one line. Measured on a 1440×900 window, the screenshot now
+  starts at 198px instead of 422px.
+- **Panel (D112–D114).** Collapses to a strip and stays mounted; a test
+  drops and saves a pin while it is collapsed. List rows are in parts
+  (badge, comment, element), headings share one rhythm, and the action
+  buttons fit one line (the owner's screenshot showed them wrapping).
+- **Mid-session requests.** The pin table and the copied Markdown cut the
+  comment short; now the table shows the whole comment beside "Pin 1",
+  the Markdown heading is just "## Pin 1" over the verbatim quote, and the
+  panel's selection title is the badge and "Pin 2" (D115). There was no
+  visible way to let go of a selection; now there is a × and Escape
+  (D116).
+- **Screenshots** were taken against the real `/pins` page on a local dev
+  server with a throwaway SQLite database for sign-in and the editor's
+  browser requests answered with sample data, since no real project could
+  be loaded here.
+- **Tests.** Fit modes are reached through `cameraMode`/`modePressed`/
+  `waitForMode` helpers (unit) and `cameraMode`/`expectModePressed` (e2e)
+  that open the popup first. A wait must never toggle the popup inside
+  `waitFor`: each toggle is a DOM change that re-runs the wait, which hung
+  the canvas suite until `waitForMode` opened it once outside the wait.
+  The credentialed e2e specs could not run here.
+
+### Decisions
+
+- D111 (user-directed): canvas controls as one floating toolbar.
+- D112 (user-directed): collapsible capture panel; data keeps writing.
+- D113 (user-directed): pin list rows in parts; one spacing rhythm.
+- D114 (user-directed): action buttons fit one line.
+- D115 (user-directed): pin text never cut in the table, Markdown, or selection.
+- D116 (user-directed): a × and Escape let go of a selected pin.

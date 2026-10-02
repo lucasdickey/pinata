@@ -4937,6 +4937,312 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D111",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Canvas controls float over the canvas as one compact toolbar",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Above the canvas sat a full-width hint line, a \"Desktop — URL\" heading, and two rows of text buttons (three fit modes, zoom out, zoom in, the zoom readout, then three draw tools), plus a row of text buttons for the overview and pin stepping. Together they took about 230px of height before the screenshot began. The owner also remembered an open request to move the canvas controls into overlays like Figma's or Paper's; no record of it existed, so this record is that request.",
+      "decision": "One floating toolbar sits over the bottom centre of the canvas: icon buttons for box, circle and arrow; zoom out; a \"19% ▾\" button that opens a small popup with Entire page, Fit width and Natural size; zoom in; and a \"?\" that opens the verb line which used to sit above the canvas. Icon buttons show their name and key in a tip on hover and keyboard focus, are solid ink while armed (D102), and take the shared blue focus ring. The row above the canvas becomes one compact line: a ‹ Overview button, the device toggle, the page address as a quiet caption (still the capture's h3, by the same name), and up/down buttons with \"Pin 2 · 2 of 4\". The canvas takes the height back (100dvh − 16rem).",
+      "alternatives": [
+        {
+          "option": "Keep the rows and shrink the buttons",
+          "why_not": "Saves little height and keeps the hint and heading lines the owner called space-consuming."
+        },
+        {
+          "option": "A vertical tool rail down the left edge of the canvas",
+          "why_not": "Would sit next to the project drawer's button (D106); one bottom pill keeps every canvas control in one place."
+        },
+        {
+          "option": "A pin (or select) tool that is pressed when nothing else is armed",
+          "why_not": "The tools arm one drag and then disarm (D074, D079); a standing pin tool would read as a mode the canvas does not have. A click on the page still drops a pin, and \"?\" says so."
+        }
+      ],
+      "rationale": "The owner asked for modern patterns: icons, clear interactive states, and dropdowns. Fit modes are used rarely, so they move behind the zoom readout as in Figma; the draw tools and zoom stay one click away. Every button keeps its accessible name as aria-label, so assistive tech and the tests address the same controls as before. The toolbar sits outside the canvas region's pointer handlers, so a press on it never drops a pin, and an open popup puts a clear veil over the canvas so an outside click closes it without reaching the canvas (as D106's drawer does). No dependency was added: the icons are inline SVG in the style of the drawer's chevron.",
+      "consequences": [
+        "The canvas starts about 225px higher on a laptop screen, and the toolbar is always in view above the fixed footer.",
+        "Escape closes an open popup before anything else sees the key.",
+        "Unit and end-to-end tests reach a fit mode through small helpers that open the popup first (test/helpers/camera.ts, e2e/camera.ts), as openRail does for D106.",
+        "The founder view's read-only canvas gets the same pill with zoom only; its own hint is unchanged.",
+        "Phone width: the control row wraps to two short lines and the pill fits inside the canvas."
+      ],
+      "transcript": {
+        "request": "this whole section is WAY toos pace consumptive. use modern UX/UI best practices to clean this up. consider icongraphy, interactive states, drop-downs/etc."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The floating toolbar."
+        },
+        {
+          "type": "file",
+          "path": "src/components/canvas-icons.tsx",
+          "caption": "The toolbar icons."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-light.png",
+          "caption": "Before: rows of controls above the canvas (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-light.png",
+          "caption": "After: one control row and the floating toolbar (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-dark.png",
+          "caption": "Before (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-dark.png",
+          "caption": "After (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-zoom-menu-light.png",
+          "caption": "The fit modes in the zoom popup."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-tooltip-dark.png",
+          "caption": "A tool's tip with its key (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-before-phone.png",
+          "caption": "Before at phone width."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-phone.png",
+          "caption": "After at phone width."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D112",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The capture panel collapses to a strip, and data keeps writing",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The right-hand panel (Selection, pins, Capture, Details) always took 17rem beside the canvas.",
+      "decision": "A toggle in the panel's top-right corner collapses it to a thin strip holding the toggle; the canvas widens to fill the space (this one reflows on purpose, unlike D106's drawer). Collapsing only hides the panel's content with the hidden attribute; the component stays mounted. The choice is remembered per browser in localStorage, read after mount, with every access in try/catch. A mark selected while collapsed shows as its number badge on the strip instead of forcing the panel open.",
+      "alternatives": [
+        {
+          "option": "Open the panel automatically when a mark is selected",
+          "why_not": "Undoes the owner's choice on every click; the badge says what is selected without taking the space back."
+        },
+        {
+          "option": "Unmount the panel while collapsed",
+          "why_not": "\"Even when collapsed, data will write\": hiding must not change what the workspace does, so the panel stays mounted."
+        }
+      ],
+      "rationale": "The owner wants more room for the canvas and asked that collapsing never stop writes. All writes, seen-marking and live refresh live in the workspace, not the panel, and a test drops and saves a pin while the panel is collapsed.",
+      "consequences": [
+        "Collapsed state survives reloads in the same browser; private windows and blocked storage simply open the panel.",
+        "On narrow screens the panel still stacks below the canvas; collapsed, it is one short row."
+      ],
+      "transcript": {
+        "request": "lets make this collapsable, and when collapsed the canvas gets more viewport space. even when collapsed, data will write."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The collapsible panel."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D112-collapsed-light.png",
+          "caption": "Collapsed: the strip with the selected pin's badge, and the wider canvas (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D112-collapsed-dark.png",
+          "caption": "Collapsed (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D113",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Pin list rows in parts, and one spacing rhythm in the panel",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Each pin in the panel list read as one run-on line (\"Pin 1 · “comment” · element text…\") in the same color, and the last pin sat flush against the \"Capture\" heading.",
+      "decision": "Each row is in parts: a number badge in the accent color matching the canvas marker (quiet grey once resolved, squared for a box), the comment as the main line clamped to two lines, and the element as a smaller, dimmer line clamped to one. A resolved row says so, and unread replies show as a small \"2 new\" pill (D075). Rows are split by a hairline; hover and the selected fill are unchanged. Every heading in the panel gets the same space above it. The two .pin-list rule blocks are merged into one.",
+      "alternatives": [
+        {
+          "option": "Keep one line and only change colors",
+          "why_not": "Still a wall of text: the number, comment and element need separate lines to scan."
+        }
+      ],
+      "rationale": "The badge ties a row to its marker on the canvas at a glance; the comment is what the editor reads first. Each row's accessible name stays the mark's full label (D078), so screen readers and tests hear the same thing as before.",
+      "consequences": [
+        "Row text is clamped by CSS only; the full comment is in the selection view and the table (D115)."
+      ],
+      "transcript": {
+        "request": "let's make the pin line items a little more diffentiated. it's just a wall of white text.",
+        "follow_up": "also, the spacing between teh pins and \"capture\" seems off."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "The .pin-list and .pin-row rules."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D113-list-light.png",
+          "caption": "The list in parts (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D113-list-dark.png",
+          "caption": "The list in parts (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D114",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "The selected pin's actions fit on one line",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "In the 17rem panel, \"Edit comment\", \"Delete pin\" and \"Resolve pin\" each wrapped onto two lines and the last button spilled past the panel's edge.",
+      "decision": "The buttons show short words, \"Resolve\" (or \"Reopen\"), \"Edit\" and \"Delete\", and never wrap a label; a narrow panel wraps the row instead. Each keeps its full name (\"Resolve pin\", \"Edit comment\", \"Delete box\") as its accessible name, which begins with the visible word. Resolve comes first, in the solid primary style, as the usual next step; the edit and delete confirmations follow the same pattern.",
+      "alternatives": [
+        {
+          "option": "Icon-only actions",
+          "why_not": "Delete and resolve are consequential; a word is clearer than an icon here."
+        }
+      ],
+      "rationale": "The owner pointed at the wrapped buttons in a screenshot. Short labels fit the panel at its width in both themes without widening it.",
+      "consequences": [
+        "While a change is saving, the button shows and announces \"Saving…\"."
+      ],
+      "transcript": {
+        "request": "issue here ... see buttons"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The action row."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D111-after-light.png",
+          "caption": "The action row on one line, in the panel at right."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D115",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Pin text is never cut in the table, the Markdown, or the selection",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The pin table's Pin column, the copied Markdown's headings, and the panel's selection title all used the mark's short name (D078), which cuts the comment at 60 characters and the element at 40 with an ellipsis. The full comment was in the table, but in the last column, off the side of a wide table.",
+      "decision": "The table's Pin cell shows only the number badge and \"Pin 1\", and the whole comment moves to the column right after it (Page and Device stay first, D077). The Markdown heading is just \"## Pin 1\"; the element is on its own detail line and the comment is quoted in full under the details, with its replies after it (D097). The panel's selection title is the badge and \"Pin 2\"; the comment and element follow in full beneath it, and the pin-step line reads \"Pin 2 · 2 of 4\".",
+      "alternatives": [
+        {
+          "option": "Raise the excerpt limits",
+          "why_not": "Any limit still cuts some comment; the full text is already available, so show that instead."
+        },
+        {
+          "option": "Put the full comment in the Markdown heading",
+          "why_not": "A comment can run several lines, and a heading cannot."
+        }
+      ],
+      "rationale": "The owner saw truncated pin text in the view and in the Markdown and called it out. The short name stays the accessible name of the list and table buttons, where brevity helps, but nothing visible or copied is cut.",
+      "consequences": [
+        "Pasted Markdown headings are shorter; the comment is still verbatim in the quote below them.",
+        "The founder view still shows the short name for its selected mark; it was left as is to keep this change in the editor."
+      ],
+      "transcript": {
+        "request": "the pin copy is truncated in the view and in the markdown"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/pin-table.tsx",
+          "caption": "The table's Pin and Comment columns."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/pin-export.ts",
+          "caption": "The Markdown heading."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D115-table-before-dark.png",
+          "caption": "Before: the Pin column repeats a cut-down comment."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D115-table-after-dark.png",
+          "caption": "After: \"Pin 1\" and the whole comment beside it."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D116",
+      "date": "2026-10-02",
+      "phase": "build",
+      "title": "Letting go of a selected pin: a × in the panel, and Escape",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Once a pin was selected there was no visible way to deselect it. Clicking empty canvas drops a new pin, and the only way out was clicking the same pin again in the list.",
+      "decision": "The panel's Selection heading carries a × \"Clear selection\" button while something is selected. Escape also lets go of the selection, as the last step after its existing order (a draw in progress, an armed tool, an open draft), and never while typing. An Escape that closes an open toolbar popup or the project drawer is used up there and does not also deselect.",
+      "alternatives": [
+        {
+          "option": "Deselect on a click on empty canvas",
+          "why_not": "A click on the page drops a pin (D074); making it deselect instead would change the main gesture."
+        }
+      ],
+      "rationale": "The owner could not find how to dismiss a selection. A visible control where the selection is shown, plus the key people already try, covers both pointer and keyboard.",
+      "consequences": [
+        "The panel's keyboard list says \"Escape cancels, then lets go of the selected mark\".",
+        "Letting go is not a write."
+      ],
+      "transcript": {
+        "request": "i also cna't figure out how to dismiss the focus on a single pin"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The Escape order."
+        },
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "The Clear selection button."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

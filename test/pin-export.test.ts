@@ -99,7 +99,7 @@ describe("formatPinsAsMarkdown", () => {
     const markdown = formatPinsAsMarkdown([pin()], context);
     // The heading is the mark's name (D078); the coordinates follow as data.
     expect(markdown).toContain(
-      "## Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+      "## Pin 1\n",
     );
     expect(markdown).toContain("- Position: 392, 387 px natural");
     expect(markdown.indexOf("- Status:")).toBeLessThan(markdown.indexOf("- Position:"));
@@ -108,6 +108,24 @@ describe("formatPinsAsMarkdown", () => {
     expect(markdown).toContain("- Element: <button> role=switch “Annual (save 20%)”");
     expect(markdown).toContain("- Path: `main > section.pricing > div.billing-toggle`");
     expect(markdown).toContain("- Bounds: 176 × 44 px natural");
+  });
+
+  test("nothing is cut: a long comment and a long element reach the paste whole (D115)", () => {
+    const body =
+      "i think the card label should have a little bit of color or something to set it apart from the rest of the card";
+    const long = pin({
+      body,
+      elementSnapshot: {
+        ...pin().elementSnapshot!,
+        text: "HALLUCINATION CLUB v1.0 — 2026 Edition, limited run of forty",
+      },
+    });
+    const markdown = formatPinsAsMarkdown([long], context);
+    expect(markdown).toContain("## Pin 1\n");
+    expect(markdown).toContain(`> ${body}`);
+    expect(markdown).toContain("HALLUCINATION CLUB v1.0 — 2026 Edition, limited run of forty");
+    expect(markdown).not.toContain("…");
+    expect(markdown).not.toContain("...");
   });
 
   test("every pin carries its lifecycle status (D075)", () => {
@@ -161,7 +179,7 @@ describe("formatPinsAsMarkdown", () => {
     const markdown = formatPinsAsMarkdown([pin()], { ...context, heading: "Pricing — Desktop" });
     expect(markdown.split("\n")[0]).toBe("# Pricing — Desktop");
     expect(markdown).not.toContain("Pinata pins");
-    expect(markdown).toContain("## Pin 1 · “This billing toggle reads the same in both states.”");
+    expect(markdown).toContain("## Pin 1\n");
   });
 });
 
@@ -208,10 +226,10 @@ describe("formatProjectPinsAsMarkdown", () => {
     const markdown = formatProjectPinsAsMarkdown(groups, project);
     const home = markdown.indexOf("## https://chickpea.co/ — Desktop");
     const pricing = markdown.indexOf("## https://chickpea.co/pricing — Desktop");
-    const homePin = markdown.indexOf("### Pin 1 · “Home desktop note.” · Annual (save 20%)");
+    const homePin = markdown.indexOf("### Pin 1\n");
     expect(home).toBeLessThan(homePin);
     expect(homePin).toBeLessThan(pricing);
-    expect(markdown.indexOf("### Pin 2 · “Pricing note two.”")).toBeGreaterThan(pricing);
+    expect(markdown.indexOf("### Pin 2\n")).toBeGreaterThan(pricing);
     // Exactly one top-level heading in the whole document.
     expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
     // The per-pin details and the verbatim comment come through unchanged.
@@ -244,10 +262,8 @@ describe("rectangles in the export (D079)", () => {
 
   test("the position is the corner and size, and the heading is the mark's name", () => {
     expect(pinPosition(box)).toBe("120, 641 · 300 × 181");
-    expect(markHeading(box)).toBe("## Box 3 · “This whole card needs more air.”");
-    expect(markHeading(pin())).toBe(
-      "## Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
-    );
+    expect(markHeading(box)).toBe("## Box 3");
+    expect(markHeading(pin())).toBe("## Pin 1");
     expect(rectangleBoundsLine(box)).toBe("- Box: 120, 641 · 300 × 181 px natural");
     expect(rectangleBoundsLine(pin())).toBeNull();
     // A box has a box line and no position line; a pin the other way round.
@@ -260,7 +276,7 @@ describe("rectangles in the export (D079)", () => {
     // The summary counts each kind, not "2 pins" for a pin and a box.
     expect(markdown).toContain("1 pin · 1 box");
     const block = markdown.slice(markdown.indexOf("## Box 3"));
-    expect(block).toContain("## Box 3 · “This whole card needs more air.”");
+    expect(block).toContain("## Box 3\n");
     expect(block).not.toContain("- Position:");
     expect(block.indexOf("- Status: Open")).toBeLessThan(block.indexOf("- Box:"));
     expect(block.indexOf("- Box:")).toBeLessThan(block.indexOf("- Element: No element"));
@@ -296,9 +312,9 @@ describe("rectangles in the project export (D077 + D079)", () => {
     );
     expect(markdown).toContain("https://chickpea.co/ · 1 capture · 1 pin · 1 box");
     expect(markdown).toContain(
-      "### Pin 1 · “This billing toggle reads the same in both states.” · Annual (save 20%)",
+      "### Pin 1\n",
     );
-    expect(markdown).toContain("### Box 2 · “This whole card needs more air.”");
+    expect(markdown).toContain("### Box 2\n");
     expect(markdown).toContain("- Box: 120, 641 · 300 × 181 px natural");
     expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
   });
@@ -321,7 +337,7 @@ describe("circles in the export (D082)", () => {
 
   test("the position is the center and the width, and the heading is the mark's name", () => {
     expect(pinPosition(round)).toBe("271, 791 · 300 wide");
-    expect(markHeading(round)).toBe("## Circle 4 · “Draw the eye to this badge.”");
+    expect(markHeading(round)).toBe("## Circle 4");
     expect(circleBoundsLine(round)).toBe("- Circle: 271, 791 · 300 wide px natural");
     expect(circleBoundsLine(pin())).toBeNull();
     // A circle has a circle line and no position or box line.
@@ -358,7 +374,7 @@ describe("arrows in the export (D083)", () => {
 
   test("the position is both points, tail first, and the heading is the mark's name", () => {
     expect(pinPosition(pointer)).toBe("120, 641 → 420, 301");
-    expect(markHeading(pointer)).toBe("## Arrow 5 · “Move this up into the header.”");
+    expect(markHeading(pointer)).toBe("## Arrow 5");
     expect(arrowPointsLine(pointer)).toBe(
       "- Arrow: 120, 641 → 420, 301 px natural (tail to head)",
     );

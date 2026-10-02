@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 33 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108 |
+| Human directed | 39 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **110** | |
+| **Total** | **116** | |
 
 ## Key decisions
 
@@ -172,6 +172,12 @@ The product and architecture decisions to read first. The full index follows.
 | [D108](#d108--archive-a-project-so-it-leaves-the-project-list-as-a-separate-column-rather-than-a-delete) | build | Archive a project so it leaves the project list, as a separate column rather than a delete | Human directed | accepted |
 | [D109](#d109--defer-a-way-to-unarchive-a-project) | build | Defer a way to unarchive a project | Raised and deferred | pending |
 | [D110](#d110--archive-lives-in-the-selected-projects-header-and-an-archived-projects-founder-link-keeps-working) | build | Archive lives in the selected project's header, and an archived project's founder link keeps working | Agent proposed, human approved | accepted |
+| [D111](#d111--canvas-controls-float-over-the-canvas-as-one-compact-toolbar) | build | Canvas controls float over the canvas as one compact toolbar | Human directed | accepted |
+| [D112](#d112--the-capture-panel-collapses-to-a-strip-and-data-keeps-writing) | build | The capture panel collapses to a strip, and data keeps writing | Human directed | accepted |
+| [D113](#d113--pin-list-rows-in-parts-and-one-spacing-rhythm-in-the-panel) | build | Pin list rows in parts, and one spacing rhythm in the panel | Human directed | accepted |
+| [D114](#d114--the-selected-pins-actions-fit-on-one-line) | build | The selected pin's actions fit on one line | Human directed | accepted |
+| [D115](#d115--pin-text-is-never-cut-in-the-table-the-markdown-or-the-selection) | build | Pin text is never cut in the table, the Markdown, or the selection | Human directed | accepted |
+| [D116](#d116--letting-go-of-a-selected-pin-a--in-the-panel-and-escape) | build | Letting go of a selected pin: a × in the panel, and Escape | Human directed | accepted |
 
 ---
 
@@ -4426,4 +4432,249 @@ Human approved:
 
 ---
 
-<sub>Generated from 110 record(s) as of 2026-10-01 · source `788aa8d28979`</sub>
+## D111 — Canvas controls float over the canvas as one compact toolbar
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Above the canvas sat a full-width hint line, a "Desktop — URL" heading, and two rows of text buttons (three fit modes, zoom out, zoom in, the zoom readout, then three draw tools), plus a row of text buttons for the overview and pin stepping. Together they took about 230px of height before the screenshot began. The owner also remembered an open request to move the canvas controls into overlays like Figma's or Paper's; no record of it existed, so this record is that request.
+
+**Decision**
+
+One floating toolbar sits over the bottom centre of the canvas: icon buttons for box, circle and arrow; zoom out; a "19% ▾" button that opens a small popup with Entire page, Fit width and Natural size; zoom in; and a "?" that opens the verb line which used to sit above the canvas. Icon buttons show their name and key in a tip on hover and keyboard focus, are solid ink while armed (D102), and take the shared blue focus ring. The row above the canvas becomes one compact line: a ‹ Overview button, the device toggle, the page address as a quiet caption (still the capture's h3, by the same name), and up/down buttons with "Pin 2 · 2 of 4". The canvas takes the height back (100dvh − 16rem).
+
+**Alternatives considered**
+
+- *Keep the rows and shrink the buttons* — Saves little height and keeps the hint and heading lines the owner called space-consuming.
+- *A vertical tool rail down the left edge of the canvas* — Would sit next to the project drawer's button (D106); one bottom pill keeps every canvas control in one place.
+- *A pin (or select) tool that is pressed when nothing else is armed* — The tools arm one drag and then disarm (D074, D079); a standing pin tool would read as a mode the canvas does not have. A click on the page still drops a pin, and "?" says so.
+
+**Rationale**
+
+The owner asked for modern patterns: icons, clear interactive states, and dropdowns. Fit modes are used rarely, so they move behind the zoom readout as in Figma; the draw tools and zoom stay one click away. Every button keeps its accessible name as aria-label, so assistive tech and the tests address the same controls as before. The toolbar sits outside the canvas region's pointer handlers, so a press on it never drops a pin, and an open popup puts a clear veil over the canvas so an outside click closes it without reaching the canvas (as D106's drawer does). No dependency was added: the icons are inline SVG in the style of the drawer's chevron.
+
+**Consequences**
+
+- The canvas starts about 225px higher on a laptop screen, and the toolbar is always in view above the fixed footer.
+- Escape closes an open popup before anything else sees the key.
+- Unit and end-to-end tests reach a fit mode through small helpers that open the popup first (test/helpers/camera.ts, e2e/camera.ts), as openRail does for D106.
+- The founder view's read-only canvas gets the same pill with zoom only; its own hint is unchanged.
+- Phone width: the control row wraps to two short lines and the pill fits inside the canvas.
+
+**Provenance evidence**
+
+Human instruction:
+
+> this whole section is WAY toos pace consumptive. use modern UX/UI best practices to clean this up. consider icongraphy, interactive states, drop-downs/etc.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — The floating toolbar.
+- `src/components/canvas-icons.tsx` — The toolbar icons.
+- ![Before: rows of controls above the canvas (light).](dashboard/screenshots/D111-before-light.png) — Before: rows of controls above the canvas (light).
+- ![After: one control row and the floating toolbar (light).](dashboard/screenshots/D111-after-light.png) — After: one control row and the floating toolbar (light).
+- ![Before (dark).](dashboard/screenshots/D111-before-dark.png) — Before (dark).
+- ![After (dark).](dashboard/screenshots/D111-after-dark.png) — After (dark).
+- ![The fit modes in the zoom popup.](dashboard/screenshots/D111-zoom-menu-light.png) — The fit modes in the zoom popup.
+- ![A tool's tip with its key (dark).](dashboard/screenshots/D111-tooltip-dark.png) — A tool's tip with its key (dark).
+- ![Before at phone width.](dashboard/screenshots/D111-before-phone.png) — Before at phone width.
+- ![After at phone width.](dashboard/screenshots/D111-after-phone.png) — After at phone width.
+
+---
+
+## D112 — The capture panel collapses to a strip, and data keeps writing
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The right-hand panel (Selection, pins, Capture, Details) always took 17rem beside the canvas.
+
+**Decision**
+
+A toggle in the panel's top-right corner collapses it to a thin strip holding the toggle; the canvas widens to fill the space (this one reflows on purpose, unlike D106's drawer). Collapsing only hides the panel's content with the hidden attribute; the component stays mounted. The choice is remembered per browser in localStorage, read after mount, with every access in try/catch. A mark selected while collapsed shows as its number badge on the strip instead of forcing the panel open.
+
+**Alternatives considered**
+
+- *Open the panel automatically when a mark is selected* — Undoes the owner's choice on every click; the badge says what is selected without taking the space back.
+- *Unmount the panel while collapsed* — "Even when collapsed, data will write": hiding must not change what the workspace does, so the panel stays mounted.
+
+**Rationale**
+
+The owner wants more room for the canvas and asked that collapsing never stop writes. All writes, seen-marking and live refresh live in the workspace, not the panel, and a test drops and saves a pin while the panel is collapsed.
+
+**Consequences**
+
+- Collapsed state survives reloads in the same browser; private windows and blocked storage simply open the panel.
+- On narrow screens the panel still stacks below the canvas; collapsed, it is one short row.
+
+**Provenance evidence**
+
+Human instruction:
+
+> lets make this collapsable, and when collapsed the canvas gets more viewport space. even when collapsed, data will write.
+
+**Artifacts**
+
+- `src/components/capture-panel.tsx` — The collapsible panel.
+- ![Collapsed: the strip with the selected pin's badge, and the wider canvas (light).](dashboard/screenshots/D112-collapsed-light.png) — Collapsed: the strip with the selected pin's badge, and the wider canvas (light).
+- ![Collapsed (dark).](dashboard/screenshots/D112-collapsed-dark.png) — Collapsed (dark).
+
+---
+
+## D113 — Pin list rows in parts, and one spacing rhythm in the panel
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Each pin in the panel list read as one run-on line ("Pin 1 · “comment” · element text…") in the same color, and the last pin sat flush against the "Capture" heading.
+
+**Decision**
+
+Each row is in parts: a number badge in the accent color matching the canvas marker (quiet grey once resolved, squared for a box), the comment as the main line clamped to two lines, and the element as a smaller, dimmer line clamped to one. A resolved row says so, and unread replies show as a small "2 new" pill (D075). Rows are split by a hairline; hover and the selected fill are unchanged. Every heading in the panel gets the same space above it. The two .pin-list rule blocks are merged into one.
+
+**Alternatives considered**
+
+- *Keep one line and only change colors* — Still a wall of text: the number, comment and element need separate lines to scan.
+
+**Rationale**
+
+The badge ties a row to its marker on the canvas at a glance; the comment is what the editor reads first. Each row's accessible name stays the mark's full label (D078), so screen readers and tests hear the same thing as before.
+
+**Consequences**
+
+- Row text is clamped by CSS only; the full comment is in the selection view and the table (D115).
+
+**Provenance evidence**
+
+Human instruction:
+
+> let's make the pin line items a little more diffentiated. it's just a wall of white text.
+
+**Artifacts**
+
+- `app/globals.css` — The .pin-list and .pin-row rules.
+- ![The list in parts (light).](dashboard/screenshots/D113-list-light.png) — The list in parts (light).
+- ![The list in parts (dark).](dashboard/screenshots/D113-list-dark.png) — The list in parts (dark).
+
+---
+
+## D114 — The selected pin's actions fit on one line
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+In the 17rem panel, "Edit comment", "Delete pin" and "Resolve pin" each wrapped onto two lines and the last button spilled past the panel's edge.
+
+**Decision**
+
+The buttons show short words, "Resolve" (or "Reopen"), "Edit" and "Delete", and never wrap a label; a narrow panel wraps the row instead. Each keeps its full name ("Resolve pin", "Edit comment", "Delete box") as its accessible name, which begins with the visible word. Resolve comes first, in the solid primary style, as the usual next step; the edit and delete confirmations follow the same pattern.
+
+**Alternatives considered**
+
+- *Icon-only actions* — Delete and resolve are consequential; a word is clearer than an icon here.
+
+**Rationale**
+
+The owner pointed at the wrapped buttons in a screenshot. Short labels fit the panel at its width in both themes without widening it.
+
+**Consequences**
+
+- While a change is saving, the button shows and announces "Saving…".
+
+**Provenance evidence**
+
+Human instruction:
+
+> issue here ... see buttons
+
+**Artifacts**
+
+- `src/components/capture-panel.tsx` — The action row.
+- ![The action row on one line, in the panel at right.](dashboard/screenshots/D111-after-light.png) — The action row on one line, in the panel at right.
+
+---
+
+## D115 — Pin text is never cut in the table, the Markdown, or the selection
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The pin table's Pin column, the copied Markdown's headings, and the panel's selection title all used the mark's short name (D078), which cuts the comment at 60 characters and the element at 40 with an ellipsis. The full comment was in the table, but in the last column, off the side of a wide table.
+
+**Decision**
+
+The table's Pin cell shows only the number badge and "Pin 1", and the whole comment moves to the column right after it (Page and Device stay first, D077). The Markdown heading is just "## Pin 1"; the element is on its own detail line and the comment is quoted in full under the details, with its replies after it (D097). The panel's selection title is the badge and "Pin 2"; the comment and element follow in full beneath it, and the pin-step line reads "Pin 2 · 2 of 4".
+
+**Alternatives considered**
+
+- *Raise the excerpt limits* — Any limit still cuts some comment; the full text is already available, so show that instead.
+- *Put the full comment in the Markdown heading* — A comment can run several lines, and a heading cannot.
+
+**Rationale**
+
+The owner saw truncated pin text in the view and in the Markdown and called it out. The short name stays the accessible name of the list and table buttons, where brevity helps, but nothing visible or copied is cut.
+
+**Consequences**
+
+- Pasted Markdown headings are shorter; the comment is still verbatim in the quote below them.
+- The founder view still shows the short name for its selected mark; it was left as is to keep this change in the editor.
+
+**Provenance evidence**
+
+Human instruction:
+
+> the pin copy is truncated in the view and in the markdown
+
+**Artifacts**
+
+- `src/components/pin-table.tsx` — The table's Pin and Comment columns.
+- `src/lib/pin-export.ts` — The Markdown heading.
+- ![Before: the Pin column repeats a cut-down comment.](dashboard/screenshots/D115-table-before-dark.png) — Before: the Pin column repeats a cut-down comment.
+- ![After: "Pin 1" and the whole comment beside it.](dashboard/screenshots/D115-table-after-dark.png) — After: "Pin 1" and the whole comment beside it.
+
+---
+
+## D116 — Letting go of a selected pin: a × in the panel, and Escape
+
+*2026-10-02 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Once a pin was selected there was no visible way to deselect it. Clicking empty canvas drops a new pin, and the only way out was clicking the same pin again in the list.
+
+**Decision**
+
+The panel's Selection heading carries a × "Clear selection" button while something is selected. Escape also lets go of the selection, as the last step after its existing order (a draw in progress, an armed tool, an open draft), and never while typing. An Escape that closes an open toolbar popup or the project drawer is used up there and does not also deselect.
+
+**Alternatives considered**
+
+- *Deselect on a click on empty canvas* — A click on the page drops a pin (D074); making it deselect instead would change the main gesture.
+
+**Rationale**
+
+The owner could not find how to dismiss a selection. A visible control where the selection is shown, plus the key people already try, covers both pointer and keyboard.
+
+**Consequences**
+
+- The panel's keyboard list says "Escape cancels, then lets go of the selected mark".
+- Letting go is not a write.
+
+**Provenance evidence**
+
+Human instruction:
+
+> i also cna't figure out how to dismiss the focus on a single pin
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — The Escape order.
+- `src/components/capture-panel.tsx` — The Clear selection button.
+
+---
+
+<sub>Generated from 116 record(s) as of 2026-10-02 · source `0f8aac1a8182`</sub>

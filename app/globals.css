@@ -1667,8 +1667,101 @@ pre code {
   padding: 1rem;
 }
 
+/* The panel collapses to a strip (D112). Its toggle shares the panel's one
+   grid cell with the content, pinned to the top-right corner, so it costs
+   no row of its own while open. */
+.workspace-panel {
+  display: grid;
+}
+
+.panel-strip,
+.panel-body {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.panel-strip {
+  z-index: 1;
+  justify-self: end;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin: -0.55rem -0.55rem 0 0;
+}
+
+.panel-body[hidden] {
+  display: none;
+}
+
+.workspace-panel[data-collapsed="true"] {
+  flex: 0 0 auto;
+  padding: 0.3rem;
+}
+
+.workspace-panel[data-collapsed="true"] .panel-strip {
+  margin: 0;
+}
+
+.panel-toggle,
+.panel-clear {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.3rem;
+  color: var(--ink-soft);
+}
+
+/* One rhythm for every section of the panel (D113): the same space above
+   each heading, none above the first. */
 .workspace-panel h4 {
-  margin: 0 0 0.4rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2rem;
+  margin: -0.35rem 0 0.4rem;
+  /* Room for the collapse toggle in the corner. */
+  padding-right: 2.25rem;
+}
+
+.panel-heading h4 {
+  margin: 0;
+}
+
+.panel-clear {
+  margin-left: auto;
+}
+
+/* The number badge a mark carries in the panel, as it does on the canvas:
+   accent while open, quiet once resolved; a box's is squared. */
+.pin-row-badge,
+.panel-strip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pin-row-badge[data-kind="rectangle"] {
+  border-radius: var(--radius-sm);
+}
+
+.pin-row[data-status="resolved"] .pin-row-badge,
+.panel-strip-badge[data-status="resolved"] {
+  background: var(--ink-quiet);
 }
 
 .workspace-panel h4 + p {
@@ -1724,22 +1817,100 @@ pre code {
 }
 .panel-actions {
   display: flex;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+/* Short words on one line each (D114): a narrow panel wraps the row, never
+   a label. */
+.panel-actions button {
+  padding: 0.25rem 0.7rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 .panel-pin {
   margin-top: 0;
   white-space: pre-wrap;
 }
+/* The panel's mark list (D113): rows in parts, split by a hairline, the
+   comment first and what it points at underneath. */
 .pin-list {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.pin-list button {
+
+.pin-list li + li {
+  border-top: var(--hairline) solid var(--line);
+}
+
+.pin-list .pin-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0.15rem 0;
+  padding: 0.45rem 0.4rem;
   text-align: left;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.pin-list .pin-row[aria-current="true"] {
+  font-weight: 400;
+}
+
+.pin-row-badge {
+  margin-top: 0.05rem;
+}
+
+.pin-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.pin-row-comment {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 0.9rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.pin-row[data-status="resolved"] .pin-row-comment {
+  color: var(--ink-soft);
+}
+
+.pin-row-element {
+  overflow: hidden;
+  color: var(--ink-quiet);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-row-meta {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.pin-row-meta .pin-unread {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pin-row-meta .pin-status {
+  font-size: inherit;
 }
 
 .panel-facts {
@@ -1759,10 +1930,12 @@ pre code {
   word-break: break-all;
 }
 
-/* The mark's name in the panel (D078) can run long; wrap, never clip. */
+/* The selected mark's kind and number, with its badge (D115). */
 .panel-mark-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   margin: 0 0 0.35rem;
-  overflow-wrap: anywhere;
 }
 
 /* The internals behind one native disclosure (D078). */
@@ -1849,19 +2022,17 @@ pre code {
   background: var(--code-bg);
 }
 
-/* The row header is the mark's name (D078): it can run to the comment
-   excerpt and the element, so it wraps inside a bounded column instead of
-   stretching the table. */
+/* The row header shows the mark's kind and number only (D115), as the
+   panel list's badge does; the whole comment is the next cell. */
 .pin-table tbody th {
-  min-width: 12rem;
-  max-width: 22rem;
   font-weight: 400;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .pin-table tbody th button {
+  gap: 0.45rem;
+  padding-left: 0.35rem;
   text-align: left;
-  white-space: normal;
 }
 
 .pin-table tr[data-selected="true"] > * {
@@ -1922,33 +2093,190 @@ pre code {
 /* The ready state is a pan/zoom canvas, not a scroll region: the dashed
    placeholder styling gives way to a solid bounded frame. */
 .capture-stage-canvas {
+  /* The canvas is the frame now (D111): no second border or padding
+     around it, and the floating toolbar is positioned against it. */
   display: block;
-  padding: 0.75rem;
+  position: relative;
+  padding: 0;
   text-align: left;
-  border-style: solid;
+  border: none;
 }
 
-.capture-camera {
+/* The floating toolbar (D111): one small raised pill over the bottom of
+   the canvas, icon tools first, then zoom, then "?". Groups are split by a
+   hairline, not by space, so the pill stays one object. */
+.canvas-toolbar-float {
+  position: absolute;
+  left: 50%;
+  bottom: 0.75rem;
+  transform: translateX(-50%);
+  z-index: 20;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
   align-items: center;
-  margin: 0 0 0.5rem;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 6px 20px rgb(0 0 0 / 0.12);
+  max-width: calc(100% - 1.5rem);
 }
 
-.capture-camera button[aria-pressed="true"] {
-  /* Selected tools and toggles are solid ink (D102); the accent stays
-     reserved for the marks themselves. */
+.canvas-tools,
+.canvas-camera,
+.canvas-help {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.canvas-tools + .canvas-camera,
+.canvas-camera + .canvas-help {
+  padding-left: 0.25rem;
+  border-left: var(--hairline) solid var(--line);
+}
+
+/* An icon button: square, quiet at rest, cream on hover, solid ink while
+   pressed (D102), the shared blue ring on keyboard focus. */
+.tool-button {
+  position: relative;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.45rem;
+  border-color: transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+}
+
+.tool-button:hover {
+  background: var(--raised);
+}
+
+.tool-button[aria-pressed="true"],
+.canvas-toolbar-float .tool-button[aria-expanded="true"] {
   background: var(--ink);
   border-color: var(--ink);
   color: var(--bg);
 }
 
+.tool-button:disabled {
+  color: var(--ink-quiet);
+}
+
+.canvas-icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.zoom-menu-toggle {
+  gap: 0.15rem;
+  padding: 0 0.4rem 0 0.55rem;
+}
+
 .capture-zoom {
   min-width: 4ch;
   text-align: right;
-  color: var(--ink-soft);
+  font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* The name and shortcut of an icon button, on hover and on keyboard focus,
+   above the pill. Decorative: the button's aria-label is its name. */
+.tool-tip {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.78rem;
+  font-weight: 480;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tool-tip kbd {
+  font: inherit;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.tool-button:hover > .tool-tip,
+.tool-button:focus-visible > .tool-tip {
+  display: inline-flex;
+}
+
+/* While a popup is open its button's tip would sit on top of it. */
+.tool-button[aria-expanded="true"] > .tool-tip {
+  display: none;
+}
+
+/* The fit modes and the help open upward from the pill. */
+.canvas-popup {
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  z-index: 1;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.canvas-fit-menu {
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 10rem;
+  padding: 0.25rem;
+}
+
+.canvas-fit-menu button {
+  justify-content: flex-start;
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.9rem;
+}
+
+.canvas-fit-menu button:hover {
+  background: var(--raised);
+}
+
+.canvas-fit-menu button[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.canvas-help-popup {
+  right: 0;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.75rem 0.9rem;
+}
+
+.canvas-help-popup p {
+  margin: 0;
+}
+
+/* The clear veil under an open popup: an outside press closes the popup
+   and never reaches the canvas (as the drawer's scrim does, D106). */
+.canvas-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
 }
 
 /* Bounded in both dimensions: React Flow pans and zooms the natural-size
@@ -1963,6 +2291,13 @@ pre code {
   border-radius: 0.5rem;
   overflow: hidden;
   background: var(--bg);
+}
+
+/* The editor's canvas sits below the editor bar, the project header, and
+   one control row (D111): sized so the floating toolbar is always in view
+   above the fixed footer. The founder view keeps the height above. */
+.workspace-body .capture-canvas {
+  height: min(calc(100dvh - 16rem), 72rem);
 }
 
 /* React Flow 12 ships no sizing for its root — the parent must provide it.
@@ -2152,22 +2487,6 @@ pre code {
   border-color: var(--ink);
 }
 
-/* The mark tools (D079, D082, D083): one row of toggles, each pressed while
-   it waits for the next drag. */
-.capture-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  align-items: center;
-  margin: 0 0 0.5rem;
-}
-.capture-draw-toggle[aria-pressed="true"] {
-  /* Selected tools and toggles are solid ink (D102); the accent stays
-     reserved for the marks themselves. */
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
-}
 .capture-canvas[data-draw-armed="true"],
 .capture-canvas[data-drawing="true"] {
   cursor: crosshair;
@@ -2976,14 +3295,48 @@ pre code {
   font-weight: 550;
 }
 
-/* The canvas view's controls sit in one row directly above the stage, next
-   to the camera controls the canvas draws as its first row. */
+/* The canvas view's controls: one compact row directly above the stage
+   (D111). The camera and mark tools float over the canvas itself. */
 .canvas-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
+  gap: 0.5rem 0.75rem;
   margin: 0.5rem 0;
+}
+
+.back-to-overview {
+  gap: 0.2rem;
+  padding-left: 0.45rem;
+}
+
+/* The capture's heading as a quiet caption (D111): the page address in
+   soft ink, cut with an ellipsis rather than wrapping the row. */
+.capture-caption {
+  flex: 1 1 8rem;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-toolbar .pin-step {
+  margin-left: auto;
+  gap: 0.125rem;
+}
+
+.canvas-toolbar .pin-step-position {
+  margin-right: 0.35rem;
+}
+
+/* Tips for buttons at the top of the view open downward. */
+.tool-tip-below {
+  top: calc(100% + 0.4rem);
+  bottom: auto;
 }
 
 .device-toggle,

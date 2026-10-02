@@ -33,6 +33,7 @@ import {
   type ReadyTarget,
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
+import { cameraMode } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
 
@@ -218,7 +219,7 @@ test("a Mobile home pin with an explicit No-element choice stays on its own plan
   // Place at natural size (1x): at contain zoom the pins this demo project
   // already carries span hundreds of natural px of hit box and would swallow
   // the placement click.
-  await page.getByRole("button", { name: "Natural size" }).click();
+  await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   const aim = await findClearAim(
     page,
