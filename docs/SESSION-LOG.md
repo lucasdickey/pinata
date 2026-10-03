@@ -3648,3 +3648,29 @@ for the archive patch (D108–D110) to land.
   is the Paper direction's). Three patterns were: the fit-mode popup takes
   and returns focus and moves with arrow keys, tooltips wait 400ms on
   hover but show at once on keyboard focus, and shortcuts are key caps.
+
+---
+
+## 2026-10-02 — halftone wash on the public landing (D119)
+
+Harness: Claude Code, in a cloud session.
+
+- The owner found the dark landing's flat black hard to look at and asked
+  for dot-matrix gradient shading in a piñata colour. The referenced post
+  turned out to be about drawing patterns with code rather than halftone
+  itself; the takeaway used here is that a pattern drawn by code costs less
+  than an image of it.
+- The wash is pure CSS: soft dots plus a large gradient, thresholded by a
+  contrast filter so dot size follows the gradient, then coloured with
+  blend modes so the ink is the accent token in both themes. A first try
+  at `z-index: -1` vanished: both html and body paint the page colour, so
+  the layer now comes first and the sections are positioned above it.
+- On a phone the hero wash sat behind the paragraph; it moves down behind
+  the illustration there. No horizontal scroll at 1440px or 390px.
+
+### Decisions
+
+- D119 (user-directed): halftone wash in the piñata orange on the landing.
+- PR #17 (the mascot in its own column) merged first; the card wash then
+  became a halo around the mascot instead of the copy's lower left, where
+  its dots would have run under "Give your feedback a place to land."

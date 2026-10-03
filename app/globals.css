@@ -330,6 +330,197 @@ pre code {
   padding-top: 0;
 }
 
+/* A halftone wash in the piñata orange (D119), so the landing is not one
+   flat field of black (or cream). Pure CSS, no image: a grid of soft dots
+   is added to a large soft gradient, and a high contrast filter turns that
+   into crisp dots that grow where the gradient is strong and vanish where
+   it fades, as print halftone does.
+
+   Three layers inside one isolated group: the dots in black and white
+   (::before), a soft glow confined to the wash's corner (the child span),
+   and a sheet of the accent (::after) that colours both. The group then
+   blends onto the page so only the ink shows: orange on paper in light,
+   orange on black in dark. The group itself has no background, so tools
+   that measure text contrast see the page colour the text actually sits
+   on. It is placed against the page itself (no positioned ancestor), so it
+   spans the window without adding a horizontal scroll. */
+.landing-halftone {
+  --halftone-cell: 11px;
+  /* Where the wash is strongest, and how far it reaches. */
+  --halftone-at: 99% 36%;
+  --halftone-reach: 55% 85%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54rem;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  mix-blend-mode: multiply;
+  opacity: 0.75;
+  /* Clear under the top bar so the links stay easy to read; fades out
+     before the sections below. */
+  -webkit-mask-image: linear-gradient(transparent 4.5rem, #000 9rem, #000 55%, transparent);
+  mask-image: linear-gradient(transparent 4.5rem, #000 9rem, #000 55%, transparent);
+}
+
+/* The landing's sections are positioned so they paint after the wash,
+   which comes first in the page; html and body both paint the page colour,
+   so a negative z-index would hide it. */
+.home-main--landing > :not(.landing-halftone) {
+  position: relative;
+}
+
+/* The dots: black on white (light). */
+.landing-halftone::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(closest-side, #000, #fff) 0 0 / var(--halftone-cell) var(--halftone-cell),
+    radial-gradient(ellipse var(--halftone-reach) at var(--halftone-at), #000, #fff 80%),
+    radial-gradient(ellipse 45% 55% at 4% 92%, #3a3a3a, #fff 75%);
+  /* Dots over the two ink maps; the maps combine by the darker. */
+  background-blend-mode: screen, multiply, normal;
+  filter: contrast(28);
+}
+
+/* A soft glow under the dots, so the field between them is not flat: a
+   faint warm tint on paper, an ember on black. Only the corner the wash
+   comes from, clear of the text column. */
+.landing-halftone-glow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 42%;
+  background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #c8c8c8, #fff 75%);
+  mix-blend-mode: multiply;
+}
+
+/* The ink: screened over black-on-white, black takes the orange and white
+   stays white. */
+.landing-halftone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  mix-blend-mode: screen;
+}
+
+/* Dark: white dots and a grey glow on black, multiplied by the orange,
+   then screened onto the page so only the ink shows. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .landing-halftone {
+    mix-blend-mode: screen;
+    opacity: 0.85;
+  }
+  :root:not([data-theme="light"]) .landing-halftone::before {
+    filter: contrast(28) invert(1);
+  }
+  :root:not([data-theme="light"]) .landing-halftone-glow {
+    background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #6a6a6a, #000 75%);
+    mix-blend-mode: screen;
+  }
+  :root:not([data-theme="light"]) .landing-halftone::after {
+    mix-blend-mode: multiply;
+  }
+}
+
+:root[data-theme="dark"] .landing-halftone {
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+
+:root[data-theme="dark"] .landing-halftone::before {
+  filter: contrast(28) invert(1);
+}
+
+:root[data-theme="dark"] .landing-halftone-glow {
+  background: radial-gradient(var(--glow-shape, ellipse 100% 70% at 100% 40%), #6a6a6a, #000 75%);
+  mix-blend-mode: screen;
+}
+
+:root[data-theme="dark"] .landing-halftone::after {
+  mix-blend-mode: multiply;
+}
+
+/* On a phone the hero stacks, so the wash moves down behind the
+   illustration, clear of the paragraph and the buttons above it. */
+@media (max-width: 48rem) {
+  .landing-halftone--hero {
+    --halftone-at: 100% 74%;
+    --halftone-reach: 85% 28%;
+    -webkit-mask-image: linear-gradient(transparent 4.5rem, #000 9rem, #000 85%, transparent);
+    mask-image: linear-gradient(transparent 4.5rem, #000 9rem, #000 85%, transparent);
+  }
+  .landing-halftone--hero .landing-halftone-glow {
+    top: 68%;
+    width: 100%;
+  }
+}
+
+/* High-contrast modes get the plain page: the wash is decoration only. */
+@media (forced-colors: active) {
+  .landing-halftone {
+    display: none;
+  }
+}
+
+/* The second wash closes the page inside the sign-in card: a halo around
+   the mascot in the card's middle column, clear of the copy on its left,
+   clipped to the card's corners. */
+.landing-halftone--card {
+  --halftone-at: 50% 52%;
+  --halftone-reach: 21% 120%;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  border-radius: inherit;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.landing-halftone--card::before {
+  background:
+    radial-gradient(closest-side, #000, #fff) 0 0 / var(--halftone-cell) var(--halftone-cell),
+    radial-gradient(ellipse var(--halftone-reach) at var(--halftone-at), #000, #fff 80%);
+  background-blend-mode: screen, normal;
+}
+
+.landing-halftone--card .landing-halftone-glow {
+  right: auto;
+  left: 34%;
+  width: 32%;
+  /* Fades out fully inside its own box, so no edge shows. */
+  --glow-shape: closest-side;
+}
+
+/* Stacked on a phone, the mascot sits between the copy and the sign-in
+   form, so the halo follows it there. */
+@media (max-width: 48rem) {
+  .landing-halftone--card {
+    --halftone-at: 50% 46%;
+    --halftone-reach: 75% 32%;
+  }
+  .landing-halftone--card .landing-halftone-glow {
+    top: 30%;
+    bottom: 38%;
+    left: 0;
+    width: 100%;
+  }
+}
+
+.landing-invitation > :not(.landing-halftone) {
+  position: relative;
+}
+
+:root[data-theme="dark"] .landing-halftone::before {
+  filter: contrast(28) invert(1);
+  mix-blend-mode: multiply;
+}
+
 .site-bar {
   display: flex;
   align-items: center;
