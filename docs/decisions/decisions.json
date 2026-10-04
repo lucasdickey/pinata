@@ -5405,6 +5405,63 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D120",
+      "date": "2026-10-04",
+      "phase": "design",
+      "title": "Hover a mark to read it, and see the element it points at",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Reading a note on the canvas meant clicking its mark, which also changed the selection and the panel; and nothing on the screenshot showed which element a note was about, only the element's text in the panel. A screen recording of Paper's comments showed both solved: a preview card on hover, and a dotted outline around the commented element.",
+      "decision": "Hovering a saved mark (pin, box, circle, or arrow) shows a small dark card beside it after a short pause: the mark's badge and title, its status and unread replies, the whole comment, and what it points at. Never during a draft, a draw, a drag, or with a toolbar popup open, and not for the mark the panel already shows. While a mark is hovered, or else while one is selected, the element it is attached to is outlined with a dashed line in the focus blue; a draft's nearby-candidate highlight keeps its orange fill so the two never read alike. Small polish alongside: saved markers lift slightly under the pointer, and the canvas behind the screenshot has a faint dot grid. Both views get it: the editor and the founder's page.",
+      "alternatives": [
+        {
+          "option": "Avatar markers instead of numbers, as Paper uses",
+          "why_not": "\"Pin 3\" is how notes are referenced in the table and the Markdown; the numbers stay."
+        },
+        {
+          "option": "Make the card a keyboard-reachable dialog",
+          "why_not": "The panel and the list already give the same details to the keyboard and assistive tech; the card is a pointer shortcut and is hidden from assistive tech."
+        }
+      ],
+      "rationale": "The owner picked these two from the video review (\"3 and 4 are spot on\") and asked for slight visual and UX improvements alongside. The card reuses the draft composer's placement, which keeps a popover inside the canvas; the outline reuses the existing highlight node with a second variant. No dependency was added.",
+      "consequences": [
+        "The canvas takes the full saved marks as a prop (details) for the card and the outline; without it, neither appears.",
+        "The card waits about a quarter second before showing, so sweeping across a busy capture does not flash every note; with reduced motion it shows without the fade."
+      ],
+      "transcript": {
+        "request": "3 and 4 are spot on. We should also consider slight visual/UX improvements we can tweak to make Pinata more visually appealing as well."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "The hover card and the highlight choice."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D120-hover-light.png",
+          "caption": "Hovering pin 4: the card beside it, and the dot grid (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D120-hover-dark.png",
+          "caption": "The same in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D120-zoomed-light.png",
+          "caption": "Zoomed in: the dashed outline around the element pin 4 points at."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D120-zoomed-dark.png",
+          "caption": "Zoomed in (dark)."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

@@ -1612,6 +1612,7 @@ export function ProjectWorkspace({
                   rectangles={rectanglesOf(activePins)}
                   circles={circlesOf(activePins)}
                   arrows={arrowsOf(activePins)}
+                  details={activePins}
                   previewRect={previewRect}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}

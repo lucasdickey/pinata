@@ -713,6 +713,7 @@ export function FounderView({
                   rectangles={rectanglesOf(activePins)}
                   circles={circlesOf(activePins)}
                   arrows={arrowsOf(activePins)}
+                  details={activePins}
                   selectedPinId={selectedPinId}
                   onSelectPin={setSelectedPinId}
                   savedCamera={cameras.current.get(attempt.id) ?? null}

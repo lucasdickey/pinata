@@ -188,7 +188,11 @@ import {
   type NaturalRect,
   type ResizeHandle,
 } from "../lib/canvas/rectangle";
+import type { AnnotationView } from "../lib/annotations";
+import { elementText, markOf, markTitle } from "../lib/canvas/marks";
+import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import { CanvasIcon } from "./canvas-icons";
+import { PinBadge } from "./pin-row";
 import { PinComposer, type PinComposerProps } from "./pin-composer";
 
 /**
@@ -307,8 +311,15 @@ function Pin({ data }: NodeProps<PinNode>) {
  * it ignores the pointer, is hidden from assistive tech (the composer's
  * candidate list is the accessible surface), and never persists.
  */
-function ContextPreview(_: NodeProps<ContextPreviewNode>) {
-  return <div className="context-preview" data-testid="context-preview" aria-hidden="true" />;
+function ContextPreview({ data }: NodeProps<ContextPreviewNode>) {
+  return (
+    <div
+      className="context-preview"
+      data-testid="context-preview"
+      data-variant={data.variant}
+      aria-hidden="true"
+    />
+  );
 }
 
 /**
@@ -650,14 +661,48 @@ const COMPOSER_SIZE_GUESS: ScreenSize = { width: 320, height: 240 };
  * clamps the box so it stays inside the visible part of the canvas frame
  * (or, when that is too small, the browser viewport).
  */
-function DraftComposerPopover({
+/**
+ * The hover card's contents (D120): the mark's badge and title, its status,
+ * the whole comment, what it points at, and any unread replies. A preview
+ * only; nothing in it is a control.
+ */
+function MarkCardBody({ mark }: { mark: AnnotationView }) {
+  const element = elementText(mark.elementSnapshot);
+  return (
+    <>
+      <p className="mark-card-head">
+        <PinBadge pin={mark} />
+        <strong>{markTitle(mark)}</strong>
+        <span className="mark-card-status" data-status={mark.status}>
+          {PIN_STATUS_LABELS[mark.status] ?? mark.status}
+          {mark.unreadReplies > 0 ? ` · ${mark.unreadReplies} new` : ""}
+        </span>
+      </p>
+      <p className="mark-card-body">{mark.body}</p>
+      {element ? <p className="mark-card-element">Points at: “{element}”</p> : null}
+    </>
+  );
+}
+
+function CanvasPopover({
   draft,
   frameRef,
   children,
+  className = "pin-composer",
+  role = "dialog",
+  label,
+  testId = "pin-composer",
+  hidden = false,
 }: {
   draft: DraftMark;
   frameRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
+  className?: string;
+  role?: string;
+  label?: string;
+  testId?: string;
+  /** Decoration only: kept out of the accessibility tree (the hover card). */
+  hidden?: boolean;
 }) {
   const instance = useReactFlow();
   // Subscribing to the viewport is what re-positions the popover on pan
@@ -715,10 +760,11 @@ function DraftComposerPopover({
   return (
     <div
       ref={ref}
-      className="pin-composer"
-      role="dialog"
-      aria-label={`New ${markKindNoun(draft.kind)}`}
-      data-testid="pin-composer"
+      className={className}
+      role={hidden ? undefined : role}
+      aria-label={hidden ? undefined : (label ?? `New ${markKindNoun(draft.kind)}`)}
+      aria-hidden={hidden ? "true" : undefined}
+      data-testid={testId}
       data-side={placed.side}
       data-draft-kind={draft.kind}
       style={{ left: placed.left, top: placed.top }}
@@ -848,6 +894,7 @@ function CaptureCanvasInner({
   autoFocus,
   revealSelected,
   help,
+  details,
 }: {
   domain: CaptureFrameDomain;
   regionName: string;
@@ -926,6 +973,12 @@ function CaptureCanvasInner({
    * that used to sit in a line above the canvas. No button without it.
    */
   help?: ReactNode;
+  /**
+   * The full saved marks behind the canvas's shapes (D120): what the hover
+   * card reads (status, comment, element) and where each mark's element
+   * sits, for the highlight. Without it there is no card and no highlight.
+   */
+  details?: readonly AnnotationView[];
 }) {
   const instance = useReactFlow();
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -970,6 +1023,14 @@ function CaptureCanvasInner({
   drawingRef.current = drawing;
   // The armed mark tool: it arms exactly the next drag, then disarms itself.
   const [armed, setArmed] = useState<MarkTool | null>(null);
+  // The saved mark under the pointer (D120): it gets a preview card and its
+  // element is outlined. Pointer only; the panel and the list carry the
+  // same details for the keyboard and assistive tech.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const detailById = useMemo(
+    () => new Map((details ?? []).map((mark) => [mark.id, mark])),
+    [details],
+  );
   // The floating toolbar's one open popup, if any (D111): the fit modes or
   // the "?" help. Escape closes it before it can reach anything else, and
   // it closes on a choice or an outside press.
@@ -1110,6 +1171,19 @@ function CaptureCanvasInner({
     for (const entry of arrows) map.set(entry.id, { kind: "arrow", arrow: entry.arrow });
     return map;
   }, [regionById, arrows]);
+  // One highlight at a time (D120): a draft's nearby candidate first; with
+  // no draft, the element of the mark under the pointer, else the element
+  // of the selected mark, so a note's subject is visible without reading
+  // its selector.
+  const highlight = useMemo((): { rect: ContextRect; variant: "candidate" | "attached" } | null => {
+    if (previewRect) return { rect: previewRect, variant: "candidate" };
+    if (draft || drawing) return null;
+    for (const id of [hoveredId, selectedPinId]) {
+      const rect = id ? detailById.get(id)?.elementSnapshot?.rect : null;
+      if (rect) return { rect, variant: "attached" };
+    }
+    return null;
+  }, [previewRect, draft, drawing, hoveredId, selectedPinId, detailById]);
   const nodes = useMemo(() => {
     // While a region is being drawn it stands in for the draft; a release
     // below the minimum size brings the previous draft back untouched.
@@ -1122,7 +1196,8 @@ function CaptureCanvasInner({
       draft: inFlight ?? draft,
       drawing: drawing !== null,
       zoom: liveZoom,
-      preview: previewRect ?? null,
+      preview: highlight?.rect ?? null,
+      previewVariant: highlight?.variant,
       readOnly,
       handleGestureId,
     });
@@ -1140,7 +1215,7 @@ function CaptureCanvasInner({
     draft,
     drawing,
     liveZoom,
-    previewRect,
+    highlight,
     readOnly,
     handleGestureId,
   ]);
@@ -1813,6 +1888,19 @@ function CaptureCanvasInner({
     }
   };
 
+  const hoveredMark = hoveredId ? (detailById.get(hoveredId) ?? null) : null;
+  const hoveredCard =
+    hoveredMark &&
+    hoveredMark.id !== selectedPinId &&
+    !draft &&
+    !drawing &&
+    !gestureActive &&
+    !pinDrag &&
+    !regionDrag &&
+    !popup
+      ? hoveredMark
+      : null;
+
   return (
     <div className="capture-stage capture-stage-canvas" data-testid="capture-stage">
       {/* One floating toolbar over the canvas (D111), in the manner of
@@ -2064,6 +2152,14 @@ function CaptureCanvasInner({
               dragGrab.current = null;
               arrowDrag.current = null;
             }}
+            onNodeMouseEnter={(_event, node) => {
+              if (node.type === PIN_TYPE || SHAPE_TYPES.includes(node.type ?? "")) {
+                setHoveredId(node.id);
+              }
+            }}
+            onNodeMouseLeave={(_event, node) => {
+              setHoveredId((current) => (current === node.id ? null : current));
+            }}
             onNodeClick={(_event, node) => {
               if (node.type === PIN_TYPE || SHAPE_TYPES.includes(node.type ?? "")) {
                 onSelectPin?.(node.id);
@@ -2109,9 +2205,23 @@ function CaptureCanvasInner({
           visible frame. It waits while a box is still being drawn. A
           read-only plane has no drafts and no composer. */}
       {draft && composer && !readOnly && !drawing ? (
-        <DraftComposerPopover draft={draft} frameRef={wrapperRef}>
+        <CanvasPopover draft={draft} frameRef={wrapperRef}>
           <PinComposer {...composer} draftKind={draft.kind} placement={draftPlacement} />
-        </DraftComposerPopover>
+        </CanvasPopover>
+      ) : null}
+      {/* The hover card (D120): read a mark without selecting it. Never
+          during a draft, a draw, or a drag, and not for the mark the panel
+          already shows. */}
+      {hoveredCard ? (
+        <CanvasPopover
+          draft={markOf(hoveredCard)}
+          frameRef={wrapperRef}
+          className="mark-card"
+          testId="mark-card"
+          hidden
+        >
+          <MarkCardBody mark={hoveredCard} />
+        </CanvasPopover>
       ) : null}
     </div>
   );
@@ -2146,6 +2256,7 @@ export function CaptureCanvas({
   autoFocus = false,
   revealSelected,
   help,
+  details,
 }: {
   captureId: string;
   pageUrl: string;
@@ -2190,6 +2301,8 @@ export function CaptureCanvas({
   revealSelected?: number;
   /** The toolbar's "?" popover content (D111); see CaptureCanvasInner. */
   help?: ReactNode;
+  /** The saved marks in full, for the hover card and highlight (D120). */
+  details?: readonly AnnotationView[];
 }) {
   const name = `Screenshot of ${pageUrl} (${variant}, version ${attempt})`;
   const domain = useMemo<CaptureFrameDomain>(
@@ -2229,6 +2342,7 @@ export function CaptureCanvas({
         autoFocus={autoFocus}
         revealSelected={revealSelected}
         help={help}
+        details={details}
       />
     </ReactFlowProvider>
   );

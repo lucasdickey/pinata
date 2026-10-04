@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 41 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119 |
+| Human directed | 42 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **119** | |
+| **Total** | **120** | |
 
 ## Key decisions
 
@@ -181,6 +181,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D117](#d117--the-founder-view-shows-pin-text-whole-and-its-page-list-gets-its-column-back) | build | The founder view shows pin text whole, and its page list gets its column back | Human directed | accepted |
 | [D118](#d118--interactive-patterns-from-vercels-geist-menu-focus-tooltip-timing-key-caps) | build | Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps | Agent decided alone | accepted |
 | [D119](#d119--a-halftone-wash-in-the-piata-orange-on-the-public-landing) | design | A halftone wash in the piñata orange on the public landing | Human directed | accepted |
+| [D120](#d120--hover-a-mark-to-read-it-and-see-the-element-it-points-at) | design | Hover a mark to read it, and see the element it points at | Human directed | accepted |
 
 ---
 
@@ -4804,4 +4805,46 @@ Human instruction:
 
 ---
 
-<sub>Generated from 119 record(s) as of 2026-10-02 · source `de301b108a01`</sub>
+## D120 — Hover a mark to read it, and see the element it points at
+
+*2026-10-04 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Reading a note on the canvas meant clicking its mark, which also changed the selection and the panel; and nothing on the screenshot showed which element a note was about, only the element's text in the panel. A screen recording of Paper's comments showed both solved: a preview card on hover, and a dotted outline around the commented element.
+
+**Decision**
+
+Hovering a saved mark (pin, box, circle, or arrow) shows a small dark card beside it after a short pause: the mark's badge and title, its status and unread replies, the whole comment, and what it points at. Never during a draft, a draw, a drag, or with a toolbar popup open, and not for the mark the panel already shows. While a mark is hovered, or else while one is selected, the element it is attached to is outlined with a dashed line in the focus blue; a draft's nearby-candidate highlight keeps its orange fill so the two never read alike. Small polish alongside: saved markers lift slightly under the pointer, and the canvas behind the screenshot has a faint dot grid. Both views get it: the editor and the founder's page.
+
+**Alternatives considered**
+
+- *Avatar markers instead of numbers, as Paper uses* — "Pin 3" is how notes are referenced in the table and the Markdown; the numbers stay.
+- *Make the card a keyboard-reachable dialog* — The panel and the list already give the same details to the keyboard and assistive tech; the card is a pointer shortcut and is hidden from assistive tech.
+
+**Rationale**
+
+The owner picked these two from the video review ("3 and 4 are spot on") and asked for slight visual and UX improvements alongside. The card reuses the draft composer's placement, which keeps a popover inside the canvas; the outline reuses the existing highlight node with a second variant. No dependency was added.
+
+**Consequences**
+
+- The canvas takes the full saved marks as a prop (details) for the card and the outline; without it, neither appears.
+- The card waits about a quarter second before showing, so sweeping across a busy capture does not flash every note; with reduced motion it shows without the fade.
+
+**Provenance evidence**
+
+Human instruction:
+
+> 3 and 4 are spot on. We should also consider slight visual/UX improvements we can tweak to make Pinata more visually appealing as well.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — The hover card and the highlight choice.
+- ![Hovering pin 4: the card beside it, and the dot grid (light).](dashboard/screenshots/D120-hover-light.png) — Hovering pin 4: the card beside it, and the dot grid (light).
+- ![The same in dark.](dashboard/screenshots/D120-hover-dark.png) — The same in dark.
+- ![Zoomed in: the dashed outline around the element pin 4 points at.](dashboard/screenshots/D120-zoomed-light.png) — Zoomed in: the dashed outline around the element pin 4 points at.
+- ![Zoomed in (dark).](dashboard/screenshots/D120-zoomed-dark.png) — Zoomed in (dark).
+
+---
+
+<sub>Generated from 120 record(s) as of 2026-10-04 · source `6a3773936bb2`</sub>

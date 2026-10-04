@@ -149,6 +149,12 @@ export interface PlaneMarks {
   zoom?: number;
   preview?: ContextRect | null;
   /**
+   * What the highlight shows (D120): a nearby candidate while a draft is
+   * composed (the default), or the element a saved mark is attached to,
+   * while that mark is hovered or selected.
+   */
+  previewVariant?: ContextPreviewVariant;
+  /**
    * The founder's read-only plane: regions render with no handles and
    * no drag. Pins keep their own read-only handling in the canvas.
    */
@@ -172,7 +178,9 @@ export interface PlaneMarks {
 export function nodesForPlane(domain: CaptureFrameDomain, marks: PlaneMarks): CanvasNode[] {
   const zoom = marks.zoom ?? 1;
   const frame = captureFrameNode(domain);
-  const highlight = marks.preview ? contextPreviewNode(domain, marks.preview) : null;
+  const highlight = marks.preview
+    ? contextPreviewNode(domain, marks.preview, marks.previewVariant ?? "candidate")
+    : null;
   const ordered: (CanvasPin | CanvasRectangle | CanvasCircle | CanvasArrow)[] = [
     ...(marks.pins ?? []),
     ...(marks.rectangles ?? []),
@@ -305,6 +313,14 @@ export interface ContextRect {
   height: number;
 }
 
+/** A nearby candidate for a draft, or a saved mark's own element (D120). */
+export type ContextPreviewVariant = "candidate" | "attached";
+
+const CONTEXT_PREVIEW_LABELS: Record<ContextPreviewVariant, string> = {
+  candidate: "Highlighted nearby element",
+  attached: "Highlighted element this mark points at",
+};
+
 export interface ContextPreviewData extends Record<string, unknown> {
   rectX: number;
   rectY: number;
@@ -312,6 +328,7 @@ export interface ContextPreviewData extends Record<string, unknown> {
   rectHeight: number;
   /** Accessible name (the box itself is aria-hidden decoration). */
   label: string;
+  variant: ContextPreviewVariant;
 }
 
 export type ContextPreviewNode = Node<ContextPreviewData, typeof CONTEXT_PREVIEW_TYPE>;
@@ -352,6 +369,7 @@ export function contextPreviewNodeId(captureId: string): string {
 export function contextPreviewNode(
   domain: CaptureFrameDomain,
   rect: ContextRect,
+  variant: ContextPreviewVariant = "candidate",
 ): ContextPreviewNode | null {
   const values = [rect.x, rect.y, rect.width, rect.height];
   if (
@@ -373,9 +391,10 @@ export function contextPreviewNode(
       rectY: rect.y,
       rectWidth: rect.width,
       rectHeight: rect.height,
-      label: "Highlighted nearby element",
+      label: CONTEXT_PREVIEW_LABELS[variant],
+      variant,
     },
-    ariaLabel: "Highlighted nearby element",
+    ariaLabel: CONTEXT_PREVIEW_LABELS[variant],
     draggable: false,
     selectable: false,
     connectable: false,

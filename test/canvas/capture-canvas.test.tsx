@@ -1924,3 +1924,94 @@ describe("revealing the selected mark (D078)", () => {
     expect(onCameraChange.mock.calls.length).toBe(reportsBefore);
   });
 });
+
+describe("hover card and the pinned element (D120)", () => {
+  const pins = [
+    { id: "ann-1", number: 1, tip: { x: 720, y: 4000 } },
+    { id: "ann-2", number: 2, tip: { x: 100, y: 200 } },
+  ];
+  const element = {
+    id: "el-1",
+    kind: "text",
+    tag: "h3",
+    role: "",
+    text: "HALLUCINATION CLUB v1.0 — 2026 Edition",
+    accessibleName: "",
+    hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+    path: ["body:0", "main:0", "h3:0"],
+    rect: { x: 600, y: 3980, width: 300, height: 40 },
+  };
+  const details = [
+    {
+      id: "ann-1",
+      captureId: props.captureId,
+      kind: "pin" as const,
+      number: 1,
+      tip: { x: 720, y: 4000 },
+      body: "The card label needs a little colour to set it apart from the rest of the card.",
+      elementSnapshot: element,
+      revision: 1,
+      status: "replied" as const,
+      unreadReplies: 2,
+      createdAt: 1,
+    },
+    {
+      id: "ann-2",
+      captureId: props.captureId,
+      kind: "pin" as const,
+      number: 2,
+      tip: { x: 100, y: 200 },
+      body: "No element on this one.",
+      elementSnapshot: null,
+      revision: 1,
+      status: "open" as const,
+      unreadReplies: 0,
+      createdAt: 2,
+    },
+  ];
+  const card = () => document.querySelector('[data-testid="mark-card"]');
+  const highlight = () => document.querySelector('[data-testid="context-preview"]');
+
+  test("hovering a mark previews it whole and outlines the element it points at", () => {
+    render(<CaptureCanvas {...props} pins={pins} details={details} />);
+    expect(card()).toBeNull();
+    expect(highlight()).toBeNull();
+    fireEvent.mouseEnter(pinNodes()[0]!);
+    const shown = card()!;
+    expect(shown).not.toBeNull();
+    // Decoration for the pointer: the panel and list carry the same.
+    expect(shown).toHaveAttribute("aria-hidden", "true");
+    expect(shown).toHaveTextContent("Pin 1");
+    expect(shown).toHaveTextContent("Replied · 2 new");
+    expect(shown).toHaveTextContent(details[0]!.body);
+    expect(shown).toHaveTextContent("Points at: “HALLUCINATION CLUB v1.0 — 2026 Edition”");
+    expect(highlight()).toHaveAttribute("data-variant", "attached");
+    // Leaving takes both away.
+    fireEvent.mouseLeave(pinNodes()[0]!);
+    expect(card()).toBeNull();
+    expect(highlight()).toBeNull();
+    // A mark with no element gets the card but no outline.
+    fireEvent.mouseEnter(pinNodes()[1]!);
+    expect(card()).toHaveTextContent("No element on this one.");
+    expect(card()).not.toHaveTextContent("Points at");
+    expect(highlight()).toBeNull();
+  });
+
+  test("the selected mark keeps its element outlined and gets no card", () => {
+    render(<CaptureCanvas {...props} pins={pins} details={details} selectedPinId="ann-1" />);
+    expect(highlight()).toHaveAttribute("data-variant", "attached");
+    fireEvent.mouseEnter(pinNodes()[0]!);
+    // The panel already shows it.
+    expect(card()).toBeNull();
+  });
+
+  test("no card while a draft is being written", () => {
+    render(
+      <CaptureCanvas {...props} pins={pins} details={details} composer={composerProps()} />,
+    );
+    tap(frameImage(), 400, 300);
+    expect(composer()).not.toBeNull();
+    fireEvent.mouseEnter(pinNodes()[0]!);
+    expect(card()).toBeNull();
+  });
+});
