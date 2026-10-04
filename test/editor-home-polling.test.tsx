@@ -107,9 +107,12 @@ function hierarchyReads(): number {
   ).length;
 }
 
-/** A non-hierarchy read the workspace makes: the share status (D075). */
+/**
+ * A non-hierarchy read the workspace makes: the founder share status (D075)
+ * or the agent link status (D121).
+ */
 function isShareStatusRead(url: unknown): boolean {
-  return /^\/api\/projects\/[^/]+\/share$/.test(String(url));
+  return /^\/api\/projects\/[^/]+\/(share|agent-link)$/.test(String(url));
 }
 
 /** The other non-hierarchy read: the shown project's pins (D077). */

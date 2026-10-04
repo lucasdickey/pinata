@@ -137,7 +137,7 @@ describe("migrations", () => {
     const applied = await client.execute(
       "SELECT COUNT(*) AS n FROM __drizzle_migrations",
     );
-    expect(Number(applied.rows[0]?.n)).toBe(8);
+    expect(Number(applied.rows[0]?.n)).toBe(9);
     const tables = await client.execute(
       "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
     );

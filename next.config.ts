@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/f/:path*", headers: founderHeaders },
       { source: "/api/founder/:path*", headers: founderHeaders },
+      // The agent link (D121) carries its secret in the path, so the same
+      // rules matter even more there: no referrer, no index, no cache.
+      { source: "/a/:path*", headers: founderHeaders },
     ];
   },
 };

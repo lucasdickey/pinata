@@ -5462,6 +5462,68 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D121",
+      "date": "2026-10-04",
+      "phase": "build",
+      "title": "An agent link: a secret, read-only brief of the open marks",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Handing feedback to a coding agent meant copying the Markdown export and pasting screenshots in one at a time. The owner wanted an easier way to pass a project to an agent, without managing keys or accounts yet.",
+      "decision": "Each project can have an agent link, created from a new \"Agent link\" control beside \"Share with founder\". It is a secret URL, /a/<token>, that serves a live Markdown brief: a short \"what to do\" section, then one section per screenshot with a direct link to the image (/a/<token>/captures/<id>, no sign-in), then every open mark as the copy export writes it (status, position, element, path, the whole note, its replies). Resolved marks are left out and counted. Creating the link shows it once, with a one-line prompt to paste into an agent; Rotate and Revoke each ask first. It is stored like the founder link (only a SHA-256 digest, a version, a revoke time) in its own columns, so the two links never affect each other.",
+      "alternatives": [
+        {
+          "option": "An MCP endpoint (or WebMCP) as the interface",
+          "why_not": "More useful once agents should also reply or resolve marks, which needs write access and its own checks. A plain Markdown URL works in every agent today; an MCP endpoint can sit on the same link later."
+        },
+        {
+          "option": "Put the token in the URL fragment, as the founder link does",
+          "why_not": "An agent fetches a plain URL and never sees a fragment. Instead the link only reads, every answer says no-store, noindex, and no-referrer, and it can be rotated or revoked at any time."
+        },
+        {
+          "option": "Reuse the founder link",
+          "why_not": "Handing an agent the founder's link would mean revoking the founder to stop the agent. Separate links keep each revocable on its own."
+        }
+      ],
+      "rationale": "The owner asked for something easier than Markdown copy and image paste, with no key management (\"I just want to avoid key management for now\"), and approved the agent link (\"go ahead and build the agent link - great idea!\"). It reuses the founder link's token scheme, the project pin read, the Markdown export, and the screenshot delivery code, and adds no dependency.",
+      "consequences": [
+        "Migration 0008 adds three columns to projects. It must run on the production database (npm run db:migrate) before this deploys, or every project read fails on the missing columns.",
+        "The token travels in the path, so it can appear in the hosting provider's request logs. Rotate the link if a log is ever shared.",
+        "The brief's screenshot links use the Host header the agent called, the same way the same-origin check reads it."
+      ],
+      "transcript": {
+        "request": "go ahead and build the agent link - great idea!"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/agent-brief.ts",
+          "caption": "The brief's Markdown."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/agent/link.ts",
+          "caption": "Create, rotate, revoke, and look up the link."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D121-agent-link-light.png",
+          "caption": "A new agent link with its ready-to-paste prompt (local test link, light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D121-agent-link-dark.png",
+          "caption": "The same in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D121-agent-link-phone.png",
+          "caption": "Phone width."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

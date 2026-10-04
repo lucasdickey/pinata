@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 42 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120 |
+| Human directed | 43 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **120** | |
+| **Total** | **121** | |
 
 ## Key decisions
 
@@ -182,6 +182,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D118](#d118--interactive-patterns-from-vercels-geist-menu-focus-tooltip-timing-key-caps) | build | Interactive patterns from Vercel's Geist: menu focus, tooltip timing, key caps | Agent decided alone | accepted |
 | [D119](#d119--a-halftone-wash-in-the-piata-orange-on-the-public-landing) | design | A halftone wash in the piñata orange on the public landing | Human directed | accepted |
 | [D120](#d120--hover-a-mark-to-read-it-and-see-the-element-it-points-at) | design | Hover a mark to read it, and see the element it points at | Human directed | accepted |
+| [D121](#d121--an-agent-link-a-secret-read-only-brief-of-the-open-marks) | build | An agent link: a secret, read-only brief of the open marks | Human directed | accepted |
 
 ---
 
@@ -4847,4 +4848,48 @@ Human instruction:
 
 ---
 
-<sub>Generated from 120 record(s) as of 2026-10-04 · source `6a3773936bb2`</sub>
+## D121 — An agent link: a secret, read-only brief of the open marks
+
+*2026-10-04 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Handing feedback to a coding agent meant copying the Markdown export and pasting screenshots in one at a time. The owner wanted an easier way to pass a project to an agent, without managing keys or accounts yet.
+
+**Decision**
+
+Each project can have an agent link, created from a new "Agent link" control beside "Share with founder". It is a secret URL, /a/<token>, that serves a live Markdown brief: a short "what to do" section, then one section per screenshot with a direct link to the image (/a/<token>/captures/<id>, no sign-in), then every open mark as the copy export writes it (status, position, element, path, the whole note, its replies). Resolved marks are left out and counted. Creating the link shows it once, with a one-line prompt to paste into an agent; Rotate and Revoke each ask first. It is stored like the founder link (only a SHA-256 digest, a version, a revoke time) in its own columns, so the two links never affect each other.
+
+**Alternatives considered**
+
+- *An MCP endpoint (or WebMCP) as the interface* — More useful once agents should also reply or resolve marks, which needs write access and its own checks. A plain Markdown URL works in every agent today; an MCP endpoint can sit on the same link later.
+- *Put the token in the URL fragment, as the founder link does* — An agent fetches a plain URL and never sees a fragment. Instead the link only reads, every answer says no-store, noindex, and no-referrer, and it can be rotated or revoked at any time.
+- *Reuse the founder link* — Handing an agent the founder's link would mean revoking the founder to stop the agent. Separate links keep each revocable on its own.
+
+**Rationale**
+
+The owner asked for something easier than Markdown copy and image paste, with no key management ("I just want to avoid key management for now"), and approved the agent link ("go ahead and build the agent link - great idea!"). It reuses the founder link's token scheme, the project pin read, the Markdown export, and the screenshot delivery code, and adds no dependency.
+
+**Consequences**
+
+- Migration 0008 adds three columns to projects. It must run on the production database (npm run db:migrate) before this deploys, or every project read fails on the missing columns.
+- The token travels in the path, so it can appear in the hosting provider's request logs. Rotate the link if a log is ever shared.
+- The brief's screenshot links use the Host header the agent called, the same way the same-origin check reads it.
+
+**Provenance evidence**
+
+Human instruction:
+
+> go ahead and build the agent link - great idea!
+
+**Artifacts**
+
+- `src/lib/agent-brief.ts` — The brief's Markdown.
+- `src/lib/server/agent/link.ts` — Create, rotate, revoke, and look up the link.
+- ![A new agent link with its ready-to-paste prompt (local test link, light).](dashboard/screenshots/D121-agent-link-light.png) — A new agent link with its ready-to-paste prompt (local test link, light).
+- ![The same in dark.](dashboard/screenshots/D121-agent-link-dark.png) — The same in dark.
+- ![Phone width.](dashboard/screenshots/D121-agent-link-phone.png) — Phone width.
+
+---
+
+<sub>Generated from 121 record(s) as of 2026-10-04 · source `492541422d87`</sub>

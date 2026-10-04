@@ -3697,3 +3697,24 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D120 (user-directed): hover card and the pinned element's outline.
+
+---
+
+## 2026-10-04 — the agent link (D121)
+
+Harness: Claude Code, in a cloud session.
+
+- Built the agent link proposed in the D120 session: a revocable secret
+  URL per project that serves a live, read-only Markdown brief of the open
+  marks with direct screenshot links, plus a one-line prompt to paste into
+  any coding agent. No keys, no accounts.
+- Checked end to end against a local database: created a link through the
+  editor route, fetched the brief and a screenshot with no cookies, and
+  confirmed a wrong token, a revoked link, and another project's screenshot
+  all answer the same plain 404.
+- Migration 0008 (three new columns on projects) has to be applied to the
+  production database before the deploy.
+
+### Decisions
+
+- D121 (user-directed): the agent link.
