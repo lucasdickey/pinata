@@ -3674,3 +3674,26 @@ Harness: Claude Code, in a cloud session.
 - PR #17 (the mascot in its own column) merged first; the card wash then
   became a halo around the mascot instead of the copy's lower left, where
   its dots would have run under "Give your feedback a place to land."
+
+---
+
+## 2026-10-04 — hover cards and the pinned element (D120)
+
+Harness: Claude Code, in a cloud session.
+
+- The owner shared a short screen recording; ffmpeg (installed in the
+  container through a Python package) pulled frames from it. It showed
+  Paper's canvas comments: an avatar marker, a dark card on hover with the
+  whole note, a dotted outline on the commented element, and an "MCP —
+  Connect more agents" panel, with comments written as instructions to a
+  coding agent.
+- Built from it: the hover card and the element outline (the owner's
+  picks), plus a slight lift on markers and a faint dot grid on the canvas.
+- Not built yet: an agent link. The proposal is a revocable, read-only
+  secret link (like the founder link) serving a live Markdown brief of the
+  open pins with their screenshots, pasted into a coding agent as one
+  line; an MCP endpoint at the same link later. No keys to manage.
+
+### Decisions
+
+- D120 (user-directed): hover card and the pinned element's outline.

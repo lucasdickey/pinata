@@ -277,6 +277,14 @@ describe("context preview node", () => {
     expect(node!.data.rectHeight).toBe(rect.height);
   });
 
+  test("a saved mark's own element is the attached variant, named for what it is (D120)", () => {
+    expect(contextPreviewNode(domain, rect)!.data.variant).toBe("candidate");
+    const attached = contextPreviewNode(domain, rect, "attached")!;
+    expect(attached.data.variant).toBe("attached");
+    expect(attached.ariaLabel).toBe("Highlighted element this mark points at");
+    expect(attached.position).toEqual({ x: rect.x, y: rect.y });
+  });
+
   test("is fully inert: no drag, selection, connection, deletion, or pointer events", () => {
     const node = contextPreviewNode(domain, rect)!;
     expect(node.draggable).toBe(false);
