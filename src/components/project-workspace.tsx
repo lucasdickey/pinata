@@ -76,6 +76,7 @@ import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
 import { ArchiveProjectControl } from "./archive-project";
+import { AgentLinkControl } from "./agent-link";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
@@ -1497,6 +1498,12 @@ export function ProjectWorkspace({
           />
           <FounderShareControl
             key={activeProject.publicId}
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+          />
+          {/* A read-only brief for a coding agent (D121). */}
+          <AgentLinkControl
+            key={`agent-${activeProject.publicId}`}
             publicId={activeProject.publicId}
             projectTitle={activeProject.title}
           />

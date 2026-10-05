@@ -50,6 +50,14 @@ Playwright e2e — in that order, locally and in GitHub Actions.
   and lives on as a secure capability-session cookie. Turso stores only its
   SHA-256 digest. The link persists until Lucas rotates or revokes it; the
   founder display label is always the literal `founder`.
+- **Agent link (D121).** A second, separate project secret with the same
+  shape (256 random bits, only the SHA-256 digest stored, rotate and revoke)
+  that opens a read-only Markdown brief of the project's open marks at
+  `/a/<token>`, with each screenshot at `/a/<token>/captures/<captureId>`.
+  The token is in the path because an agent fetches a plain URL and cannot
+  read a fragment; in exchange, the link can only read, and every answer is
+  `no-store`, `noindex`, and `no-referrer`. It never touches the founder
+  link.
 - **Threads.** The editor owns the one editable original comment per
   annotation. Everything after that is an append-only `thread_entries` row
   authored by `editor` or `founder`. Database triggers reject `UPDATE` and
@@ -61,7 +69,7 @@ Text UUID/ULID keys and UTC timestamps, with committed repeatable migrations:
 
 | Table | Holds |
 | --- | --- |
-| `projects` | title, root URL, public ID, share-token digest/version/revocation |
+| `projects` | title, root URL, public ID, share-token and agent-token digest/version/revocation |
 | `pages` | requested and normalized URL, per-project order; unique `(project_id, normalized_url)` |
 | `captures` | one row per page/viewport attempt: status, viewport, document dimensions, Blob path, hash, manifest, error fields |
 | `annotations` | kind (pin/rectangle/circle/arrow), versioned geometry, original body, optional element snapshot |
@@ -265,7 +273,7 @@ serves both.
 
 - Server-only environment access; no `NEXT_PUBLIC_*` credentials.
 - Strict CSP, `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, and
-  no indexing on founder capability pages.
+  no indexing on founder capability pages and on the agent link (`/a/`).
 - Source-site HTML is never rendered unsanitized; comments are plain text
   rendered through React escaping.
 - Private Blob paths resolve only after editor or project-capability checks.

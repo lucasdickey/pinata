@@ -49,6 +49,17 @@ export const projects = sqliteTable(
      * deletedAt, which is a tombstone; an archive is meant to be undone.
      */
     archivedAt: integer("archived_at"),
+    /**
+     * The agent link (D121): a second, separate secret that opens a
+     * read-only Markdown brief of the project's open marks for a coding
+     * agent. Stored the same way as the founder link — only the SHA-256
+     * digest of the token, a version that rotation increments, and the
+     * revocation instant — and independent of it, so either link can be
+     * rotated or revoked without touching the other.
+     */
+    agentTokenDigest: text("agent_token_digest").unique(),
+    agentTokenVersion: integer("agent_token_version").notNull().default(0),
+    agentRevokedAt: integer("agent_revoked_at"),
   },
 );
 

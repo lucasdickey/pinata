@@ -2939,7 +2939,8 @@ pre code {
   font-size: 0.9rem;
 }
 
-.founder-share-fresh input {
+.founder-share-fresh input,
+.founder-share-fresh textarea {
   border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
   border-radius: 6px;
   font: inherit;
