@@ -5527,8 +5527,75 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D122",
+      "date": "2026-10-05",
+      "phase": "design",
+      "title": "The project's link controls as pills with anchored cards",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "\"Share with founder\" and \"Agent link\" each took a full row of plain buttons with their state in loose text, and opening one pushed a wide box of stacked labels, fields, and same-weight buttons into the page. The owner called it very clunky.",
+      "decision": "Both controls are now pills on one row under the project title: an icon, the name, and a caret, joined to a status dot and a short state (Off, Active · v4, Revoked). Opening one shows a card anchored under its pill, with a title and a close button, one line saying what the link is for or what state it is in, the new link in a field with its copy button attached, the agent prompt in a box whose footer holds the one emphasized button (Copy prompt), and Rotate and Revoke as quiet actions at the bottom, Revoke in the accent. Confirming a revoke turns the step into a tinted box with a solid red button. Escape or the close button closes the card and returns focus to the pill. On a phone, the card drops into the page at full width instead of floating.",
+      "alternatives": [
+        {
+          "option": "Keep the inline panels and only tighten spacing",
+          "why_not": "The clunkiness came from the layout itself: two full-width rows, and every action at the same weight."
+        },
+        {
+          "option": "Close the card on any click outside it",
+          "why_not": "A new link is shown only once; a stray click would lose it before it was copied."
+        }
+      ],
+      "rationale": "The owner asked for it directly (\"let's update the sytles for this ... it's very clunky\"). The pill-and-card pattern matches the canvas toolbar's popups (D111) and the icons come from the same set. Behavior, accessible names, and the one-time display are unchanged; only the short state words changed, so three tests that read them were updated. No dependency was added.",
+      "consequences": [
+        "The always-visible state is now the short form (Off / Active · vN / Revoked); the panel no longer repeats it as a sentence.",
+        "The card floats over the captures below it on wide screens, so it carries a shadow and sits above them."
+      ],
+      "transcript": {
+        "request": "also, let's update the sytles for this ... it's very clunky."
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-before-dark.png",
+          "caption": "Before: the screenshot the owner shared."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-closed-light.png",
+          "caption": "After, closed: both links as pills on one row."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-agent-light.png",
+          "caption": "A new agent link, with the prompt and its copy button (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-agent-dark.png",
+          "caption": "The same in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-confirm-light.png",
+          "caption": "Confirming a revoke."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-founder-dark.png",
+          "caption": "The founder link before one exists (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D122-agent-phone.png",
+          "caption": "Phone width: the card sits in the page."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-04",
-  "source_hash": "492541422d87"
+  "as_of": "2026-10-05",
+  "source_hash": "dbe8dcd217de"
 };

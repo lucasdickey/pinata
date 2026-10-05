@@ -1616,7 +1616,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(within(header).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
       expect(within(tree()).queryByRole("button", { name: "Share with founder" })).toBeNull();
       expect(await within(header).findByTestId("founder-share-state")).toHaveTextContent(
-        "Founder link active · v2",
+        "Active · v2",
       );
       expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/share"))).toHaveLength(1);
     });

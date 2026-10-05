@@ -17,7 +17,10 @@ export type CanvasIconName =
   | "next"
   | "close"
   | "panel-hide"
-  | "panel-show";
+  | "panel-show"
+  | "link"
+  | "agent"
+  | "copy";
 
 const PATHS: Record<CanvasIconName, string> = {
   rectangle: "M4.5 6.5h15v11h-15z",
@@ -33,6 +36,10 @@ const PATHS: Record<CanvasIconName, string> = {
   close: "M6.5 6.5l11 11M17.5 6.5l-11 11",
   "panel-hide": "M4.5 5.5h15v13h-15zM14.5 5.5v13M8 10l2 2-2 2",
   "panel-show": "M4.5 5.5h15v13h-15zM14.5 5.5v13M10 10l-2 2 2 2",
+  // The project header's link controls (D122).
+  link: "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
+  agent: "M4.5 5.5h15v13h-15zM8 10l2.5 2L8 14M12.5 14.5H16",
+  copy: "M9 9h10v10H9zM15 9V5H5v10h4",
 };
 
 export function CanvasIcon({ name, size = 18 }: { name: CanvasIconName; size?: number }) {
