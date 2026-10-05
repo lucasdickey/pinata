@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 43 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121 |
+| Human directed | 44 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **121** | |
+| **Total** | **122** | |
 
 ## Key decisions
 
@@ -183,6 +183,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D119](#d119--a-halftone-wash-in-the-piata-orange-on-the-public-landing) | design | A halftone wash in the piñata orange on the public landing | Human directed | accepted |
 | [D120](#d120--hover-a-mark-to-read-it-and-see-the-element-it-points-at) | design | Hover a mark to read it, and see the element it points at | Human directed | accepted |
 | [D121](#d121--an-agent-link-a-secret-read-only-brief-of-the-open-marks) | build | An agent link: a secret, read-only brief of the open marks | Human directed | accepted |
+| [D122](#d122--the-projects-link-controls-as-pills-with-anchored-cards) | design | The project's link controls as pills with anchored cards | Human directed | accepted |
 
 ---
 
@@ -4892,4 +4893,48 @@ Human instruction:
 
 ---
 
-<sub>Generated from 121 record(s) as of 2026-10-04 · source `492541422d87`</sub>
+## D122 — The project's link controls as pills with anchored cards
+
+*2026-10-05 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+"Share with founder" and "Agent link" each took a full row of plain buttons with their state in loose text, and opening one pushed a wide box of stacked labels, fields, and same-weight buttons into the page. The owner called it very clunky.
+
+**Decision**
+
+Both controls are now pills on one row under the project title: an icon, the name, and a caret, joined to a status dot and a short state (Off, Active · v4, Revoked). Opening one shows a card anchored under its pill, with a title and a close button, one line saying what the link is for or what state it is in, the new link in a field with its copy button attached, the agent prompt in a box whose footer holds the one emphasized button (Copy prompt), and Rotate and Revoke as quiet actions at the bottom, Revoke in the accent. Confirming a revoke turns the step into a tinted box with a solid red button. Escape or the close button closes the card and returns focus to the pill. On a phone, the card drops into the page at full width instead of floating.
+
+**Alternatives considered**
+
+- *Keep the inline panels and only tighten spacing* — The clunkiness came from the layout itself: two full-width rows, and every action at the same weight.
+- *Close the card on any click outside it* — A new link is shown only once; a stray click would lose it before it was copied.
+
+**Rationale**
+
+The owner asked for it directly ("let's update the sytles for this ... it's very clunky"). The pill-and-card pattern matches the canvas toolbar's popups (D111) and the icons come from the same set. Behavior, accessible names, and the one-time display are unchanged; only the short state words changed, so three tests that read them were updated. No dependency was added.
+
+**Consequences**
+
+- The always-visible state is now the short form (Off / Active · vN / Revoked); the panel no longer repeats it as a sentence.
+- The card floats over the captures below it on wide screens, so it carries a shadow and sits above them.
+
+**Provenance evidence**
+
+Human instruction:
+
+> also, let's update the sytles for this ... it's very clunky.
+
+**Artifacts**
+
+- ![Before: the screenshot the owner shared.](dashboard/screenshots/D122-before-dark.png) — Before: the screenshot the owner shared.
+- ![After, closed: both links as pills on one row.](dashboard/screenshots/D122-closed-light.png) — After, closed: both links as pills on one row.
+- ![A new agent link, with the prompt and its copy button (light).](dashboard/screenshots/D122-agent-light.png) — A new agent link, with the prompt and its copy button (light).
+- ![The same in dark.](dashboard/screenshots/D122-agent-dark.png) — The same in dark.
+- ![Confirming a revoke.](dashboard/screenshots/D122-confirm-light.png) — Confirming a revoke.
+- ![The founder link before one exists (dark).](dashboard/screenshots/D122-founder-dark.png) — The founder link before one exists (dark).
+- ![Phone width: the card sits in the page.](dashboard/screenshots/D122-agent-phone.png) — Phone width: the card sits in the page.
+
+---
+
+<sub>Generated from 122 record(s) as of 2026-10-05 · source `dbe8dcd217de`</sub>

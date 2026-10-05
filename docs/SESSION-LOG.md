@@ -3718,3 +3718,18 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D121 (user-directed): the agent link.
+
+---
+
+## 2026-10-05 — link controls restyled (D122)
+
+Harness: Claude Code, in a cloud session.
+
+- PR #20 (D121) merged after the owner ran the production migration.
+- The owner shared a screenshot of the open agent link panel and called it
+  clunky. Both link controls became pills on one row, each opening a card
+  under it; screenshots in light, dark, and phone width.
+
+### Decisions
+
+- D122 (user-directed): the project's link controls as pills with cards.

@@ -282,7 +282,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   const projectHeader = page.getByTestId("project-header");
   await expect(projectHeader.getByTestId("project-title")).toHaveText(target!.projectTitle!);
   await expect(projectHeader.getByTestId("founder-share-state")).toHaveText(
-    `Founder link active · v${first.version}`,
+    `Active · v${first.version}`,
   );
   await expect(
     page.getByRole("navigation", { name: "Projects and pages" }).getByRole("button", {
@@ -291,7 +291,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   ).toHaveCount(0);
   const shareToggle = projectHeader.getByRole("button", { name: "Share with founder" });
   await shareToggle.click();
-  await expect(page.getByText(`Founder link active (version ${first.version}).`)).toBeVisible();
+  await expect(page.getByText(`Version ${first.version} is live.`, { exact: false })).toBeVisible();
   await shareToggle.click();
 
   // A fresh browser context: no editor cookie, only the link.

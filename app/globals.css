@@ -2920,34 +2920,296 @@ pre code {
 
 /* ---- founder sharing and threads (REQUIREMENTS 6 and 7) ---- */
 
-/* The editor's per-project share control: closed by default, existing
-   tokens only. */
-.founder-share {
-  margin: 0.25rem 0 0.75rem;
+/* The project's two link controls (D122): a pill per link — the toggle
+   with its icon and caret, then a status dot and a short state — side by
+   side under the title. Each opens a card anchored under its pill; on a
+   narrow screen the card drops into the flow at full width instead. */
+.project-links {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
-.founder-share-panel {
-  border: var(--hairline) solid var(--line);
-  border-radius: 0.5rem;
+.link-control {
+  position: relative;
+}
+
+.link-chip {
+  display: inline-flex;
+  align-items: center;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: 999px;
   background: var(--surface);
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.link-chip:hover {
+  border-color: color-mix(in srgb, var(--ink) 35%, var(--line-strong));
+}
+
+.link-control[data-open="true"] .link-chip {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.link-chip-toggle {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.3rem 0.35rem 0.3rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 520;
+  gap: 0.4rem;
+}
+
+.link-chip-toggle:hover {
+  background: transparent;
+}
+
+.link-chip-toggle .canvas-icon:last-child {
+  color: var(--ink-quiet);
+  transition: transform 150ms ease-out;
+}
+
+.link-chip-toggle[aria-expanded="true"] .canvas-icon:last-child {
+  transform: rotate(180deg);
+}
+
+.link-chip-state {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.6rem;
+  border-left: var(--hairline) solid var(--line);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The dot: grey when off, green when live, the accent when revoked. */
+.link-chip-state::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.link-chip-state[data-state="active"] {
+  color: var(--ink);
+}
+
+.link-chip-state[data-state="active"]::before {
+  background: var(--status-accepted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-accepted) 22%, transparent);
+}
+
+.link-chip-state[data-state="revoked"]::before {
+  background: var(--accent);
+}
+
+.link-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 40;
+  width: min(32rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem 1rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent),
+    0 12px 32px -8px color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+.link-panel p {
+  margin: 0;
+}
+
+.link-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: -0.35rem;
+}
+
+.link-panel-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.link-panel-close {
+  border-color: transparent;
+  background: transparent;
+  padding: 0.25rem;
+  color: var(--ink-soft);
+}
+
+.link-panel-close:hover {
+  color: var(--ink);
+}
+
+.link-panel-lede {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.link-fresh {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
   padding: 0.75rem;
-  margin-top: 0.5rem;
+  border-radius: var(--radius);
+  background: var(--raised);
 }
 
-.founder-share-status {
-  margin: 0 0 0.5rem;
-  font-size: 0.9rem;
+.link-field-label {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: var(--ink-soft);
 }
 
-.founder-share-fresh input,
-.founder-share-fresh textarea {
-  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 6px;
-  font: inherit;
+.link-field-label:not(:first-child) {
+  margin-top: 0.35rem;
+}
+
+/* A read-only field with its copy button attached at the right. */
+.link-copy-row {
+  display: flex;
+}
+
+.link-copy-row input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 6px 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+}
+
+.link-copy-row button {
+  flex: none;
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
   font-size: 0.85rem;
-  padding: 0.4rem 0.5rem;
+}
+
+/* The prompt: the text, then a footer bar with its copy button, in one
+   bordered box so the button never sits on the text. */
+.link-prompt {
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.link-prompt:focus-within {
+  border-color: var(--focus);
+  box-shadow: 0 0 0 1px var(--focus);
+}
+
+.link-prompt textarea {
+  display: block;
   width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: none;
+  field-sizing: content;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.link-prompt textarea:focus-visible {
+  outline: none;
+}
+
+.link-prompt-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.4rem;
+  border-top: var(--hairline) solid var(--line);
+  background: var(--raised);
+}
+
+.link-prompt-foot button {
+  padding: 0.2rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.link-panel-note {
+  color: var(--ink-quiet);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.link-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: var(--hairline) solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 0.875rem;
+}
+
+.link-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.link-panel-actions button {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.8rem;
+}
+
+/* Revoke: quiet until hovered, then the accent; solid once confirming. */
+.link-danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.link-danger:hover {
+  background: var(--accent-soft);
+}
+
+.link-danger-solid {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+.link-danger-solid:hover {
+  background: color-mix(in srgb, var(--accent) 85%, var(--ink));
+}
+
+@media (max-width: 48rem) {
+  .link-control[data-open="true"] {
+    flex-basis: 100%;
+  }
+
+  .link-panel {
+    position: static;
+    width: 100%;
+    margin-top: 0.5rem;
+    box-shadow: none;
+  }
 }
 
 /* The append-only thread under a pin, in the editor panel and the founder
@@ -3039,11 +3301,6 @@ pre code {
   font-size: 0.9rem;
 }
 
-.project-header .founder-share {
-  margin: 0;
-  flex-basis: 100%;
-}
-
 /* Archive (D108) sits at the right end of the title row. */
 .archive-project {
   margin-left: auto;
@@ -3072,16 +3329,6 @@ pre code {
   flex-basis: 100%;
   color: var(--accent);
   font-size: 0.85rem;
-}
-
-.founder-share-state {
-  margin-left: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--ink-soft);
-}
-
-.founder-share-state[data-state="active"] {
-  color: var(--ink);
 }
 
 /* The founder's pin list above the canvas. */

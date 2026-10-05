@@ -57,7 +57,7 @@ describe("AgentLinkControl", () => {
   test("shows the state inline and explains itself before a link exists", async () => {
     const user = userEvent.setup();
     render(<AgentLinkControl publicId="pub-1" projectTitle="a-ok.ai" />);
-    expect(await screen.findByTestId("agent-link-state")).toHaveTextContent("No agent link");
+    expect(await screen.findByTestId("agent-link-state")).toHaveTextContent("Off");
     await user.click(screen.getByRole("button", { name: "Agent link" }));
     const panel = await screen.findByRole("group", { name: "Agent link for a-ok.ai" });
     expect(panel).toHaveTextContent("read-only brief");
@@ -67,7 +67,7 @@ describe("AgentLinkControl", () => {
   test("Create shows the link and the prompt once, and both copy", async () => {
     const user = userEvent.setup();
     render(<AgentLinkControl publicId="pub-1" projectTitle="a-ok.ai" />);
-    await screen.findByText("No agent link");
+    await screen.findByText("Off");
     await user.click(screen.getByRole("button", { name: "Agent link" }));
     await user.click(await screen.findByRole("button", { name: "Create link" }));
 
@@ -78,7 +78,7 @@ describe("AgentLinkControl", () => {
     const url = `${window.location.origin}/a/${TOKEN}`;
     expect(await screen.findByLabelText(/Agent link \(shown once/)).toHaveValue(url);
     expect(screen.getByLabelText("Prompt to paste into your agent")).toHaveValue(agentPrompt(url));
-    expect(screen.getByTestId("agent-link-state")).toHaveTextContent("Agent link active · v1");
+    expect(screen.getByTestId("agent-link-state")).toHaveTextContent("Active · v1");
 
     await user.click(screen.getByRole("button", { name: "Copy prompt" }));
     expect(await navigator.clipboard.readText()).toBe(agentPrompt(url));
@@ -95,7 +95,7 @@ describe("AgentLinkControl", () => {
     link = { state: "active", version: 3, revokedAt: null };
     const user = userEvent.setup();
     render(<AgentLinkControl publicId="pub-1" projectTitle="a-ok.ai" />);
-    await screen.findByText("Agent link active · v3");
+    await screen.findByText("Active · v3");
     await user.click(screen.getByRole("button", { name: "Agent link" }));
     await user.click(await screen.findByRole("button", { name: "Revoke link" }));
     const confirm = screen.getByTestId("agent-link-confirm");
@@ -103,7 +103,27 @@ describe("AgentLinkControl", () => {
     expect(within(confirm).getByRole("button", { name: "Yes, revoke link" })).toHaveFocus();
     expect(fetchMock.mock.calls.some((call) => call[1]?.method === "DELETE")).toBe(false);
     await user.click(within(confirm).getByRole("button", { name: "Yes, revoke link" }));
-    expect(await screen.findByText("Agent link revoked")).toBeInTheDocument();
+    expect(await screen.findByText("Revoked")).toBeInTheDocument();
+  });
+});
+
+describe("AgentLinkControl closing", () => {
+  test("Escape and the close button close the panel and return focus to the toggle", async () => {
+    const user = userEvent.setup();
+    render(<AgentLinkControl publicId="pub-1" projectTitle="a-ok.ai" />);
+    await screen.findByText("Off");
+    const toggle = screen.getByRole("button", { name: "Agent link" });
+    await user.click(toggle);
+    await user.click(await screen.findByRole("button", { name: "Create link" }));
+    await screen.findByLabelText(/Agent link \(shown once/);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: "Agent link for a-ok.ai" })).toBeNull();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveFocus();
+    await user.click(toggle);
+    await user.click(await screen.findByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("group", { name: "Agent link for a-ok.ai" })).toBeNull();
+    expect(toggle).toHaveFocus();
   });
 });
 

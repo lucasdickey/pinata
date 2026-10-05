@@ -1496,17 +1496,20 @@ export function ProjectWorkspace({
             projectTitle={activeProject.title}
             onArchived={onChanged}
           />
-          <FounderShareControl
-            key={activeProject.publicId}
-            publicId={activeProject.publicId}
-            projectTitle={activeProject.title}
-          />
-          {/* A read-only brief for a coding agent (D121). */}
-          <AgentLinkControl
-            key={`agent-${activeProject.publicId}`}
-            publicId={activeProject.publicId}
-            projectTitle={activeProject.title}
-          />
+          {/* The project's two links (D121, D122): side by side as pills,
+              each opening its own panel. */}
+          <div className="project-links">
+            <FounderShareControl
+              key={activeProject.publicId}
+              publicId={activeProject.publicId}
+              projectTitle={activeProject.title}
+            />
+            <AgentLinkControl
+              key={`agent-${activeProject.publicId}`}
+              publicId={activeProject.publicId}
+              projectTitle={activeProject.title}
+            />
+          </div>
         </div>
 
         {/* Project-level capture progress and retry (D076). */}

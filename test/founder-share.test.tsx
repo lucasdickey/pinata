@@ -71,13 +71,13 @@ describe("FounderShareControl", () => {
     const toggle = screen.getByRole("button", { name: "Share with founder" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     // The state is visible without opening the panel.
-    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("No founder link");
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("Off");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("group")).toBeNull();
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
-    await within(panel).findByText("No founder link yet.");
+    await within(panel).findByText("Send the founder a private link to review the pins and reply. No account needed.");
     // Opening reuses the status already read.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(within(panel).getByRole("button", { name: "Create link" })).toBeInTheDocument();
@@ -88,13 +88,13 @@ describe("FounderShareControl", () => {
     share = { state: "active", version: 2, revokedAt: null };
     const { unmount } = render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
-      "Founder link active · v2",
+      "Active · v2",
     );
     unmount();
     share = { state: "revoked", version: 2, revokedAt: 1_800_000_000_000 };
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
-      "Founder link revoked",
+      "Revoked",
     );
   });
 
@@ -103,10 +103,10 @@ describe("FounderShareControl", () => {
     fetchMock.mockImplementationOnce(() => Promise.resolve(json({ error: "Service unavailable." }, 503)));
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     expect(await screen.findByTestId("founder-share-state")).toHaveTextContent(
-      "Link status unavailable",
+      "Unavailable",
     );
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
-    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("No founder link");
+    expect(await screen.findByTestId("founder-share-state")).toHaveTextContent("Off");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -120,8 +120,8 @@ describe("FounderShareControl", () => {
     const field = await within(panel).findByLabelText(/Founder link \(shown once/);
     expect(field).toHaveValue(`${window.location.origin}/f/pub-1#${TOKEN}`);
     expect(field).toHaveAttribute("readonly");
-    expect(panel).toHaveTextContent("Founder link active (version 1).");
-    expect(panel).toHaveTextContent(/cannot be shown again/);
+    expect(panel).toHaveTextContent("Version 1 is live. Rotate to replace it, or revoke to turn it off.");
+    expect(panel).toHaveTextContent(/shown once/);
     expect(within(panel).getByRole("button", { name: "Rotate link" })).toBeInTheDocument();
     expect(within(panel).getByRole("button", { name: "Revoke link" })).toBeInTheDocument();
 
@@ -135,7 +135,7 @@ describe("FounderShareControl", () => {
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
     const reopened = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
-    await within(reopened).findByText("Founder link active (version 1).");
+    await within(reopened).findByText("Version 1 is live. Rotate to replace it, or revoke to turn it off.");
     expect(within(reopened).queryByLabelText(/Founder link \(shown once/)).toBeNull();
     expect(reopened).not.toHaveTextContent(TOKEN);
   });
@@ -146,7 +146,7 @@ describe("FounderShareControl", () => {
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
-    await within(panel).findByText("Founder link active (version 3).");
+    await within(panel).findByText("Version 3 is live. Rotate to replace it, or revoke to turn it off.");
     const writes = () =>
       fetchMock.mock.calls.filter(([, init]) => ((init as RequestInit)?.method ?? "GET") !== "GET");
 
@@ -158,7 +158,7 @@ describe("FounderShareControl", () => {
     // Focus lands on the confirmation so the keyboard path is Enter or Tab.
     expect(within(rotateStep).getByRole("button", { name: "Yes, rotate link" })).toHaveFocus();
     await user.click(within(rotateStep).getByRole("button", { name: "Yes, rotate link" }));
-    await within(panel).findByText("Founder link active (version 4).");
+    await within(panel).findByText("Version 4 is live. Rotate to replace it, or revoke to turn it off.");
     expect(await within(panel).findByLabelText(/Founder link \(shown once/)).toHaveValue(
       `${window.location.origin}/f/pub-1#${TOKEN}`,
     );
@@ -170,7 +170,7 @@ describe("FounderShareControl", () => {
     expect(revokeStep).toHaveTextContent(/nobody can open the review/);
     expect(writes()).toHaveLength(1);
     await user.click(within(revokeStep).getByRole("button", { name: "Yes, revoke link" }));
-    await within(panel).findByText("Founder link revoked (was version 4).");
+    await within(panel).findByText("The link is off, and nobody can open the review. Create a new one to share again.");
     expect(within(panel).queryByLabelText(/Founder link \(shown once/)).toBeNull();
     expect(within(panel).queryByRole("button", { name: "Revoke link" })).toBeNull();
     expect(within(panel).getByRole("button", { name: "Create link" })).toBeInTheDocument();
@@ -187,7 +187,7 @@ describe("FounderShareControl", () => {
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
     // Create needs no confirmation: there is no link yet to break.
     await user.click(await within(panel).findByRole("button", { name: "Create link" }));
-    await within(panel).findByText("Founder link active (version 1).");
+    await within(panel).findByText("Version 1 is live. Rotate to replace it, or revoke to turn it off.");
     expect(within(panel).queryByTestId("founder-share-confirm")).toBeNull();
     const writesBefore = fetchMock.mock.calls.length;
 
@@ -202,7 +202,7 @@ describe("FounderShareControl", () => {
     expect(within(panel).getByLabelText(/Founder link \(shown once/)).toHaveValue(
       `${window.location.origin}/f/pub-1#${TOKEN}`,
     );
-    expect(panel).toHaveTextContent("Founder link active (version 1).");
+    expect(panel).toHaveTextContent("Version 1 is live. Rotate to replace it, or revoke to turn it off.");
   });
 
   test("a failed issue reports a bounded error and shows no link", async () => {
@@ -210,7 +210,7 @@ describe("FounderShareControl", () => {
     render(<FounderShareControl publicId="pub-1" projectTitle="chickpea.co" />);
     await user.click(screen.getByRole("button", { name: "Share with founder" }));
     const panel = await screen.findByRole("group", { name: "Founder link for chickpea.co" });
-    await within(panel).findByText("No founder link yet.");
+    await within(panel).findByText("Send the founder a private link to review the pins and reply. No account needed.");
     fetchMock.mockImplementationOnce(() => Promise.resolve(json({ error: "Request rejected." }, 503)));
     await user.click(within(panel).getByRole("button", { name: "Create link" }));
     expect(await within(panel).findByRole("alert")).toHaveTextContent(/could not be created/);

@@ -11,7 +11,7 @@
 // agent as is. Rotate and Revoke each end the link already handed out, so
 // each asks once, inline, before doing it (D097).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import {
@@ -20,6 +20,7 @@ import {
   type AgentLinkStatusResponse,
   type AgentLinkView,
 } from "../lib/agent-link";
+import { CanvasIcon } from "./canvas-icons";
 
 type StatusState =
   | { status: "idle" }
@@ -45,6 +46,7 @@ export function AgentLinkControl({
   const confirmButton = useRef<HTMLButtonElement | null>(null);
   const actionButtons = useRef<HTMLParagraphElement | null>(null);
   const focusAfter = useRef<"confirm" | "actions" | null>(null);
+  const toggleButton = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (focusAfter.current === "confirm") confirmButton.current?.focus();
     else if (focusAfter.current === "actions") {
@@ -163,92 +165,127 @@ export function AgentLinkControl({
   };
 
   const link = state.status === "ready" ? state.link : null;
-  const summary =
+  // What the link is for, or what state it is in, as the panel's first line.
+  const lede =
     link === null
       ? null
       : link.state === "none"
-        ? "No agent link yet. Create one to give a coding agent a live, read-only brief of this project's open marks and screenshots."
+        ? "A secret link to a live, read-only brief of this project's open marks and screenshots. Paste it into any coding agent."
         : link.state === "active"
-          ? `Agent link active (version ${link.version}).`
-          : `Agent link revoked (was version ${link.version}).`;
-  const inlineState =
+          ? `Version ${link.version} is live. Rotate to replace it, or revoke to turn it off.`
+          : "The link is off. Create a new one to hand the brief to an agent again."
+  // The short form beside the toggle, always visible (D075, D122).
+  const chipState =
     link === null
       ? state.status === "failed"
-        ? "Link status unavailable"
-        : "Checking link…"
+        ? "Unavailable"
+        : "Checking…"
       : link.state === "none"
-        ? "No agent link"
+        ? "Off"
         : link.state === "active"
-          ? `Agent link active · v${link.version}`
-          : "Agent link revoked";
+          ? `Active · v${link.version}`
+          : "Revoked";
+  const close = () => {
+    if (open) toggle();
+    toggleButton.current?.focus();
+  };
+  const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    close();
+  };
 
   return (
-    <div className="founder-share agent-link" data-testid="agent-link">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={`agent-link-${publicId}`}
-        onClick={toggle}
-      >
-        Agent link
-      </button>
-      <span
-        className="founder-share-state"
-        data-testid="agent-link-state"
-        data-state={link?.state ?? state.status}
-      >
-        {inlineState}
-      </span>
+    <div className="link-control" data-testid="agent-link" data-open={open}>
+      <div className="link-chip" data-state={link?.state ?? state.status}>
+        <button
+          type="button"
+          className="link-chip-toggle"
+          ref={toggleButton}
+          aria-expanded={open}
+          aria-controls={`agent-link-${publicId}`}
+          onClick={toggle}
+        >
+          <CanvasIcon name="agent" size={16} />
+          Agent link
+          <CanvasIcon name="caret-down" size={14} />
+        </button>
+        <span
+          className="link-chip-state"
+          data-testid="agent-link-state"
+          data-state={link?.state ?? state.status}
+        >
+          {chipState}
+        </span>
+      </div>
       {open ? (
         <div
           id={`agent-link-${publicId}`}
-          className="founder-share-panel"
+          className="link-panel"
           aria-label={`Agent link for ${projectTitle}`}
           role="group"
+          onKeyDown={onPanelKeyDown}
         >
-          {state.status === "loading" ? <p className="panel-note">Checking link…</p> : null}
+          <div className="link-panel-head">
+            <p className="link-panel-title">Agent link</p>
+            <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
+              <CanvasIcon name="close" size={16} />
+            </button>
+          </div>
+          {state.status === "loading" ? <p className="link-panel-lede">Checking link…</p> : null}
           {state.status === "failed" ? (
-            <p className="panel-note">The link status could not be read. Close and reopen to retry.</p>
+            <p className="link-panel-lede">The link status could not be read. Close and reopen to retry.</p>
           ) : null}
-          {summary ? <p className="founder-share-status">{summary}</p> : null}
+          {lede ? <p className="link-panel-lede">{lede}</p> : null}
           {freshLink ? (
-            <div className="founder-share-fresh">
-              <label className="panel-field">
+            <div className="link-fresh">
+              <label className="link-field-label" htmlFor={`agent-link-url-${publicId}`}>
                 Agent link (shown once — copy it now)
+              </label>
+              <div className="link-copy-row">
                 <input
+                  id={`agent-link-url-${publicId}`}
                   type="text"
                   readOnly
                   value={freshLink}
                   onFocus={(event) => event.currentTarget.select()}
                 />
-              </label>
-              <label className="panel-field">
+                <button type="button" onClick={() => void copy("link")}>
+                  <CanvasIcon name="copy" size={15} />
+                  {copied === "link" ? "Copied" : "Copy link"}
+                </button>
+              </div>
+              <label className="link-field-label" htmlFor={`agent-link-prompt-${publicId}`}>
                 Prompt to paste into your agent
+              </label>
+              <div className="link-prompt">
                 <textarea
+                  id={`agent-link-prompt-${publicId}`}
                   readOnly
-                  rows={3}
+                  rows={5}
                   value={agentPrompt(freshLink)}
                   onFocus={(event) => event.currentTarget.select()}
                 />
-              </label>
-              <p className="panel-actions">
-                <button type="button" onClick={() => void copy("prompt")}>
-                  {copied === "prompt" ? "Copied" : "Copy prompt"}
-                </button>
-                <button type="button" onClick={() => void copy("link")}>
-                  {copied === "link" ? "Copied" : "Copy link"}
-                </button>
-              </p>
-              <p className="panel-note">
+                <div className="link-prompt-foot">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => void copy("prompt")}
+                  >
+                    <CanvasIcon name="copy" size={15} />
+                    {copied === "prompt" ? "Copied" : "Copy prompt"}
+                  </button>
+                </div>
+              </div>
+              <p className="link-panel-note">
                 Anyone with this link can read the brief and its screenshots, but cannot change
-                anything. Pinata stores only a fingerprint of it, so it cannot be shown again.
-                Rotate to get a new one.
+                anything. It is shown once: Pinata keeps only a fingerprint of it.
               </p>
             </div>
           ) : null}
           {link && confirming ? (
             <div
-              className="founder-share-confirm"
+              className="link-confirm"
               role="group"
               aria-labelledby={`agent-link-confirm-${publicId}`}
               data-testid="agent-link-confirm"
@@ -258,10 +295,11 @@ export function AgentLinkControl({
                   ? "Rotate the agent link? The link you handed out stops working, and you get a new one."
                   : "Revoke the agent link? The link you handed out stops working until you create a new one."}
               </p>
-              <p className="panel-actions">
+              <p className="link-panel-actions">
                 <button
                   type="button"
                   ref={confirmButton}
+                  className={confirming === "revoke" ? "link-danger-solid" : "button-primary"}
                   onClick={() => void (confirming === "rotate" ? issue() : revoke())}
                   disabled={busy}
                 >
@@ -274,18 +312,28 @@ export function AgentLinkControl({
             </div>
           ) : null}
           {link && !confirming ? (
-            <p className="panel-actions" ref={actionButtons}>
+            <p className="link-panel-actions" ref={actionButtons}>
               {link.state === "active" ? (
                 <>
                   <button type="button" onClick={() => ask("rotate")} disabled={busy}>
                     Rotate link
                   </button>
-                  <button type="button" onClick={() => ask("revoke")} disabled={busy}>
+                  <button
+                    type="button"
+                    className="link-danger"
+                    onClick={() => ask("revoke")}
+                    disabled={busy}
+                  >
                     Revoke link
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => void issue()} disabled={busy}>
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={() => void issue()}
+                  disabled={busy}
+                >
                   Create link
                 </button>
               )}

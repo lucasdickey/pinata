@@ -15,7 +15,7 @@
 // says what will happen plus Confirm and Cancel. Create has nothing to break
 // and goes straight through.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
 import type {
@@ -23,6 +23,7 @@ import type {
   FounderShareStatusResponse,
   FounderShareView,
 } from "../lib/threads";
+import { CanvasIcon } from "./canvas-icons";
 
 type StatusState =
   | { status: "idle" }
@@ -57,6 +58,7 @@ export function FounderShareControl({
   // Focus follows the step: into Confirm when it appears, and back to the
   // action row when the step closes, so a keyboard user never loses place.
   const focusAfter = useRef<"confirm" | "actions" | null>(null);
+  const toggleButton = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (focusAfter.current === "confirm") confirmButton.current?.focus();
     else if (focusAfter.current === "actions") {
@@ -177,80 +179,104 @@ export function FounderShareControl({
   };
 
   const share = state.status === "ready" ? state.share : null;
-  const summary =
+  // What the link is for, or what state it is in, as the panel's first line.
+  const lede =
     share === null
       ? null
       : share.state === "none"
-        ? "No founder link yet."
+        ? "Send the founder a private link to review the pins and reply. No account needed."
         : share.state === "active"
-          ? `Founder link active (version ${share.version}).`
-          : `Founder link revoked (was version ${share.version}).`;
-  // The always-visible short form of the same state (D075).
-  const inlineState =
+          ? `Version ${share.version} is live. Rotate to replace it, or revoke to turn it off.`
+          : "The link is off, and nobody can open the review. Create a new one to share again."
+  // The short form beside the toggle, always visible (D075, D122).
+  const chipState =
     share === null
       ? state.status === "failed"
-        ? "Link status unavailable"
-        : "Checking link…"
+        ? "Unavailable"
+        : "Checking…"
       : share.state === "none"
-        ? "No founder link"
+        ? "Off"
         : share.state === "active"
-          ? `Founder link active · v${share.version}`
-          : "Founder link revoked";
+          ? `Active · v${share.version}`
+          : "Revoked";
+  const close = () => {
+    if (open) toggle();
+    toggleButton.current?.focus();
+  };
+  const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    close();
+  };
 
   return (
-    <div className="founder-share" data-testid="founder-share">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={`founder-share-${publicId}`}
-        onClick={toggle}
-      >
-        Share with founder
-      </button>
-      <span
-        className="founder-share-state"
-        data-testid="founder-share-state"
-        data-state={share?.state ?? state.status}
-      >
-        {inlineState}
-      </span>
+    <div className="link-control" data-testid="founder-share" data-open={open}>
+      <div className="link-chip" data-state={share?.state ?? state.status}>
+        <button
+          type="button"
+          className="link-chip-toggle"
+          ref={toggleButton}
+          aria-expanded={open}
+          aria-controls={`founder-share-${publicId}`}
+          onClick={toggle}
+        >
+          <CanvasIcon name="link" size={16} />
+          Share with founder
+          <CanvasIcon name="caret-down" size={14} />
+        </button>
+        <span
+          className="link-chip-state"
+          data-testid="founder-share-state"
+          data-state={share?.state ?? state.status}
+        >
+          {chipState}
+        </span>
+      </div>
       {open ? (
         <div
           id={`founder-share-${publicId}`}
-          className="founder-share-panel"
+          className="link-panel"
           aria-label={`Founder link for ${projectTitle}`}
           role="group"
+          onKeyDown={onPanelKeyDown}
         >
-          {state.status === "loading" ? <p className="panel-note">Checking link…</p> : null}
+          <div className="link-panel-head">
+            <p className="link-panel-title">Founder link</p>
+            <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
+              <CanvasIcon name="close" size={16} />
+            </button>
+          </div>
+          {state.status === "loading" ? <p className="link-panel-lede">Checking link…</p> : null}
           {state.status === "failed" ? (
-            <p className="panel-note">The link status could not be read. Close and reopen to retry.</p>
+            <p className="link-panel-lede">The link status could not be read. Close and reopen to retry.</p>
           ) : null}
-          {summary ? <p className="founder-share-status">{summary}</p> : null}
+          {lede ? <p className="link-panel-lede">{lede}</p> : null}
           {freshLink ? (
-            <div className="founder-share-fresh">
-              <label className="panel-field">
+            <div className="link-fresh">
+              <label className="link-field-label" htmlFor={`founder-share-url-${publicId}`}>
                 Founder link (shown once — copy it now)
+              </label>
+              <div className="link-copy-row">
                 <input
+                  id={`founder-share-url-${publicId}`}
                   type="text"
                   readOnly
                   value={freshLink}
                   onFocus={(event) => event.currentTarget.select()}
                 />
-              </label>
-              <p className="panel-actions">
-                <button type="button" onClick={() => void copy()}>
+                <button type="button" className="button-primary" onClick={() => void copy()}>
+                  <CanvasIcon name="copy" size={15} />
                   {copied ? "Copied" : "Copy link"}
                 </button>
-              </p>
-              <p className="panel-note">
-                Pinata stores only a fingerprint of this link, so it cannot be shown again.
-                Rotate to issue a new one.
+              </div>
+              <p className="link-panel-note">
+                It is shown once: Pinata keeps only a fingerprint of it. Rotate to issue a new one.
               </p>
             </div>
           ) : null}
           {share && confirming ? (
             <div
-              className="founder-share-confirm"
+              className="link-confirm"
               role="group"
               aria-labelledby={`founder-share-confirm-${publicId}`}
               data-testid="founder-share-confirm"
@@ -260,10 +286,11 @@ export function FounderShareControl({
                   ? "Rotate the link? The link the founder has now stops working, and you get a new one to send."
                   : "Revoke the link? The link the founder has now stops working, and nobody can open the review until you create a new one."}
               </p>
-              <p className="panel-actions">
+              <p className="link-panel-actions">
                 <button
                   type="button"
                   ref={confirmButton}
+                  className={confirming === "revoke" ? "link-danger-solid" : "button-primary"}
                   onClick={() => void (confirming === "rotate" ? issue() : revoke())}
                   disabled={busy}
                 >
@@ -276,18 +303,28 @@ export function FounderShareControl({
             </div>
           ) : null}
           {share && !confirming ? (
-            <p className="panel-actions" ref={actionButtons}>
+            <p className="link-panel-actions" ref={actionButtons}>
               {share.state === "active" ? (
                 <>
                   <button type="button" onClick={() => ask("rotate")} disabled={busy}>
                     Rotate link
                   </button>
-                  <button type="button" onClick={() => ask("revoke")} disabled={busy}>
+                  <button
+                    type="button"
+                    className="link-danger"
+                    onClick={() => ask("revoke")}
+                    disabled={busy}
+                  >
                     Revoke link
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={() => void issue()} disabled={busy}>
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={() => void issue()}
+                  disabled={busy}
+                >
                   Create link
                 </button>
               )}
