@@ -78,11 +78,16 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   // sign in that lands on the sign-in form.
   await expect(page.getByLabel("Root URL")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Start capturing" })).toHaveCount(0);
-  const cta = page.getByRole("link", { name: "Sign in to start a review" });
+  // It opens the sign-in dialog (D123) with focus in the password field.
+  const cta = page.getByRole("button", { name: "Sign in to start a review" });
   await expect(cta).toBeVisible();
   await cta.click();
-  await expect(page).toHaveURL(/#editor-login$/);
-  await expect(page.getByLabel("Password")).toBeInViewport();
+  const dialog = page.getByRole("dialog", { name: "Editor sign in" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Password")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(cta).toBeFocused();
   // The brief value proposition.
   await expect(page.getByText(/pin plain, directional notes/i)).toBeVisible();
 
@@ -106,9 +111,11 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
     page.getByRole("heading", { name: /^Pin 1 · “This billing toggle .* · Annual \(save 20%\)$/ }),
   ).toBeVisible();
 
-  // A clear sign-in path.
-  await expect(page.getByRole("heading", { name: "Editor sign in" })).toBeVisible();
+  // A clear sign-in path: an old /#editor-login link still opens it.
+  await page.goto("/#editor-login");
+  await expect(page.getByRole("dialog", { name: "Editor sign in" })).toBeVisible();
   await expect(page.getByLabel("Password")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // The favicon is the same-origin shared mark, not an external asset.
   const iconHref = await page.locator('link[rel="icon"]').first().getAttribute("href");

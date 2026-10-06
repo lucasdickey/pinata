@@ -2,8 +2,8 @@
 // hero — the pinata mark, the name, and a brief value proposition — opens
 // the public landing and /pins/new. Only /pins/new, behind sign-in, carries
 // the project form: the public landing asks a visitor to sign in instead of
-// taking an address first (D103), then shows the static example and the
-// sign-in form itself. Kept free of server-only APIs so the same components
+// taking an address first (D103), then shows the static example; every
+// sign-in call opens one shared dialog (D123). Kept free of server-only APIs so the same components
 // render under React Testing Library in jsdom.
 
 import Link from "next/link";
@@ -11,8 +11,8 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { ExampleCapture } from "./example-capture";
-import { LoginForm } from "./login-form";
 import { PinataLogo } from "./pinata-logo";
+import { SignInButton, SignInProvider } from "./sign-in-dialog";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
@@ -33,10 +33,13 @@ export function LandingHero({
     <header className="landing-hero">
       {showMark ? <PinataLogo /> : null}
       <p className="landing-eyebrow">
-        <strong>pin</strong> + <strong>annotate</strong> + at <strong>ya</strong>
+        <strong>pin</strong> + <strong>annotate</strong> + at{" "}
+        <strong>ya</strong>
       </p>
       <h1>pinata</h1>
-      <p className="landing-statement">feedback pinned to the exact pixel, sent in one link</p>
+      <p className="landing-statement">
+        feedback pinned to the exact pixel, sent in one link
+      </p>
       <p className="landing-prop">
         Drop in a public page address and Pinata captures it — then pin plain,
         directional notes to the exact pixel and share one link with the
@@ -86,7 +89,7 @@ function SiteBar() {
             <Link href="/reqs">How it's built</Link>
           </li>
           <li>
-            <a href="#editor-login">Sign in</a>
+            <SignInButton className="link-button">Sign in</SignInButton>
           </li>
           <li>
             <ThemeToggle />
@@ -106,9 +109,17 @@ function HowItWorks() {
       <ul className="landing-points">
         <li>
           <div className="process-art" aria-hidden="true">
-            <Image src="/illustrations/process-capture.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+            <Image
+              src="/illustrations/process-capture.png"
+              alt=""
+              width={1254}
+              height={1254}
+              sizes="(max-width: 48rem) 280px, 340px"
+            />
           </div>
-          <p className="process-number" aria-hidden="true">01 / capture</p>
+          <p className="process-number" aria-hidden="true">
+            01 / capture
+          </p>
           <h3>capture the page</h3>
           <p>
             Every address you list is captured on desktop and mobile as a full
@@ -117,9 +128,17 @@ function HowItWorks() {
         </li>
         <li>
           <div className="process-art" aria-hidden="true">
-            <Image src="/illustrations/process-annotate.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+            <Image
+              src="/illustrations/process-annotate.png"
+              alt=""
+              width={1254}
+              height={1254}
+              sizes="(max-width: 48rem) 280px, 340px"
+            />
           </div>
-          <p className="process-number" aria-hidden="true">02 / annotate</p>
+          <p className="process-number" aria-hidden="true">
+            02 / annotate
+          </p>
           <h3>pin it where it happens</h3>
           <p>
             Drop a pin, draw a box or a circle, or point an arrow, and say what
@@ -128,9 +147,17 @@ function HowItWorks() {
         </li>
         <li>
           <div className="process-art" aria-hidden="true">
-            <Image src="/illustrations/process-share.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 280px, 340px" />
+            <Image
+              src="/illustrations/process-share.png"
+              alt=""
+              width={1254}
+              height={1254}
+              sizes="(max-width: 48rem) 280px, 340px"
+            />
           </div>
-          <p className="process-number" aria-hidden="true">03 / share</p>
+          <p className="process-number" aria-hidden="true">
+            03 / share
+          </p>
           <h3>send one link</h3>
           <p>
             The founder opens it without an account, reads each note in place,
@@ -147,9 +174,17 @@ function SiteFooter() {
     <footer className="site-footer">
       <div className="footer-brand">
         <div className="footer-mascot" aria-hidden="true">
-          <Image src="/illustrations/mascot-resting.png" alt="" width={1254} height={1254} sizes="112px" />
+          <Image
+            src="/illustrations/mascot-resting.png"
+            alt=""
+            width={1254}
+            height={1254}
+            sizes="112px"
+          />
         </div>
-        <p>pinata<span>a little feedback goes a long way.</span></p>
+        <p>
+          pinata<span>a little feedback goes a long way.</span>
+        </p>
       </div>
       <div>
         <h2>product</h2>
@@ -160,9 +195,9 @@ function SiteFooter() {
             </Link>
           </li>
           <li>
-            <a href="#editor-login" className="quiet-link">
+            <SignInButton className="link-button quiet-link">
               editor sign in
-            </a>
+            </SignInButton>
           </li>
         </ul>
       </div>
@@ -184,9 +219,9 @@ function SiteFooter() {
 function LandingCta() {
   return (
     <p className="landing-cta">
-      <a className="button-link button-primary" href="#editor-login">
+      <SignInButton className="button-link button-primary">
         Sign in to start a review
-      </a>
+      </SignInButton>
       <a className="quiet-link" href="#example-heading">
         see an example →
       </a>
@@ -198,39 +233,74 @@ function LandingCta() {
  * how it works, sign-in, and the footer. */
 export function AnonymousLanding() {
   return (
-    <main className="home-main home-main--landing">
-      {/* Decorative halftone washes in the piñata orange (D119): pure CSS,
+    <SignInProvider>
+      <main className="home-main home-main--landing">
+        {/* Decorative halftone washes in the piñata orange (D119): pure CSS,
           no image, behind the hero and the sign-in. */}
-      <div className="landing-halftone landing-halftone--hero" aria-hidden="true">
-        <span className="landing-halftone-glow" />
-      </div>
-      <SiteBar />
-      <div className="illustrated-hero">
-        <LandingHero showMark={false}>
-          <LandingCta />
-        </LandingHero>
-        <div className="hero-art" aria-hidden="true">
-          <Image src="/illustrations/hero.png" alt="" width={1536} height={1024} sizes="(max-width: 60rem) 92vw, 560px" preload />
-          <span className="hero-art-caption">a little note. right where it matters.</span>
-        </div>
-      </div>
-      <HowItWorks />
-      <ExampleCapture />
-      <div className="landing-invitation">
-        <div className="landing-halftone landing-halftone--card" aria-hidden="true">
+        <div
+          className="landing-halftone landing-halftone--hero"
+          aria-hidden="true"
+        >
           <span className="landing-halftone-glow" />
         </div>
-        <div className="invitation-copy">
-          <p className="section-eyebrow">your next good idea starts here</p>
-          <h2>got notes?<br />let’s pin them.</h2>
-          <p>Give your feedback a place to land.</p>
+        <SiteBar />
+        <div className="illustrated-hero">
+          <LandingHero showMark={false}>
+            <LandingCta />
+          </LandingHero>
+          <div className="hero-art" aria-hidden="true">
+            <Image
+              src="/illustrations/hero.png"
+              alt=""
+              width={1536}
+              height={1024}
+              sizes="(max-width: 60rem) 92vw, 560px"
+              preload
+            />
+            <span className="hero-art-caption">
+              a little note. right where it matters.
+            </span>
+          </div>
         </div>
-        <div className="invitation-mascot" aria-hidden="true">
-          <Image src="/illustrations/mascot-pencil.png" alt="" width={1254} height={1254} sizes="(max-width: 48rem) 120px, 140px" />
+        <HowItWorks />
+        <ExampleCapture />
+        <div className="landing-invitation">
+          <div
+            className="landing-halftone landing-halftone--card"
+            aria-hidden="true"
+          >
+            <span className="landing-halftone-glow" />
+          </div>
+          <div className="invitation-copy">
+            <p className="section-eyebrow">your next good idea starts here</p>
+            <h2>
+              got notes?
+              <br />
+              let’s pin them.
+            </h2>
+            <p>Give your feedback a place to land.</p>
+          </div>
+          <div className="invitation-mascot" aria-hidden="true">
+            <Image
+              src="/illustrations/mascot-pencil.png"
+              alt=""
+              width={1254}
+              height={1254}
+              sizes="(max-width: 48rem) 120px, 140px"
+            />
+          </div>
+          <div className="invitation-sign-in">
+            <SignInButton className="button-link button-primary">
+              Sign in
+            </SignInButton>
+            <p>
+              Editors sign in with the one password. Founders open the private
+              link they were sent.
+            </p>
+          </div>
         </div>
-        <LoginForm />
-      </div>
-      <SiteFooter />
-    </main>
+        <SiteFooter />
+      </main>
+    </SignInProvider>
   );
 }

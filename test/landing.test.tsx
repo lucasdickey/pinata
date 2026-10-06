@@ -45,9 +45,11 @@ describe("anonymous landing", () => {
     expect(screen.queryByLabelText("Root URL")).toBeNull();
     expect(screen.queryByRole("button", { name: "Start capturing" })).toBeNull();
     // The hero's way in is a call to sign in, pointing at the sign-in form.
-    const cta = screen.getByRole("link", { name: "Sign in to start a review" });
-    expect(cta).toHaveAttribute("href", "#editor-login");
-    expect(document.getElementById("editor-login")).not.toBeNull();
+    // It opens the one sign-in dialog (D123), which starts closed.
+    const cta = screen.getByRole("button", { name: "Sign in to start a review" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(cta);
+    expect(screen.getByRole("dialog", { name: "Editor sign in" })).toBeInTheDocument();
     // Rendering the page fired no request at all.
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -140,7 +142,23 @@ describe("anonymous landing", () => {
 
   test("a clear sign-in path is part of the page", () => {
     render(<AnonymousLanding />);
-    expect(screen.getByRole("heading", { name: "Editor sign in" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    // Every sign-in call opens the same dialog, with focus in the password
+    // field; Escape closes it and returns focus to the button (D123).
+    const calls = screen.getAllByRole("button", { name: /sign in/i });
+    expect(calls.map((button) => button.textContent)).toEqual([
+      "Sign in",
+      "Sign in to start a review",
+      "Sign in",
+      "editor sign in",
+    ]);
+    for (const call of calls) {
+      call.focus();
+      fireEvent.click(call);
+      const dialog = screen.getByRole("dialog", { name: "Editor sign in" });
+      expect(within(dialog).getByLabelText("Password")).toHaveFocus();
+      fireEvent.keyDown(within(dialog).getByLabelText("Password"), { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(call).toHaveFocus();
+    }
   });
 });
