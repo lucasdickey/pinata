@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 46 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124 |
+| Human directed | 47 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **124** | |
+| **Total** | **125** | |
 
 ## Key decisions
 
@@ -186,6 +186,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D122](#d122--the-projects-link-controls-as-pills-with-anchored-cards) | design | The project's link controls as pills with anchored cards | Human directed | accepted |
 | [D123](#d123--the-landing-pages-sign-in-as-one-dialog) | design | The landing page's sign-in as one dialog | Human directed | accepted |
 | [D124](#d124--signing-in-again-without-losing-work) | build | Signing in again without losing work | Human directed | accepted |
+| [D125](#d125--a-box-or-circle-can-be-attached-to-several-elements) | build | A box or circle can be attached to several elements | Human directed | accepted |
 
 ---
 
@@ -5016,4 +5017,47 @@ Human instruction:
 
 ---
 
-<sub>Generated from 124 record(s) as of 2026-10-06 · source `b17912d4f931`</sub>
+## D125 — A box or circle can be attached to several elements
+
+*2026-10-06 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Some notes are about the space between elements, like the gap between the hero headline and the shirt image, and the fix may need margin or padding on both. A mark could be attached to only one element, so the other side of the gap was never named for the agent or developer reading the note.
+
+**Decision**
+
+A box or circle draft lists its nearby elements as checkboxes: the first one ticked is the main element, and up to four more can be added; No element clears them all. The chip reads, for example, "2 elements · “Good clothes for…”". The server checks every extra id against the capture's own manifest and stores their snapshots in a new also_elements_json column (migration 0009); pins and arrows keep a single element. Hovering or selecting the mark outlines every attached element on the screenshot, and the details panel, pin table, hover card, Markdown export, and agent brief list each one with its path. While testing it, a long-standing bug surfaced and was fixed: the draft panel did not reposition when its element list opened, so the first click in the list moved the panel and missed.
+
+**Alternatives considered**
+
+- *Allow several elements on every kind of mark* — A pin and an arrow point at one spot by nature; the ask was boxes and circles, which cover an area.
+- *Store all elements in the existing element_snapshot_json column as a list* — Every reader of that column expects one snapshot; a separate column keeps old marks and old code unchanged.
+
+**Rationale**
+
+The owner asked for it directly: "can we make it so that the box / circle selectors allow for multi-select for near elements (optionally)? in this case, i want to call out space between dom objects, and it might requre margin/padding changes to both". No dependency was added.
+
+**Consequences**
+
+- Migration 0009 adds also_elements_json to annotations; it must run on the production database (npm run db:migrate) before this deploys.
+- An idempotency key's digest includes the extra ids only when there are some, so keys recorded before this still replay.
+- The draft panel now follows its own size with a ResizeObserver, which also fixes the missed first click in a pin's single-choice list.
+
+**Provenance evidence**
+
+Human instruction:
+
+> can we make it so that the box / circle selectors allow for multi-select for near elements (optionally)? in this case, i want to call out space between dom objects, and it might requre margin/padding changes to both
+
+**Artifacts**
+
+- `src/components/pin-composer.tsx` — The checkbox list and the chip.
+- ![A box over a gap, attached to the headline and the shirt image (light).](dashboard/screenshots/D125-composer-light.png) — A box over a gap, attached to the headline and the shirt image (light).
+- ![The same in dark.](dashboard/screenshots/D125-composer-dark.png) — The same in dark.
+- ![The saved box: details list both elements, both outlined (light).](dashboard/screenshots/D125-saved-light.png) — The saved box: details list both elements, both outlined (light).
+- ![The same in dark.](dashboard/screenshots/D125-saved-dark.png) — The same in dark.
+
+---
+
+<sub>Generated from 125 record(s) as of 2026-10-06 · source `be82e7420dd4`</sub>

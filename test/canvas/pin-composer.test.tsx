@@ -12,6 +12,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { PinComposer, type PinComposerProps } from "../../src/components/pin-composer";
 import type { PinElementSnapshot } from "../../src/lib/annotations";
@@ -416,5 +417,51 @@ describe("nearby elements that could not be loaded (D124)", () => {
     expect(onRetryCandidates).toHaveBeenCalledTimes(1);
     // The keyboard hint under the buttons is gone.
     expect(screen.queryByText(/Enter saves/)).toBeNull();
+  });
+});
+
+describe("a box or circle attached to several elements (D125)", () => {
+  // A controlled harness: the composer reports, the test holds the state.
+  function Harness({ kind }: { kind: "rectangle" | "circle" | "pin" }) {
+    const [choice, setChoice] = useState<string | null | undefined>("cell-1");
+    const [also, setAlso] = useState<string[]>([]);
+    return (
+      <PinComposer
+        {...props({
+          draftChoice: choice,
+          onDraftChoiceChange: setChoice,
+          draftAlso: also,
+          onDraftAlsoChange: setAlso,
+          draftKind: kind,
+        })}
+      />
+    );
+  }
+
+  test("ticks add elements, the first stays main, and No element clears them", () => {
+    render(<Harness kind="rectangle" />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByText("Nearby elements, most overlap first — pick one or more")).toBeInTheDocument();
+    const boxes = screen.getAllByRole("checkbox");
+    // cell-1, row-1, No element.
+    expect(boxes).toHaveLength(3);
+    expect(boxes[0]).toBeChecked();
+    fireEvent.click(boxes[1]!);
+    expect(chip()).toHaveTextContent(/^2 elements · /);
+    expect(chip()).toHaveAttribute("data-element-id", "cell-1");
+    // Unticking the main one promotes the next.
+    fireEvent.click(boxes[0]!);
+    expect(chip()).toHaveAttribute("data-element-id", "row-1");
+    expect(chip()).not.toHaveTextContent("elements ·");
+    fireEvent.click(screen.getAllByRole("checkbox")[2]!);
+    expect(chip()).toHaveTextContent("No element");
+    expect(screen.getAllByRole("checkbox").filter((box) => (box as HTMLInputElement).checked)).toHaveLength(1);
+  });
+
+  test("a pin keeps a single choice", () => {
+    render(<Harness kind="pin" />);
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
   });
 });

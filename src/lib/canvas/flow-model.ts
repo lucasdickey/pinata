@@ -155,6 +155,11 @@ export interface PlaneMarks {
    */
   previewVariant?: ContextPreviewVariant;
   /**
+   * More elements to outline alongside `preview`, in the same variant: the
+   * extra elements of a box or circle attached to several (D125).
+   */
+  previewMore?: readonly ContextRect[];
+  /**
    * The founder's read-only plane: regions render with no handles and
    * no drag. Pins keep their own read-only handling in the canvas.
    */
@@ -187,7 +192,13 @@ export function nodesForPlane(domain: CaptureFrameDomain, marks: PlaneMarks): Ca
     ...(marks.circles ?? []),
     ...(marks.arrows ?? []),
   ].sort((a, b) => a.number - b.number);
-  const nodes: CanvasNode[] = [frame, ...(highlight ? [highlight] : [])];
+  const more = highlight
+    ? (marks.previewMore ?? []).flatMap((rect, index) => {
+        const node = contextPreviewNode(domain, rect, marks.previewVariant ?? "candidate");
+        return node ? [{ ...node, id: `${node.id}:also:${index}` }] : [];
+      })
+    : [];
+  const nodes: CanvasNode[] = [frame, ...(highlight ? [highlight] : []), ...more];
   const readOnly = marks.readOnly ?? false;
   for (const mark of ordered) {
     const options = { readOnly, handleGesture: mark.id === marks.handleGestureId };

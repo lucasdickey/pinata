@@ -72,7 +72,7 @@ Text UUID/ULID keys and UTC timestamps, with committed repeatable migrations:
 | `projects` | title, root URL, public ID, share-token and agent-token digest/version/revocation |
 | `pages` | requested and normalized URL, per-project order; unique `(project_id, normalized_url)` |
 | `captures` | one row per page/viewport attempt: status, viewport, document dimensions, Blob path, hash, manifest, error fields |
-| `annotations` | kind (pin/rectangle/circle/arrow), versioned geometry, original body, optional element snapshot |
+| `annotations` | kind (pin/rectangle/circle/arrow), versioned geometry, original body, optional element snapshot, and for a box or circle up to four more element snapshots |
 | `thread_entries` | append-only replies with actor role, server label, idempotency key |
 
 A successful capture is immutable. Retrying produces a new capture version;

@@ -23,7 +23,7 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
-import type { PinElementSnapshot } from "../lib/annotations";
+import { MAX_ALSO_ELEMENTS, type PinElementSnapshot } from "../lib/annotations";
 import { markKindNoun, type MarkKind } from "../lib/canvas/marks";
 
 /** The draft's nearby-candidate fetch state. */
@@ -57,6 +57,13 @@ export interface PinComposerProps {
    * element can always be attached (D124). Without it, no retry is shown.
    */
   onRetryCandidates?: () => void;
+  /**
+   * More elements a box or circle is attached to beyond draftChoice (D125).
+   * With onDraftAlsoChange, a box or circle draft lists its nearby
+   * elements as checkboxes: the first one ticked is the main element.
+   */
+  draftAlso?: readonly string[];
+  onDraftAlsoChange?: (ids: string[]) => void;
   /**
    * Which kind of mark the draft is (D079). Only the copy changes; the
    * canvas sets it from the draft, so callers building the props from
@@ -100,6 +107,8 @@ export function PinComposer({
   onCancelDraft,
   saveState,
   onRetryCandidates,
+  draftAlso = [],
+  onDraftAlsoChange,
   draftKind = "pin",
   placement = 0,
 }: PinComposerProps) {
@@ -122,6 +131,25 @@ export function PinComposer({
     typeof draftChoice === "string"
       ? (items.find((candidate) => candidate.id === draftChoice) ?? null)
       : null;
+  // Several elements (D125): boxes and circles only, when the caller can
+  // hold the extra ids.
+  const multiple =
+    onDraftAlsoChange !== undefined && (draftKind === "rectangle" || draftKind === "circle");
+  const picked = multiple && typeof draftChoice === "string" ? [draftChoice, ...draftAlso] : [];
+  const full = picked.length >= MAX_ALSO_ELEMENTS + 1;
+  const togglePicked = (id: string) => {
+    const next = picked.includes(id)
+      ? picked.filter((value) => value !== id)
+      : full
+        ? picked
+        : [...picked, id];
+    onDraftChoiceChange(next[0] ?? null);
+    onDraftAlsoChange?.(next.slice(1));
+  };
+  const clearPicked = () => {
+    onDraftChoiceChange(null);
+    onDraftAlsoChange?.([]);
+  };
   const saveDisabled =
     saveState === "saving" || draftBody.trim().length === 0 || draftChoice === undefined;
 
@@ -184,7 +212,10 @@ export function PinComposer({
             {draftChoice === undefined
               ? "Looking for nearby elements…"
               : chosen
-                ? chipLabel(chosen)
+                ? // The count leads so the chip's ellipsis never hides it (D125).
+                  multiple && draftAlso.length > 0
+                  ? `${draftAlso.length + 1} elements · ${chipLabel(chosen)}`
+                  : chipLabel(chosen)
                 : "No element"}
           </span>
           <button
@@ -199,7 +230,7 @@ export function PinComposer({
           <button
             type="button"
             aria-pressed={draftChoice === null}
-            onClick={() => onDraftChoiceChange(null)}
+            onClick={() => (multiple ? clearPicked() : onDraftChoiceChange(null))}
           >
             No element
           </button>
@@ -221,7 +252,9 @@ export function PinComposer({
                   distance; regions rank by overlap. */}
               {draftKind === "pin" || draftKind === "arrow"
                 ? "Nearby elements, closest first"
-                : "Nearby elements, most overlap first"}
+                : multiple
+                  ? "Nearby elements, most overlap first — pick one or more"
+                  : "Nearby elements, most overlap first"}
             </legend>
             {items.map((candidate) => (
               <label
@@ -235,11 +268,14 @@ export function PinComposer({
                 onTouchCancel={() => onPreviewCandidate(null)}
               >
                 <input
-                  type="radio"
+                  type={multiple ? "checkbox" : "radio"}
                   name="draft-element"
                   value={candidate.id}
-                  checked={draftChoice === candidate.id}
-                  onChange={() => onDraftChoiceChange(candidate.id)}
+                  checked={multiple ? picked.includes(candidate.id) : draftChoice === candidate.id}
+                  disabled={multiple && full && !picked.includes(candidate.id)}
+                  onChange={() =>
+                    multiple ? togglePicked(candidate.id) : onDraftChoiceChange(candidate.id)
+                  }
                   onFocus={() => onPreviewCandidate(candidate)}
                   onBlur={() => onPreviewCandidate(null)}
                 />
@@ -253,11 +289,11 @@ export function PinComposer({
             */}
             <label key="no-element" className="panel-candidate">
               <input
-                type="radio"
+                type={multiple ? "checkbox" : "radio"}
                 name="draft-element"
                 value=""
                 checked={draftChoice === null}
-                onChange={() => onDraftChoiceChange(null)}
+                onChange={() => (multiple ? clearPicked() : onDraftChoiceChange(null))}
               />
               <span>No element</span>
             </label>

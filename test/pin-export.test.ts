@@ -469,3 +469,29 @@ describe("the conversation in the export (D097)", () => {
     expect(markdown.split("\n").filter((line) => /^# /.test(line))).toHaveLength(1);
   });
 });
+
+describe("a box attached to several elements (D125)", () => {
+  test("lists each extra element with its path after the main one", () => {
+    const box: RectangleAnnotationView = {
+      id: "a9",
+      captureId: "cap-1",
+      kind: "rectangle",
+      number: 9,
+      rect: { x: 100, y: 200, width: 300, height: 120 },
+      body: "Tighten the gap between the headline and the shirt.",
+      elementSnapshot: element,
+      alsoElements: [
+        { ...element, id: "el-2", tag: "img", role: "", text: "", accessibleName: "Hero shirt", path: ["main", "div.hero-art", "img"] },
+      ],
+      revision: 1,
+      status: "open",
+      unreadReplies: 0,
+      createdAt: 2,
+    };
+    const markdown = formatPinsAsMarkdown([box], context);
+    expect(markdown).toContain("- Element: <button> role=switch “Annual (save 20%)”");
+    expect(markdown).toContain("- Also: <img> “Hero shirt”");
+    expect(markdown).toContain("  - Path: `main > div.hero-art > img`");
+    expect(markdown.indexOf("- Element:")).toBeLessThan(markdown.indexOf("- Also:"));
+  });
+});

@@ -4033,3 +4033,9 @@ pre code {
   padding: 0.15rem 0.6rem;
   font-size: 0.85rem;
 }
+
+/* More elements a box or circle is attached to (D125). */
+.pin-table-also {
+  display: block;
+  margin-top: 0.35rem;
+}

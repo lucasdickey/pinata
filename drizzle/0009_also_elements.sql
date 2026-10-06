@@ -1,0 +1,1 @@
+ALTER TABLE `annotations` ADD `also_elements_json` text;

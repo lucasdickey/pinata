@@ -112,6 +112,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
             : { arrow: parsed.data.arrow }),
       body: parsed.data.body,
       elementId: parsed.data.elementId,
+      alsoElementIds: "alsoElementIds" in parsed.data ? parsed.data.alsoElementIds : undefined,
       idempotencyKey: parsed.data.idempotencyKey,
     });
   } catch {

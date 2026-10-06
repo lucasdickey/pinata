@@ -703,3 +703,25 @@ describe("arrow nodes (D083)", () => {
     expect(() => draftArrowNode(domain, arrow.arrow, 0)).toThrow(RangeError);
   });
 });
+
+describe("outlining several attached elements (D125)", () => {
+  test("extra outlines follow the main one, each with its own id", () => {
+    const nodes = nodesForPlane(domain, {
+      preview: { x: 10, y: 10, width: 40, height: 20 },
+      previewVariant: "attached",
+      previewMore: [
+        { x: 80, y: 10, width: 40, height: 20 },
+        { x: 0, y: 0, width: 0, height: 0 },
+      ],
+    });
+    const outlines = nodes.filter((node) => node.id.startsWith(contextPreviewNodeId(domain.captureId)));
+    // The empty rect yields no node rather than breaking the plane.
+    expect(outlines.map((node) => node.id)).toEqual([
+      contextPreviewNodeId(domain.captureId),
+      `${contextPreviewNodeId(domain.captureId)}:also:0`,
+    ]);
+    // No main outline, no extras.
+    const none = nodesForPlane(domain, { previewMore: [{ x: 80, y: 10, width: 40, height: 20 }] });
+    expect(none.some((node) => node.id.includes(":also:"))).toBe(false);
+  });
+});

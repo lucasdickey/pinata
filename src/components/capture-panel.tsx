@@ -241,6 +241,11 @@ export function CapturePanel({
                 ? `Element: ${snapshotLabel(selectedPin.elementSnapshot)}`
                 : "Element: No element"}
             </p>
+            {(selectedPin.alsoElements ?? []).map((also) => (
+              <p key={also.id} className="panel-snapshot panel-snapshot-also">
+                Also: {snapshotLabel(also)}
+              </p>
+            ))}
             {editing ? (
               <p className="panel-actions">
                 <button

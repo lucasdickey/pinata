@@ -112,6 +112,8 @@ interface AnnotationRecordBase {
   body: string;
   /** Inert capture-time DOM context snapshot, or the explicit null. */
   elementSnapshot: ContextElement | null;
+  /** More elements a box or circle is about (D125); empty for most marks. */
+  alsoElements: ContextElement[];
   revision: number;
   /** Lifecycle status (D075): open, replied, or resolved. */
   status: AnnotationStatus;
@@ -168,6 +170,8 @@ export interface CreatePinInput {
   body: string;
   /** Explicit context decision: a manifest element id, or null = No element. */
   elementId: string | null;
+  /** More manifest element ids for a box or circle (D125); needs elementId. */
+  alsoElementIds?: string[];
   idempotencyKey: string;
 }
 
@@ -278,6 +282,9 @@ export function annotationRecordFromRow(row: AnnotationRow, unreadReplies = 0): 
     elementSnapshot: row.elementSnapshotJson
       ? (JSON.parse(row.elementSnapshotJson) as ContextElement)
       : null,
+    alsoElements: row.alsoElementsJson
+      ? (JSON.parse(row.alsoElementsJson) as ContextElement[])
+      : [],
     revision: row.revision,
     status: row.status as AnnotationStatus,
     unreadReplies,
@@ -441,6 +448,10 @@ function createDigest(input: CreatePinInput, geometry: AnnotationGeometry | null
               : { tip: geometry?.kind === "pin" ? geometry.tip : null }),
         body: input.body,
         elementId: input.elementId,
+        // Only when present, so keys recorded before D125 still replay.
+        ...(input.alsoElementIds && input.alsoElementIds.length > 0
+          ? { alsoElementIds: input.alsoElementIds }
+          : {}),
       }),
     )
     .digest("hex");
@@ -531,6 +542,24 @@ export async function createPinAtomically(
     return { ok: false, error: "invalid" };
   }
   const snapshotJson = snapshot ? JSON.stringify(snapshot) : null;
+  // More elements (D125): boxes and circles only, each a distinct manifest
+  // element other than the main one, and only alongside a main one.
+  const alsoIds = input.alsoElementIds ?? [];
+  const alsoElements: ContextElement[] = [];
+  if (alsoIds.length > 0) {
+    if (geometry.kind !== "rectangle" && geometry.kind !== "circle") {
+      return { ok: false, error: "invalid" };
+    }
+    if (input.elementId === null || new Set([input.elementId, ...alsoIds]).size !== alsoIds.length + 1) {
+      return { ok: false, error: "invalid" };
+    }
+    for (const id of alsoIds) {
+      const also = deriveSnapshot(elements ?? [], id);
+      if (also === null) return { ok: false, error: "invalid" };
+      alsoElements.push(also);
+    }
+  }
+  const alsoJson = alsoElements.length > 0 ? JSON.stringify(alsoElements) : null;
 
   const [{ liveCount }] = await db
     .select({ liveCount: count() })
@@ -554,6 +583,7 @@ export async function createPinAtomically(
       number: 0,
       body: input.body,
       elementSnapshot: snapshot,
+      alsoElements,
       revision: 1,
       status: "open",
       unreadReplies: 0,
@@ -594,6 +624,7 @@ export async function createPinAtomically(
           geometryVersion: GEOMETRY_VERSION,
           originalBody: annotation.body,
           elementSnapshotJson: snapshotJson,
+          alsoElementsJson: alsoJson,
           revision: 1,
           createdAt: now,
           updatedAt: now,
