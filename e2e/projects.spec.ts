@@ -13,7 +13,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { openRail } from "./rail";
+import { openRail, openNewProject } from "./rail";
 
 const projectEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -42,7 +42,7 @@ async function signIn(page: Page): Promise<void> {
 
 /** Open the project form on its own route (D069). */
 async function openCreateForm(page: Page): Promise<void> {
-  await page.getByRole("link", { name: "New project" }).click();
+  await openNewProject(page);
   await expect(page.getByLabel("Root URL")).toBeVisible();
 }
 

@@ -1,7 +1,7 @@
 // The landing page's static example of a marked-up capture
 // (VAL-LANDING-002, D066, D103): a captured pricing page with one mark of each
 // kind — a pin, a circle, an arrow, and a box — a comment thread, and a
-// visible DOM metadata panel. Everything renders from the repo fixture
+// the app's own pin table under "Explore the details" (D126). Everything renders from the repo fixture
 // src/lib/example-capture.ts with inline SVG only — no client runtime, no
 // fetch, no /api/* request, no database. The layout mirrors the real
 // workspace (capture left, panel right), and the marks are drawn the way the
@@ -15,6 +15,7 @@ import {
   EXAMPLE_LAYOUT,
   type ExampleMark,
 } from "../lib/example-capture";
+import { ExamplePinTable } from "./example-pin-table";
 
 const FRAME_W = EXAMPLE_CAPTURE_FRAME.width;
 const FRAME_H = EXAMPLE_CAPTURE_FRAME.height;
@@ -417,45 +418,7 @@ export function ExampleCapture() {
       </div>
       <details className="example-details">
         <summary>Explore the details behind each pin</summary>
-        <div className="example-details-grid">
-          {selected.element ? (
-            <div className="example-detail-panel">
-              <h3>DOM context</h3>
-              <dl className="panel-facts">
-                <dt>Element</dt>
-                <dd>
-                  {selected.element.kind} &lt;{selected.element.tag}&gt;
-                </dd>
-                <dt>Role</dt>
-                <dd>{selected.element.role}</dd>
-                <dt>Text</dt>
-                <dd>“{selected.element.text}”</dd>
-                <dt>Path</dt>
-                <dd>
-                  <code>{selected.element.path.join(" › ")}</code>
-                </dd>
-                <dt>Position</dt>
-                <dd>
-                  {selected.element.rect.x}, {selected.element.rect.y} ·{" "}
-                  {selected.element.rect.width} × {selected.element.rect.height} px
-                </dd>
-              </dl>
-            </div>
-          ) : null}
-          <div className="example-detail-panel">
-            <h3>Marks on this capture</h3>
-            <ol className="example-pins" aria-label="Example marks">
-              {EXAMPLE_CAPTURE.marks.map((mark) => (
-                <li
-                  key={mark.number}
-                  aria-current={mark.number === selected.number ? "true" : undefined}
-                >
-                  {exampleMarkLabel(mark)}
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
+        <ExamplePinTable />
       </details>
     </section>
   );

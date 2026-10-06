@@ -205,8 +205,8 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
 
   return (
     <main className="pins-main">
-      {/* One compact bar instead of the hero: identity, the route to the
-          project form, and sign out. Everything else on this screen belongs
+      {/* One compact bar instead of the hero: identity, the theme, and
+          sign out. "New project" lives in the projects menu (D126). Everything else on this screen belongs
           to the workspace. */}
       <header className="pins-header">
         <Link href="/" className="wordmark">
@@ -214,9 +214,6 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         </Link>
         <p className="pins-identity">Signed in as Lucas (editor).</p>
         <nav className="pins-actions" aria-label="Editor actions">
-          <Link href="/pins/new" className="pins-new-link">
-            New project
-          </Link>
           <ThemeToggle />
           <button type="button" onClick={logout} disabled={pending}>
             {pending ? "Signing out…" : "Sign out"}
@@ -239,6 +236,9 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             <button type="button" onClick={() => void retryList()} disabled={retrying}>
               {retrying ? "Retrying…" : "Try again"}
             </button>
+            {/* The projects menu is gone while the list is down; starting a
+                project must stay one click away (D126). */}
+            <Link href="/pins/new">New project</Link>
           </div>
         ) : null}
         {list.status === "ready" && list.projects.length === 0 ? (

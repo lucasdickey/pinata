@@ -74,26 +74,25 @@ describe("anonymous landing", () => {
     const details = container.querySelector("details")!;
     expect(details).not.toHaveAttribute("open");
     fireEvent.click(within(details).getByText("Explore the details behind each pin"));
-    // The panel lists every mark by the product's own names.
-    const list = screen.getByRole("list", { name: "Example marks" });
-    const names = within(list).getAllByRole("listitem").map((item) => item.textContent);
-    expect(names.map((name) => name!.split(" · ")[0])).toEqual([
-      "Pin 1",
-      "Circle 2",
-      "Arrow 3",
-      "Box 4",
-    ]);
+    // The details are the app's own pin table (D126): one row per mark,
+    // named and badged the way the workspace names them.
+    const table = within(details).getByRole("table");
+    const rows = within(table).getAllByRole("rowheader").map((cell) => cell.textContent);
+    expect(rows).toEqual(["1Pin 1", "2Circle 2", "3Arrow 3", "4Box 4"]);
     // A comment thread with at least two entries.
     const thread = screen.getByRole("list", { name: "Example thread" });
     expect(within(thread).getAllByRole("listitem").length).toBeGreaterThanOrEqual(2);
-    // A visible DOM metadata panel.
-    expect(screen.getByRole("heading", { name: "DOM context" })).toBeInTheDocument();
+    // The element context shows in the table: text, role, and path.
     const example = container.querySelector(".landing-example")!;
-    expect(example.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.text);
-    expect(example.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.role);
-    // No interactive reply or editing control is depicted (threads are
-    // deferred, D051): the example contains no form controls at all.
-    expect(example.querySelector("input, textarea, button, select")).toBeNull();
+    expect(table.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.text);
+    expect(table.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.role);
+    expect(table.textContent).toContain(EXAMPLE_CAPTURE.marks[0]!.element!.path.join(" > "));
+    // No reply or editing control is depicted (D051): no fields at all, and
+    // the only buttons are the table's own (select a row, copy as Markdown).
+    expect(example.querySelector("input, textarea, select")).toBeNull();
+    for (const button of example.querySelectorAll("button")) {
+      expect(button.closest(".pin-table")).not.toBeNull();
+    }
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

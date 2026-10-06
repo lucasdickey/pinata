@@ -114,13 +114,10 @@ describe("editor project-entry states", () => {
       screen.getByRole("region", { name: "Projects" }).getAttribute("aria-busy"),
     ).toBe("false");
     expect(screen.getByText(/No projects yet/)).toBeInTheDocument();
-    // The header link is the standing route to the form; the empty state
-    // adds the one inline prompt. Both point at /pins/new and nothing else
-    // on this surface creates a project.
-    expect(screen.getByRole("link", { name: "New project" })).toHaveAttribute(
-      "href",
-      "/pins/new",
-    );
+    // With no projects there is no projects menu (D126): the empty state's
+    // one inline prompt is the route to the form, and nothing else on this
+    // surface creates a project.
+    expect(screen.queryByRole("link", { name: "New project" })).toBeNull();
     expect(
       screen.getByRole("link", { name: /create your first project/i }),
     ).toHaveAttribute("href", "/pins/new");
@@ -137,7 +134,11 @@ describe("editor project-entry states", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/No projects yet/)).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "New project" })).toHaveLength(1);
+    // "New project" lives in the projects menu (D126), once.
+    const created = screen.getAllByRole("link", { name: "New project" });
+    expect(created).toHaveLength(1);
+    expect(created[0]!.closest("#workspace-rail")).not.toBeNull();
+    expect(created[0]).toHaveAttribute("href", "/pins/new");
   });
 
   test("a failed read offers one single-flight retry and keeps sign-out available", async () => {

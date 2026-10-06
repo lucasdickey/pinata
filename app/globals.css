@@ -1147,16 +1147,6 @@ pre code {
   font-size: 0.85rem;
 }
 
-.example-pins {
-  padding-left: 1.25rem;
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-.example-pins [aria-current="true"] {
-  font-weight: 550;
-}
-
 /* The hub links are one row of separate destinations, not one sentence: the
    five titles used to share a single anchor, which sent every one of them to
    /reqs. */
@@ -1324,22 +1314,6 @@ pre code {
   font-size: 0.9rem;
 }
 
-.example-details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2rem;
-  padding: 0.5rem 0 1.75rem;
-}
-
-.example-detail-panel h3 {
-  font-size: 1rem;
-  margin-top: 0;
-}
-
-.example-details .example-pins li + li {
-  margin-top: 0.65rem;
-}
-
 .landing-invitation {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -1472,9 +1446,6 @@ pre code {
   }
 
   .landing-invitation,
-  .example-details-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 
   .invitation-mascot {
     width: 120px;
@@ -1589,9 +1560,6 @@ pre code {
   margin-left: auto;
 }
 
-.pins-new-link {
-  font-weight: 550;
-}
 
 /* ---- project entry ---- */
 
@@ -1724,6 +1692,31 @@ pre code {
   margin-bottom: 0.5rem;
   border-bottom: var(--hairline) solid var(--line);
   font-weight: 550;
+}
+
+/* "New project" at the top of the projects menu (D126). */
+.rail-new-project {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: var(--hairline) dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.rail-new-project:hover {
+  border-style: solid;
+  background: var(--raised);
+}
+
+.rail-new-project span {
+  color: var(--accent);
+  font-size: 1.1em;
+  line-height: 1;
 }
 
 .tree-root-head .tree-count {
