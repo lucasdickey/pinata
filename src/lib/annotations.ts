@@ -96,6 +96,8 @@ export interface PinAnnotationView {
   body: string;
   /** Inert capture-time DOM context snapshot, or the explicit null. */
   elementSnapshot: PinElementSnapshot | null;
+  /** More elements a box or circle is about (D125); absent or empty for most. */
+  alsoElements?: PinElementSnapshot[];
   revision: number;
   status: PinStatus;
   /**
@@ -120,6 +122,7 @@ export interface RectangleAnnotationView {
   rect: RectangleGeometryView;
   body: string;
   elementSnapshot: PinElementSnapshot | null;
+  alsoElements?: PinElementSnapshot[];
   revision: number;
   status: PinStatus;
   unreadReplies: number;
@@ -139,6 +142,7 @@ export interface CircleAnnotationView {
   circle: CircleGeometryView;
   body: string;
   elementSnapshot: PinElementSnapshot | null;
+  alsoElements?: PinElementSnapshot[];
   revision: number;
   status: PinStatus;
   unreadReplies: number;
@@ -157,6 +161,7 @@ export interface ArrowAnnotationView {
   arrow: ArrowGeometryView;
   body: string;
   elementSnapshot: PinElementSnapshot | null;
+  alsoElements?: PinElementSnapshot[];
   revision: number;
   status: PinStatus;
   unreadReplies: number;
@@ -273,3 +278,17 @@ export type ProjectPinAnnotationView =
 export interface ProjectPinListResponse {
   annotations: ProjectPinAnnotationView[];
 }
+
+/** Every element a mark is attached to, the main one first (D125). */
+export function attachedElements(mark: {
+  elementSnapshot: PinElementSnapshot | null;
+  alsoElements?: readonly PinElementSnapshot[];
+}): PinElementSnapshot[] {
+  return mark.elementSnapshot ? [mark.elementSnapshot, ...(mark.alsoElements ?? [])] : [];
+}
+
+/**
+ * More elements a box or circle may be attached to beyond its main one
+ * (D125), e.g. the two elements a gap sits between.
+ */
+export const MAX_ALSO_ELEMENTS = 4;

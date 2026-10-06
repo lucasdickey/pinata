@@ -203,6 +203,15 @@ export function PinTable({
                         {snapshotSummary(pin.elementSnapshot)}
                       </span>
                       {path ? <code className="pin-table-path">{path}</code> : null}
+                      {(pin.alsoElements ?? []).map((also) => {
+                        const alsoPath = snapshotPath(also);
+                        return (
+                          <span key={also.id} className="pin-table-also">
+                            <span className="pin-table-element">+ {snapshotSummary(also)}</span>
+                            {alsoPath ? <code className="pin-table-path">{alsoPath}</code> : null}
+                          </span>
+                        );
+                      })}
                     </td>
                   </tr>
                 );

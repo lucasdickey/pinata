@@ -11,6 +11,7 @@
 // happen in the store, which is the only place the capture's dimensions are
 // known.
 
+import { MAX_ALSO_ELEMENTS } from "../../annotations";
 import { z } from "zod";
 import {
   FEEDBACK_BODY_MAX_CHARS,
@@ -69,6 +70,12 @@ export const arrowSchema = z.strictObject({
  */
 const elementDecisionSchema = z.union([z.string().min(1).max(64), z.null()]);
 
+/** More elements a box or circle is about (D125), beyond elementId. */
+const alsoElementIdsSchema = z
+  .array(z.string().min(1).max(64))
+  .max(MAX_ALSO_ELEMENTS)
+  .optional();
+
 const bodySchema = z.string().min(1).max(FEEDBACK_BODY_MAX_CHARS);
 const idempotencyKeySchema = z
   .string()
@@ -91,12 +98,14 @@ export const createAnnotationBodySchema = z.union([
     rect: rectangleSchema,
     body: bodySchema,
     elementId: elementDecisionSchema,
+    alsoElementIds: alsoElementIdsSchema,
     idempotencyKey: idempotencyKeySchema,
   }),
   z.strictObject({
     circle: circleSchema,
     body: bodySchema,
     elementId: elementDecisionSchema,
+    alsoElementIds: alsoElementIdsSchema,
     idempotencyKey: idempotencyKeySchema,
   }),
   z.strictObject({

@@ -5673,8 +5673,66 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D125",
+      "date": "2026-10-06",
+      "phase": "build",
+      "title": "A box or circle can be attached to several elements",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Some notes are about the space between elements, like the gap between the hero headline and the shirt image, and the fix may need margin or padding on both. A mark could be attached to only one element, so the other side of the gap was never named for the agent or developer reading the note.",
+      "decision": "A box or circle draft lists its nearby elements as checkboxes: the first one ticked is the main element, and up to four more can be added; No element clears them all. The chip reads, for example, \"2 elements · “Good clothes for…”\". The server checks every extra id against the capture's own manifest and stores their snapshots in a new also_elements_json column (migration 0009); pins and arrows keep a single element. Hovering or selecting the mark outlines every attached element on the screenshot, and the details panel, pin table, hover card, Markdown export, and agent brief list each one with its path. While testing it, a long-standing bug surfaced and was fixed: the draft panel did not reposition when its element list opened, so the first click in the list moved the panel and missed.",
+      "alternatives": [
+        {
+          "option": "Allow several elements on every kind of mark",
+          "why_not": "A pin and an arrow point at one spot by nature; the ask was boxes and circles, which cover an area."
+        },
+        {
+          "option": "Store all elements in the existing element_snapshot_json column as a list",
+          "why_not": "Every reader of that column expects one snapshot; a separate column keeps old marks and old code unchanged."
+        }
+      ],
+      "rationale": "The owner asked for it directly: \"can we make it so that the box / circle selectors allow for multi-select for near elements (optionally)? in this case, i want to call out space between dom objects, and it might requre margin/padding changes to both\". No dependency was added.",
+      "consequences": [
+        "Migration 0009 adds also_elements_json to annotations; it must run on the production database (npm run db:migrate) before this deploys.",
+        "An idempotency key's digest includes the extra ids only when there are some, so keys recorded before this still replay.",
+        "The draft panel now follows its own size with a ResizeObserver, which also fixes the missed first click in a pin's single-choice list."
+      ],
+      "transcript": {
+        "request": "can we make it so that the box / circle selectors allow for multi-select for near elements (optionally)? in this case, i want to call out space between dom objects, and it might requre margin/padding changes to both"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/pin-composer.tsx",
+          "caption": "The checkbox list and the chip."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D125-composer-light.png",
+          "caption": "A box over a gap, attached to the headline and the shirt image (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D125-composer-dark.png",
+          "caption": "The same in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D125-saved-light.png",
+          "caption": "The saved box: details list both elements, both outlined (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D125-saved-dark.png",
+          "caption": "The same in dark."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-10-06",
-  "source_hash": "b17912d4f931"
+  "source_hash": "be82e7420dd4"
 };

@@ -171,6 +171,13 @@ export function formatPinsAsMarkdown(
       const { width, height } = pin.elementSnapshot.rect;
       lines.push(`- Bounds: ${Math.round(width)} × ${Math.round(height)} px natural`);
     }
+    // More elements a box or circle is about (D125): each with its path,
+    // so a change that spans them (a gap's margin and padding) finds both.
+    for (const also of pin.alsoElements ?? []) {
+      lines.push(`- Also: ${snapshotSummary(also)}`);
+      const alsoPath = snapshotPath(also);
+      if (alsoPath) lines.push(`  - Path: \`${alsoPath}\``);
+    }
     lines.push("");
     // The note itself, whole (D115: the heading no longer quotes it), with
     // its conversation straight after it.

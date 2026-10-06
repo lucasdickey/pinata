@@ -3753,3 +3753,24 @@ Harness: Claude Code, in a cloud session.
 
 - D123 (user-directed): the landing page's sign-in as one dialog.
 - D124 (user-directed): signing in again without losing work.
+
+---
+
+## 2026-10-06 — several elements per box or circle (D125)
+
+Harness: Claude Code, in a cloud session.
+
+- PR #22 (D123, D124) merged after fixing its CI (footer link contrast in
+  light mode; e2e sign-in steps now open the dialog). PR #14 closed as
+  replaced.
+- Boxes and circles can be attached to up to five elements, for notes
+  about the space between them. Checked in a real browser with a mocked
+  API: ticking both sides of a gap saves both, and the saved box outlines
+  both.
+- Found and fixed while testing: the draft panel kept its old position
+  when its element list opened, so the first click in the list missed.
+- Migration 0009 must run on production before this deploys.
+
+### Decisions
+
+- D125 (user-directed): a box or circle attached to several elements.

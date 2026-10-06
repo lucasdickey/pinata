@@ -679,7 +679,14 @@ function MarkCardBody({ mark }: { mark: AnnotationView }) {
         </span>
       </p>
       <p className="mark-card-body">{mark.body}</p>
-      {element ? <p className="mark-card-element">Points at: “{element}”</p> : null}
+      {element ? (
+        <p className="mark-card-element">
+          Points at: “{element}”
+          {mark.alsoElements && mark.alsoElements.length > 0
+            ? ` + ${mark.alsoElements.length} more`
+            : ""}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -720,6 +727,27 @@ function CanvasPopover({
       window.removeEventListener("scroll", bump, true);
       window.removeEventListener("resize", bump);
     };
+  }, []);
+
+  // Watch the box's own size too: its contents change height on their own
+  // (the nearby-element list opening inside the composer) without this
+  // component re-rendering. Measured only on our renders, the panel kept
+  // its old placement until the first press in the list re-rendered the
+  // canvas, then jumped under the pointer and the click missed (D125).
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
+      if (width > 0 && height > 0) {
+        setSize((current) =>
+          current.width === width && current.height === height ? current : { width, height },
+        );
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   // Measure the rendered box so the clamp uses its real size; the guess
@@ -1175,12 +1203,24 @@ function CaptureCanvasInner({
   // no draft, the element of the mark under the pointer, else the element
   // of the selected mark, so a note's subject is visible without reading
   // its selector.
-  const highlight = useMemo((): { rect: ContextRect; variant: "candidate" | "attached" } | null => {
+  const highlight = useMemo((): {
+    rect: ContextRect;
+    variant: "candidate" | "attached";
+    more?: ContextRect[];
+  } | null => {
     if (previewRect) return { rect: previewRect, variant: "candidate" };
     if (draft || drawing) return null;
     for (const id of [hoveredId, selectedPinId]) {
-      const rect = id ? detailById.get(id)?.elementSnapshot?.rect : null;
-      if (rect) return { rect, variant: "attached" };
+      const mark = id ? detailById.get(id) : undefined;
+      const rect = mark?.elementSnapshot?.rect;
+      // A box or circle attached to several elements outlines them all (D125).
+      if (rect) {
+        return {
+          rect,
+          variant: "attached",
+          more: (mark?.alsoElements ?? []).map((also) => also.rect),
+        };
+      }
     }
     return null;
   }, [previewRect, draft, drawing, hoveredId, selectedPinId, detailById]);
@@ -1198,6 +1238,7 @@ function CaptureCanvasInner({
       zoom: liveZoom,
       preview: highlight?.rect ?? null,
       previewVariant: highlight?.variant,
+      previewMore: highlight?.more,
       readOnly,
       handleGestureId,
     });

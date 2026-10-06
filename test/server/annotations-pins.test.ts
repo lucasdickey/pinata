@@ -1489,3 +1489,55 @@ describe("arrows (D083)", () => {
     if (listed.ok) expect(listed.annotations).toHaveLength(0);
   });
 });
+
+describe("a box or circle attached to several elements (D125)", () => {
+  const rect = { x: 700, y: 4100, width: 300, height: 200 };
+  const boxInput = (overrides: Record<string, unknown> = {}) => {
+    const { tip: _tip, ...base } = createInput({ captureId: "cap-manifest" });
+    return { ...base, rect, idempotencyKey: "box-also-key-0001", ...overrides };
+  };
+
+  test("saves the main element and the extras, each derived from the manifest", async () => {
+    const result = await createPinAtomically(
+      testDb.db,
+      boxInput({ elementId: "cell-1", alsoElementIds: ["cell-2"] }),
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.annotation.elementSnapshot?.id).toBe("cell-1");
+    expect(result.annotation.alsoElements.map((element) => element.text)).toEqual(["Scale plan"]);
+    const [row] = await rowsFor("cap-manifest");
+    expect(JSON.parse(row!.alsoElementsJson!)[0].id).toBe("cell-2");
+    // A replay of the same intent returns the same mark.
+    const again = await createPinAtomically(
+      testDb.db,
+      boxInput({ elementId: "cell-1", alsoElementIds: ["cell-2"] }),
+    );
+    expect(again.ok && again.created).toBe(false);
+  });
+
+  test("rejects unknown, repeated, or main-less extras, and extras on a pin", async () => {
+    for (const overrides of [
+      { elementId: "cell-1", alsoElementIds: ["nope"] },
+      { elementId: "cell-1", alsoElementIds: ["cell-1"] },
+      { elementId: "cell-1", alsoElementIds: ["cell-2", "cell-2"] },
+      { elementId: null, alsoElementIds: ["cell-2"] },
+    ]) {
+      const result = await createPinAtomically(testDb.db, boxInput(overrides));
+      expect(result).toEqual({ ok: false, error: "invalid" });
+    }
+    const pin = await createPinAtomically(
+      testDb.db,
+      createInput({ captureId: "cap-manifest", elementId: "cell-1", alsoElementIds: ["cell-2"] }),
+    );
+    expect(pin).toEqual({ ok: false, error: "invalid" });
+    expect(await rowsFor("cap-manifest")).toHaveLength(0);
+  });
+
+  test("a mark without extras reads back with an empty list", async () => {
+    const result = await createPinAtomically(testDb.db, boxInput({ elementId: "cell-1" }));
+    expect(result.ok && result.annotation.alsoElements).toEqual([]);
+    const [row] = await rowsFor("cap-manifest");
+    expect(row!.alsoElementsJson).toBeNull();
+  });
+});

@@ -253,6 +253,9 @@ export function ProjectWorkspace({
   // per drag frame — and the top-ranked one is pre-selected when they
   // arrive (D074).
   const [draftChoice, setDraftChoice] = useState<string | null | undefined>(undefined);
+  // More elements a box or circle draft is attached to (D125); cleared
+  // whenever the main choice resets.
+  const [draftAlso, setDraftAlso] = useState<string[]>([]);
   const [draftCandidates, setDraftCandidates] = useState<
     (DraftCandidates & { captureId: string }) | null
   >(null);
@@ -576,6 +579,7 @@ export function ProjectWorkspace({
     if (isNew) {
       setDraftKey(crypto.randomUUID());
       setDraftChoice(undefined);
+      setDraftAlso([]);
       setDraftCandidates(null);
       setPreviewRect(null);
     } else if (!draft) {
@@ -583,6 +587,7 @@ export function ProjectWorkspace({
       setDraftBody("");
       setSaveState("idle");
       setDraftChoice(undefined);
+      setDraftAlso([]);
       setDraftCandidates(null);
       setPreviewRect(null);
     }
@@ -792,6 +797,7 @@ export function ProjectWorkspace({
     // belonging to the replaced set clears with it.
     setPreviewRect(null);
     setDraftChoice(undefined);
+    setDraftAlso([]);
     setDraftCandidates({ captureId, status: "loading", items: [] });
     const settle = (candidates: DraftCandidates) => {
       if (contextRequestRef.current !== request) return;
@@ -886,6 +892,12 @@ export function ProjectWorkspace({
             ...markPayload(draft),
             body: draftBody,
             elementId: draftChoice,
+            // Only boxes and circles carry more elements (D125).
+            ...((draft.kind === "rectangle" || draft.kind === "circle") &&
+            draftChoice !== null &&
+            draftAlso.length > 0
+              ? { alsoElementIds: draftAlso }
+              : {}),
             idempotencyKey: draftKey,
           }),
         },
@@ -911,6 +923,7 @@ export function ProjectWorkspace({
     draftKey,
     draftBody,
     draftChoice,
+    draftAlso,
     saveState,
     loadPins,
     reloadProjectPins,
@@ -1666,6 +1679,8 @@ export function ProjectWorkspace({
                     onSaveDraft: () => void saveDraft(),
                     onCancelDraft: cancelDraft,
                     saveState,
+                    draftAlso,
+                    onDraftAlsoChange: setDraftAlso,
                     onRetryCandidates: () => {
                       if (draft && selectedReadyId) void fetchContext(selectedReadyId, draft);
                     },

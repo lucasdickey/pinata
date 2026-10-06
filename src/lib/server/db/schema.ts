@@ -202,6 +202,12 @@ export const annotations = sqliteTable(
     originalBody: text("original_body").notNull(),
     /** Descriptive capture-time DOM context snapshot; never executable. */
     elementSnapshotJson: text("element_snapshot_json"),
+    /**
+     * More elements a box or circle is about (D125), as a JSON array of
+     * snapshots like element_snapshot_json, which stays the main one. Null
+     * when there are none — every pin and arrow, and most regions.
+     */
+    alsoElementsJson: text("also_elements_json"),
     /** Optimistic-concurrency revision; stale writes lose. */
     revision: integer("revision").notNull().default(1),
     /**
