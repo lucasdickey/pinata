@@ -1666,6 +1666,9 @@ export function ProjectWorkspace({
                     onSaveDraft: () => void saveDraft(),
                     onCancelDraft: cancelDraft,
                     saveState,
+                    onRetryCandidates: () => {
+                      if (draft && selectedReadyId) void fetchContext(selectedReadyId, draft);
+                    },
                   }}
                 />
               ) : (

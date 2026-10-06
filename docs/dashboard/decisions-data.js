@@ -5594,8 +5594,87 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D123",
+      "date": "2026-10-06",
+      "phase": "design",
+      "title": "The landing page's sign-in as one dialog",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "PR #14 (from v0) moved the landing sign-in into a modal, but it was built on an older landing page, its CI was failing, and it turned the whole landing into a client component. Since the redesign (D119), the sign-in form sat inside the invitation card.",
+      "decision": "Every sign-in call on the landing page (the top bar, the hero button, a new button in the invitation card where the form was, and the footer) opens one shared dialog with the password form. It is the browser's own dialog opened as a modal: the page behind is inert, focus moves to the password field and back to the button that opened it, and Escape, the close button, or a click outside closes it. A link to /#editor-login still opens it. The landing page stays a server component; only the dialog and its buttons run in the browser.",
+      "alternatives": [
+        {
+          "option": "Merge PR #14 as it was",
+          "why_not": "Its CI was failing, it no longer matched the landing page, and it made the whole page client-side."
+        },
+        {
+          "option": "A hand-built overlay with a focus trap",
+          "why_not": "The native dialog already traps focus, handles Escape, and makes the page behind inert."
+        }
+      ],
+      "rationale": "The owner asked to merge PR #14 and close it out (\"merege and close\", then \"go ahead and do PR 14\"). This keeps its intent and replaces its code.",
+      "consequences": [
+        "PR #14 is closed as replaced by this change.",
+        "The test DOM has no showModal(), so the dialog falls back to the open attribute there."
+      ],
+      "transcript": {
+        "request": "go ahead and do PR 14."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/sign-in-dialog.tsx",
+          "caption": "The shared dialog and its buttons."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D124",
+      "date": "2026-10-06",
+      "phase": "build",
+      "title": "Signing in again without losing work",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "A tab left open past the end of the editor session still showed its screenshots and pins, but every new request was refused. Dropping a pin or drawing a box said only that nearby elements could not be loaded, and saving said it could not be saved, so it looked like a breaking change.",
+      "decision": "While the editor is open, any request to the editor's own API that comes back 401 opens a \"Sign in again\" dialog in place. The page is not reloaded, so the draft and its comment stay. Signing in sends the refused request again with the new session and CSRF proof, so the pin or box that failed to save simply saves; several refused requests wait on one sign-in. Closing the dialog lets them fail as before, draft still on screen. Because a new mark asks for nearby elements right away, an expired session shows up when the mark is dropped, before any typing. Separately, when nearby elements fail to load for any other reason the draft offers Try again, and the keyboard hint under the Save and Cancel buttons is gone.",
+      "alternatives": [
+        {
+          "option": "Save the draft to browser storage and send the editor to the sign-in page",
+          "why_not": "More moving parts, and the editor loses its place; signing in on the page keeps everything as it was."
+        },
+        {
+          "option": "Check the session before every edit",
+          "why_not": "An extra request each time; the first refused request already tells us, at the same moment."
+        }
+      ],
+      "rationale": "The owner confirmed the failures came from an expired sign-in and asked for the simple best practice: stop the work from going on silently, keep the change, and make them sign in again when it saves.",
+      "consequences": [
+        "The dialog wraps window.fetch on the editor pages (/pins and /pins/new) for as long as they are open; sign-in, founder, and other-site requests are never caught.",
+        "A retried save reuses its idempotency key, so a request that did reach the server is never saved twice."
+      ],
+      "transcript": {
+        "request": "Let's make sure that if the user tries to edit but the auth session has expired, we don't let them keep going, or we let them make one change, save it to local cache, and then, when it attempts to save, force them to sign in again. Whatever the best practice is there, that is very simple."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/session-guard.tsx",
+          "caption": "The sign-in-again dialog and the request retry."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D124-sign-in-again.png",
+          "caption": "Dropping a pin after the session ended: sign in again, the draft stays behind it."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-05",
-  "source_hash": "dbe8dcd217de"
+  "as_of": "2026-10-06",
+  "source_hash": "b17912d4f931"
 };

@@ -32,10 +32,13 @@ test("a clean browser sees one masked password prompt and no editor data", async
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "pinata" })).toBeVisible();
 
-  const password = page.getByLabel("Password");
+  // The one prompt lives in the sign-in dialog (D123).
+  await page.getByRole("button", { name: "Sign in to start a review" }).click();
+  const dialog = page.getByRole("dialog", { name: "Editor sign in" });
+  const password = dialog.getByLabel("Password");
   await expect(password).toBeVisible();
   await expect(password).toHaveAttribute("type", "password");
-  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
 
   // No editor surface, no account machinery beyond the one prompt.
   await expect(page.getByText("Signed in as Lucas")).toHaveCount(0);
@@ -56,19 +59,20 @@ test("wrong password is denied; the configured password establishes a session; l
   // spec is about auth, so dispatch is stubbed to keep provider quota out of
   // the login flow.
   await stubDispatchQuota(page);
-  await page.goto("/");
+  await page.goto("/#editor-login");
+  const dialog = page.getByRole("dialog", { name: "Editor sign in" });
 
   // Wrong password: generic error, no session cookie.
-  await page.getByLabel("Password").fill("definitely-the-wrong-password");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator("p[role='alert']")).toHaveText("The password did not match.");
+  await dialog.getByLabel("Password").fill("definitely-the-wrong-password");
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(dialog.locator("p[role='alert']")).toHaveText("The password did not match.");
   expect(await page.context().cookies()).toEqual([]);
-  await expect(page.getByLabel("Password")).toHaveValue("");
+  await expect(dialog.getByLabel("Password")).toHaveValue("");
 
   // Valid password: sign-in leaves the public landing for the editor route
   // (D069) and the session cookies carry the policy attributes.
-  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await dialog.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 
@@ -86,14 +90,14 @@ test("wrong password is denied; the configured password establishes a session; l
   // cookies.
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
-  await expect(page.getByLabel("Password")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in to start a review" })).toBeVisible();
   expect(await page.context().cookies()).toEqual([]);
 
   // The editor route is not reachable without a session: it redirects back
   // to the public landing rather than rendering an empty shell.
   await page.goto("/pins");
   await expect(page).toHaveURL(/127\.0\.0\.1:3100\/$/);
-  await expect(page.getByLabel("Password")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in to start a review" })).toBeVisible();
 
   // The pre-logout session cookie cannot be replayed.
   const replay = await page.request.get("/api/editor/session", {

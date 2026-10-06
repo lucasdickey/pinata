@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 44 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122 |
+| Human directed | 46 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **122** | |
+| **Total** | **124** | |
 
 ## Key decisions
 
@@ -184,6 +184,8 @@ The product and architecture decisions to read first. The full index follows.
 | [D120](#d120--hover-a-mark-to-read-it-and-see-the-element-it-points-at) | design | Hover a mark to read it, and see the element it points at | Human directed | accepted |
 | [D121](#d121--an-agent-link-a-secret-read-only-brief-of-the-open-marks) | build | An agent link: a secret, read-only brief of the open marks | Human directed | accepted |
 | [D122](#d122--the-projects-link-controls-as-pills-with-anchored-cards) | design | The project's link controls as pills with anchored cards | Human directed | accepted |
+| [D123](#d123--the-landing-pages-sign-in-as-one-dialog) | design | The landing page's sign-in as one dialog | Human directed | accepted |
+| [D124](#d124--signing-in-again-without-losing-work) | build | Signing in again without losing work | Human directed | accepted |
 
 ---
 
@@ -4937,4 +4939,81 @@ Human instruction:
 
 ---
 
-<sub>Generated from 122 record(s) as of 2026-10-05 · source `dbe8dcd217de`</sub>
+## D123 — The landing page's sign-in as one dialog
+
+*2026-10-06 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+PR #14 (from v0) moved the landing sign-in into a modal, but it was built on an older landing page, its CI was failing, and it turned the whole landing into a client component. Since the redesign (D119), the sign-in form sat inside the invitation card.
+
+**Decision**
+
+Every sign-in call on the landing page (the top bar, the hero button, a new button in the invitation card where the form was, and the footer) opens one shared dialog with the password form. It is the browser's own dialog opened as a modal: the page behind is inert, focus moves to the password field and back to the button that opened it, and Escape, the close button, or a click outside closes it. A link to /#editor-login still opens it. The landing page stays a server component; only the dialog and its buttons run in the browser.
+
+**Alternatives considered**
+
+- *Merge PR #14 as it was* — Its CI was failing, it no longer matched the landing page, and it made the whole page client-side.
+- *A hand-built overlay with a focus trap* — The native dialog already traps focus, handles Escape, and makes the page behind inert.
+
+**Rationale**
+
+The owner asked to merge PR #14 and close it out ("merege and close", then "go ahead and do PR 14"). This keeps its intent and replaces its code.
+
+**Consequences**
+
+- PR #14 is closed as replaced by this change.
+- The test DOM has no showModal(), so the dialog falls back to the open attribute there.
+
+**Provenance evidence**
+
+Human instruction:
+
+> go ahead and do PR 14.
+
+**Artifacts**
+
+- `src/components/sign-in-dialog.tsx` — The shared dialog and its buttons.
+
+---
+
+## D124 — Signing in again without losing work
+
+*2026-10-06 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+A tab left open past the end of the editor session still showed its screenshots and pins, but every new request was refused. Dropping a pin or drawing a box said only that nearby elements could not be loaded, and saving said it could not be saved, so it looked like a breaking change.
+
+**Decision**
+
+While the editor is open, any request to the editor's own API that comes back 401 opens a "Sign in again" dialog in place. The page is not reloaded, so the draft and its comment stay. Signing in sends the refused request again with the new session and CSRF proof, so the pin or box that failed to save simply saves; several refused requests wait on one sign-in. Closing the dialog lets them fail as before, draft still on screen. Because a new mark asks for nearby elements right away, an expired session shows up when the mark is dropped, before any typing. Separately, when nearby elements fail to load for any other reason the draft offers Try again, and the keyboard hint under the Save and Cancel buttons is gone.
+
+**Alternatives considered**
+
+- *Save the draft to browser storage and send the editor to the sign-in page* — More moving parts, and the editor loses its place; signing in on the page keeps everything as it was.
+- *Check the session before every edit* — An extra request each time; the first refused request already tells us, at the same moment.
+
+**Rationale**
+
+The owner confirmed the failures came from an expired sign-in and asked for the simple best practice: stop the work from going on silently, keep the change, and make them sign in again when it saves.
+
+**Consequences**
+
+- The dialog wraps window.fetch on the editor pages (/pins and /pins/new) for as long as they are open; sign-in, founder, and other-site requests are never caught.
+- A retried save reuses its idempotency key, so a request that did reach the server is never saved twice.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Let's make sure that if the user tries to edit but the auth session has expired, we don't let them keep going, or we let them make one change, save it to local cache, and then, when it attempts to save, force them to sign in again. Whatever the best practice is there, that is very simple.
+
+**Artifacts**
+
+- `src/components/session-guard.tsx` — The sign-in-again dialog and the request retry.
+- ![Dropping a pin after the session ended: sign in again, the draft stays behind it.](dashboard/screenshots/D124-sign-in-again.png) — Dropping a pin after the session ended: sign in again, the draft stays behind it.
+
+---
+
+<sub>Generated from 124 record(s) as of 2026-10-06 · source `b17912d4f931`</sub>

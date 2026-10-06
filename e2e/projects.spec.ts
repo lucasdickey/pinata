@@ -32,9 +32,11 @@ const PRICING = `https://chickpea.co/pricing?${RUN_ID}`;
 const ABOUT = `https://chickpea.co/about?${RUN_ID}`;
 
 async function signIn(page: Page): Promise<void> {
-  await page.goto("/");
-  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
-  await page.getByRole("button", { name: "Sign in" }).click();
+  // /#editor-login opens the sign-in dialog directly (D123).
+  await page.goto("/#editor-login");
+  const dialog = page.getByRole("dialog", { name: "Editor sign in" });
+  await dialog.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
 }
 

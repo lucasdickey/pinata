@@ -9,7 +9,20 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-export function LoginForm() {
+export function LoginForm({
+  title = "Editor sign in",
+  intro,
+  onSignedIn,
+}: {
+  title?: string;
+  intro?: string;
+  /**
+   * Stay on the page after signing in and hand control back, instead of
+   * going to /pins: signing in again mid-edit keeps the work on screen
+   * (D124).
+   */
+  onSignedIn?: () => void;
+} = {}) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +40,10 @@ export function LoginForm() {
         body: JSON.stringify({ password }),
       });
       if (response.ok) {
+        if (onSignedIn) {
+          onSignedIn();
+          return;
+        }
         // Since the route split (D069) the editor surface has its own
         // address, so sign-in navigates rather than re-rendering in place.
         // Creating a project lives behind sign-in (D103), so everyone goes
@@ -60,7 +77,8 @@ export function LoginForm() {
 
   return (
     <section id="editor-login" aria-labelledby="editor-login-heading" className="login-section">
-      <h2 id="editor-login-heading">Editor sign in</h2>
+      <h2 id="editor-login-heading">{title}</h2>
+      {intro ? <p className="login-intro">{intro}</p> : null}
       <form onSubmit={onSubmit}>
         <label htmlFor="editor-password">Password</label>
         <input

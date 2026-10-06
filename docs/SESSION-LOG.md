@@ -3733,3 +3733,23 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D122 (user-directed): the project's link controls as pills with cards.
+
+---
+
+## 2026-10-06 — sign-in dialog and signing in again (D123, D124)
+
+Harness: Claude Code, in a cloud session.
+
+- PR #21 (D122) merged.
+- Pins and boxes stopped saving and nearby elements stopped loading in a
+  long-open tab. The owner confirmed it was an expired sign-in. The editor
+  now opens a sign-in dialog in place and retries the refused request
+  (D124), checked end to end in a browser with a mocked expired session.
+- PR #14's landing sign-in modal was rebuilt on the current landing page
+  as one native dialog (D123); PR #14 closes as replaced.
+- Queued next: attaching a box or circle to several nearby elements.
+
+### Decisions
+
+- D123 (user-directed): the landing page's sign-in as one dialog.
+- D124 (user-directed): signing in again without losing work.

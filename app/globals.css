@@ -561,6 +561,7 @@ pre code {
 }
 
 .site-links a,
+.site-links .link-button,
 .quiet-link {
   text-decoration: none;
   opacity: 0.75;
@@ -568,6 +569,7 @@ pre code {
 }
 
 .site-links a:hover,
+.site-links .link-button:hover,
 .quiet-link:hover {
   opacity: 1;
 }
@@ -823,13 +825,15 @@ pre code {
   gap: 0.3rem;
 }
 
-.site-footer a {
+.site-footer a,
+.site-footer .link-button {
   text-decoration: none;
   opacity: 0.75;
   transition: opacity 150ms ease-out;
 }
 
-.site-footer a:hover {
+.site-footer a:hover,
+.site-footer .link-button:hover {
   opacity: 1;
 }
 
@@ -850,9 +854,71 @@ pre code {
   }
 }
 
-.home-main--landing .login-section {
-  max-width: 28rem;
-  margin: 0 0 clamp(3.5rem, 9vw, 6rem);
+/* A button that reads as a link: the top bar's and footer's sign-in. */
+.link-button {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  background: none;
+}
+
+.link-button:active {
+  transform: none;
+}
+
+/* The sign-in dialog (D123): centered over a dimmed page. */
+.login-dialog {
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.75rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 64px -16px color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.login-dialog[open] {
+  display: block;
+}
+
+.login-dialog::backdrop {
+  background: color-mix(in srgb, #000 45%, transparent);
+}
+
+.login-dialog .login-section h2 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+}
+
+.login-dialog .login-section input {
+  min-width: 0;
+  width: 100%;
+}
+
+.login-dialog-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  padding: 0.3rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.login-dialog-close svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
 }
 
 .login-section form {
@@ -1314,24 +1380,18 @@ pre code {
   margin-bottom: 0;
 }
 
-.home-main--landing .landing-invitation .login-section {
-  width: 100%;
-  max-width: none;
+/* Where the sign-in form used to sit: one button that opens it (D123). */
+.invitation-sign-in {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.invitation-sign-in p {
   margin: 0;
-  padding: 1.75rem;
-  border-radius: 1rem;
-  background: var(--surface);
-  scroll-margin-top: 2rem;
-}
-
-.landing-invitation .login-section h2 {
-  margin-top: 0;
-  font-size: 1.35rem;
-}
-
-.landing-invitation .login-section input {
-  min-width: 0;
-  width: 100%;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
 }
 
 .footer-brand {
@@ -1978,10 +2038,6 @@ pre code {
   font: inherit;
   padding: 0.5rem 0.6rem;
   resize: vertical;
-}
-.panel-hint {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
 }
 /* The draft's explicit context decision: ranked candidates + No element. */
 .panel-candidates {
@@ -3956,4 +4012,24 @@ pre code {
 
 .pin-table-device {
   white-space: nowrap;
+}
+
+/* The sign-in-again dialog's explanation (D124). */
+.login-intro {
+  margin: -0.5rem 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* "Nearby elements could not be loaded" with its Try again (D124). */
+.panel-note-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+
+.panel-note-action button {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.85rem;
 }
