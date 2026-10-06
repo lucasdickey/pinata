@@ -53,6 +53,11 @@ export interface PinComposerProps {
   onCancelDraft: () => void;
   saveState: "idle" | "saving" | "failed";
   /**
+   * Ask for the nearby elements again after the request failed, so an
+   * element can always be attached (D124). Without it, no retry is shown.
+   */
+  onRetryCandidates?: () => void;
+  /**
    * Which kind of mark the draft is (D079). Only the copy changes; the
    * canvas sets it from the draft, so callers building the props from
    * workspace state can leave it out. Defaults to a pin.
@@ -94,6 +99,7 @@ export function PinComposer({
   onSaveDraft,
   onCancelDraft,
   saveState,
+  onRetryCandidates,
   draftKind = "pin",
   placement = 0,
 }: PinComposerProps) {
@@ -199,8 +205,13 @@ export function PinComposer({
           </button>
         </p>
         {status === "failed" ? (
-          <p className="panel-note">
-            Nearby elements could not be loaded, so this {noun} is not attached to one.
+          <p className="panel-note panel-note-action">
+            <span>Nearby elements could not be loaded.</span>
+            {onRetryCandidates ? (
+              <button type="button" onClick={onRetryCandidates}>
+                Try again
+              </button>
+            ) : null}
           </p>
         ) : null}
         {expanded ? (
@@ -261,7 +272,6 @@ export function PinComposer({
           Cancel
         </button>
       </p>
-      <p className="panel-hint">Enter saves · Shift+Enter starts a new line · Escape cancels</p>
       {saveState === "failed" ? (
         <p role="alert" className="capture-error">
           That {noun} could not be saved. Your draft and comment are still here — try again.

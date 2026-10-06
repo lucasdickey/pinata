@@ -398,3 +398,23 @@ describe("the box draft (D079)", () => {
     expect(screen.getByRole("button", { name: "Save pin" })).toBeInTheDocument();
   });
 });
+
+describe("nearby elements that could not be loaded (D124)", () => {
+  test("say so and offer Try again, which asks for them again", () => {
+    const onRetryCandidates = vi.fn();
+    render(
+      <PinComposer
+        {...props({
+          draftCandidates: { status: "failed", items: [] },
+          draftChoice: null,
+          onRetryCandidates,
+        })}
+      />,
+    );
+    expect(screen.getByText("Nearby elements could not be loaded.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetryCandidates).toHaveBeenCalledTimes(1);
+    // The keyboard hint under the buttons is gone.
+    expect(screen.queryByText(/Enter saves/)).toBeNull();
+  });
+});

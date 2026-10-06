@@ -2039,10 +2039,6 @@ pre code {
   padding: 0.5rem 0.6rem;
   resize: vertical;
 }
-.panel-hint {
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-}
 /* The draft's explicit context decision: ranked candidates + No element. */
 .panel-candidates {
   border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
@@ -4016,4 +4012,24 @@ pre code {
 
 .pin-table-device {
   white-space: nowrap;
+}
+
+/* The sign-in-again dialog's explanation (D124). */
+.login-intro {
+  margin: -0.5rem 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* "Nearby elements could not be loaded" with its Try again (D124). */
+.panel-note-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+
+.panel-note-action button {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.85rem;
 }
