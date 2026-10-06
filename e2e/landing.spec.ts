@@ -185,15 +185,16 @@ test("the landing's sign-in call leads to the workspace, and /pins/new creates e
   await stubDispatchQuota(page);
   await page.goto("/");
 
-  // The landing takes no address (D103): its call leads to the sign-in
-  // form without touching the projects API.
-  await page.getByRole("link", { name: "Sign in to start a review" }).click();
-  await expect(page.getByLabel("Password")).toBeInViewport();
+  // The landing takes no address (D103): its call opens the sign-in
+  // dialog (D123) without touching the projects API.
+  await page.getByRole("button", { name: "Sign in to start a review" }).click();
+  const dialog = page.getByRole("dialog", { name: "Editor sign in" });
+  await expect(dialog.getByLabel("Password")).toBeInViewport();
   expect(projectPosts).toBe(0);
 
   // Sign in lands on the workspace; the project form is one link away.
-  await page.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await dialog.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
+  await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/pins$/);
   await page.getByRole("link", { name: "New project" }).click();
   await expect(page).toHaveURL(/\/pins\/new$/);

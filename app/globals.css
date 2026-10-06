@@ -860,7 +860,7 @@ pre code {
   padding: 0;
   border: 0;
   background: none;
-  color: inherit;
+  color: var(--ink);
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 0.2em;
