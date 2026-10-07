@@ -45,8 +45,7 @@ function doc(decisions) {
   return {
     project: "pinata",
     tagline: "pin + annotation + at ya",
-    assignment: "test",
-    timebox_hours: 4,
+    summary: "test",
     origins: ORIGINS,
     decisions,
   };

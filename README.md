@@ -4,8 +4,8 @@
 
 A lightweight workspace for giving directional feedback on friends' public
 websites — pin a note to the exact spot on the page, share a link, get the
-founder's reply. Built for the Factory candidate assignment; the brief is
-transcribed in [`docs/ASSIGNMENT.md`](docs/ASSIGNMENT.md).
+founder's reply. Built with Factory Droid and Claude Code; which tool did what
+is recorded in [`docs/SESSION-LOG.md`](docs/SESSION-LOG.md).
 
 ## The problem
 
@@ -94,13 +94,12 @@ milestone. The plan is three milestones:
 2. **Pins and founder feedback** — the annotation canvas, metadata
    attachment, share links, and the append-only reply loop.
 3. **Rich marks, polish, and handoff** — boxes, circles, arrows, design
-   polish, hardening, and the interview-ready documentation.
+   polish, hardening, and the documentation.
 
 ## How the work is documented
 
-The assignment is graded partly on the ability to explain the process and the
-decisions, so the decision trail is maintained continuously rather than
-reconstructed afterwards.
+Explaining the process and the decisions is part of the work, so the decision
+trail is maintained continuously rather than reconstructed afterwards.
 
 | Artifact | What it is |
 | --- | --- |

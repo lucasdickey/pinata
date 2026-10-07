@@ -178,8 +178,7 @@ export function renderMarkdown(data, { sourceHash = "unknown" } = {}) {
   L.push("# Decision log");
   L.push("");
   L.push(`**${data.project}** — ${data.tagline}  `);
-  L.push(`${data.assignment}  `);
-  L.push(`Timebox: ~${data.timebox_hours}h`);
+  L.push(data.summary);
   L.push("");
   L.push("Every record is tagged with its **origin**, which separates what the human");
   L.push("directed from what the agent proposed and the human approved. See `AGENTS.md`");

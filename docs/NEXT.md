@@ -1,7 +1,7 @@
 # What I'd do next with more time
 
-Answers the assignment's third interview question. Updated opportunistically as
-scope gets cut, rather than reconstructed at the end.
+Updated opportunistically as scope gets cut, rather than reconstructed at the
+end.
 
 ## Cut during the build
 
