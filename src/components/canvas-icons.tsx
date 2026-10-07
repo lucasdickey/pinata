@@ -20,7 +20,8 @@ export type CanvasIconName =
   | "panel-show"
   | "link"
   | "agent"
-  | "copy";
+  | "copy"
+  | "info";
 
 const PATHS: Record<CanvasIconName, string> = {
   rectangle: "M4.5 6.5h15v11h-15z",
@@ -40,6 +41,8 @@ const PATHS: Record<CanvasIconName, string> = {
   link: "M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1",
   agent: "M4.5 5.5h15v13h-15zM8 10l2.5 2L8 14M12.5 14.5H16",
   copy: "M9 9h10v10H9zM15 9V5H5v10h4",
+  // The projects menu's (i) for a project's addresses (D128).
+  info: "M12 3.5a8.5 8.5 0 1 1 0 17a8.5 8.5 0 1 1 0-17zM12 11v5.5M12 7.75v.1",
 };
 
 export function CanvasIcon({ name, size = 18 }: { name: CanvasIconName; size?: number }) {

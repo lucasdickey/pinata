@@ -366,8 +366,25 @@ describe("the projects menu and the page picker (D128)", () => {
     expect(tree().querySelector("details")).toBeNull();
     expect(switches()[0]).toHaveAttribute("aria-current", "true");
     expect(switches()[1]).not.toHaveAttribute("aria-current");
-    const badge = within(switches()[0]!).getByTestId("feedback-badge");
-    expect(badge).toHaveTextContent(/open/);
+    const row = switches()[0]!.closest("li")!;
+    expect(within(row).getByTestId("feedback-badge")).toHaveTextContent(/open/);
+  });
+
+  test("each project's addresses sit behind an (i) beside its name, not in the row", () => {
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    const row = switches()[0]!.closest("li")!;
+    // The row's own button says only the project's name.
+    expect(switches()[0]).toHaveAccessibleName("chickpea.co");
+    const info = within(row).getByRole("button", { name: "Addresses in chickpea.co" });
+    // Its card names every page, and is the button's description.
+    expect(info).toHaveAccessibleDescription(
+      "https://chickpea.co/https://chickpea.co/pricinghttps://chickpea.co/about",
+    );
+    expect(within(row).getByRole("tooltip", { hidden: true })).toHaveTextContent(
+      "https://chickpea.co/pricing",
+    );
+    // Not a button inside a button.
+    expect(switches()[0]!.querySelector("button")).toBeNull();
   });
 
   test("the page picker opens a page's Desktop capture, or Mobile when Desktop is not usable", async () => {

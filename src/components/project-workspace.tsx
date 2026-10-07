@@ -1395,8 +1395,16 @@ export function ProjectWorkspace({
               const current = activeProject.projectId === project.projectId;
               const feedback = projectFeedback(project, seenAdjust);
               const badge = feedbackBadge(feedback);
+              const tipId = `project-pages-${project.projectId}`;
               return (
-                <li key={project.projectId}>
+                <li
+                  key={project.projectId}
+                  className="project-row"
+                  data-current={current ? "true" : undefined}
+                >
+                  {/* The whole row is this one button's click area (its
+                      ::after covers the row), so the (i) can sit beside the
+                      name without a button inside a button. */}
                   <button
                     type="button"
                     className="project-switch"
@@ -1407,18 +1415,35 @@ export function ProjectWorkspace({
                     }}
                   >
                     <span className="project-switch-name">{project.title}</span>
-                    {/* Open pins and unread replies (D075), the only count
-                        here: no page or capture counts to misread. */}
-                    {badge ? (
-                      <span
-                        className="tree-count feedback-badge"
-                        data-testid="feedback-badge"
-                        data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
-                      >
-                        {badge}
-                      </span>
-                    ) : null}
                   </button>
+                  {/* The project's addresses on hover or focus (D128), kept
+                      out of the row itself. */}
+                  <span className="project-info">
+                    <button
+                      type="button"
+                      className="project-info-button"
+                      aria-label={`Addresses in ${project.title}`}
+                      aria-describedby={tipId}
+                    >
+                      <CanvasIcon name="info" size={16} />
+                    </button>
+                    <span className="project-info-tip" role="tooltip" id={tipId}>
+                      {project.pages.map((page) => (
+                        <span key={page.id}>{page.normalizedUrl}</span>
+                      ))}
+                    </span>
+                  </span>
+                  {/* Open pins and unread replies (D075), the only count
+                      here: no page or capture counts to misread. */}
+                  {badge ? (
+                    <span
+                      className="tree-count feedback-badge"
+                      data-testid="feedback-badge"
+                      data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
+                    >
+                      {badge}
+                    </span>
+                  ) : null}
                 </li>
               );
             })}

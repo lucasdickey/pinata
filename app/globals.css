@@ -1787,31 +1787,132 @@ pre code {
   list-style: none;
 }
 
-.workspace-tree .project-switch {
+/* One row per project: the project button's ::after covers the row, so
+   the whole row opens the project, while the (i) sits above it. */
+.project-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: 100%;
+  gap: 0.35rem;
   padding: 0.5rem 0.6rem;
   border-radius: var(--radius);
-  font-weight: 500;
+  transition: background-color 150ms ease-out;
 }
 
-.workspace-tree .project-switch[aria-current="true"] {
+.project-row:hover {
+  background: var(--raised);
+}
+
+.project-row[data-current="true"] {
+  background: var(--raised);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.project-switch-name {
+.workspace-tree .project-switch {
+  position: static;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 500;
+}
+
+.workspace-tree .project-switch:hover,
+.workspace-tree .project-switch[aria-current="true"] {
+  background: none;
+  border-color: transparent;
+}
+
+/* No press shrink here: a transform would make the button, not the row,
+   the box its ::after fills, and a click on the row's empty part would
+   end outside the button and be lost. */
+.workspace-tree .project-switch:active {
+  transform: none;
+}
+
+.project-switch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+}
+
+.project-switch:focus-visible {
+  outline: none;
+}
+
+.project-switch:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* A long name wraps rather than losing its end. */
+.project-switch-name {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Counts line up on the right, where the eye scans for them. */
-.workspace-tree .project-switch .feedback-badge {
+.project-row .feedback-badge {
   flex: none;
   margin-left: auto;
+}
+
+/* The (i): above the row's click area, its card on hover or focus. */
+.project-info {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+}
+
+.workspace-tree .project-info-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--ink-quiet);
+}
+
+.workspace-tree .project-info-button:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.project-info-tip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.35rem);
+  z-index: 2;
+  display: none;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--ink) 40%, transparent);
+  pointer-events: none;
+}
+
+.project-info:hover .project-info-tip,
+.project-info:focus-within .project-info-tip {
+  display: flex;
+}
+
+/* The open card sits above the rows below it and their (i)s. */
+.project-info:hover,
+.project-info:focus-within {
+  z-index: 3;
 }
 
 .tree-summary-label {

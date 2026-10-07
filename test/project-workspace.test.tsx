@@ -173,8 +173,12 @@ const sidePanel = () => within(detail()).getByTestId("capture-panel");
 describe("hierarchy", () => {
   test("each project's pages appear only in that project, in submitted order (D128)", () => {
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
-    // The menu lists projects, never pages.
-    expect(within(tree()).queryAllByText(/https:\/\//)).toHaveLength(0);
+    // The menu lists projects; a page address shows only in a project's (i) card.
+    expect(
+      within(tree())
+        .queryAllByText(/https:\/\//)
+        .every((node) => node.closest(".project-info-tip") !== null),
+    ).toBe(true);
     openPageFromMenu("https://chickpea.co/");
     const options = () =>
       Array.from((within(detail()).getByLabelText("Page") as HTMLSelectElement).options).map(
@@ -2151,7 +2155,7 @@ describe("project drawer (D106)", () => {
 
     fireEvent.click(
       within(screen.getByRole("navigation", { name: "Projects" })).getByRole("button", {
-        name: /chickpea\.co/,
+        name: "chickpea.co",
       }),
     );
     expect(screen.queryByRole("navigation", { name: "Projects" })).toBeNull();

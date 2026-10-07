@@ -5157,7 +5157,7 @@ The pin panel showed the selected pin above the list, so picking another pin cha
 
 **Decision**
 
-Pin panel: one list where every mark is a row and the selected one opens in place — its status, the comment once, the element, Resolve / Edit / Delete, then its replies, which scroll inside the row starting at the latest, with the reply box behind a Reply button. Resolved marks gather in a closed "N resolved" group that opens when its mark is selected. The drag hints left the panel (the canvas help covers moving); the delete confirmation says the number is retired; page and device moved into Details. Projects menu (proposal B): a flat list of projects, each with its open-pins count; a click shows that project's overview and closes the menu. A project's pages are picked in the project: its overview cards, or a page picker above the canvas (shown when there is more than one page). The project title in the header is now the project's heading. Along the way: signing out is a full page load (it no longer reopens the sign-in dialog from a cached /#editor-login), and several end-to-end specs that CI skips were brought up to date.
+Pin panel: one list where every mark is a row and the selected one opens in place — its status, the comment once, the element, Resolve / Edit / Delete, then its replies, which scroll inside the row starting at the latest, with the reply box behind a Reply button. Resolved marks gather in a closed "N resolved" group that opens when its mark is selected. The drag hints left the panel (the canvas help covers moving); the delete confirmation says the number is retired; page and device moved into Details. Projects menu (proposal B): a flat list of projects, each with its open-pins count; a click anywhere on the row shows that project's overview and closes the menu. Each project's addresses sit behind a small (i) beside its name, shown on hover or keyboard focus, so no URL takes room in the menu. A project's pages are picked in the project: its overview cards, or a page picker above the canvas (shown when there is more than one page). The project title in the header is now the project's heading. Along the way: signing out is a full page load (it no longer reopens the sign-in dialog from a cached /#editor-login), and several end-to-end specs that CI skips were brought up to date.
 
 **Alternatives considered**
 
@@ -5166,7 +5166,7 @@ Pin panel: one list where every mark is a row and the selected one opens in plac
 
 **Rationale**
 
-The owner asked to rethink both: "the Pin menu behavior is really weird. it's hard to navigate. should we try an accordian wher ethe active pin takes up the bulk of the space, but you can still easily get to the others?" and "it's unclear what opens/closes the project entry vs. jumping into the entry itself. please revisit and come up with two proposals." Then chose: resolved pins in a closed group ("yes"), scrolling inside the row ("let's do this"), and "go with Proposal B. this sounds right." No dependency was added.
+The owner asked to rethink both: "the Pin menu behavior is really weird. it's hard to navigate. should we try an accordian wher ethe active pin takes up the bulk of the space, but you can still easily get to the others?" and "it's unclear what opens/closes the project entry vs. jumping into the entry itself. please revisit and come up with two proposals." Then chose: resolved pins in a closed group ("yes"), scrolling inside the row ("let's do this"), and "go with Proposal B. this sounds right." No dependency was added. On seeing the old menu live, the owner added: "let's move the URL into an onHover (i) icon next to the project name. it's cuombersome in the menu."
 
 **Consequences**
 
@@ -5188,7 +5188,9 @@ Human instruction:
 - ![The projects menu as a switcher (light).](dashboard/screenshots/D128-menu-light.png) — The projects menu as a switcher (light).
 - ![The same in dark.](dashboard/screenshots/D128-menu-dark.png) — The same in dark.
 - ![The page picker above the canvas.](dashboard/screenshots/D128-toolbar-light.png) — The page picker above the canvas.
+- ![A project's addresses behind its (i) (light).](dashboard/screenshots/D128-menu-info-light.png) — A project's addresses behind its (i) (light).
+- ![The same in dark.](dashboard/screenshots/D128-menu-info-dark.png) — The same in dark.
 
 ---
 
-<sub>Generated from 128 record(s) as of 2026-10-07 · source `d8aad0e7e7b9`</sub>
+<sub>Generated from 128 record(s) as of 2026-10-07 · source `a520b4b7a7b7`</sub>
