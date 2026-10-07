@@ -4113,6 +4113,138 @@ pre code {
   font-weight: 550;
 }
 
+/* "Add pages" (D129): the last card in the overview grid, dashed like
+   "+ New project" in the projects menu. Open, its form spans the row. */
+.overview-add-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 12rem;
+}
+
+.overview-add-slot[data-open="true"] {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
+.overview-add {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.6rem;
+  font: inherit;
+  font-weight: 400;
+  color: var(--ink);
+  background: transparent;
+  border: var(--hairline) dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.overview-add:hover:not(:disabled) {
+  border-style: solid;
+  background: var(--raised);
+}
+
+.overview-add:disabled {
+  color: var(--ink-soft);
+}
+
+.overview-add-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 550;
+}
+
+.overview-add-plus {
+  color: var(--accent);
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.overview-add:disabled .overview-add-plus {
+  color: inherit;
+}
+
+.overview-add-room,
+.overview-add-status {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.overview-add-status {
+  margin: 0;
+}
+
+.overview-add-form {
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.overview-add-form h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.overview-add-form .hint {
+  margin: 0 0 0.75rem;
+}
+
+.add-page-rows {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.add-page-rows li {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 32rem) max-content;
+  justify-content: start;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-page-rows label {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.add-page-rows input {
+  width: 100%;
+}
+
+.add-page-rows .field-error {
+  grid-column: 2 / -1;
+  margin: 0;
+}
+
+.overview-add-form .form-actions {
+  margin: 0.75rem 0 0;
+}
+
+/* At phone width the label sits above its address, so the field keeps the
+   room it needs. */
+@media (max-width: 480px) {
+  .add-page-rows li {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 0.25rem 0.5rem;
+  }
+
+  .add-page-rows label,
+  .add-page-rows .field-error {
+    grid-column: 1 / -1;
+  }
+}
+
 /* The canvas view's controls: one compact row directly above the stage
    (D111). The camera and mark tools float over the canvas itself. */
 .canvas-toolbar {

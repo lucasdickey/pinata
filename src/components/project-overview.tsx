@@ -9,8 +9,10 @@
 // storage), the page URL, the capture state, and the pin, open, and unread
 // counts the hierarchy read carries (D075). A capture that is not ready
 // shows its state where the thumbnail would be. The card is a button that
-// opens that capture in the canvas view.
+// opens that capture in the canvas view. After the cards comes whatever the
+// workspace puts last in the grid: the "Add pages" card (D129).
 
+import type { ReactNode } from "react";
 import type { FeedbackCounts } from "../lib/annotations";
 import {
   captureCountsLine,
@@ -72,10 +74,13 @@ export function ProjectOverview({
   project,
   adjustments,
   onOpenCapture,
+  trailing,
 }: {
   project: WorkspaceProject;
   adjustments: SeenAdjustments;
   onOpenCapture: (pageId: WorkspacePage["id"], variant: string) => void;
+  /** A last grid item after the cards, already wrapped in its own <li>. */
+  trailing?: ReactNode;
 }) {
   const cards = overviewCards(project, adjustments);
   return (
@@ -125,6 +130,7 @@ export function ProjectOverview({
             </li>
           );
         })}
+        {trailing}
       </ul>
     </section>
   );

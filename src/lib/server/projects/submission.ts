@@ -49,7 +49,12 @@ export type ProjectSubmission =
   | { ok: false; errors: ProjectRowError[] };
 
 /** Limit codes that are not URL reject reasons. */
-export const PROJECT_LIMIT_CODES = ["too-many-rows", "too-many-pages", "too-long"] as const;
+export const PROJECT_LIMIT_CODES = [
+  "too-many-rows",
+  "too-many-pages",
+  "too-many-captures",
+  "too-long",
+] as const;
 
 function canonicalDigest(title: string, normalizedUrls: readonly string[]): string {
   // Only normalized identities and the title decide the digest: retrying the
@@ -122,4 +127,50 @@ export function validateProjectSubmission(input: ProjectSubmissionInput): Projec
     pages: ordered,
     payloadDigest: canonicalDigest(title, normalizedUrls),
   };
+}
+
+/** One admissible row of a page addition, with where it sat in the request. */
+export interface PageAdditionRow {
+  /** Index within the submitted URL array, so corrections land on the row. */
+  index: number;
+  requestedUrl: string;
+  normalizedUrl: string;
+}
+
+export type PageAdditionSubmission =
+  | { ok: true; rows: PageAdditionRow[] }
+  | { ok: false; errors: ProjectRowError[] };
+
+/**
+ * Validate the URL rows of a page addition (D129): the same admission as
+ * project creation, row for row, without a root or a title. Blank rows are
+ * ignored and a repeat of an earlier row is dropped; at least one address
+ * must remain. Whether a row is already one of the project's pages is the
+ * store's question, not this one's.
+ */
+export function validatePageAdditions(urls: readonly string[]): PageAdditionSubmission {
+  if (urls.length > MAX_SUBMITTED_URL_ROWS) {
+    return { ok: false, errors: [{ field: "form", index: null, code: "too-many-rows" }] };
+  }
+  const errors: ProjectRowError[] = [];
+  const rows: PageAdditionRow[] = [];
+  const seen = new Set<string>();
+  urls.forEach((raw, index) => {
+    if (raw.trim() === "") return;
+    const result = normalizeProjectUrl(raw);
+    if (!result.ok) {
+      errors.push({ field: "urls", index, code: result.reason });
+      return;
+    }
+    if (seen.has(result.url)) return;
+    seen.add(result.url);
+    rows.push({ index, requestedUrl: raw.trim(), normalizedUrl: result.url });
+  });
+  if (errors.length === 0 && rows.length === 0) {
+    errors.push({ field: "urls", index: 0, code: "blank" });
+  }
+  if (rows.length > MAX_UNIQUE_PAGE_URLS) {
+    errors.push({ field: "form", index: null, code: "too-many-pages" });
+  }
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, rows };
 }
