@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 47 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125 |
+| Human directed | 48 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **125** | |
+| **Total** | **126** | |
 
 ## Key decisions
 
@@ -187,6 +187,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D123](#d123--the-landing-pages-sign-in-as-one-dialog) | design | The landing page's sign-in as one dialog | Human directed | accepted |
 | [D124](#d124--signing-in-again-without-losing-work) | build | Signing in again without losing work | Human directed | accepted |
 | [D125](#d125--a-box-or-circle-can-be-attached-to-several-elements) | build | A box or circle can be attached to several elements | Human directed | accepted |
+| [D126](#d126--the-landing-example-uses-the-apps-pin-table-new-project-moves-into-the-projects-menu) | design | The landing example uses the app's pin table; New project moves into the projects menu | Human directed | accepted |
 
 ---
 
@@ -5060,4 +5061,46 @@ Human instruction:
 
 ---
 
-<sub>Generated from 125 record(s) as of 2026-10-06 · source `be82e7420dd4`</sub>
+## D126 — The landing example uses the app's pin table; New project moves into the projects menu
+
+*2026-10-07 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The landing page's "Explore the details behind each pin" showed a two-column layout (one mark's DOM context beside a numbered list) that looked rougher than the pin table in the app. Separately, "New project" sat in the editor's top bar, away from the list of projects it adds to.
+
+**Decision**
+
+The landing details now render the app's own PinTable, filled from the example fixture: page, device, badge, the whole comment, status, position, and element with its path, and a working "Copy all as Markdown". A mark with a founder reply in its thread reads Replied. In the editor, "New project" moves from the top bar to the top of the projects menu, just under its header. With no projects there is no menu, so the empty state's "Create your first project" stays the way in; when the project list fails to load, a "New project" link sits beside Try again.
+
+**Alternatives considered**
+
+- *Restyle the old two-column layout* — A second look-alike would drift from the real table; reusing it keeps the landing truthful to the product.
+- *Keep New project in the top bar as well* — The owner asked to move it, and two routes to the same form is clutter.
+
+**Rationale**
+
+The owner asked for both: "in the app this table looks cleaner than it does on the sign-in page. please udpaet." and "let's move the \"new project\" button into this menu." No dependency was added.
+
+**Consequences**
+
+- The landing example now has buttons (row selection and Copy), so the landing test's "no controls" check narrowed to its intent: no fields, and buttons only inside the table.
+- End-to-end specs reach the project form through a helper that opens the menu, or uses the empty state on a fresh database.
+
+**Provenance evidence**
+
+Human instruction:
+
+> in the app this table looks cleaner than it does on the sign-in page. please udpaet.
+
+**Artifacts**
+
+- `src/components/example-pin-table.tsx` — The fixture fed into the app's table.
+- ![The landing details as the app's pin table (light).](dashboard/screenshots/D126-landing-table-light.png) — The landing details as the app's pin table (light).
+- ![The same in dark.](dashboard/screenshots/D126-landing-table-dark.png) — The same in dark.
+- ![New project at the top of the projects menu (light, sample projects).](dashboard/screenshots/D126-new-project-menu-light.png) — New project at the top of the projects menu (light, sample projects).
+- ![The same in dark.](dashboard/screenshots/D126-new-project-menu-dark.png) — The same in dark.
+
+---
+
+<sub>Generated from 126 record(s) as of 2026-10-07 · source `770adf91df2e`</sub>

@@ -20,6 +20,7 @@
 // never live source markup, so there is no link, iframe, or handler here that
 // could navigate to the captured site.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -1388,6 +1389,11 @@ export function ProjectWorkspace({
               <RailChevron direction="left" />
             </button>
           </div>
+          {/* Starting a project lives with the projects (D126), not in the
+              top bar. */}
+          <Link href="/pins/new" className="rail-new-project">
+            <span aria-hidden="true">+</span> New project
+          </Link>
           <ul>
             {projects.map((project) => {
               // The project the detail area shows stays open; the rest

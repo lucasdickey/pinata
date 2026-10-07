@@ -5728,6 +5728,63 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D126",
+      "date": "2026-10-07",
+      "phase": "design",
+      "title": "The landing example uses the app's pin table; New project moves into the projects menu",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The landing page's \"Explore the details behind each pin\" showed a two-column layout (one mark's DOM context beside a numbered list) that looked rougher than the pin table in the app. Separately, \"New project\" sat in the editor's top bar, away from the list of projects it adds to.",
+      "decision": "The landing details now render the app's own PinTable, filled from the example fixture: page, device, badge, the whole comment, status, position, and element with its path, and a working \"Copy all as Markdown\". A mark with a founder reply in its thread reads Replied. In the editor, \"New project\" moves from the top bar to the top of the projects menu, just under its header. With no projects there is no menu, so the empty state's \"Create your first project\" stays the way in; when the project list fails to load, a \"New project\" link sits beside Try again.",
+      "alternatives": [
+        {
+          "option": "Restyle the old two-column layout",
+          "why_not": "A second look-alike would drift from the real table; reusing it keeps the landing truthful to the product."
+        },
+        {
+          "option": "Keep New project in the top bar as well",
+          "why_not": "The owner asked to move it, and two routes to the same form is clutter."
+        }
+      ],
+      "rationale": "The owner asked for both: \"in the app this table looks cleaner than it does on the sign-in page. please udpaet.\" and \"let's move the \\\"new project\\\" button into this menu.\" No dependency was added.",
+      "consequences": [
+        "The landing example now has buttons (row selection and Copy), so the landing test's \"no controls\" check narrowed to its intent: no fields, and buttons only inside the table.",
+        "End-to-end specs reach the project form through a helper that opens the menu, or uses the empty state on a fresh database."
+      ],
+      "transcript": {
+        "request": "in the app this table looks cleaner than it does on the sign-in page. please udpaet."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/example-pin-table.tsx",
+          "caption": "The fixture fed into the app's table."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D126-landing-table-light.png",
+          "caption": "The landing details as the app's pin table (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D126-landing-table-dark.png",
+          "caption": "The same in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D126-new-project-menu-light.png",
+          "caption": "New project at the top of the projects menu (light, sample projects)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D126-new-project-menu-dark.png",
+          "caption": "The same in dark."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

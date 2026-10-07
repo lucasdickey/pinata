@@ -3774,3 +3774,22 @@ Harness: Claude Code, in a cloud session.
 ### Decisions
 
 - D125 (user-directed): a box or circle attached to several elements.
+
+---
+
+## 2026-10-07 — landing table and New project in the menu (D126)
+
+Harness: Claude Code, on the owner's Mac.
+
+- Migration 0009 run on production from this machine (read-only checks
+  before and after: 9 → 10 migrations, data unchanged); PR #23 (D125)
+  merged and deployed.
+- The landing example's details now use the app's pin table, and New
+  project moved from the top bar into the projects menu.
+- Local unit tests need Node 24 (CI's version): Node 25's built-in
+  localStorage breaks seven storage tests on main too. Browser specs were
+  left to CI, since this checkout's .env.local points at production.
+
+### Decisions
+
+- D126 (user-directed): the landing table and New project in the menu.

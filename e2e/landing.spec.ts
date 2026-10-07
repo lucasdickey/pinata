@@ -19,7 +19,7 @@ import { expect, test } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { registerRunCleanup } from "./run-cleanup";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { openRail } from "./rail";
+import { openRail, openNewProject } from "./rail";
 
 const createEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -103,10 +103,11 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   const details = page.locator(".example-details");
   await expect(details).not.toHaveAttribute("open", "");
   await details.locator("summary").click();
-  await expect(page.getByRole("heading", { name: "DOM context" })).toBeVisible();
-  // The element's text shows in the metadata panel, and (D078) the pin's
-  // name carries it too, in the example's heading and its pins list.
-  await expect(page.getByText("“Annual (save 20%)”")).toBeVisible();
+  // The details are the app's pin table (D126); the element's text shows
+  // in its Element column, and (D078) the pin's name carries it too.
+  const table = details.getByRole("table");
+  await expect(table.getByRole("rowheader")).toHaveCount(4);
+  await expect(table.getByText("<button> role=switch “Annual (save 20%)”")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: /^Pin 1 · “This billing toggle .* · Annual \(save 20%\)$/ }),
   ).toBeVisible();
@@ -196,7 +197,7 @@ test("the landing's sign-in call leads to the workspace, and /pins/new creates e
   await dialog.getByLabel("Password").fill(requireLocalEnvValue("EDITOR_PASSWORD"));
   await dialog.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/pins$/);
-  await page.getByRole("link", { name: "New project" }).click();
+  await openNewProject(page);
   await expect(page).toHaveURL(/\/pins\/new$/);
   await page.getByLabel("Root URL").fill(ROOT);
   await page.getByRole("button", { name: "Add URL" }).click();
