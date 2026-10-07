@@ -41,7 +41,9 @@ export function ExampleDemo({
     <div
       className="example-demo"
       data-testid="example-demo"
-      role="img"
+      // A group, not an image: the player's play and pause controls live
+      // inside it, and an image may not contain controls.
+      role="group"
       aria-label={label}
     >
       <Player

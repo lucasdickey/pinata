@@ -91,11 +91,18 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   // The brief value proposition.
   await expect(page.getByText(/pin plain, directional notes/i)).toBeVisible();
 
-  // VAL-LANDING-002: the self-contained static example — a screenshot region
-  // with one numbered mark of each kind (D103), a two-entry comment thread,
-  // and a visible DOM metadata panel.
+  // D127: with motion allowed, the example plays the demo video, pausable.
+  const demo = page.getByTestId("example-demo");
+  await expect(demo).toBeVisible();
+  await expect(demo).toHaveAccessibleName(/a pin, a circle, an arrow, and a box/);
+
+  // VAL-LANDING-002: with reduced motion, the self-contained static example —
+  // a screenshot region with one numbered mark of each kind (D103), a
+  // two-entry comment thread, and a visible DOM metadata panel.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const shot = page.getByTestId("example-shot");
   await expect(shot).toBeVisible();
+  await expect(demo).toHaveCount(0);
   await expect(shot.locator("[data-mark-number]")).toHaveCount(4);
   await expect(
     page.getByRole("list", { name: "Example thread" }).getByRole("listitem"),
