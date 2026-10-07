@@ -26,7 +26,7 @@ import type {
   DeviceView,
   WorkspaceProject,
 } from "../src/components/project-workspace";
-import { openRail } from "./helpers/rail";
+import { openPageFromMenu, openRail } from "./helpers/rail";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -253,11 +253,7 @@ describe("capture dispatch driver", () => {
       "Failed",
       "Failed",
     ]);
-    fireEvent.click(
-      within(openRail()).getByRole("button", {
-        name: "https://safe.example/",
-      }),
-    );
+    openPageFromMenu("https://safe.example/");
     expect(
       screen.getByText("The address could not be resolved to a public host."),
     ).toBeInTheDocument();

@@ -26,7 +26,7 @@ import { MAX_ACTIVE_CAPTURES } from "../src/lib/boundaries";
 import { databaseFromClient, schema } from "../src/lib/server/db/client";
 import { createVercelBlobStore, type ScreenshotStore } from "../src/lib/server/providers/blob";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
-import { openRail } from "./rail";
+import { openPageFromMenu, openRail } from "./rail";
 
 const gate = localEnvGate([
   "EDITOR_PASSWORD",
@@ -245,22 +245,21 @@ test("a project created outside the browser is driven to ready with no manual di
   await page.waitForTimeout(12_000);
   expect([...dispatched.values()].reduce((sum, count) => sum + count, 0)).toBe(dispatchTotal);
 
-  // The workspace shows the finished project, not a stuck queue. Scoped to
-  // THIS run's project: a concurrent suite's run-scoped project can carry
-  // the identical counts text (observed 2026-09-10 when manifest-scan's
-  // 2x2 project raced this assertion into a strict-mode violation).
+  // The workspace shows the finished project, not a stuck queue. The counts
+  // live in the project itself since D128, not the menu: open THIS run's
+  // project (a concurrent suite's project can carry identical counts) and
+  // read its progress line (D076) on the overview.
+  await (await openRail(page))
+    .locator("button.project-switch")
+    .filter({ hasText: `${RUN_ID} drive` })
+    .click();
   await expect(
-    page
-      .getByRole("listitem")
-      .filter({ hasText: `${RUN_ID} drive` })
-      .getByText("2 pages · 4 ready · 0 failed · 0 in progress"),
-  ).toBeVisible();
+    page.getByRole("region", { name: "Project overview" }).getByTestId("capture-progress"),
+  ).toHaveText("All 4 captures ready");
 
-  // The progress line (D076) reads the same server-computed block: with the
-  // project's root page open (on its ready Desktop capture, D077), it
-  // reports every capture ready.
-  const tree = await openRail(page);
-  await tree.getByRole("button", { name: ROOT_URL, exact: true }).click();
+  // The same server-computed block, with the project's root page open (on
+  // its ready Desktop capture, D077), reports every capture ready too.
+  await openPageFromMenu(page, ROOT_URL, `${RUN_ID} drive`);
   await expect(
     page.getByRole("region", { name: "Selected capture" }).getByTestId("capture-progress"),
   ).toHaveText("All 4 captures ready");
@@ -326,8 +325,7 @@ test("a dispatch-time admission failure surfaces the catalog outcome and never l
   }
 
   // Neither device is usable, so the page opens on Desktop (D077).
-  const tree = await openRail(page);
-  await tree.getByRole("button", { name: FAIL_URL, exact: true }).click();
+  await openPageFromMenu(page, FAIL_URL);
   const detail = page.getByRole("region", { name: "Selected capture" });
   await expect(detail.getByRole("alert"))
     .toContainText("The address could not be resolved to a public host.");

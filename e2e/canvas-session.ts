@@ -6,7 +6,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
 import { requireLocalEnvValue } from "./local-env";
-import { openRail } from "./rail";
+import { openPageFromMenu } from "./rail";
 
 /** Sign in from the public landing and land on the workspace at /pins (D069). */
 export async function signIn(page: Page): Promise<void> {
@@ -144,26 +144,6 @@ export function deviceButtonName(target: ReadyTarget): string {
 }
 
 /**
- * The owning project's entry in the rail. Two projects can hold the same
- * page URL (the local Chickpea seed and the production demo project), so
- * when the owning project title is known the page button is only unique
- * inside that project's tree entry.
- */
-function projectEntry(page: Page, target: ReadyTarget): Locator {
-  const rail = page.getByRole("navigation", { name: "Projects and pages" });
-  return target.projectTitle
-    ? rail
-        .locator("details.tree-project")
-        .filter({ has: page.getByRole("heading", { name: target.projectTitle, exact: true }) })
-    : rail;
-}
-
-/** The page's button in the rail (D077); it opens the page on its usable device. */
-export function pageButton(page: Page, target: ReadyTarget): Locator {
-  return projectEntry(page, target).getByRole("button", { name: target.pageUrl, exact: true });
-}
-
-/**
  * The device toggle button for a plane (D077). It exists only while the
  * plane's page is open in the canvas view; revealPlane gets it there.
  */
@@ -182,25 +162,15 @@ async function pageIsOpen(page: Page, target: ReadyTarget): Promise<boolean> {
 }
 
 /**
- * Get a plane's device toggle on screen: expand whatever the rail has
- * collapsed around its page (D070), then open the page from the rail (D077).
- * Only the project the detail area shows starts open, so any spec that
- * reaches for a plane in another project has to open that project first —
- * exactly as a reader would.
+ * Get a plane's device toggle on screen: pick the page's project in the
+ * projects menu, then the page in its overview (D128), exactly as a reader
+ * would. Two projects can hold the same page URL (the local Chickpea seed
+ * and the production demo project), so the owning project's title is used
+ * when it is known.
  */
 export async function revealPlane(page: Page, target: ReadyTarget): Promise<void> {
   if (await pageIsOpen(page, target)) return;
-  // The project drawer starts closed and closes after each choice (D106).
-  await openRail(page);
-  const entry = pageButton(page, target);
-  if (!(await entry.isVisible())) {
-    const owner = target.projectTitle
-      ? projectEntry(page, target)
-      : page.locator("details.tree-project").filter({ has: entry });
-    const summary = owner.locator("> summary").first();
-    if ((await summary.count()) > 0) await summary.click();
-  }
-  await entry.click();
+  await openPageFromMenu(page, target.pageUrl, target.projectTitle);
   await expect(planeButton(page, target)).toBeVisible();
 }
 

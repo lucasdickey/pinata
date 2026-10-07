@@ -14,7 +14,6 @@
 // runs in the workspace, and calls back here for the hierarchy re-read.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import {
@@ -35,7 +34,6 @@ type ListState =
   | { status: "failed" };
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
   // Single-flight guard for the failure-state retry: while one retry read is
@@ -186,10 +184,11 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
       });
     } finally {
       // /pins is editor-only, so signing out has to leave the route, not
-      // just re-render it (D069). Navigate explicitly rather than relying on
-      // a refresh to pick up the server-side redirect.
-      router.replace("/");
-      router.refresh();
+      // just re-render it (D069). A full page load rather than a client
+      // navigation: it drops every editor page the router still holds in
+      // memory, and it never revives the landing under an old address such
+      // as /#editor-login, which would pop the sign-in dialog back open.
+      window.location.replace("/");
     }
   }
 

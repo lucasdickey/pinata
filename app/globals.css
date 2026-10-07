@@ -1775,26 +1775,144 @@ pre code {
   padding-left: 0.75rem;
 }
 
-/* Each project in the rail is a native <details> (D070), so the marker and
-   keyboard behavior come from the browser; only the summary row is styled.
-   The rail as a whole collapses as a sidebar (D105). */
-.tree-project > summary {
+/* The projects menu is a switcher (D128): one row per project, the one on
+   screen marked by an accent edge, its open pins the only count. The rail
+   as a whole collapses as a sidebar (D105). */
+.project-switcher {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  cursor: pointer;
-  padding: 0.35rem 0;
-  font-weight: 550;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.tree-project {
-  border-left: 2px solid var(--line);
-  padding-left: 0.6rem;
-  margin-bottom: 0.5rem;
+/* One row per project: the project button's ::after covers the row, so
+   the whole row opens the project, while the (i) sits above it. */
+.project-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--radius);
+  transition: background-color 150ms ease-out;
 }
 
-.tree-project[open] {
-  border-left-color: var(--accent);
+.project-row:hover {
+  background: var(--raised);
+}
+
+.project-row[data-current="true"] {
+  background: var(--raised);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.workspace-tree .project-switch {
+  position: static;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 500;
+}
+
+.workspace-tree .project-switch:hover,
+.workspace-tree .project-switch[aria-current="true"] {
+  background: none;
+  border-color: transparent;
+}
+
+/* No press shrink here: a transform would make the button, not the row,
+   the box its ::after fills, and a click on the row's empty part would
+   end outside the button and be lost. */
+.workspace-tree .project-switch:active {
+  transform: none;
+}
+
+.project-switch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+}
+
+.project-switch:focus-visible {
+  outline: none;
+}
+
+.project-switch:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* A long name wraps rather than losing its end. */
+.project-switch-name {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Counts line up on the right, where the eye scans for them. */
+.project-row .feedback-badge {
+  flex: none;
+  margin-left: auto;
+}
+
+/* The (i): above the row's click area, its card on hover or focus. */
+.project-info {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+}
+
+.workspace-tree .project-info-button {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--ink-quiet);
+}
+
+.workspace-tree .project-info-button:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.project-info-tip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.35rem);
+  z-index: 2;
+  display: none;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  transform: translateX(-50%);
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--ink) 40%, transparent);
+  pointer-events: none;
+}
+
+.project-info:hover .project-info-tip,
+.project-info:focus-within .project-info-tip {
+  display: flex;
+}
+
+/* The open card sits above the rows below it and their (i)s. */
+.project-info:hover,
+.project-info:focus-within {
+  z-index: 3;
 }
 
 .tree-summary-label {
@@ -1811,12 +1929,6 @@ pre code {
   padding: 0 0.5rem;
 }
 
-.workspace-tree .page-url {
-  display: block;
-  font-size: 0.9rem;
-  word-break: break-all;
-}
-
 .workspace-tree .page-devices {
   display: flex;
   flex-wrap: wrap;
@@ -1828,7 +1940,7 @@ pre code {
    not as stacked buttons: no box at rest, cream on hover, and the current
    row in cream with a firmer edge (D102). */
 .workspace-tree button,
-.pin-list button,
+.pin-list > li > .pin-row,
 .founder-pin-list button {
   justify-content: flex-start;
   text-align: left;
@@ -1838,20 +1950,19 @@ pre code {
 }
 
 .workspace-tree button:hover,
-.pin-list button:hover,
+.pin-list > li > .pin-row:hover,
 .founder-pin-list button:hover {
   background: var(--raised);
 }
 
 .workspace-tree button[aria-current="true"],
 .capture-versions button[aria-current="true"],
-.pin-list button[aria-current="true"] {
+.pin-list > li > .pin-row[aria-current="true"] {
   background: var(--raised);
   border-color: var(--line-strong);
   font-weight: 550;
 }
 
-.project-counts,
 .device-status {
   color: var(--ink-soft);
   font-size: 0.8rem;
@@ -2182,6 +2293,89 @@ pre code {
   align-items: center;
   gap: 0.45rem;
   margin: 0 0 0.35rem;
+}
+
+/* The pin accordion (D128): the selected mark opens in place as one card,
+   its header bold, its body below; the other rows stay one line each. */
+.panel-count {
+  margin-left: 0.4rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  font-weight: 450;
+}
+
+.pin-list .pin-item[data-open="true"] {
+  margin: 0.25rem 0;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.pin-list .pin-item[data-open="true"] + li,
+.pin-list li + .pin-item[data-open="true"] {
+  border-top-color: transparent;
+}
+
+.pin-list .pin-item[data-open="true"] > .pin-row {
+  display: flex;
+  margin: 0;
+  padding: 0.5rem 0.6rem 0.25rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+.pin-item .panel-mark-name {
+  margin: 0;
+}
+
+.pin-open {
+  padding: 0 0.6rem 0.6rem;
+}
+
+.pin-open .panel-status {
+  margin: 0 0 0.35rem;
+}
+
+.pin-open .panel-pin-body {
+  margin: 0.25rem 0 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.pin-open .panel-snapshot {
+  margin: 0 0 0.35rem;
+}
+
+/* A long thread scrolls inside the row (D128), so the rows below stay
+   close; it starts at the latest entry. */
+.pin-open .thread {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: var(--hairline) solid var(--line);
+}
+
+.thread-entries[data-scroll="true"] {
+  max-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+}
+
+/* Resolved marks, gathered and closed (D128). */
+.pin-resolved {
+  margin-top: 0.5rem;
+  border-top: var(--hairline) solid var(--line);
+}
+
+.pin-resolved > summary {
+  padding: 0.5rem 0.25rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  cursor: pointer;
 }
 
 /* The internals behind one native disclosure (D078). */
@@ -3827,26 +4021,25 @@ pre code {
 
 /* ---- project overview, device toggle, pin stepping (D077) ---- */
 
-/* The rail lists projects and pages only; a page is one button carrying its
-   URL, with the summed feedback badge beside it. */
-.workspace-tree .tree-pages {
-  padding-left: 0.75rem;
+/* The page picker above the canvas (D128): a project's pages, with each
+   page's open pins in its option. */
+.page-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
 }
 
-.workspace-tree .tree-pages > li {
-  margin: 0.25rem 0;
+.page-picker-label {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
 }
 
-.workspace-tree button.page-url {
-  display: inline;
-  text-align: left;
-  word-break: break-all;
+.page-picker select {
+  max-width: min(26rem, 50vw);
+  padding: 0.25rem 0.5rem;
   font-size: 0.9rem;
-}
-
-.workspace-tree .tree-overview {
-  margin: 0.25rem 0;
-  font-size: 0.9rem;
+  text-overflow: ellipsis;
 }
 
 /* One card per capture, in page order, Desktop then Mobile. The thumbnail

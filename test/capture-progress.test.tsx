@@ -25,7 +25,7 @@ import {
   type WorkspaceProject,
 } from "../src/components/project-workspace";
 import { installReactFlowMocks } from "./helpers/react-flow";
-import { openRail } from "./helpers/rail";
+import { openPageFromMenu, openRail } from "./helpers/rail";
 
 installReactFlowMocks();
 
@@ -337,12 +337,7 @@ describe("in the workspace", () => {
   const overview = () => screen.getByRole("region", { name: "Project overview" });
   const detail = () => screen.getByRole("region", { name: "Selected capture" });
   /** Open the home page's Desktop capture from the rail (the workspace opens on the overview, D077). */
-  const openHome = () =>
-    fireEvent.click(
-      within(openRail()).getByRole("button", {
-        name: "https://chickpea.co/",
-      }),
-    );
+  const openHome = () => openPageFromMenu("https://chickpea.co/");
 
   test("the line sits at the top of the selected project's detail area, in both views", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);

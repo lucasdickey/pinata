@@ -226,10 +226,6 @@ export function ProjectWorkspace({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [railOpen]);
-  // Per-project disclosure state (D070), session-only and deliberately
-  // unpersisted. `openProjects` holds only projects the reader has explicitly
-  // toggled; anything absent falls back to "open when it holds the selection".
-  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
   // Per-capture session camera memory: each plane restores its own camera
   // when revisited, and no camera is ever shared between planes or written
   // anywhere. Reload clears it (in-memory only).
@@ -1366,13 +1362,13 @@ export function ProjectWorkspace({
         <nav
           id="workspace-rail"
           className="workspace-tree rail-drawer"
-          aria-label="Projects and pages"
+          aria-label="Projects"
           hidden={!railOpen}
         >
-          {/* Inside the drawer each project is a native <details> (D070):
-              keyboard-operable and announced with no script. Since D077 the
-              rail lists projects and pages only; the device is chosen above
-              the canvas. */}
+          {/* A project switcher (D128): one row per project, and a click
+              takes you to that project's overview. Nothing opens or closes
+              here; a project's pages are picked in the project itself (its
+              overview cards, or the page picker above the canvas). */}
           <div className="tree-root-head">
             <span className="tree-summary-label">Projects</span>
             <span className="tree-count">{projects.length}</span>
@@ -1394,96 +1390,60 @@ export function ProjectWorkspace({
           <Link href="/pins/new" className="rail-new-project">
             <span aria-hidden="true">+</span> New project
           </Link>
-          <ul>
+          <ul className="project-switcher">
             {projects.map((project) => {
-              // The project the detail area shows stays open; the rest
-              // start collapsed. Collapsing the shown project would hide
-              // the controls that produced what the detail area is showing.
-              const holdsActive = activeProject.projectId === project.projectId;
-              const expanded = openProjects[project.projectId] ?? holdsActive;
+              const current = activeProject.projectId === project.projectId;
+              const feedback = projectFeedback(project, seenAdjust);
+              const badge = feedbackBadge(feedback);
+              const tipId = `project-pages-${project.projectId}`;
               return (
-                <li key={project.projectId}>
-                  <details
-                    className="tree-project"
-                    open={expanded}
-                    onToggle={(event) => {
-                      // Read the element before the updater runs: React has
-                      // detached the synthetic event by then and
-                      // currentTarget is null inside the callback.
-                      const isOpen = event.currentTarget.open;
-                      setOpenProjects((current) => ({
-                        ...current,
-                        [project.projectId]: isOpen,
-                      }));
+                <li
+                  key={project.projectId}
+                  className="project-row"
+                  data-current={current ? "true" : undefined}
+                >
+                  {/* The whole row is this one button's click area (its
+                      ::after covers the row), so the (i) can sit beside the
+                      name without a button inside a button. */}
+                  <button
+                    type="button"
+                    className="project-switch"
+                    aria-current={current ? "true" : undefined}
+                    onClick={() => {
+                      showOverview(project.projectId);
+                      closeRail();
                     }}
                   >
-                    <summary>
-                      <span className="tree-summary-label">{project.title}</span>
-                      <span className="tree-count">{project.counts.pages}</span>
-                    </summary>
-                    {/* The heading stays in the tree so assistive technology
-                        and the e2e specs can still address a project by
-                        name, but it now lives inside the disclosure. */}
-                    <h3 className="visually-hidden">{project.title}</h3>
-                    <p className="project-counts">
-                      {project.counts.pages} pages · {project.counts.ready} ready ·{" "}
-                      {project.counts.failed} failed · {project.counts.inProgress} in progress
-                    </p>
-                    {/* Feedback counts for the editor (D075); the share
-                        control now lives in the selected project's header. */}
-                    <p className="project-counts" data-testid="project-feedback-summary">
-                      {feedbackSummary(projectFeedback(project, seenAdjust))}
-                    </p>
-                    {/* The project's overview (D077): the way to select a
-                        project without opening one of its captures. */}
+                    <span className="project-switch-name">{project.title}</span>
+                  </button>
+                  {/* The project's addresses on hover or focus (D128), kept
+                      out of the row itself. */}
+                  <span className="project-info">
                     <button
                       type="button"
-                      className="tree-overview"
-                      aria-label={`Overview of ${project.title}`}
-                      aria-current={holdsActive && !active ? "true" : undefined}
-                      onClick={() => {
-                        showOverview(project.projectId);
-                        closeRail();
-                      }}
+                      className="project-info-button"
+                      aria-label={`Addresses in ${project.title}`}
+                      aria-describedby={tipId}
                     >
-                      Overview
+                      <CanvasIcon name="info" size={16} />
                     </button>
-                    <ol className="tree-pages">
-                      {project.pages.map((page) => {
-                        const isActive = holdsActive && active?.page.id === page.id;
-                        // Unread and open counts summed over the page's
-                        // devices (D075, D077), beside the button so its
-                        // accessible name stays the page URL.
-                        const feedback = pageFeedback(project, page, seenAdjust);
-                        const badge = feedbackBadge(feedback);
-                        return (
-                          <li key={page.id}>
-                            <button
-                              type="button"
-                              className="page-url"
-                              aria-current={isActive ? "true" : undefined}
-                              onClick={() => {
-                                openPage(project.projectId, page);
-                                closeRail();
-                              }}
-                            >
-                              {page.normalizedUrl}
-                            </button>
-                            {badge ? (
-                              <span
-                                className="tree-count feedback-badge"
-                                data-testid="feedback-badge"
-                                data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
-                                aria-label={`${page.normalizedUrl}: ${badge}`}
-                              >
-                                {badge}
-                              </span>
-                            ) : null}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                  </details>
+                    <span className="project-info-tip" role="tooltip" id={tipId}>
+                      {project.pages.map((page) => (
+                        <span key={page.id}>{page.normalizedUrl}</span>
+                      ))}
+                    </span>
+                  </span>
+                  {/* Open pins and unread replies (D075), the only count
+                      here: no page or capture counts to misread. */}
+                  {badge ? (
+                    <span
+                      className="tree-count feedback-badge"
+                      data-testid="feedback-badge"
+                      data-unread={feedback.unreadReplies > 0 ? "true" : "false"}
+                    >
+                      {badge}
+                    </span>
+                  ) : null}
                 </li>
               );
             })}
@@ -1499,11 +1459,11 @@ export function ProjectWorkspace({
             counts for the editor, and the share control that used to sit
             inside the collapsed rail entry. */}
         <div className="project-header" data-testid="project-header">
-          {/* Not a heading: the rail already carries the one heading with
-              this project's name, and the specs address it by that role. */}
-          <p className="project-title" data-testid="project-title">
+          {/* The project's heading (D128): the projects menu is a plain
+              switcher now, so the name is a heading here, once. */}
+          <h2 className="project-title" data-testid="project-title">
             {activeProject.title}
-          </p>
+          </h2>
           <p className="project-feedback" data-testid="project-feedback">
             {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
           </p>
@@ -1562,10 +1522,40 @@ export function ProjectWorkspace({
               {/* Still the capture's heading, by the same name; the device
                   half is for assistive tech only, since the toggle beside
                   it already shows which device is open. */}
-              <h3 className="capture-caption" title={active.page.normalizedUrl}>
+              <h3
+                className={
+                  activeProject.pages.length > 1 ? "capture-caption visually-hidden" : "capture-caption"
+                }
+                title={active.page.normalizedUrl}
+              >
                 <span className="visually-hidden">{variantLabel(active.device.variant)} —</span>{" "}
                 {active.page.normalizedUrl}
               </h3>
+              {/* The project's pages, picked here (D128) now that the
+                  projects menu lists projects only. One page needs no
+                  picker: the caption above names it. */}
+              {activeProject.pages.length > 1 ? (
+                <label className="page-picker">
+                  <span className="page-picker-label">Page</span>
+                  <select
+                    value={active.page.id}
+                    onChange={(event) => {
+                      const page = activeProject.pages.find((p) => p.id === event.target.value);
+                      if (page) openPage(activeProject.projectId, page);
+                    }}
+                  >
+                    {activeProject.pages.map((page) => {
+                      const badge = feedbackBadge(pageFeedback(activeProject, page, seenAdjust));
+                      return (
+                        <option key={page.id} value={page.id}>
+                          {page.normalizedUrl}
+                          {badge ? ` · ${badge}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              ) : null}
               <p className="pin-step" role="group" aria-label="Step through pins">
                 <span className="pin-step-position" data-testid="pin-step-position">
                   {stepPosition}

@@ -8,6 +8,7 @@
 // control because there is no such route. Bodies are plain text rendered
 // through React escaping only.
 
+import { useEffect, useRef, useState } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import type { ThreadEntryView } from "../lib/threads";
 
@@ -27,6 +28,21 @@ export interface ThreadViewProps {
   composerLabel: string;
   /** The send button's idle text. */
   sendLabel: string;
+  /**
+   * The editor's pin accordion (D128) shows the comment once, above the
+   * thread, so it leaves the original out here. The founder's view keeps it.
+   */
+  showOriginal?: boolean;
+  /**
+   * The accordion keeps a long thread inside its row: the entries scroll on
+   * their own, start at the latest, and can be scrolled from the keyboard.
+   */
+  scrollEntries?: boolean;
+  /**
+   * The accordion keeps the reply box behind a Reply button so an open pin
+   * stays short; a draft already typed keeps it open.
+   */
+  replyBehindButton?: boolean;
 }
 
 /**
@@ -76,17 +92,44 @@ export function ThreadView({
   sendState,
   composerLabel,
   sendLabel,
+  showOriginal = true,
+  scrollEntries = false,
+  replyBehindButton = false,
 }: ThreadViewProps) {
   const sendDisabled = sendState === "sending" || replyBody.trim().length === 0;
+  const [replying, setReplying] = useState(false);
+  const composerOpen = !replyBehindButton || replying || replyBody.trim().length > 0;
+  const replyField = useRef<HTMLTextAreaElement | null>(null);
+  const entriesRef = useRef<HTMLOListElement | null>(null);
+
+  // The latest entry is the current ask: a scrolling thread starts there.
+  useEffect(() => {
+    const list = entriesRef.current;
+    if (scrollEntries && list) list.scrollTop = list.scrollHeight;
+  }, [scrollEntries, entries.length, status]);
+
+  const openComposer = () => {
+    setReplying(true);
+    requestAnimationFrame(() => replyField.current?.focus());
+  };
   return (
     <section className="thread" aria-label="Comment thread" data-testid="thread">
-      <ol className="thread-entries" aria-label="Thread entries">
-        <li className="thread-entry" data-author="Lucas">
-          <p className="thread-meta">
-            <strong>Lucas</strong> <span className="thread-role">(editor)</span>
-          </p>
-          <p className="thread-body">{originalBody}</p>
-        </li>
+      <ol
+        className="thread-entries"
+        aria-label="Thread entries"
+        ref={entriesRef}
+        data-scroll={scrollEntries ? "true" : undefined}
+        // A scrolling region must be reachable from the keyboard.
+        tabIndex={scrollEntries ? 0 : undefined}
+      >
+        {showOriginal ? (
+          <li className="thread-entry" data-author="Lucas">
+            <p className="thread-meta">
+              <strong>Lucas</strong> <span className="thread-role">(editor)</span>
+            </p>
+            <p className="thread-body">{originalBody}</p>
+          </li>
+        ) : null}
         {entries.map((entry) =>
           entry.kind === "status" ? (
             // A resolve or reopen (D075): one quiet system line in the same
@@ -115,26 +158,42 @@ export function ThreadView({
       {status === "ready" && entries.length === 0 ? (
         <p className="panel-note">No replies yet.</p>
       ) : null}
-      <label className="panel-field">
-        {composerLabel}
-        <textarea
-          value={replyBody}
-          onChange={(event) => onReplyBodyChange(event.target.value)}
-          maxLength={FEEDBACK_BODY_MAX_CHARS}
-          rows={3}
-          disabled={sendState === "sending"}
-        />
-      </label>
-      <p className="panel-actions">
-        <button
-          type="button"
-          className="button-primary"
-          onClick={onSendReply}
-          disabled={sendDisabled}
-        >
-          {sendState === "sending" ? "Sending…" : sendLabel}
-        </button>
-      </p>
+      {composerOpen ? (
+        <>
+          <label className="panel-field">
+            {composerLabel}
+            <textarea
+              ref={replyField}
+              value={replyBody}
+              onChange={(event) => onReplyBodyChange(event.target.value)}
+              maxLength={FEEDBACK_BODY_MAX_CHARS}
+              rows={3}
+              disabled={sendState === "sending"}
+            />
+          </label>
+          <p className="panel-actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={onSendReply}
+              disabled={sendDisabled}
+            >
+              {sendState === "sending" ? "Sending…" : sendLabel}
+            </button>
+            {replyBehindButton && replyBody.trim().length === 0 ? (
+              <button type="button" onClick={() => setReplying(false)}>
+                Cancel
+              </button>
+            ) : null}
+          </p>
+        </>
+      ) : (
+        <p className="panel-actions">
+          <button type="button" onClick={openComposer}>
+            Reply
+          </button>
+        </p>
+      )}
       {sendState === "failed" ? (
         <p role="alert" className="capture-error">
           That reply could not be sent. Your text is still here — try again.
@@ -150,7 +209,9 @@ export function ThreadView({
           This link is no longer valid, so the reply was not sent.
         </p>
       ) : null}
-      <p className="panel-note">Replies are permanent: they cannot be edited or deleted.</p>
+      {composerOpen ? (
+        <p className="panel-note">Replies are permanent: they cannot be edited or deleted.</p>
+      ) : null}
     </section>
   );
 }

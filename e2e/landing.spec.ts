@@ -19,7 +19,7 @@ import { expect, test } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { registerRunCleanup } from "./run-cleanup";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { openRail, openNewProject } from "./rail";
+import { openPageFromMenu, openNewProject } from "./rail";
 
 const createEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -216,14 +216,12 @@ test("the landing's sign-in call leads to the workspace, and /pins/new creates e
   await expect(page).toHaveURL(/\/pins$/);
   await expect(page.getByText("Signed in as Lucas (editor).")).toBeVisible();
   await expect(page.getByRole("button", { name: "Show projects" })).toBeVisible();
-  const rail = await openRail(page);
-  const createdProject = rail.locator("details.tree-project").filter({
-    has: page.getByRole("button", { name: ROOT, exact: true, includeHidden: true }),
-  });
-  if ((await createdProject.getAttribute("open")) === null) {
-    await createdProject.locator("> summary").click();
-  }
-  await expect(createdProject.getByRole("button", { name: ROOT, exact: true })).toBeVisible();
+  // The new project is in the menu and holds its page (D128): pick it,
+  // then the page in its overview.
+  await openPageFromMenu(page, ROOT);
+  await expect(
+    page.getByRole("group", { name: "Device" }).getByRole("button", { name: `Desktop capture of ${ROOT}` }),
+  ).toBeVisible();
   expect(projectPosts).toBe(1);
   expect(projectCreates).toBe(1);
   expect(consoleErrors).toEqual([]);

@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 49 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127 |
+| Human directed | 50 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **127** | |
+| **Total** | **128** | |
 
 ## Key decisions
 
@@ -189,6 +189,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D125](#d125--a-box-or-circle-can-be-attached-to-several-elements) | build | A box or circle can be attached to several elements | Human directed | accepted |
 | [D126](#d126--the-landing-example-uses-the-apps-pin-table-new-project-moves-into-the-projects-menu) | design | The landing example uses the app's pin table; New project moves into the projects menu | Human directed | accepted |
 | [D127](#d127--sentence-case-pinata-capitalized-and-a-demo-video-on-the-landing) | design | Sentence case, "Pinata" capitalized, and a demo video on the landing | Human directed | accepted |
+| [D128](#d128--the-pin-panel-as-one-accordion-the-projects-menu-as-a-switcher) | design | The pin panel as one accordion; the projects menu as a switcher | Human directed | accepted |
 
 ---
 
@@ -5146,4 +5147,50 @@ Human instruction:
 
 ---
 
-<sub>Generated from 127 record(s) as of 2026-10-07 · source `45ddd089517a`</sub>
+## D128 — The pin panel as one accordion; the projects menu as a switcher
+
+*2026-10-07 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The pin panel showed the selected pin above the list, so picking another pin changed everything above the list and the row moved out from under the pointer; the comment appeared three times; fixed help text sat between the reader and the other pins. In the projects menu, clicking a name only opened or closed it, going to the project was a separate Overview button, pages were a third kind of button, the current-project bar and the open state were unrelated, and the page count looked like a feedback count.
+
+**Decision**
+
+Pin panel: one list where every mark is a row and the selected one opens in place — its status, the comment once, the element, Resolve / Edit / Delete, then its replies, which scroll inside the row starting at the latest, with the reply box behind a Reply button. Resolved marks gather in a closed "N resolved" group that opens when its mark is selected. The drag hints left the panel (the canvas help covers moving); the delete confirmation says the number is retired; page and device moved into Details. Projects menu (proposal B): a flat list of projects, each with its open-pins count; a click anywhere on the row shows that project's overview and closes the menu. Each project's addresses sit behind a small (i) beside its name, shown on hover or keyboard focus, so no URL takes room in the menu. A project's pages are picked in the project: its overview cards, or a page picker above the canvas (shown when there is more than one page). The project title in the header is now the project's heading. Along the way: signing out is a full page load (it no longer reopens the sign-in dialog from a cached /#editor-login), and several end-to-end specs that CI skips were brought up to date.
+
+**Alternatives considered**
+
+- *Proposal A: a file tree where the arrow opens and the name goes* — The owner chose B: no nesting at all, and the menu answers only which project.
+- *Let a long thread grow the whole row* — The owner chose scrolling inside the row so the rows below stay close.
+
+**Rationale**
+
+The owner asked to rethink both: "the Pin menu behavior is really weird. it's hard to navigate. should we try an accordian wher ethe active pin takes up the bulk of the space, but you can still easily get to the others?" and "it's unclear what opens/closes the project entry vs. jumping into the entry itself. please revisit and come up with two proposals." Then chose: resolved pins in a closed group ("yes"), scrolling inside the row ("let's do this"), and "go with Proposal B. this sounds right." No dependency was added. On seeing the old menu live, the owner added: "let's move the URL into an onHover (i) icon next to the project name. it's cuombersome in the menu."
+
+**Consequences**
+
+- Reaching a page in a different project takes two clicks: the project, then the page.
+- The founder's view is unchanged; the thread view's new options are opt-in.
+
+**Provenance evidence**
+
+Human instruction:
+
+> go with Proposal B. this sounds right.
+
+**Artifacts**
+
+- `src/components/capture-panel.tsx` — The pin accordion.
+- ![A pin open in place, its thread scrolled to the latest reply (light, sample data).](dashboard/screenshots/D128-panel-light.png) — A pin open in place, its thread scrolled to the latest reply (light, sample data).
+- ![The same in dark.](dashboard/screenshots/D128-panel-dark.png) — The same in dark.
+- ![The resolved group opened.](dashboard/screenshots/D128-panel-resolved-light.png) — The resolved group opened.
+- ![The projects menu as a switcher (light).](dashboard/screenshots/D128-menu-light.png) — The projects menu as a switcher (light).
+- ![The same in dark.](dashboard/screenshots/D128-menu-dark.png) — The same in dark.
+- ![The page picker above the canvas.](dashboard/screenshots/D128-toolbar-light.png) — The page picker above the canvas.
+- ![A project's addresses behind its (i) (light).](dashboard/screenshots/D128-menu-info-light.png) — A project's addresses behind its (i) (light).
+- ![The same in dark.](dashboard/screenshots/D128-menu-info-dark.png) — The same in dark.
+
+---
+
+<sub>Generated from 128 record(s) as of 2026-10-07 · source `a520b4b7a7b7`</sub>

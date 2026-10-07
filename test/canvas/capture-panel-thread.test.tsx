@@ -120,18 +120,27 @@ describe("CapturePanel thread section", () => {
     const items = within(within(thread).getByRole("list", { name: "Thread entries" })).getAllByRole(
       "listitem",
     );
-    expect(items).toHaveLength(3);
-    expect(items[0]).toHaveAttribute("data-author", "Lucas");
-    expect(items[0]).toHaveTextContent("Tighten the pricing table.");
-    expect(items[1]).toHaveAttribute("data-author", "founder");
-    expect(items[1]).toHaveTextContent("founder");
-    expect(items[1]).toHaveTextContent("On it.");
-    expect(items[2]).toHaveAttribute("data-author", "Lucas");
+    // The comment is shown once, above the thread, in the open row (D128):
+    // the thread holds the replies only.
+    expect(items).toHaveLength(2);
+    expect(screen.getByTestId("panel-pin").querySelector(".panel-pin-body")).toHaveTextContent(
+      "Tighten the pricing table.",
+    );
+    expect(items[0]).toHaveAttribute("data-author", "founder");
+    expect(items[0]).toHaveTextContent("founder");
+    expect(items[0]).toHaveTextContent("On it.");
+    expect(items[1]).toHaveAttribute("data-author", "Lucas");
     // Hostile text is inert.
     expect(thread.querySelector("img")).toBeNull();
-    expect(items[2]).toHaveTextContent("<img src=x onerror=alert(1)> thanks");
-    // Entries carry no mutation control; the only button is the composer's.
-    expect(within(thread).getAllByRole("button")).toHaveLength(1);
+    expect(items[1]).toHaveTextContent("<img src=x onerror=alert(1)> thanks");
+    // A long thread scrolls inside the row and can be reached by keyboard.
+    expect(within(thread).getByRole("list", { name: "Thread entries" })).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
+    // Entries carry no mutation control; the only button opens the reply box.
+    expect(within(thread).getAllByRole("button").map((b) => b.textContent)).toEqual(["Reply"]);
+    await user.click(within(thread).getByRole("button", { name: "Reply" }));
     const composer = within(thread).getByLabelText("Follow up as Lucas");
     expect(composer).toHaveAttribute("maxlength", String(FEEDBACK_BODY_MAX_CHARS));
     expect(within(thread).getByRole("button", { name: "Send follow-up" })).toBeDisabled();
