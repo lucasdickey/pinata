@@ -180,8 +180,8 @@ export function AnnotateSlide({ index }: SlideProps) {
           </Reveal>
           <Reveal delay={280}>
             <Body size={23} soft style={{ marginTop: 16 }}>
-              <strong>Shift-drag draws a box</strong> around a region, numbered in the same
-              sequence. Circles and arrows are still to come.
+              <strong>Shift-drag draws a box</strong>, and the toolbar draws circles and arrows
+              too, all numbered in the same sequence as the pins.
             </Body>
           </Reveal>
         </div>

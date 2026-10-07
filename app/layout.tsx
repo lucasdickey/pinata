@@ -4,7 +4,7 @@ import { THEME_BOOT_SCRIPT } from "../src/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "pinata",
+  title: "Pinata",
   description: "pin + annotation + at ya — directional feedback on public websites",
 };
 

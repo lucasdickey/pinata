@@ -8,7 +8,7 @@ test("home page renders the product identity", async ({ page }) => {
 
   const response = await page.goto("/");
   expect(response?.ok()).toBeTruthy();
-  await expect(page).toHaveTitle(/pinata/);
-  await expect(page.getByRole("heading", { level: 1, name: "pinata" })).toBeVisible();
+  await expect(page).toHaveTitle(/Pinata/);
+  await expect(page.getByRole("heading", { level: 1, name: "Pinata" })).toBeVisible();
   expect(consoleErrors).toEqual([]);
 });

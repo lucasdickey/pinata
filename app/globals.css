@@ -557,7 +557,6 @@ pre code {
   margin: 0;
   padding: 0;
   list-style: none;
-  text-transform: lowercase;
 }
 
 .site-links a,
@@ -747,8 +746,8 @@ pre code {
   font-size: 1rem;
 }
 
-/* A section on the landing: a plain lowercase line, then a large light
-   heading, then the content. */
+/* A section on the landing: a plain short line, then a large light
+   heading, then the content (sentence case, D127). */
 .landing-section {
   margin: 0 0 clamp(3.5rem, 9vw, 7rem);
 }
@@ -757,7 +756,6 @@ pre code {
   margin: 0 0 0.75rem;
   color: var(--ink-soft);
   font-size: 0.95rem;
-  text-transform: lowercase;
 }
 
 .landing-section > h2,
@@ -805,7 +803,6 @@ pre code {
   font-weight: 550;
   letter-spacing: 0;
   color: var(--ink);
-  text-transform: lowercase;
 }
 
 .site-footer ul {
@@ -3433,7 +3430,6 @@ pre code {
   margin: 0 0 0.25rem;
   color: var(--ink-soft);
   font-size: 0.95rem;
-  text-transform: lowercase;
 }
 
 .founder-root {

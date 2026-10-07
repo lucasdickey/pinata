@@ -5788,8 +5788,65 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D127",
+      "date": "2026-10-07",
+      "phase": "design",
+      "title": "Sentence case, \"Pinata\" capitalized, and a demo video on the landing",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Feedback left on yourpinata.dev itself, read through the agent link (D121): links, buttons, headings, and footer text were lowercase, several forced by CSS; the brand appeared as \"pinata\" in running text; and the example showed a still image of a finished review rather than the experience of making one.",
+      "decision": "Every visible label on the landing is in sentence case, and the CSS that forced lowercase on the top links, section eyebrows, footer headings, and the founder page's badge is gone. \"Pinata\" is capitalized everywhere except the logo's wordmark: the hero heading, page titles, the logo's spoken name, the footer, and the walkthrough heading. The landing example now plays an eighteen-second looping demo, drawn in the browser with Remotion from the same fixture as the table below it: a cursor picks each tool and adds a pin, a circle, an arrow, and a box, each comment types in, the link is sent, and the founder's reply lands on pin 1. It is muted and has play and pause controls; with reduced motion, or before script loads, the static example shows instead. The walkthrough's annotate slide and transcript, which still said circles and arrows were to come, now describe all four mark kinds.",
+      "alternatives": [
+        {
+          "option": "Render the demo to an MP4 file",
+          "why_not": "A video file in the repo goes stale when the example changes; drawing it from the fixture keeps the demo, the static example, and the table in step, and the player is already a dependency (D072)."
+        },
+        {
+          "option": "Keep lowercase as a brand style",
+          "why_not": "The owner asked for sentence case across the board; only the logo stays lowercase."
+        }
+      ],
+      "rationale": "The owner left five marks on yourpinata.dev and handed them over through the agent link: \"We need consistent casing for links/buttons. Let's go with sentence casing across the board.\", \"Pinata as a brand should be capitalized. only in the logo will it be call lower case.\", \"Let's sentence case all of this. not a fan of all lowercase.\", \"let's re-render this to include square and circles as well. in face, let's use remotion and render a simple walkthrough demo video of the experience here.\", and \"more sentence casing, please\". No dependency was added.",
+      "consequences": [
+        "The demo paints with the page's CSS, so it plays in the browser player; it is not registered for the MP4 render, where those styles do not exist.",
+        "Tests and e2e specs that read the old lowercase names now read the capitalized ones."
+      ],
+      "transcript": {
+        "request": "We need consistent casing for links/buttons. Let's go with sentence casing across the board."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "remotion/demo/PinataDemo.tsx",
+          "caption": "The demo composition."
+        },
+        {
+          "type": "file",
+          "path": "src/components/example-demo.tsx",
+          "caption": "The player, with the static fallback."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D127-demo-frames.png",
+          "caption": "Four moments: pin, circle, arrow, box (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D127-demo-reply-dark.png",
+          "caption": "The link sent and the founder's reply (dark)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D127-demo-phone.png",
+          "caption": "Phone width, with the sentence-cased headings."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-10-07",
-  "source_hash": "770adf91df2e"
+  "source_hash": "45ddd089517a"
 };

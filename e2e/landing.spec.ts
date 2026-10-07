@@ -59,11 +59,11 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
 
   const response = await page.goto("/");
   expect(response?.ok()).toBeTruthy();
-  await expect(page).toHaveTitle(/pinata/);
-  await expect(page.getByRole("heading", { level: 1, name: "pinata" })).toBeVisible();
+  await expect(page).toHaveTitle(/Pinata/);
+  await expect(page.getByRole("heading", { level: 1, name: "Pinata" })).toBeVisible();
 
   // VAL-LANDING-001: the inline-SVG logo opens the page, ahead of the name.
-  const logo = page.getByRole("img", { name: "pinata logo" });
+  const logo = page.getByRole("img", { name: "Pinata logo" });
   await expect(logo).toBeVisible();
   const logoFirst = await page.evaluate(() => {
     const mark = document.querySelector(".pinata-logo");

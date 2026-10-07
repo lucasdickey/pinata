@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 48 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126 |
+| Human directed | 49 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127 |
 | Agent proposed, human approved | 23 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110 |
 | Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118 |
 | Raised and deferred | 4 | D003, D054, D094, D109 |
-| **Total** | **126** | |
+| **Total** | **127** | |
 
 ## Key decisions
 
@@ -188,6 +188,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D124](#d124--signing-in-again-without-losing-work) | build | Signing in again without losing work | Human directed | accepted |
 | [D125](#d125--a-box-or-circle-can-be-attached-to-several-elements) | build | A box or circle can be attached to several elements | Human directed | accepted |
 | [D126](#d126--the-landing-example-uses-the-apps-pin-table-new-project-moves-into-the-projects-menu) | design | The landing example uses the app's pin table; New project moves into the projects menu | Human directed | accepted |
+| [D127](#d127--sentence-case-pinata-capitalized-and-a-demo-video-on-the-landing) | design | Sentence case, "Pinata" capitalized, and a demo video on the landing | Human directed | accepted |
 
 ---
 
@@ -5103,4 +5104,46 @@ Human instruction:
 
 ---
 
-<sub>Generated from 126 record(s) as of 2026-10-07 · source `770adf91df2e`</sub>
+## D127 — Sentence case, "Pinata" capitalized, and a demo video on the landing
+
+*2026-10-07 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Feedback left on yourpinata.dev itself, read through the agent link (D121): links, buttons, headings, and footer text were lowercase, several forced by CSS; the brand appeared as "pinata" in running text; and the example showed a still image of a finished review rather than the experience of making one.
+
+**Decision**
+
+Every visible label on the landing is in sentence case, and the CSS that forced lowercase on the top links, section eyebrows, footer headings, and the founder page's badge is gone. "Pinata" is capitalized everywhere except the logo's wordmark: the hero heading, page titles, the logo's spoken name, the footer, and the walkthrough heading. The landing example now plays an eighteen-second looping demo, drawn in the browser with Remotion from the same fixture as the table below it: a cursor picks each tool and adds a pin, a circle, an arrow, and a box, each comment types in, the link is sent, and the founder's reply lands on pin 1. It is muted and has play and pause controls; with reduced motion, or before script loads, the static example shows instead. The walkthrough's annotate slide and transcript, which still said circles and arrows were to come, now describe all four mark kinds.
+
+**Alternatives considered**
+
+- *Render the demo to an MP4 file* — A video file in the repo goes stale when the example changes; drawing it from the fixture keeps the demo, the static example, and the table in step, and the player is already a dependency (D072).
+- *Keep lowercase as a brand style* — The owner asked for sentence case across the board; only the logo stays lowercase.
+
+**Rationale**
+
+The owner left five marks on yourpinata.dev and handed them over through the agent link: "We need consistent casing for links/buttons. Let's go with sentence casing across the board.", "Pinata as a brand should be capitalized. only in the logo will it be call lower case.", "Let's sentence case all of this. not a fan of all lowercase.", "let's re-render this to include square and circles as well. in face, let's use remotion and render a simple walkthrough demo video of the experience here.", and "more sentence casing, please". No dependency was added.
+
+**Consequences**
+
+- The demo paints with the page's CSS, so it plays in the browser player; it is not registered for the MP4 render, where those styles do not exist.
+- Tests and e2e specs that read the old lowercase names now read the capitalized ones.
+
+**Provenance evidence**
+
+Human instruction:
+
+> We need consistent casing for links/buttons. Let's go with sentence casing across the board.
+
+**Artifacts**
+
+- `remotion/demo/PinataDemo.tsx` — The demo composition.
+- `src/components/example-demo.tsx` — The player, with the static fallback.
+- ![Four moments: pin, circle, arrow, box (light).](dashboard/screenshots/D127-demo-frames.png) — Four moments: pin, circle, arrow, box (light).
+- ![The link sent and the founder's reply (dark).](dashboard/screenshots/D127-demo-reply-dark.png) — The link sent and the founder's reply (dark).
+- ![Phone width, with the sentence-cased headings.](dashboard/screenshots/D127-demo-phone.png) — Phone width, with the sentence-cased headings.
+
+---
+
+<sub>Generated from 127 record(s) as of 2026-10-07 · source `45ddd089517a`</sub>

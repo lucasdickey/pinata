@@ -33,12 +33,12 @@ export function LandingHero({
     <header className="landing-hero">
       {showMark ? <PinataLogo /> : null}
       <p className="landing-eyebrow">
-        <strong>pin</strong> + <strong>annotate</strong> + at{" "}
+        <strong>Pin</strong> + <strong>annotate</strong> + at{" "}
         <strong>ya</strong>
       </p>
-      <h1>pinata</h1>
+      <h1>Pinata</h1>
       <p className="landing-statement">
-        feedback pinned to the exact pixel, sent in one link
+        Feedback pinned to the exact pixel, sent in one link
       </p>
       <p className="landing-prop">
         Drop in a public page address and Pinata captures it — then pin plain,
@@ -76,7 +76,7 @@ export function LandingLinks() {
 function SiteBar() {
   return (
     <div className="site-bar">
-      <Link href="/" className="site-mark" aria-label="pinata home">
+      <Link href="/" className="site-mark" aria-label="Pinata home">
         <PinataLogo size={30} />
         <span aria-hidden="true">pinata</span>
       </Link>
@@ -104,8 +104,8 @@ function SiteBar() {
 function HowItWorks() {
   return (
     <section className="landing-section" aria-labelledby="how-heading">
-      <p className="section-eyebrow">how it works</p>
-      <h2 id="how-heading">a two-minute comment should take two minutes</h2>
+      <p className="section-eyebrow">How it works</p>
+      <h2 id="how-heading">A two-minute comment should take two minutes</h2>
       <ul className="landing-points">
         <li>
           <div className="process-art" aria-hidden="true">
@@ -118,9 +118,9 @@ function HowItWorks() {
             />
           </div>
           <p className="process-number" aria-hidden="true">
-            01 / capture
+            01 / Capture
           </p>
-          <h3>capture the page</h3>
+          <h3>Capture the page</h3>
           <p>
             Every address you list is captured on desktop and mobile as a full
             static page, with a small map of what is where.
@@ -137,9 +137,9 @@ function HowItWorks() {
             />
           </div>
           <p className="process-number" aria-hidden="true">
-            02 / annotate
+            02 / Annotate
           </p>
-          <h3>pin it where it happens</h3>
+          <h3>Pin it where it happens</h3>
           <p>
             Drop a pin, draw a box or a circle, or point an arrow, and say what
             you mean in a line. Each mark stays on its pixel at any zoom.
@@ -156,9 +156,9 @@ function HowItWorks() {
             />
           </div>
           <p className="process-number" aria-hidden="true">
-            03 / share
+            03 / Share
           </p>
-          <h3>send one link</h3>
+          <h3>Send one link</h3>
           <p>
             The founder opens it without an account, reads each note in place,
             and replies. You see the reply without reloading.
@@ -183,26 +183,26 @@ function SiteFooter() {
           />
         </div>
         <p>
-          pinata<span>a little feedback goes a long way.</span>
+          Pinata<span>A little feedback goes a long way.</span>
         </p>
       </div>
       <div>
-        <h2>product</h2>
+        <h2>Product</h2>
         <ul>
           <li>
             <Link href="/walkthrough" className="quiet-link">
-              the ten-chapter walkthrough
+              The ten-chapter walkthrough
             </Link>
           </li>
           <li>
             <SignInButton className="link-button quiet-link">
-              editor sign in
+              Editor sign in
             </SignInButton>
           </li>
         </ul>
       </div>
       <div>
-        <h2>how it's built</h2>
+        <h2>How it's built</h2>
         <LandingLinks />
       </div>
       <p className="footer-note">
@@ -223,7 +223,7 @@ function LandingCta() {
         Sign in to start a review
       </SignInButton>
       <a className="quiet-link" href="#example-heading">
-        see an example →
+        See an example →
       </a>
     </p>
   );
@@ -258,7 +258,7 @@ export function AnonymousLanding() {
               preload
             />
             <span className="hero-art-caption">
-              a little note. right where it matters.
+              A little note. Right where it matters.
             </span>
           </div>
         </div>
@@ -272,11 +272,11 @@ export function AnonymousLanding() {
             <span className="landing-halftone-glow" />
           </div>
           <div className="invitation-copy">
-            <p className="section-eyebrow">your next good idea starts here</p>
+            <p className="section-eyebrow">Your next good idea starts here</p>
             <h2>
-              got notes?
+              Got notes?
               <br />
-              let’s pin them.
+              Let’s pin them.
             </h2>
             <p>Give your feedback a place to land.</p>
           </div>

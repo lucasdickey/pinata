@@ -30,7 +30,7 @@ test("a clean browser sees one masked password prompt and no editor data", async
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1, name: "pinata" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Pinata" })).toBeVisible();
 
   // The one prompt lives in the sign-in dialog (D123).
   await page.getByRole("button", { name: "Sign in to start a review" }).click();

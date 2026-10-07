@@ -56,7 +56,7 @@ export function WalkthroughPlayer() {
 
   return (
     <section className="walkthrough" aria-labelledby="walkthrough-title" onKeyDown={onKeyDown}>
-      <h1 id="walkthrough-title">How pinata works</h1>
+      <h1 id="walkthrough-title">How Pinata works</h1>
       <p className="walkthrough-lede">
         Ten chapters, {formatDuration(TOTAL_FRAMES)} end to end. Press play, or pick a chapter.
         Space plays and pauses; the arrow keys move between chapters while the walkthrough has
