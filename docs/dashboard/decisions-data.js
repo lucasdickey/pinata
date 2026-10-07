@@ -5915,8 +5915,95 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D129",
+      "date": "2026-10-07",
+      "phase": "build",
+      "title": "Add pages to an existing project",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "A project's pages were fixed when it was created. The only place to enter addresses was the New project form, the server had no way to add a page to a project that already existed, and the overview had no control for it. The one related control, the scoped retry under a screenshot, did take a fresh screenshot of a page that had worked, but it was labelled \"Retry\", so it read as a failure-only action.",
+      "decision": "The project overview ends with an \"Add pages\" card, dashed like \"+ New project\" in the projects menu, which says how much room the project has left. Pressing it opens a form in its place across the row: URL rows like the New project form's, finished the same way (a bare domain gains https://, a path like /pricing resolves against the project's root, D097). POST /api/projects/[publicId]/pages adds the rows behind the same boundary as creation (same origin, session and CSRF proof, content type and byte cap, strict schema, per-row URL corrections by index with nothing echoed) and commits, in one transaction, the idempotency record, the new pages after the existing ones, and a pending Desktop and Mobile attempt for each, then drives them after the response (D076). An address the project already has is skipped and reported by row, never added twice; if every row is already a page, nothing is written and the form stays open with a note on each row. The project's limits hold across additions: 16 unique pages and 64 screenshots in all. An archived or deleted project takes no pages. Under a screenshot that worked, the scoped retry now reads \"Take a new Desktop screenshot\" (or Mobile); after a failure it still reads \"Retry … capture\".",
+      "alternatives": [
+        {
+          "option": "An \"Add pages\" button beside Share with founder and Agent link",
+          "why_not": "Those two are the project's links; adding pages belongs with the page cards it adds to, and the owner agreed with the card."
+        },
+        {
+          "option": "Report an address the project already has as an error on its row",
+          "why_not": "Asking for a page the project has is not a mistake; skipping it and saying so lets the rest of the rows go through."
+        },
+        {
+          "option": "Reuse the New project form, with the root and title hidden",
+          "why_not": "Its reordering, root, and title controls do not apply; a short form with only URL rows is clearer, and it shares the address messages and the completion rule."
+        }
+      ],
+      "rationale": "The owner asked: \"We should have a means to add new images to an existing project. Am I missing that somewhere? Otherwise, we should definitely have an \\\"Add new\\\" screen or something like that, since we support multiple URLs.\" The proposal was a card at the end of the overview's page cards that opens a form in place, the server route mirroring creation, the limits shown on the card, already-present addresses skipped with a note, and the Retry rename. The owner answered: \"i agree with you UX strategy. let's do it.\" No dependency and no database change: the pages and captures tables already allow more pages per project, and the unique page index is what refuses a second copy of an address.",
+      "consequences": [
+        "A project can grow after it is shared; the founder view shows the new pages once their screenshots are ready, with no extra step.",
+        "Two tabs adding the same address at once: one wins, the other answers 409 and the form asks to check the rows and try again.",
+        "Pages cannot be removed or reordered yet; that is a separate decision."
+      ],
+      "transcript": {
+        "request": "i agree with you UX strategy. let's do it."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/api/projects/[publicId]/pages/route.ts",
+          "caption": "The add-pages route."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/add-pages.ts",
+          "caption": "The transaction, the skips, and the limits."
+        },
+        {
+          "type": "file",
+          "path": "src/components/add-pages.tsx",
+          "caption": "The Add pages card and form."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/overview-add-card.jpg",
+          "caption": "The Add pages card at the end of the overview (sample data)."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/add-pages-form.jpg",
+          "caption": "The form open across the row."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/add-pages-added.jpg",
+          "caption": "After adding: the new pages' cards waiting for their screenshots."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/add-pages-form-phone.jpg",
+          "caption": "The form at phone width."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/add-pages-dark-card.jpg",
+          "caption": "The card in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/add-pages-dark-form.jpg",
+          "caption": "The form in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/add-pages/take-new-screenshot.jpg",
+          "caption": "The renamed control under a screenshot that worked."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-10-07",
-  "source_hash": "a7fd5d679205"
+  "source_hash": "ab2197398458"
 };

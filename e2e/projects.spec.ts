@@ -30,6 +30,7 @@ const RUN_ID = `e2e-${Date.now().toString(36)}`;
 const ROOT = `https://chickpea.co/?${RUN_ID}`;
 const PRICING = `https://chickpea.co/pricing?${RUN_ID}`;
 const ABOUT = `https://chickpea.co/about?${RUN_ID}`;
+const CONTACT = `https://chickpea.co/contact?${RUN_ID}`;
 
 async function signIn(page: Page): Promise<void> {
   // /#editor-login opens the sign-in dialog directly (D123).
@@ -329,6 +330,42 @@ test("the workspace keeps one active device, retries one variant, and survives r
     detail.getByRole("list", { name: "Capture versions" }).getByRole("button"),
   ).toHaveCount(2);
   expect(consoleErrors).toEqual([]);
+});
+
+test("Add pages on the overview adds a page and skips one the project has (D129)", async ({
+  page,
+}) => {
+  test.skip(!projectEnv.ready, projectEnv.reason);
+  await stubDispatchQuota(page);
+  await signIn(page);
+  const rail = await openRail(page);
+  await rail.locator("button.project-switch").filter({ hasText: `${RUN_ID} review` }).click();
+  const overview = page.getByRole("region", { name: "Project overview" });
+
+  // One new address and one the project already has.
+  await overview.getByRole("button", { name: "Add pages" }).click();
+  await overview.getByRole("textbox", { name: "URL 1" }).fill(CONTACT);
+  await overview.getByRole("button", { name: "Add another URL" }).click();
+  await overview.getByRole("textbox", { name: "URL 2" }).fill(PRICING);
+  await overview.getByRole("button", { name: "Add pages" }).click();
+
+  await expect(overview.getByTestId("add-pages-status")).toHaveText(
+    "Added 1 page. Its screenshots are on the way. Skipped 1 already in this project.",
+  );
+  await expect(
+    overview.locator(`button.overview-card[aria-label$=" capture of ${CONTACT}"]`),
+  ).toHaveCount(2);
+
+  const project = runScoped(await projectsOf(page.request)).find(
+    (p) => p.title === `${RUN_ID} review`,
+  )!;
+  expect(project.pages.map((p) => p.normalizedUrl)).toEqual([ROOT, PRICING, ABOUT, CONTACT]);
+  const added = project.pages[3]!;
+  expect(added.devices.map((d) => d.variant)).toEqual(["desktop", "mobile"]);
+  for (const d of added.devices) {
+    expect(d.attempts).toHaveLength(1);
+    expect(d.attempts[0]!.attempt).toBe(1);
+  }
 });
 
 test("a failed list load retries with exactly one read and never loses logout", async ({

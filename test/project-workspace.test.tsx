@@ -654,6 +654,17 @@ describe("static screenshot stage", () => {
   });
 });
 
+describe("adding pages (D129)", () => {
+  test("the overview ends with an Add pages card that names the room left", () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    const overview = screen.getByRole("region", { name: "Project overview" });
+    const cards = within(overview).getAllByRole("listitem");
+    const last = cards[cards.length - 1]!;
+    const add = within(last).getByRole("button", { name: "Add pages" });
+    expect(add).toHaveAccessibleDescription("Room for 14 more pages");
+  });
+});
+
 describe("scoped retry", () => {
   test("is offered for a terminal attempt and hidden for an in-flight one", async () => {
     const user = userEvent.setup();
@@ -669,6 +680,15 @@ describe("scoped retry", () => {
     expect(
       within(detail()).getByRole("button", { name: "Retry Mobile capture" }),
     ).toBeInTheDocument();
+  });
+
+  test("after a screenshot that worked, the same control offers a new screenshot (D129)", async () => {
+    render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+    openHome();
+    expect(
+      within(detail()).getByRole("button", { name: "Take a new Desktop screenshot" }),
+    ).toBeInTheDocument();
+    expect(within(detail()).queryByRole("button", { name: /^Retry Desktop/ })).toBeNull();
   });
 
   test("posts one scoped request and re-reads the hierarchy", async () => {

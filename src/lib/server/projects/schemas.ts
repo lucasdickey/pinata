@@ -24,3 +24,14 @@ export const createProjectBodySchema = z.strictObject({
 });
 
 export type CreateProjectBody = z.infer<typeof createProjectBodySchema>;
+
+/**
+ * POST /api/projects/[publicId]/pages body (D129): the rows to add, nothing
+ * else. Per-row admissibility is the URL boundary's, as for creation.
+ */
+export const addPagesBodySchema = z.strictObject({
+  urls: z.array(z.string().max(MAX_URL_BYTES)).min(1).max(MAX_SUBMITTED_URL_ROWS),
+  idempotencyKey: z.string().min(IDEMPOTENCY_KEY_MIN_CHARS).max(IDEMPOTENCY_KEY_MAX_CHARS),
+});
+
+export type AddPagesBody = z.infer<typeof addPagesBodySchema>;

@@ -81,6 +81,7 @@ import { AgentLinkControl } from "./agent-link";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
+import { AddPagesCard } from "./add-pages";
 import { ProjectOverview } from "./project-overview";
 import type { ReplySendState, ThreadStatus } from "./thread-view";
 
@@ -1768,15 +1769,23 @@ export function ProjectWorkspace({
               </p>
             ) : null}
 
+            {/* The same scoped attempt either way; only the words differ.
+                After a screenshot that worked it is a fresh take of the page
+                as it is now (pins stay on the old version), after one that
+                failed it is a retry (D129). */}
             {active.device.retryable ? (
               <button
                 type="button"
                 disabled={retrying}
                 onClick={() => void retry(active.page.id, active.device.variant)}
               >
-                {retrying
-                  ? "Retrying…"
-                  : `Retry ${variantLabel(active.device.variant)} capture`}
+                {active.device.latest?.state === "ready"
+                  ? retrying
+                    ? "Starting…"
+                    : `Take a new ${variantLabel(active.device.variant)} screenshot`
+                  : retrying
+                    ? "Retrying…"
+                    : `Retry ${variantLabel(active.device.variant)} capture`}
               </button>
             ) : null}
 
@@ -1806,12 +1815,19 @@ export function ProjectWorkspace({
         ) : (
           <>
             {/* The project overview (D077): every capture as a card, then
-                every pin in the project. */}
+                every pin in the project. The last card adds pages (D129). */}
             <ProjectOverview
               project={activeProject}
               adjustments={seenAdjust}
               onOpenCapture={(pageId, variant) =>
                 openCapture(activeProject.projectId, pageId, variant)
+              }
+              trailing={
+                <AddPagesCard
+                  key={`add-pages-${activeProject.publicId}`}
+                  project={activeProject}
+                  onAdded={onChanged}
+                />
               }
             />
             <PinTable
