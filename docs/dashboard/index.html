@@ -168,8 +168,7 @@
   };
 
   document.getElementById("tagline").innerHTML =
-    "<b>" + esc(data.tagline) + "</b> · " + esc(data.assignment) +
-    " · timebox ~" + esc(data.timebox_hours) + "h";
+    "<b>" + esc(data.tagline) + "</b> · " + esc(data.summary);
 
   // ---- stats -------------------------------------------------------------
   var statsEl = document.getElementById("stats");

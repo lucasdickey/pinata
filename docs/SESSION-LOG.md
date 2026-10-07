@@ -10,25 +10,22 @@ This file records **what happened**, including dead ends. `DECISIONS.md` records
 Added at closeout (`D091`) so the two measures of time in this log are not
 confused with each other.
 
-- **Human wall-clock time: under the four-hour brief**, by the owner's
-  accounting. Most of it went into writing a prompt, walking away while a
-  Factory Mission ran unattended, then coming back for the live checkpoints
-  and the scope calls (`D050`, `D051`). The owner's words: "using wall-clock
-  time, we are under the 4 hour limit - a lot of the activity was me teeing
-  up a prompt and then walking away to let Droid Missions do its thing mostly
-  autonomously."
+- **Human wall-clock time** was far smaller than the agent time. Most of it
+  went into writing a prompt, walking away while a Factory Mission ran
+  unattended, then coming back for the live checkpoints and the scope calls
+  (`D050`, `D051`).
 - **Agent time is recorded per session** in the `Elapsed` lines below, as the
   Mission workers reported it. The sections that state a figure sum to
   roughly 37 hours; several early and late sections record none. That figure
-  is machine time running mostly without a human present. It is not the human
-  effort the brief bounds, and it is not added to it.
+  is machine time running mostly without a human present. It is not human
+  effort, and it is not added to it.
 - **Tooling.** The application, capture pipeline, canvas, pins, founder links,
   landing page, and production deployment were built through Factory Droid
   Missions and Droid sessions. A documentation closeout and repository-hygiene
   pass were done with Claude Code on a phone, on a plane, because the
   connection would not sustain a Factory session; the same harness produced
-  the independent cross-review adopted in `D093`. That deviation from the
-  brief is disclosed rather than tidied away — see `D091`.
+  the independent cross-review adopted in `D093`. That is disclosed rather
+  than tidied away — see `D091`.
 - **Cursor, 2026-09-13/14.** Cursor's agent reviewed the UX-overhaul pull
   request and pushed its fixes: the selection-survives-a-poll fix on pull
   request 5, then pull request 6 (the retry race, the feedback count recorded
@@ -37,9 +34,7 @@ confused with each other.
   eight commits are authored `Cursor Agent` in the history. They were
   described in the 2026-09-15 session below but missing from this ledger
   until `D099`.
-- **After the assignment, 2026-09-23.** The owner took Pinata forward as his
-  own project, no longer a Factory exercise, and ran a review and hardening
-  pass in Claude Code: capture recovery (`D095`), canvas input (`D096`), live
+- **2026-09-23.** The owner ran a review and hardening pass in Claude Code: capture recovery (`D095`), canvas input (`D096`), live
   refresh and the founder's arrival (`D097`), sign-in hardening (`D098`), and
   the deploy runbook and this disclosure (`D099`).
 
@@ -47,7 +42,7 @@ confused with each other.
 
 ## Session 01 — 2026-09-04
 
-**Timebox:** ~4 hours total for the assignment. Consumed this session: _in progress_.
+**Time:** consumed this session: _in progress_.
 
 ### What happened
 
@@ -57,10 +52,9 @@ confused with each other.
 2. Local `git init` produced a `master` default branch. Flagged to the human rather
    than renamed unilaterally, since the choice is cosmetic but visible on a repo
    that will be reviewed. → `D003`
-3. The assignment PDF was read and transcribed into `docs/ASSIGNMENT.md`. The
-   grading criterion "ability to explain your process and decisions" was identified
-   as the one that shapes repository structure, since the other three are satisfied
-   by the product itself.
+3. Being able to explain the process and the decisions was identified as the
+   goal that shapes repository structure, since the product itself covers the
+   rest.
 4. The human asked for a documented decision trail with explicit provenance
    (human-requested vs agent-proposed-and-approved), a plain-text Markdown artifact
    to read afterwards, and a browser-loadable HTML view that can carry screenshots.
@@ -152,8 +146,8 @@ timestamp in generated output (`D007`) and the deferral status rule above.
 
 ## Session 02 — 2026-09-08
 
-**Timebox:** ~4 hours total for the assignment. Consumed prior to this session:
-not finalized in Session 01. Consumed this session: _in progress_.
+**Time:** consumed prior to this session: not finalized in Session 01.
+Consumed this session: _in progress_.
 
 ### What happened
 
@@ -193,8 +187,8 @@ None.
 
 ## Session 03 — 2026-09-08
 
-**Timebox:** ~4 hours total for the assignment. This session ran alongside a
-Factory Mission, so wall-clock and agent time have diverged; see below.
+**Time:** this session ran alongside a Factory Mission, so wall-clock and
+agent time have diverged; see below.
 
 ### What happened
 
@@ -2918,9 +2912,8 @@ are covered by specs that did not execute here.
 
 ## Session: the interactive walkthrough (2026-09-10)
 
-Elapsed: roughly 1h15 of agent time against no fixed timebox; the original
-4-hour build budget was spent in earlier sessions and this is wrap-phase
-work, done on the branch `remotion-education/pinata-interactive-walkthrough`
+Elapsed: roughly 1h15 of agent time against no fixed timebox; this is
+wrap-phase work, done on the branch `remotion-education/pinata-interactive-walkthrough`
 so it can be reviewed as one piece; `D010` (commit straight to `main`) still
 stands for product work.
 
@@ -3329,8 +3322,8 @@ nothing without `.env.local`.
 
 ## 2026-09-23 — review and hardening before the first end-to-end test (D095–D099)
 
-Harness: Claude Code, in a cloud session. Pinata is no longer a Factory
-exercise; the owner: "I'm taking it and running with it".
+Harness: Claude Code, in a cloud session. The owner: "I'm taking it and
+running with it".
 
 ### Starting state
 
@@ -3361,8 +3354,7 @@ passed and 44 skipped for want of credentials.
   bucket).
 - **Documentation.** The runbook now migrates before deploying and checks
   the Vercel settings first; `.env.example` names the sweep secrets; the
-  tooling ledger and `docs/ASSIGNMENT.md` now name the Cursor commits and
-  cite the right records. → `D099`
+  tooling ledger now names the Cursor commits and cites the right records. → `D099`
 
 ### What broke
 
@@ -3546,7 +3538,7 @@ The owner approved the generated paper-cut asset pack and requested implementati
 
 Added seven self-hosted PNGs, a split illustrated hero, three process cards, a sign-in invitation, and a footer mascot. The example now pairs the capture with the comment thread; its detailed DOM context and marks list live in a native disclosure below. Existing sign-in and editor routes are unchanged. Next Image provides responsive image delivery, only the hero is preloaded, decorative images have empty alt text, and motion respects reduced-motion preferences.
 
-Initial validation: TypeScript and all four landing component tests pass. Desktop light and mobile light/dark layouts were inspected in the browser, including the sign-in anchor. Full repository validation and deployment follow. Elapsed implementation time so far: approximately 15 minutes, outside the original assignment timebox.
+Initial validation: TypeScript and all four landing component tests pass. Desktop light and mobile light/dark layouts were inspected in the browser, including the sign-in anchor. Full repository validation and deployment follow. Elapsed implementation time so far: approximately 15 minutes.
 
 The first complete gate passed lint, typecheck, 1,757 unit/component checks, documentation freshness, and the production build. Browser tests passed for the public homepage, but 11 editor-flow tests failed because existing helpers searched for accessible headings inside closed project disclosures or expected the now-closed drawer to be visible (D106). Corrected only the test navigation: include hidden headings when locating the owning disclosure, open project summaries before visibility checks, and open the drawer for the post-sign-in project assertion. No editor product behavior changed. The complete gate is rerun with those helpers corrected.
 

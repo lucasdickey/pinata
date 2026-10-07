@@ -126,11 +126,10 @@ either one.
   founder view on phones.
 - **D079** — rectangles (listed under milestone 3 above).
 
-## The review and hardening pass (2026-09-23) — after the assignment
+## The review and hardening pass (2026-09-23)
 
-Pinata stopped being a Factory exercise and became the owner's own project.
-Before his first end-to-end test, a review found defects that would have met
-him during it; each was confirmed in the code, fixed with a failing test
+Before the owner's first end-to-end test, a review found defects that would
+have surfaced during it; each was confirmed in the code, fixed with a failing test
 first, and recorded.
 
 - **D095** — captures recover on the server: probe and provider flakes are

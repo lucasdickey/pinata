@@ -9,13 +9,13 @@ over the workspace-level `AGENTS.md` one directory up.
 
 ## 1. What this project is
 
-`pinata` is an MVP built for the Factory candidate assignment
-(see `docs/ASSIGNMENT.md`). The assignment is graded on four things:
+`pinata` is a lightweight workspace for pinning directional feedback to public
+web pages, built with AI tooling. Four things matter in how it is built:
 
 1. Creativity in what is built.
 2. Clarity in framing the problem.
 3. Effective use of AI tooling.
-4. **Ability to explain the process and the decisions.**
+4. **Being able to explain the process and the decisions.**
 
 Item 4 means the decision trail is a shipped deliverable, not a byproduct.
 Treat `docs/DECISIONS.md` and `docs/dashboard/index.html` with the same care as
@@ -62,8 +62,8 @@ test that was already implied. Noise makes the log useless.
 
 ### 2.3 Provenance is the point
 
-Every record carries an `origin` field. This taxonomy exists because the reviewer
-wants to distinguish what the human directed from what the agent proposed. Be
+Every record carries an `origin` field. This taxonomy exists because anyone reading
+the log wants to distinguish what the human directed from what the agent proposed. Be
 accurate even when it is unflattering.
 
 | `origin` | Meaning | Required evidence |
@@ -139,8 +139,7 @@ happened*, including dead ends. Dead ends are evidence of process. Keep them.
 
 ### 2.6 Wrap-up artifact
 
-`docs/NEXT.md` answers the assignment's third interview question, "what you'd do
-next if you had more time." Update it opportunistically as ideas get cut, rather
+`docs/NEXT.md` answers "what you'd do next if you had more time." Update it opportunistically as ideas get cut, rather
 than trying to reconstruct it at the end.
 
 ---
@@ -262,7 +261,7 @@ escapes to a human, add the failing test before fixing it.
 - **Commit hygiene.** Conventional-ish subject line, body naming the decision IDs
   the commit implements. Regenerate docs before committing. Commit and push early
   and often — at minimum whenever a decision lands — rather than batching; the
-  remote commit graph is part of the graded deliverable (see `D011`).
+  remote commit graph is part of the record (see `D011`).
 
 ---
 
@@ -314,7 +313,6 @@ pinata/
 │   ├── integration/                # real-provider suites; skip without .env.local
 │   └── fixtures/capture/           # controlled capture pages + host.json
 └── docs/
-    ├── ASSIGNMENT.md               # the brief, and how we intend to satisfy it
     ├── REQUIREMENTS.md             # product requirements (rendered at /reqs)
     ├── ARCHITECTURE.md             # system shape and boundaries (/reqs/architecture)
     ├── MILESTONES.md               # the three slices and their status (/reqs/milestones)

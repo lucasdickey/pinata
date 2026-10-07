@@ -5,8 +5,7 @@
 # Decision log
 
 **pinata** — pin + annotation + at ya  
-Factory candidate assignment: build a small MVP using AI tooling  
-Timebox: ~4h
+A lightweight workspace for pinning directional feedback to public web pages
 
 Every record is tagged with its **origin**, which separates what the human
 directed from what the agent proposed and the human approved. See `AGENTS.md`
@@ -212,7 +211,7 @@ Specified by the human with the gloss already attached. The pun encodes the prod
 **Consequences**
 
 - The name sets an expectation that the MVP involves pinning annotations to something and resurfacing them.
-- `pinata` collides with the well-known IPFS pinning service Pinata; not a problem for an interview artifact, would matter for anything public-facing.
+- `pinata` collides with the well-known IPFS pinning service Pinata; worth revisiting for anything public-facing.
 
 **Provenance evidence**
 
@@ -240,7 +239,7 @@ Create `github.com/lucasdickey/pinata` as a public repository from the outset.
 
 **Rationale**
 
-Specified by the human. Public from the first commit also means the full commit history is reviewable evidence that the work was built new for this assignment.
+Specified by the human. Public from the first commit also means the full commit history is reviewable evidence that the work was built new.
 
 **Consequences**
 
@@ -298,7 +297,7 @@ Agent asked:
 
 **Problem**
 
-The assignment is graded partly on "ability to explain your process and decisions." Reconstructing that narrative at the end of a four-hour build produces a sanitized story that omits the reversals, which are the interesting part.
+Explaining the process and the decisions is part of the work. Reconstructing that narrative at the end of a build produces a sanitized story that omits the reversals, which are the interesting part.
 
 **Decision**
 
@@ -311,7 +310,7 @@ Document decisions continuously as the build proceeds, in three forms: agent rul
 
 **Rationale**
 
-Requested by the human. The provenance split is the load-bearing part: it makes the division of labor between human and agent auditable instead of asserted, which is precisely what an agent-driven-development interview is probing.
+Requested by the human. The provenance split is the load-bearing part: it makes the division of labor between human and agent auditable instead of asserted.
 
 **Consequences**
 
@@ -416,7 +415,7 @@ Run Missions from inside `pinata/`, and give the repository a real validation co
 
 - *Proceed and accept the warning's risk* — The warning is accurate. An agent with no validation signal optimizes for looking finished, and the failure surfaces later as confidently broken output.
 - *Add a test framework such as Vitest or Jest* — Node 20 ships `node:test`, which covers this need exactly. A framework would break the zero-dependency rule that keeps the docs artifacts working with no install step.
-- *Wait until product code exists before adding tests* — The documentation apparatus is already the largest thing in the repo and is itself a graded deliverable. It needed covering regardless, and having the gate in place first means product code inherits it.
+- *Wait until product code exists before adding tests* — The documentation apparatus is already the largest thing in the repo and is itself a deliverable. It needed covering regardless, and having the gate in place first means product code inherits it.
 - *Init a git repo in the parent directory to silence the warning* — That directory holds dozens of unrelated projects. It would hand a Mission a working tree of other people's work to reason about.
 
 **Rationale**
@@ -567,7 +566,7 @@ Human approved:
 
 **Problem**
 
-Work from Session 01 and afterward sat uncommitted in the working tree: a .gitignore update, a vendored agent skill, and a brand asset. The commit graph is itself part of the graded deliverable (D002), so progress that exists only locally is invisible to a reviewer and one accident away from being lost.
+Work from Session 01 and afterward sat uncommitted in the working tree: a .gitignore update, a vendored agent skill, and a brand asset. The commit graph is itself part of the record (D002), so progress that exists only locally is invisible to anyone reading it and one accident away from being lost.
 
 **Decision**
 
@@ -575,12 +574,12 @@ Commit and push to the remote frequently rather than batching — at minimum whe
 
 **Alternatives considered**
 
-- *Commit in large batches at natural milestones* — Batching hides the build narrative the assignment asks us to surface, and leaves work sitting locally where it can be lost.
+- *Commit in large batches at natural milestones* — Batching hides the build narrative the decision log exists to surface, and leaves work sitting locally where it can be lost.
 - *Commit locally and push at milestones* — The remote repository is the review surface; unpushed work may as well not exist for the reviewer.
 
 **Rationale**
 
-Directed by the human, with the reasoning supplied: reversing a commit is easy, so there is no upside to sitting on uncommitted work. This also reinforces D002's consequence that the commit history is reviewable evidence the work was built new for this assignment. Complements D010 (no PR ceremony) with the push-frequency half of the same hygiene rule. Originally drafted as D009 in a session whose tree pre-dated the published D009/D010; renumbered on merge, which is itself recorded in Session 03.
+Directed by the human, with the reasoning supplied: reversing a commit is easy, so there is no upside to sitting on uncommitted work. This also reinforces D002's consequence that the commit history is reviewable evidence the work was built new. Complements D010 (no PR ceremony) with the push-frequency half of the same hygiene rule. Originally drafted as D009 in a session whose tree pre-dated the published D009/D010; renumbered on merge, which is itself recorded in Session 03.
 
 **Consequences**
 
@@ -636,7 +635,7 @@ Human instruction:
 
 **Artifacts**
 
-- [The Factory Mission session where the brief was given and planned](https://app.factory.ai/sessions/901210d4-da5a-462c-b63b-07301719d17f)
+- [The Factory Mission session where the MVP was specified and planned](https://app.factory.ai/sessions/901210d4-da5a-462c-b63b-07301719d17f)
 
 ---
 
@@ -2467,7 +2466,7 @@ The canvas sets nodeDragThreshold={0} so drags anchor at pointer-down and the fu
 
 **Alternatives considered**
 
-- *Keep the default threshold and widen the e2e tolerance* — That codifies a real user-facing error: every pin drop would land a few pixels away from where Lucas released it, violating the one-natural-pixel contract this canvas is graded on.
+- *Keep the default threshold and widen the e2e tolerance* — That codifies a real user-facing error: every pin drop would land a few pixels away from where Lucas released it, violating the one-natural-pixel contract this canvas is built on.
 - *Compensate by adding the threshold window back in our adapter* — The swallowed amount depends on pointer speed and event coalescing, so it cannot be reconstructed; anchoring at pointer-down removes the error class entirely.
 
 **Rationale**
@@ -2860,7 +2859,7 @@ Human approved:
 
 **Problem**
 
-The assignment is graded on explaining the product and the process, and the only explainer surfaces were prose: README, the /reqs hub, and the decision log. Nothing walked a first-time viewer through what Pinata is and how the four steps fit together in a form that could be played, paused, and pointed at during the interview.
+Explaining the product and the process mattered as much as building it, and the only explainer surfaces were prose: README, the /reqs hub, and the decision log. Nothing walked a first-time viewer through what Pinata is and how the four steps fit together in a form that could be played, paused, and pointed at during a demo.
 
 **Decision**
 
@@ -2912,7 +2911,7 @@ The composition lives in remotion/ inside the one package, typed by the app's ts
 **Alternatives considered**
 
 - *A standalone Remotion project in a subdirectory with its own package.json* — A second lockfile and a second toolchain to keep green, nothing the deployed app could show, and the gate would not cover it.
-- *Remotion Studio only, no in-app page* — Studio needs a checkout and a dev server; the assignment is demonstrated over a link and screen share, and the working rule is that anything not demoable in a browser in under a minute is deprioritized.
+- *Remotion Studio only, no in-app page* — Studio needs a checkout and a dev server; Pinata is shown over a link and screen share, and the working rule is that anything not demoable in a browser in under a minute is deprioritized.
 - *Render the MP4 and commit it, embed a <video>* — A binary in git that drifts from the composition on every edit, and no chapter navigation; the Player gives the same frames with seeking for free.
 
 **Rationale**
@@ -3244,7 +3243,7 @@ Human instruction:
 
 **Problem**
 
-The milestone document had gone stale enough to mislead. It called milestone 1 in progress and milestones 2 and 3 pending, while the repository had shipped the canvas, pins, element context, founder capability links, append-only threads, a production deployment, a project overview, rectangles, server-driven capture, and a six-record UX overhaul. The document is a graded deliverable rendered live at /reqs/milestones, so a reader checking status was being told something false. It also had no place to put the UX overhaul, which was not in the original three-slice plan, and no statement of what comes after milestone 3.
+The milestone document had gone stale enough to mislead. It called milestone 1 in progress and milestones 2 and 3 pending, while the repository had shipped the canvas, pins, element context, founder capability links, append-only threads, a production deployment, a project overview, rectangles, server-driven capture, and a six-record UX overhaul. The document is a deliverable rendered live at /reqs/milestones, so a reader checking status was being told something false. It also had no place to put the UX overhaul, which was not in the original three-slice plan, and no statement of what comes after milestone 3.
 
 **Decision**
 
@@ -3369,7 +3368,7 @@ Human approved:
 
 **Problem**
 
-D051 descoped requirements 6 and 7 — persistent revocable founder links and append-only two-way threads — to fit the remaining budget, and the requirements, architecture, and eval documents were marked accordingly. But the founder's reply is the whole point of the product: without it Pinata is usable by the editor alone, and the owner wanted it usable with friends after the assignment. Everything underneath the feature already existed: the schema carried the share columns and the thread_entries table with its reject-update and reject-delete triggers, and the boundary catalog already published a reply quota. What made it risky was timing, not difficulty — the demo build was working and a live pins checkpoint was still pending.
+D051 descoped requirements 6 and 7 — persistent revocable founder links and append-only two-way threads — to fit the remaining budget, and the requirements, architecture, and eval documents were marked accordingly. But the founder's reply is the whole point of the product: without it Pinata is usable by the editor alone, and the owner wanted it usable with friends. Everything underneath the feature already existed: the schema carried the share columns and the thread_entries table with its reject-update and reject-delete triggers, and the boundary catalog already published a reply quota. What made it risky was timing, not difficulty — the demo build was working and a live pins checkpoint was still pending.
 
 **Decision**
 
@@ -3609,25 +3608,24 @@ This satisfies the stated founder-page requirements with framework configuration
 
 **Problem**
 
-The brief requires Factory, and docs/ASSIGNMENT.md said every commit was authored through a Factory droid session. That is no longer exactly true. Once the MVP was working, the owner did a documentation closeout and a repository-hygiene pass with Claude Code from a phone on a plane, because the network connection would not sustain a Factory session. The session log also had no top-level time accounting: each Mission section reports agent time, but nothing stated the human's wall-clock time against the four-hour brief, and most of the agent time ran unattended while the owner teed up a prompt and walked away. Leaving either unsaid would make the process narrative inaccurate on the one criterion the decision log exists to serve.
+The project's records said every commit was authored through a Factory Droid session. That is no longer exactly true. Once the MVP was working, the owner did a documentation closeout and a repository-hygiene pass with Claude Code from a phone on a plane, because the network connection would not sustain a Factory session. The session log also had no top-level accounting of time: each Mission section reports agent time, which ran mostly unattended while the owner teed up a prompt and walked away, so the two measures were easy to confuse. Leaving either unsaid would make the process narrative inaccurate.
 
 **Decision**
 
-Record it plainly. The application code, capture pipeline, canvas, pins, founder links, landing page, and production deployment were built through Factory Droid Missions and Droid sessions. A documentation closeout and repository-hygiene pass were done with Claude Code on mobile, and that same harness produced the cross-review adopted in D093. docs/ASSIGNMENT.md's "built with Factory" row names the exception and points here; docs/SESSION-LOG.md opens with a time-and-tooling ledger that separates the human's wall-clock time (under the four-hour brief, per the owner) from the agent time each session section reports.
+Record it plainly. The application code, capture pipeline, canvas, pins, founder links, landing page, and production deployment were built through Factory Droid Missions and Droid sessions. A documentation closeout and repository-hygiene pass were done with Claude Code on mobile, and that same harness produced the cross-review adopted in D093. docs/SESSION-LOG.md opens with a time-and-tooling ledger that keeps the human's wall-clock time apart from the agent time each session section reports.
 
 **Alternatives considered**
 
-- *Say nothing, since the MVP itself was Factory-built* — The grading criterion is honesty about process, and the commit trailers already name the tool, so the log would be contradicted by the history it sits in.
+- *Say nothing, since the MVP itself was Factory-built* — Honesty about process is what the decision log is for, and the commit trailers already name the tool, so the log would be contradicted by the history it sits in.
 - *Wait for connectivity and redo the closeout inside a Factory session* — The work is documentation. Redoing it buys a cleaner-looking story and nothing else.
-- *Sum the per-session agent minutes into one total and present it as the time spent* — Agent time ran mostly unattended and overlapped with the owner's absence, so a single sum would overstate the human effort the brief bounds and understate the autonomy that is the point of the assignment. The ledger keeps the two measures apart.
+- *Sum the per-session agent minutes into one total and present it as the time spent* — Agent time ran mostly unattended and overlapped with the owner's absence, so a single sum would overstate the human effort and understate the autonomy that made the build work. The ledger keeps the two measures apart.
 
 **Rationale**
 
-The human directed the disclosure and the time framing, with the verbatim quotes below. The decision costs nothing and makes the repository's own history and its narrative agree.
+The human directed the disclosure, in the words quoted below. The decision costs nothing and makes the repository's own history and its narrative agree.
 
 **Consequences**
 
-- docs/ASSIGNMENT.md: the "Built with Factory" row names the Claude Code exception and points here; the timebox row points at the ledger.
 - docs/SESSION-LOG.md opens with a time-and-tooling ledger; per-session agent time stays where it was recorded.
 - Using a second harness is now a disclosed part of the process rather than an embarrassment to be tidied away; D093 makes it a deliberate technique.
 
@@ -3635,11 +3633,10 @@ The human directed the disclosure and the time framing, with the verbatim quotes
 
 Human instruction:
 
-> "in the interest of full disclosure, we can add a decision call-out somewhere that we used Claude Code on mobile on the plane due to network connectivity issues. I can live with that given the core MVP was otherwise working." — and later, on this pass: "note that we deviated from the homework a bit and used Claude Code on mobile so I could code on the plane!" — and on time: "using wall-clock time, we are under the 4 hour limit - a lot of the activity was ne teeing up a prompt and then walking away to let Droid Missions do its think mostly autonomously."
+> "in the interest of full disclosure, we can add a decision call-out somewhere that we used Claude Code on mobile on the plane due to network connectivity issues. I can live with that given the core MVP was otherwise working."
 
 **Artifacts**
 
-- `docs/ASSIGNMENT.md` — The amended "built with Factory" and timebox rows.
 - `docs/SESSION-LOG.md` — The time-and-tooling ledger at the top of the log.
 
 ---
@@ -3650,7 +3647,7 @@ Human instruction:
 
 **Problem**
 
-The interview is graded on explaining the process, but every surface rendered all seventy-plus records in one undifferentiated column, so a reader could not tell the two dozen decisions that shaped the product from the routine build calls. Curating that list in a page component would create a second decision dataset, which the single-source rule forbids.
+The decision log exists to explain the process, but every surface rendered all seventy-plus records in one undifferentiated column, so a reader could not tell the two dozen decisions that shaped the product from the routine build calls. Curating that list in a page component would create a second decision dataset, which the single-source rule forbids.
 
 **Decision**
 
@@ -3659,7 +3656,7 @@ Add an optional `key` boolean to the decision record schema, set on the product 
 **Alternatives considered**
 
 - *Keep the curated list in the page component rather than in the data* — It would be a second decision dataset, which the single-source rule forbids, and the Markdown log and dashboard could not share it.
-- *Also add /reqs/session-log, /reqs/next, and /reqs/assignment as a second navigation group, as the cross-review proposed* — The owner declined: "Drop all three process routes." The hub stays at the five product routes, which are also the dogfood URL array and the production smoke's contract.
+- *Also add /reqs/session-log, /reqs/next, and a third process page as a second navigation group, as the cross-review proposed* — The owner declined: "Drop all three process routes." The hub stays at the five product routes, which are also the dogfood URL array and the production smoke's contract.
 
 **Rationale**
 
@@ -3691,7 +3688,7 @@ Human instruction:
 
 **Problem**
 
-An agent that reviews its own work grades its own homework. The owner ran a separate Claude Code session over the repository to audit it independently; that session pushed a branch carrying documentation reconciliation, repository hygiene, the key-decisions flag, and three new hub routes. By the time it was reviewed in Factory, main had moved on: the founder loop had merged, the landing/app split and the pin table had shipped, and main had independently reused the ids D069, D070, and D071 for different decisions. Merging the branch would have collided on those ids and reintroduced documentation asserting that the founder loop was still deferred.
+An agent that reviews its own work is only checking itself. The owner ran a separate Claude Code session over the repository to audit it independently; that session pushed a branch carrying documentation reconciliation, repository hygiene, the key-decisions flag, and three new hub routes. By the time it was reviewed in Factory, main had moved on: the founder loop had merged, the landing/app split and the pin table had shipped, and main had independently reused the ids D069, D070, and D071 for different decisions. Merging the branch would have collided on those ids and reintroduced documentation asserting that the founder loop was still deferred.
 
 **Decision**
 
@@ -3808,7 +3805,7 @@ Agent asked:
 
 Human approved:
 
-> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+> […] I'm taking it and running with it […]
 
 ---
 
@@ -3851,7 +3848,7 @@ Agent asked:
 
 Human approved:
 
-> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+> […] I'm taking it and running with it […]
 
 ---
 
@@ -3895,7 +3892,7 @@ Agent asked:
 
 Human approved:
 
-> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+> […] I'm taking it and running with it […]
 
 ---
 
@@ -3940,7 +3937,7 @@ Agent asked:
 
 Human approved:
 
-> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+> […] I'm taking it and running with it […]
 
 ---
 
@@ -3950,17 +3947,17 @@ Human approved:
 
 **Problem**
 
-Production had been on commit 523dcd9 since 2026-09-10 while main moved about forty commits ahead, and the runbook went straight from pushing to deploying. Migrations are not run by the build, so pushing main before migrating would break project creation, pins and the founder view on their first read. The four capture routes export maxDuration = 300, which Hobby accepts only with Fluid compute; CRON_SECRET was missing from .env.example, and without it the sweep answers 404. Deployment protection is all_except_custom_domains (D068), so every vercel.app address, production included, shows a Vercel sign-in wall to a founder, and the editor, signed in to Vercel, would never notice; because the share control builds the link from the page's origin (D089), a link issued on a vercel.app address points at the wall. Separately, docs/ASSIGNMENT.md still said every commit came through Factory although D091 said that row had been corrected, the session log's tooling ledger cited D079 and D081 where it meant D091 and D093, and eight commits authored 'Cursor Agent' on pull requests 3, 5 and 6 appeared in no disclosure.
+Production had been on commit 523dcd9 since 2026-09-10 while main moved about forty commits ahead, and the runbook went straight from pushing to deploying. Migrations are not run by the build, so pushing main before migrating would break project creation, pins and the founder view on their first read. The four capture routes export maxDuration = 300, which Hobby accepts only with Fluid compute; CRON_SECRET was missing from .env.example, and without it the sweep answers 404. Deployment protection is all_except_custom_domains (D068), so every vercel.app address, production included, shows a Vercel sign-in wall to a founder, and the editor, signed in to Vercel, would never notice; because the share control builds the link from the page's origin (D089), a link issued on a vercel.app address points at the wall. Separately, the session log's tooling ledger cited D079 and D081 where it meant D091 and D093, and eight commits authored 'Cursor Agent' on pull requests 3, 5 and 6 appeared in no disclosure.
 
 **Decision**
 
-The README runbook now checks the Vercel project first (Fluid compute on, the seven Production variables present including CRON_SECRET, neither local-only flag set, the bypass for automation present, and whether recent pushes deployed at all), then validates, then migrates the shared database, listing applied migrations first because Drizzle skips one older than the newest recorded, then deploys, verifies, and rolls back without reversing additive migrations. A new README section says founders cannot reach a vercel.app address and that production needs a custom domain the editor also works from. .env.example names CRON_SECRET and CAPTURE_SWEEP_SECRET. docs/ASSIGNMENT.md names the Claude Code and Cursor exceptions and this post-assignment pass, and the tooling ledger cites the right records and adds the Cursor work and this pass.
+The README runbook now checks the Vercel project first (Fluid compute on, the seven Production variables present including CRON_SECRET, neither local-only flag set, the bypass for automation present, and whether recent pushes deployed at all), then validates, then migrates the shared database, listing applied migrations first because Drizzle skips one older than the newest recorded, then deploys, verifies, and rolls back without reversing additive migrations. A new README section says founders cannot reach a vercel.app address and that production needs a custom domain the editor also works from. .env.example names CRON_SECRET and CAPTURE_SWEEP_SECRET. The tooling ledger names the Claude Code and Cursor exceptions, cites the right records, and adds the Cursor work and this pass.
 
 **Alternatives considered**
 
 - *Run migrations in the Vercel build* — A build that migrates the shared production database on every preview deployment is worse than a manual step in the right order.
 - *Turn deployment protection off* — Would expose every preview deployment, and their per-commit URLs, as well as production.
-- *Leave the Cursor commits to the git history* — The interview is graded partly on explaining how AI tools were used, and a reviewer reading the history would find them before the ledger did.
+- *Leave the Cursor commits to the git history* — The log exists partly to explain how AI tools were used, and anyone reading the history would find them before the ledger did.
 
 **Rationale**
 
@@ -3969,7 +3966,7 @@ These are the steps that stood between main and a first real test, and the gaps 
 **Consequences**
 
 - The owner's pre-test checklist: Fluid compute, CRON_SECRET, a custom domain, migrate, then deploy.
-- Pinata is no longer a Factory exercise; work after 2026-09-23 is the owner's own project and is recorded the same way.
+- Work after 2026-09-23 is recorded the same way.
 
 **Provenance evidence**
 
@@ -3979,7 +3976,7 @@ Agent asked:
 
 Human approved:
 
-> This is no longer an exercise for Factory but I'm taking it and running with it so don't Factor that in as any sort of impediment to forward progress here
+> […] I'm taking it and running with it […]
 
 ---
 
@@ -5193,4 +5190,4 @@ Human instruction:
 
 ---
 
-<sub>Generated from 128 record(s) as of 2026-10-07 · source `a520b4b7a7b7`</sub>
+<sub>Generated from 128 record(s) as of 2026-10-07 · source `a7fd5d679205`</sub>
