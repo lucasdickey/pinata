@@ -24,7 +24,7 @@ function token(name: string): string {
 describe("the pinata brand mark", () => {
   test("the landing logo is inline SVG built from the shared mark source", () => {
     render(<PinataLogo />);
-    const logo = screen.getByRole("img", { name: "pinata logo" });
+    const logo = screen.getByRole("img", { name: "Pinata logo" });
     expect(logo.tagName.toLowerCase()).toBe("svg");
     expect(logo).toHaveAttribute("viewBox", BRAND_MARK.viewBox);
     // Inline and self-contained: no raster element, no external reference.

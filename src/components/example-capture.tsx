@@ -15,6 +15,7 @@ import {
   EXAMPLE_LAYOUT,
   type ExampleMark,
 } from "../lib/example-capture";
+import { ExampleDemo } from "./example-demo";
 import { ExamplePinTable } from "./example-pin-table";
 
 const FRAME_W = EXAMPLE_CAPTURE_FRAME.width;
@@ -33,7 +34,7 @@ function exampleMarkLabel(mark: ExampleMark): string {
 }
 
 /** Where a mark's numbered badge rides, as the canvas places it. */
-function badgePoint(mark: ExampleMark): { x: number; y: number } {
+export function badgePoint(mark: ExampleMark): { x: number; y: number } {
   switch (mark.kind) {
     case "pin":
       return mark.tip;
@@ -73,7 +74,7 @@ const FEATURES: Record<string, string[]> = {
  * figure's accessible name and the panel carry the content. Geometry comes
  * from EXAMPLE_LAYOUT so each mark lands on the element its snapshot names.
  */
-function ExamplePage() {
+export function ExamplePage() {
   const { toggle, annual, cards, popular } = EXAMPLE_LAYOUT;
   return (
     <svg
@@ -90,8 +91,21 @@ function ExamplePage() {
       {[28, 50, 72].map((cx) => (
         <circle key={cx} className="site-chrome-dot" cx={cx} cy="24" r="6" />
       ))}
-      <rect className="site-urlbar" x="520" y="11" width="400" height="26" rx="13" />
-      <text className="site-soft" x="720" y="29" fontSize="15" textAnchor="middle">
+      <rect
+        className="site-urlbar"
+        x="520"
+        y="11"
+        width="400"
+        height="26"
+        rx="13"
+      />
+      <text
+        className="site-soft"
+        x="720"
+        y="29"
+        fontSize="15"
+        textAnchor="middle"
+      >
         chickpea.co/pricing
       </text>
 
@@ -111,7 +125,14 @@ function ExamplePage() {
           {label}
         </text>
       ))}
-      <rect className="site-brand" x="1184" y="76" width="160" height="42" rx="21" />
+      <rect
+        className="site-brand"
+        x="1184"
+        y="76"
+        width="160"
+        height="42"
+        rx="21"
+      />
       <text
         className="site-on-brand"
         x="1264"
@@ -134,7 +155,13 @@ function ExamplePage() {
       >
         Plans for every kitchen
       </text>
-      <text className="site-soft" x="720" y="256" fontSize="22" textAnchor="middle">
+      <text
+        className="site-soft"
+        x="720"
+        y="256"
+        fontSize="22"
+        textAnchor="middle"
+      >
         Start free. Upgrade when your team grows.
       </text>
 
@@ -147,7 +174,14 @@ function ExamplePage() {
         height={toggle.height}
         rx={toggle.height / 2}
       />
-      <rect className="site-bg" x="544" y="304" width="176" height="44" rx="22" />
+      <rect
+        className="site-bg"
+        x="544"
+        y="304"
+        width="176"
+        height="44"
+        rx="22"
+      />
       <rect
         className="site-bg"
         x={annual.x}
@@ -183,7 +217,9 @@ function ExamplePage() {
         return (
           <g key={card.name}>
             <rect
-              className={featured ? "site-card site-card-featured" : "site-card"}
+              className={
+                featured ? "site-card site-card-featured" : "site-card"
+              }
               x={card.x}
               y={card.y}
               width={card.width}
@@ -356,44 +392,56 @@ export function ExampleCapture() {
   const selected = EXAMPLE_CAPTURE.marks[0]!;
   return (
     <section className="landing-example" aria-labelledby="example-heading">
-      <p className="section-eyebrow">what the founder sees</p>
-      <h2 id="example-heading">a marked-up capture, notes pinned where they belong</h2>
+      <p className="section-eyebrow">What the founder sees</p>
+      <h2 id="example-heading">
+        A marked-up capture, notes pinned where they belong
+      </h2>
       <p className="hint">
-        A real conversation, right beside the exact thing it’s about. Here’s an example.
+        A real conversation, right beside the exact thing it’s about. Here’s an
+        example.
       </p>
       <div className="example-grid">
         <figure className="example-figure">
-          <div
-            className="example-shot"
-            data-testid="example-shot"
-            role="img"
-            aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.marks.length} numbered marks: a pin, a circle, an arrow, and a box`}
+          {/* The demo video (D127) plays here when motion is fine; this
+              static example is what renders without script or with
+              reduced motion. */}
+          <ExampleDemo
+            label={`A short looping demo on ${EXAMPLE_CAPTURE.pageUrl}: a pin, a circle, an arrow, and a box are added, each with its comment, then the link is sent and the founder replies to pin 1.`}
           >
-            <ExamplePage />
-            <ExampleMarkStrokes selected={selected.number} />
-            {EXAMPLE_CAPTURE.marks.map((mark) => {
-              const at = badgePoint(mark);
-              return (
-                <span
-                  key={mark.number}
-                  className="pin-badge pin-badge-example"
-                  data-mark-number={mark.number}
-                  data-mark-kind={mark.kind}
-                  data-selected={mark.number === selected.number ? "true" : undefined}
-                  aria-hidden="true"
-                  style={{
-                    left: `${(at.x / FRAME_W) * 100}%`,
-                    top: `${(at.y / FRAME_H) * 100}%`,
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" focusable="false">
-                    <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
-                  </svg>
-                  <span className="pin-badge-number">{mark.number}</span>
-                </span>
-              );
-            })}
-          </div>
+            <div
+              className="example-shot"
+              data-testid="example-shot"
+              role="img"
+              aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.marks.length} numbered marks: a pin, a circle, an arrow, and a box`}
+            >
+              <ExamplePage />
+              <ExampleMarkStrokes selected={selected.number} />
+              {EXAMPLE_CAPTURE.marks.map((mark) => {
+                const at = badgePoint(mark);
+                return (
+                  <span
+                    key={mark.number}
+                    className="pin-badge pin-badge-example"
+                    data-mark-number={mark.number}
+                    data-mark-kind={mark.kind}
+                    data-selected={
+                      mark.number === selected.number ? "true" : undefined
+                    }
+                    aria-hidden="true"
+                    style={{
+                      left: `${(at.x / FRAME_W) * 100}%`,
+                      top: `${(at.y / FRAME_H) * 100}%`,
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
+                    </svg>
+                    <span className="pin-badge-number">{mark.number}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </ExampleDemo>
           <figcaption className="hint">
             {EXAMPLE_CAPTURE.projectTitle} — {EXAMPLE_CAPTURE.pageUrl} ·{" "}
             {EXAMPLE_CAPTURE.device} · version {EXAMPLE_CAPTURE.version}

@@ -84,7 +84,7 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
     title: "Pin notes to the exact pixel",
     durationInFrames: seconds(12),
     notes:
-      "Each capture opens on a pan-and-zoom canvas at the screenshot's own size. A click drops a numbered pin; a Shift-drag, or the Box tool, draws a numbered box around a region. Both are stored in screenshot pixels, so panning, zooming, and resizing never move a target, and both are named by what they say and what they point at, such as Pin 1, the comment, and the Annual toggle. Desktop and mobile captures each keep their own marks. When placing a mark, nearby captured elements are offered as context, and the editor picks one, or none.",
+      "Each capture opens on a pan-and-zoom canvas at the screenshot's own size. A click drops a numbered pin; a Shift-drag, or the Box tool, draws a numbered box around a region, and the Circle and Arrow tools draw the rest. Every mark is stored in screenshot pixels, so panning, zooming, and resizing never move a target, and each is named by what they say and what they point at, such as Pin 1, the comment, and the Annual toggle. Desktop and mobile captures each keep their own marks. When placing a mark, nearby captured elements are offered as context, and the editor picks one, or none.",
   },
   {
     id: "share",

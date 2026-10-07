@@ -9,7 +9,7 @@ import { FounderView } from "../../../src/components/founder-view";
 // indexing; next.config.ts adds the matching response headers.
 
 export const metadata: Metadata = {
-  title: "pinata — founder review",
+  title: "Pinata — founder review",
   robots: { index: false, follow: false, nocache: true, noarchive: true },
   referrer: "no-referrer",
 };

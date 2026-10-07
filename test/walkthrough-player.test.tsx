@@ -65,7 +65,7 @@ const chapterButtons = () =>
 describe("the walkthrough page", () => {
   test("mounts the player with the composition's full length and lists every chapter", () => {
     render(<WalkthroughPlayer />);
-    expect(screen.getByRole("heading", { level: 1, name: "How pinata works" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "How Pinata works" })).toBeInTheDocument();
     expect(screen.getByTestId("player-stub")).toBeInTheDocument();
     expect(player.props.durationInFrames).toBe(TOTAL_FRAMES);
     expect(player.props.controls).toBe(true);
@@ -113,7 +113,7 @@ describe("the walkthrough page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Previous" }));
     expect(player.seekTo).toHaveBeenLastCalledWith(slideStartFrame(0));
 
-    const section = screen.getByRole("region", { name: "How pinata works" });
+    const section = screen.getByRole("region", { name: "How Pinata works" });
     fireEvent.keyDown(section, { key: "ArrowLeft" });
     expect(chapterButtons()[0]).toHaveAttribute("aria-current", "step");
     fireEvent.keyDown(section, { key: "ArrowRight" });

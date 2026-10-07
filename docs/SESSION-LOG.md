@@ -3793,3 +3793,20 @@ Harness: Claude Code, on the owner's Mac.
 ### Decisions
 
 - D126 (user-directed): the landing table and New project in the menu.
+
+---
+
+## 2026-10-07 — feedback from the agent link (D127)
+
+Harness: Claude Code, on the owner's Mac.
+
+- The owner marked up yourpinata.dev in Pinata and passed the five open
+  marks over the agent link (D121); the brief and its screenshot were
+  enough to find every element.
+- Sentence case across the landing, "Pinata" capitalized outside the logo,
+  and a Remotion demo of the experience in place of the still example.
+- Stacked on the D126 branch, which also edits the landing.
+
+### Decisions
+
+- D127 (user-directed): sentence case, the brand name, and the demo video.

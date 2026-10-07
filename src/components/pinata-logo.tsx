@@ -13,7 +13,7 @@ export function PinataLogo({ size = 72 }: { size?: number }) {
       width={size}
       height={size}
       role="img"
-      aria-label="pinata logo"
+      aria-label="Pinata logo"
     >
       <rect width="64" height="64" rx={BRAND_MARK.tileRadius} fill={BRAND_MARK.tileFill} />
       <path d={BRAND_MARK.bodyPath} fill={BRAND_MARK.bodyFill} fillRule={BRAND_MARK.fillRule} />

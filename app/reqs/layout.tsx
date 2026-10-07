@@ -5,7 +5,7 @@ import { ReqsNav } from "../../src/components/reqs-nav";
 import { ThemeToggle } from "../../src/components/theme-toggle";
 
 export const metadata: Metadata = {
-  title: { default: "pinata — requirements", template: "pinata — %s" },
+  title: { default: "Pinata — requirements", template: "Pinata — %s" },
   description: "Pinata's requirements, architecture, milestones, decisions, and evals.",
 };
 

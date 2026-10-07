@@ -30,8 +30,8 @@ test("the walkthrough mounts, lists every chapter, and jumps between them", asyn
   const { errors, apiRequests, externalRequests } = watch(page);
   const response = await page.goto("/walkthrough");
   expect(response?.ok()).toBeTruthy();
-  await expect(page).toHaveTitle(/pinata/);
-  await expect(page.getByRole("heading", { level: 1, name: "How pinata works" })).toBeVisible();
+  await expect(page).toHaveTitle(/Pinata/);
+  await expect(page.getByRole("heading", { level: 1, name: "How Pinata works" })).toBeVisible();
 
   // The Remotion player rendered its root inside the stage.
   const stage = page.getByTestId("walkthrough-stage");
@@ -68,7 +68,7 @@ test("the landing links to the walkthrough", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: /ten-chapter walkthrough/i }).click();
   await expect(page).toHaveURL(/\/walkthrough$/);
-  await expect(page.getByRole("heading", { level: 1, name: "How pinata works" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "How Pinata works" })).toBeVisible();
 });
 
 for (const viewport of [

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { WalkthroughPlayer } from "../../src/components/walkthrough-player";
 
 export const metadata: Metadata = {
-  title: "pinata — walkthrough",
+  title: "Pinata — walkthrough",
   description: "A ten-chapter walkthrough of what Pinata is and how it works.",
 };
 

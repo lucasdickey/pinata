@@ -32,11 +32,11 @@ afterEach(() => {
 describe("anonymous landing", () => {
   test("renders the brand and a sign-in call, and takes no address before sign-in", () => {
     render(<AnonymousLanding />);
-    expect(screen.getByRole("heading", { level: 1, name: "pinata" })).toBeInTheDocument();
-    const logo = screen.getByRole("img", { name: "pinata logo" });
+    expect(screen.getByRole("heading", { level: 1, name: "Pinata" })).toBeInTheDocument();
+    const logo = screen.getByRole("img", { name: "Pinata logo" });
     expect(logo.tagName.toLowerCase()).toBe("svg");
     // The mark opens the page, ahead of the heading.
-    const heading = screen.getByRole("heading", { level: 1, name: "pinata" });
+    const heading = screen.getByRole("heading", { level: 1, name: "Pinata" });
     expect(logo.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // A brief value proposition.
     expect(screen.getByText(/pin plain, directional notes/i)).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe("anonymous landing", () => {
       "Sign in",
       "Sign in to start a review",
       "Sign in",
-      "editor sign in",
+      "Editor sign in",
     ]);
     for (const call of calls) {
       call.focus();
