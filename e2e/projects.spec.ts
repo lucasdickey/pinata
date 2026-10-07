@@ -13,7 +13,7 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { localEnvGate, requireLocalEnvValue } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { openRail, openNewProject } from "./rail";
+import { openRail, openNewProject, openPageFromMenu } from "./rail";
 
 const projectEnv = localEnvGate([
   "EDITOR_PASSWORD",
@@ -276,16 +276,17 @@ test("the workspace keeps one active device, retries one variant, and survives r
   await page.reload();
   const tree = await openRail(page);
   await expect(tree.getByText(`${RUN_ID} review`)).toBeVisible();
-  // Exactly one rail entry is current at a time: the shown project's
-  // overview until a page is opened, then that page (D077).
-  await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
-
-  const detail = page.getByRole("region", { name: "Selected capture" });
-  await tree.getByRole("button", { name: PRICING, exact: true }).click();
-  // Choosing a page closes the drawer (D106); reopen it to read the rail.
-  await openRail(page);
+  // Exactly one project is current in the menu at a time (D128).
   await expect(tree.locator('button[aria-current="true"]')).toHaveCount(1);
   await page.keyboard.press("Escape");
+
+  const detail = page.getByRole("region", { name: "Selected capture" });
+  await openPageFromMenu(page, PRICING, `${RUN_ID} review`);
+  // The page on screen is the one the page picker shows (D128).
+  await expect(detail.getByLabel("Page")).toHaveValue(/.+/);
+  await expect(detail.getByLabel("Page").locator("option:checked")).toHaveText(
+    new RegExp(`^${PRICING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+  );
   // The device is a toggle above the canvas with exactly one device pressed.
   const deviceToggle = detail.getByRole("group", { name: "Device" });
   await deviceToggle.getByRole("button", { name: `Mobile capture of ${PRICING}` }).click();
@@ -319,7 +320,7 @@ test("the workspace keeps one active device, retries one variant, and survives r
   // The organization is durable, not browser-local: a hard reload rebuilds it
   // from the database with the same versions.
   await page.reload();
-  await (await openRail(page)).getByRole("button", { name: PRICING, exact: true }).click();
+  await openPageFromMenu(page, PRICING, `${RUN_ID} review`);
   await detail
     .getByRole("group", { name: "Device" })
     .getByRole("button", { name: `Mobile capture of ${PRICING}` })

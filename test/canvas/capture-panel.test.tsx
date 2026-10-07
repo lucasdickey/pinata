@@ -80,7 +80,8 @@ describe("no draft surface in the panel", () => {
     expect(screen.queryByLabelText("Comment")).toBeNull();
     expect(screen.queryByRole("radio")).toBeNull();
     expect(document.querySelector('[data-testid="draft-context"]')).toBeNull();
-    expect(screen.getByText("Nothing selected.")).toBeInTheDocument();
+    // Nothing is selected, so no row is open (D128).
+    expect(screen.queryByTestId("panel-pin")).toBeNull();
   });
 
   test("the empty-list note names the one gesture, with no mode to switch to", () => {
@@ -110,10 +111,6 @@ describe("hostile captured content", () => {
     const snapshot = document.querySelector('[data-testid="panel-snapshot"]')!;
     expect(snapshot.textContent).toContain('<form action="https://evil.invalid">x</form>');
     expect(snapshot.querySelector("form")).toBeNull();
-    // The move instruction no longer names a mode.
-    expect(screen.getByText(/Drag the pin on the screenshot/).textContent).not.toMatch(
-      /place pin/i,
-    );
   });
 });
 
@@ -159,7 +156,8 @@ describe("rectangles in the panel (D079)", () => {
     expect(position).toHaveTextContent("100, 201 · 300 × 151 px");
     expect(screen.getByRole("button", { name: "Delete box" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete pin" })).toBeNull();
-    expect(screen.getByText(/Drag the box's edge or badge/)).toBeInTheDocument();
+    // How to move it is the canvas help's job now (D128), not the panel's.
+    expect(screen.queryByText(/Drag the/)).toBeNull();
   });
 
   test("the list names both kinds in number order by comment, never by position", () => {
@@ -176,9 +174,12 @@ describe("rectangles in the panel (D079)", () => {
     const resolved = { ...pin, status: "resolved" as const };
     const answered = { ...box, unreadReplies: 2 };
     render(<CapturePanel {...panelProps({ pins: [resolved, answered] })} />);
-    const [first, second] = within(screen.getByRole("list", { name: "Saved pins" })).getAllByRole(
+    // A resolved mark sits in the closed "1 resolved" group (D128).
+    const [first] = within(screen.getByRole("list", { name: "Resolved pins", hidden: true })).getAllByRole(
       "button",
+      { hidden: true },
     );
+    const [second] = within(screen.getByRole("list", { name: "Saved pins" })).getAllByRole("button");
     // The badge carries the number the canvas shows; the comment is the
     // main line, whole (the clamp is CSS), and the element sits under it.
     expect(first!.querySelector(".pin-row-badge")).toHaveTextContent("1");
@@ -226,7 +227,8 @@ describe("rectangles in the panel (D079)", () => {
     expect(position).toHaveTextContent("251, 351 · 300 wide px");
     expect(screen.getByRole("button", { name: "Delete circle" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete box" })).toBeNull();
-    expect(screen.getByText(/Drag the circle's edge or badge/)).toBeInTheDocument();
+    // How to move it is the canvas help's job now (D128), not the panel's.
+    expect(screen.queryByText(/Drag the/)).toBeNull();
   });
 
   test("a selected arrow is named Arrow, keeps both points behind Details, and has arrow controls", () => {
@@ -253,7 +255,8 @@ describe("rectangles in the panel (D079)", () => {
     expect(position).toHaveAttribute("data-kind", "arrow");
     expect(position).toHaveTextContent("100, 201 → 400, 601 px");
     expect(screen.getByRole("button", { name: "Delete arrow" })).toBeInTheDocument();
-    expect(screen.getByText(/Drag the arrow's shaft or badge/)).toBeInTheDocument();
+    // How to move it is the canvas help's job now (D128), not the panel's.
+    expect(screen.queryByText(/Drag the/)).toBeNull();
   });
 });
 
@@ -303,11 +306,12 @@ describe("Details disclosure (D078)", () => {
     expect(selection).toHaveTextContent("Starter plan");
     expect(selection.textContent).not.toMatch(/\d+, \d+/);
     expect(selection.textContent).not.toMatch(/natural pixel/i);
-    // Page and device stay in plain view under Capture.
+    // Page and device moved behind Details with the rest (D128): the
+    // toolbar above the canvas already names both.
     const panel = screen.getByTestId("capture-panel");
     const visible = panel.textContent!.replace(details.textContent!, "");
-    expect(visible).toContain("https://chickpea.co/pricing");
-    expect(visible).toContain("Desktop");
+    expect(details).toHaveTextContent("https://chickpea.co/pricing");
+    expect(details).toHaveTextContent("Desktop");
     expect(visible).not.toContain("Image hash");
     expect(visible).not.toContain("Version");
   });
@@ -436,5 +440,53 @@ describe("letting go of a selection (D116)", () => {
     expect(resolve).toHaveTextContent(/^Resolve$/);
     expect(screen.getByRole("button", { name: "Edit comment" })).toHaveTextContent(/^Edit$/);
     expect(screen.getByRole("button", { name: "Delete pin" })).toHaveTextContent(/^Delete$/);
+  });
+});
+
+describe("the pin accordion (D128)", () => {
+  const base = {
+    captureId: "cap-1",
+    elementSnapshot: null,
+    revision: 1,
+    unreadReplies: 0,
+    createdAt: 1,
+  };
+  const marks = [
+    { ...base, id: "a1", kind: "pin" as const, number: 1, tip: { x: 1, y: 1 }, body: "first note", status: "open" as const },
+    { ...base, id: "a2", kind: "pin" as const, number: 2, tip: { x: 2, y: 2 }, body: "second note", status: "open" as const },
+    { ...base, id: "a3", kind: "pin" as const, number: 3, tip: { x: 3, y: 3 }, body: "done note", status: "resolved" as const },
+  ];
+
+  test("the selected row opens in place, shows its comment once, and the others stay rows", () => {
+    render(<CapturePanel {...panelProps({ pins: marks, selectedPinId: "a1" })} />);
+    const list = screen.getByRole("list", { name: "Saved pins" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    // The open body sits inside the first item, before the second row.
+    expect(items[0]).toHaveAttribute("data-testid", "panel-pin");
+    expect(items[1]).not.toHaveAttribute("data-testid");
+    const header = within(items[0]!).getByRole("button", { name: "Pin 1 · “first note”" });
+    expect(header).toHaveAttribute("aria-expanded", "true");
+    expect(within(items[1]!).getByRole("button")).toHaveAttribute("aria-expanded", "false");
+    // The comment appears exactly once in the panel.
+    const panel = screen.getByTestId("capture-panel");
+    expect(panel.textContent!.split("first note")).toHaveLength(2);
+  });
+
+  test("resolved marks gather in a closed group that opens for a selected resolved mark", () => {
+    const { rerender } = render(<CapturePanel {...panelProps({ pins: marks })} />);
+    const group = screen.getByTestId("pin-resolved");
+    expect(group).not.toHaveAttribute("open");
+    expect(group.querySelector("summary")).toHaveTextContent("1 resolved");
+    rerender(<CapturePanel {...panelProps({ pins: marks, selectedPinId: "a3" })} />);
+    expect(screen.getByTestId("pin-resolved")).toHaveAttribute("open");
+    expect(within(screen.getByTestId("pin-resolved")).getByTestId("panel-pin")).toHaveTextContent("done note");
+  });
+
+  test("deleting asks first and says the number is retired", () => {
+    render(
+      <CapturePanel {...panelProps({ pins: marks, selectedPinId: "a2", confirmingDelete: true })} />,
+    );
+    expect(within(screen.getByTestId("panel-pin")).getByText(/Delete Pin 2\? Its number is retired/)).toBeInTheDocument();
   });
 });

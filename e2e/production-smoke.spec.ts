@@ -72,7 +72,17 @@ async function listPins(page: Page, captureId: string): Promise<PinRecord[]> {
 }
 
 async function waitPinsLoaded(page: Page): Promise<void> {
-  await expect(page.getByTestId("capture-panel")).toContainText(/No pins yet\.|(Pin|Box) \d+ · “/);
+  // Loaded: the empty note, a pin row, or the resolved group (D128).
+  {
+    const panel = page.getByTestId("capture-panel");
+    await expect(
+      panel
+        .getByText("No pins yet.")
+        .or(panel.locator(".pin-list > li > .pin-row"))
+        .or(panel.getByTestId("pin-resolved"))
+        .first(),
+    ).toBeVisible();
+  }
 }
 
 /** Probe the context route for a declared dense pricing cell (td/th). */
@@ -186,7 +196,7 @@ test("editor signs in on production and a dense-cell pin with a comment survives
   await page.reload();
   await openPlane(page, target);
   await waitPinsLoaded(page);
-  await page.getByRole("button", { name: new RegExp(`Pin ${saved!.number} —`) }).click();
+  await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${saved!.number} · `) }).click();
   await expect(page.getByTestId("panel-pin")).toContainText("dense cell");
   expect(consoleErrors, `console errors: ${consoleErrors.join(" | ")}`).toEqual([]);
 });

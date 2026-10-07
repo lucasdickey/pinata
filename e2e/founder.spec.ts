@@ -285,7 +285,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
     `Active · v${first.version}`,
   );
   await expect(
-    page.getByRole("navigation", { name: "Projects and pages" }).getByRole("button", {
+    page.getByRole("navigation", { name: "Projects" }).getByRole("button", {
       name: "Share with founder",
     }),
   ).toHaveCount(0);
@@ -419,7 +419,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await expect(fixtureEntry).toContainText("Resolved");
 
   // The editor sees the founder's reply under the pin and follows up.
-  await page.getByRole("button", { name: new RegExp(`^Pin ${pin.number} —`) }).click();
+  await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${pin.number} · `) }).click();
   const editorPanel = page.getByTestId("capture-panel");
   await expect(editorPanel.getByTestId("thread")).toBeVisible();
   await expect(editorPanel.locator(".thread-entry[data-author='founder']").last()).toContainText(
@@ -429,6 +429,8 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await expect(editorPanel.getByTestId("panel-status")).toHaveText("Status: Resolved");
   await expect(editorPanel.locator(".thread-status").last()).toContainText("Resolved by founder");
   const editorFollowUp = `editor follow-up ${runTag}`;
+  // The reply box sits behind a Reply button in the open pin (D128).
+  await editorPanel.getByRole("button", { name: "Reply" }).click();
   await editorPanel.getByLabel("Follow up as Lucas").fill(editorFollowUp);
   await editorPanel.getByRole("button", { name: "Send follow-up" }).click();
   await expect(editorPanel.locator(".thread-entry[data-author='Lucas']").last()).toContainText(
@@ -455,7 +457,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   await founder
     .getByRole("button", { name: `Desktop capture of ${target!.pageUrl}`, exact: true })
     .click();
-  await founder.getByRole("button", { name: new RegExp(`^Pin ${pin.number} —`) }).click();
+  await founder.getByTestId("founder-pin-list").getByRole("button", { name: new RegExp(`^Pin ${pin.number} · `) }).click();
   await expect(
     founder.getByTestId("founder-panel").locator(".thread-entry[data-author='Lucas']").last(),
   ).toContainText(editorFollowUp);

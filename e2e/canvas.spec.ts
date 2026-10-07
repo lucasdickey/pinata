@@ -173,7 +173,8 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   // The screen-fixed panel shows the synchronized empty selection and never
   // moved during pan/zoom.
   const panel = page.getByTestId("capture-panel");
-  await expect(panel).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(panel.getByTestId("panel-pin")).toHaveCount(0);
   await expect(panel).toContainText(`${doc.width} × ${doc.height} px`);
   // Screen-fixed: a canvas drag neither scrolls the page nor moves the
   // panel. Measure around the gesture with no scroll in between.

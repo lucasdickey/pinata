@@ -48,6 +48,12 @@ export function LoginForm({
         // address, so sign-in navigates rather than re-rendering in place.
         // Creating a project lives behind sign-in (D103), so everyone goes
         // straight to work.
+        // Leave no #editor-login behind (D123): the landing stays cached
+        // under its address, and signing out would land on it and pop the
+        // sign-in dialog open again.
+        if (window.location.hash === "#editor-login") {
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
         router.replace("/pins");
         router.refresh();
         return;

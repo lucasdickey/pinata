@@ -21,7 +21,7 @@ import {
 } from "../src/components/project-workspace";
 import { MIN_ARROW_LENGTH_PX, MIN_SHAPE_SIZE_PX } from "../src/lib/boundaries";
 import { installReactFlowMocks } from "./helpers/react-flow";
-import { openRail } from "./helpers/rail";
+import { openPageFromMenu, openRail } from "./helpers/rail";
 import { cameraMode, modePressed, waitForMode } from "./helpers/camera";
 
 installReactFlowMocks();
@@ -156,14 +156,13 @@ afterEach(() => {
 const tree = () => openRail();
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
 /** The rail's page button; opening a page shows its Desktop capture (D077). */
-const pageButton = (url: string) => within(tree()).getByRole("button", { name: url });
 /** Open the seeded home page's Desktop capture: the plane most tests start on. */
-const openHome = () => fireEvent.click(pageButton("https://chickpea.co/"));
+const openHome = () => openPageFromMenu("https://chickpea.co/");
 /** A button in the device toggle above the canvas; the names the rail entries had. */
 const deviceButton = (name: string) => within(detail()).getByRole("button", { name });
 /** Open the pricing page and switch it to Mobile (the failed capture). */
 const openPricingMobile = (user: ReturnType<typeof userEvent.setup>) => {
-  fireEvent.click(pageButton("https://chickpea.co/pricing"));
+  openPageFromMenu("https://chickpea.co/pricing");
   return user.click(deviceButton("Mobile capture of https://chickpea.co/pricing"));
 };
 // Two surfaces now list every pin: the side panel (one selection at a time)
@@ -172,20 +171,20 @@ const openPricingMobile = (user: ReturnType<typeof userEvent.setup>) => {
 const sidePanel = () => within(detail()).getByTestId("capture-panel");
 
 describe("hierarchy", () => {
-  test("lists each page only under its owning project, in submitted order", () => {
+  test("each project's pages appear only in that project, in submitted order (D128)", () => {
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
-    const projectItems = within(tree()).getAllByRole("listitem", { name: undefined });
-    // Project headings appear once each, with their own page lists beneath.
-    const lists = within(tree()).getAllByRole("list");
-    const chickpeaPages = within(lists[1]!).getAllByText(/chickpea\.co/);
-    expect(chickpeaPages.map((node) => node.textContent)).toEqual([
-      "https://chickpea.co/",
-      "https://chickpea.co/pricing",
-    ]);
-    expect(within(tree()).queryAllByText("https://example.com/")).toHaveLength(1);
-    expect(projectItems.length).toBeGreaterThan(0);
-    // No page from project two leaked into project one's list.
-    expect(within(lists[1]!).queryByText("https://example.com/")).toBeNull();
+    // The menu lists projects, never pages.
+    expect(within(tree()).queryAllByText(/https:\/\//)).toHaveLength(0);
+    openPageFromMenu("https://chickpea.co/");
+    const options = () =>
+      Array.from((within(detail()).getByLabelText("Page") as HTMLSelectElement).options).map(
+        (option) => option.textContent!.split(" · ")[0],
+      );
+    expect(options()).toEqual(["https://chickpea.co/", "https://chickpea.co/pricing"]);
+    // No page from project two leaked into project one's picker; project two
+    // has a single page, so it needs no picker at all.
+    openPageFromMenu("https://example.com/");
+    expect(within(detail()).queryByLabelText("Page")).toBeNull();
   });
 
   test("every page exposes Desktop and Mobile through the toggle above the canvas (D077)", () => {
@@ -193,7 +192,7 @@ describe("hierarchy", () => {
     // The rail lists pages only; the device pair appears once a page is open.
     expect(within(tree()).queryByRole("button", { name: /capture of/ })).toBeNull();
     for (const url of ["https://chickpea.co/", "https://chickpea.co/pricing"]) {
-      fireEvent.click(pageButton(url));
+      openPageFromMenu(url);
       const toggle = within(detail()).getByRole("group", { name: "Device" });
       expect(within(toggle).getByRole("button", { name: `Desktop capture of ${url}` })).toBeInTheDocument();
       expect(within(toggle).getByRole("button", { name: `Mobile capture of ${url}` })).toBeInTheDocument();
@@ -204,22 +203,22 @@ describe("hierarchy", () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    const current = () =>
-      within(tree())
-        .getAllByRole("button")
-        .filter((button) => button.getAttribute("aria-current") === "true");
+    // The page on screen is the one the page picker shows (D128).
+    const current = () => [
+      (within(detail()).getByLabelText("Page") as HTMLSelectElement).selectedOptions[0]!,
+    ];
     const pressed = () =>
       within(detail())
         .getByRole("group", { name: "Device" })
         .querySelectorAll('button[aria-pressed="true"]');
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveTextContent("https://chickpea.co/");
+    expect(current()[0]!.textContent).toMatch(/^https:\/\/chickpea\.co\/( |$)/);
     expect(pressed()).toHaveLength(1);
     expect(pressed()[0]).toHaveAccessibleName(/^Desktop capture of/);
 
     await openPricingMobile(user);
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveTextContent("https://chickpea.co/pricing");
+    expect(current()[0]!.textContent).toMatch(/^https:\/\/chickpea\.co\/pricing/);
     expect(pressed()).toHaveLength(1);
     expect(pressed()[0]).toHaveAccessibleName(/^Mobile capture of/);
     expect(
@@ -236,7 +235,7 @@ describe("partial status", () => {
     expect(labels.filter((label) => label?.includes("Ready"))).toHaveLength(3);
     expect(labels.filter((label) => label?.includes("Failed"))).toHaveLength(1);
     // So does the device toggle once the page is open.
-    fireEvent.click(pageButton("https://chickpea.co/pricing"));
+    openPageFromMenu("https://chickpea.co/pricing");
     expect(deviceButton("Desktop capture of https://chickpea.co/pricing")).toHaveTextContent("Ready");
     expect(deviceButton("Mobile capture of https://chickpea.co/pricing")).toHaveTextContent("Failed");
   });
@@ -535,7 +534,8 @@ describe("screen-fixed selection and metadata panel", () => {
     render(<ProjectWorkspace projects={[identified]} onChanged={onChanged} />);
     openHome();
     const panel = within(detail()).getByTestId("capture-panel");
-    expect(within(panel).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(panel).queryByTestId("panel-pin")).toBeNull();
     expect(panel).toHaveTextContent("https://chickpea.co/");
     expect(panel).toHaveTextContent("Desktop");
     expect(panel).toHaveTextContent("v1");
@@ -593,7 +593,8 @@ describe("screen-fixed selection and metadata panel", () => {
     expect(panel().contains(composer)).toBe(false);
     expect(within(composer).getByLabelText("Comment")).toHaveFocus();
     // The side panel keeps its own job and never shows the draft.
-    expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(panel()).queryByTestId("panel-pin")).toBeNull();
     expect(panel().querySelector(".pin-badge")).toBeNull();
 
     // Escape in the composer cancels only the transient draft.
@@ -614,7 +615,8 @@ describe("screen-fixed selection and metadata panel", () => {
       expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
     );
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
-    expect(within(panel()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(panel()).queryByTestId("panel-pin")).toBeNull();
   });
 });
 
@@ -980,6 +982,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
       const thread = await within(detail()).findByTestId("thread");
       await within(thread).findByText("No replies yet.");
+      // The reply box sits behind a Reply button in the open row (D128).
+      await user.click(within(thread).getByRole("button", { name: "Reply" }));
       await user.type(within(thread).getByLabelText("Follow up as Lucas"), "Half-written note");
       const threadReads = reads(/\/thread$/);
 
@@ -1176,7 +1180,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(row()).toHaveAttribute("aria-current", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(row()).not.toHaveAttribute("aria-current"));
-    expect(within(sidePanel()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(sidePanel()).queryByTestId("panel-pin")).toBeNull();
 
     await user.click(row());
     await user.click(within(sidePanel()).getByRole("button", { name: "Clear selection" }));
@@ -1352,7 +1357,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await noComposer();
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
     expect(writes).toHaveLength(0);
-    expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
   });
 
   test("a failed save keeps the draft, comment, and decision and reports the failure", async () => {
@@ -1407,7 +1413,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     // Selecting again clears back to the empty state.
     await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
     expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
-    expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
   });
 
   test("pins are scoped to their plane: another capture lists only its own", async () => {
@@ -1562,7 +1569,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-pin")).toHaveLength(0),
     );
-    expect(within(detail()).getByText("Nothing selected.")).toBeInTheDocument();
+    // No row is open: nothing is selected (D128).
+    expect(within(detail()).queryByTestId("panel-pin")).toBeNull();
   });
 
   // The feedback loop (D075): counts in the rail and the project header, the
@@ -1579,19 +1587,21 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       return base;
     }
 
-    test("the rail badges each page and the project summary and header carry the counts", async () => {
+    test("the menu badges the project, the page picker each page, and the header carries the counts", async () => {
       render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
     openHome();
       await settleAnnotations();
+      // One count per project in the menu (D128): open pins and new replies.
       const badges = within(tree()).getAllByTestId("feedback-badge");
-      expect(badges.map((badge) => badge.textContent)).toEqual(["2 new · 1 open", "1 open"]);
+      expect(badges.map((badge) => badge.textContent)).toEqual(["2 new · 2 open"]);
       expect(badges[0]).toHaveAttribute("data-unread", "true");
-      expect(badges[1]).toHaveAttribute("data-unread", "false");
-      // The page button's accessible name is unchanged; the badge speaks for itself.
-      expect(pageButton("https://chickpea.co/")).toBeInTheDocument();
-      expect(badges[0]).toHaveAttribute("aria-label", "https://chickpea.co/: 2 new · 1 open");
+      // Each page's count rides in the page picker above the canvas.
+      const picker = within(detail()).getByLabelText("Page") as HTMLSelectElement;
+      expect(Array.from(picker.options).map((option) => option.textContent)).toEqual([
+        "https://chickpea.co/ · 2 new · 1 open",
+        "https://chickpea.co/pricing · 1 open",
+      ]);
       const summary = "3 pins · 2 open · 1 resolved · 2 unread replies";
-      expect(within(tree()).getByTestId("project-feedback-summary")).toHaveTextContent(summary);
       expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent(summary);
     });
 
@@ -1609,10 +1619,11 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
       const header = within(detail()).getByTestId("project-header");
       expect(within(header).getByTestId("project-title")).toHaveTextContent("chickpea.co");
-      // The rail's hidden heading stays the only heading with the project's
-      // name; the rail is a closed drawer (D106), so open it to look.
+      // The header's title is the one heading with the project's name
+      // (D128); the menu is a plain switcher. Open it to be sure.
       tree();
       expect(screen.getAllByRole("heading", { name: "chickpea.co" })).toHaveLength(1);
+      expect(within(header).getByRole("heading", { name: "chickpea.co" })).toBeInTheDocument();
       expect(within(header).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
       expect(within(tree()).queryByRole("button", { name: "Share with founder" })).toBeNull();
       expect(await within(header).findByTestId("founder-share-state")).toHaveTextContent(
@@ -1628,13 +1639,14 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
       const pinButton = await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
       expect(pinButton).toHaveTextContent("2 new");
-      expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent("2 new · 1 open");
+      // The menu counts the whole project (D128).
+      expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent("2 new · 2 open");
 
       await user.click(pinButton);
       await waitFor(() => expect(feedback.map((call) => call.action)).toEqual(["seen"]));
       expect(feedback[0]!.url).toBe("/api/captures/root-d1/annotations/ann-saved-1/seen");
       await waitFor(() =>
-        expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent(/^1 open$/),
+        expect(within(tree()).getAllByTestId("feedback-badge")[0]).toHaveTextContent(/^2 open$/),
       );
       expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).not.toHaveTextContent("new");
       expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent("0 unread replies");
@@ -1660,9 +1672,14 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(within(detail()).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
       const thread = within(detail()).getByTestId("thread");
       expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by editor");
-      // A status line is not a message: no author, no message styling.
-      expect(thread.querySelectorAll(".thread-entry[data-author='Lucas']")).toHaveLength(1);
-      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toHaveTextContent("Resolved");
+      // A status line is not a message: no author, no message styling. The
+      // comment itself is shown once above the thread (D128), so the thread
+      // holds no Lucas message here.
+      expect(thread.querySelectorAll(".thread-entry[data-author='Lucas']")).toHaveLength(0);
+      // The open row shows its status in the body (above); its name says it too.
+      expect(within(sidePanel()).getByRole("button", { name: /Pin 1/ })).toHaveAccessibleName(
+        /Resolved/,
+      );
       // No pin write went out, and the hierarchy is re-read for the counts.
       expect(writes).toHaveLength(0);
       expect(onChanged).toHaveBeenCalledTimes(1);
@@ -2121,9 +2138,9 @@ describe("arrow drafts (D083)", () => {
 // opens from a fixed strip, and closes on a choice, on Escape, or on a click
 // outside it, with focus moving in and back out.
 describe("project drawer (D106)", () => {
-  test("starts closed; opening moves focus in; choosing a page closes it and returns focus", () => {
+  test("starts closed; opening moves focus in; choosing a project closes it and returns focus", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Projects" })).toBeNull();
     const show = screen.getByRole("button", { name: "Show projects" });
     expect(show).toHaveAttribute("aria-expanded", "false");
 
@@ -2133,25 +2150,25 @@ describe("project drawer (D106)", () => {
     expect(hide).toHaveAttribute("aria-expanded", "true");
 
     fireEvent.click(
-      within(screen.getByRole("navigation", { name: "Projects and pages" })).getByRole("button", {
-        name: "https://chickpea.co/",
+      within(screen.getByRole("navigation", { name: "Projects" })).getByRole("button", {
+        name: /chickpea\.co/,
       }),
     );
-    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Projects" })).toBeNull();
     expect(screen.getByRole("button", { name: "Show projects" })).toHaveFocus();
-    // The choice still took effect underneath.
-    expect(detail()).toBeInTheDocument();
+    // The choice still took effect underneath: that project's overview.
+    expect(screen.getByRole("region", { name: "Project overview" })).toBeInTheDocument();
   });
 
   test("Escape and a click outside both close it", () => {
     const { container } = render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     fireEvent.click(screen.getByRole("button", { name: "Show projects" }));
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Projects" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Show projects" }));
     fireEvent.click(container.querySelector(".rail-scrim")!);
-    expect(screen.queryByRole("navigation", { name: "Projects and pages" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Projects" })).toBeNull();
   });
 
   test("the drawer never changes the layout: the grid keeps one fixed strip", () => {

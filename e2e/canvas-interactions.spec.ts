@@ -208,7 +208,8 @@ test("a drag pans and a click places exactly one draft at the clicked natural pi
   expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(viewport.height);
   expect(await composer.evaluate((el) => el.closest(".react-flow") === null)).toBe(true);
   // The side panel keeps its own job: it never shows the draft.
-  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(page.getByTestId("capture-panel").getByTestId("panel-pin")).toHaveCount(0);
 
   // A second click moves the same draft; it never stacks. The composer
   // follows the badge.
@@ -249,7 +250,8 @@ test("a drag pans and a click places exactly one draft at the clicked natural pi
   await page.keyboard.press("Escape");
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expect(composer).toHaveCount(0);
-  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(page.getByTestId("capture-panel").getByTestId("panel-pin")).toHaveCount(0);
   await expectNoWrites(page, tracked);
   expect(consoleErrors).toEqual([]);
 });
@@ -400,7 +402,8 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   await openPlane(page, mobile!);
   await expect(page.locator(DRAFT)).toHaveCount(0);
   await expect(page.getByTestId("pin-composer")).toHaveCount(0);
-  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(page.getByTestId("capture-panel").getByTestId("panel-pin")).toHaveCount(0);
   await expectModePressed(page, "Entire page", "true");
   const pane = await visiblePane(page);
   await waitForZoom(page, expectedContainZoom(pane, { width: mobile!.width, height: mobile!.height }));
@@ -411,7 +414,8 @@ test("planes keep separate cameras and never leak drafts", async ({ page }) => {
   await waitForZoom(page, 1);
   await expectModePressed(page, "Natural size", "true");
   await expect(page.locator(DRAFT)).toHaveCount(0);
-  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(page.getByTestId("capture-panel").getByTestId("panel-pin")).toHaveCount(0);
 
   // A zoom-BUTTON gesture is also a camera takeover: the exact zoomed
   // camera must survive a plane switch, not fall back to the named mode's

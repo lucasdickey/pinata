@@ -3810,3 +3810,24 @@ Harness: Claude Code, on the owner's Mac.
 ### Decisions
 
 - D127 (user-directed): sentence case, the brand name, and the demo video.
+
+---
+
+## 2026-10-07 — pin accordion and project switcher (D128)
+
+Harness: Claude Code, on the owner's Mac.
+
+- PRs #24 and #25 merged.
+- The pin panel is one accordion; the projects menu is a flat switcher,
+  with pages picked inside the project (proposal B, chosen by the owner).
+- Signing out is now a full page load: a cached /#editor-login brought the
+  sign-in dialog back.
+- Ran the browser suite locally against a throwaway database, which runs
+  specs CI skips; brought several stale ones up to date. Still failing,
+  and failing on main too: one canvas-interactions spec (a second click
+  lands on the draft composer). pins.spec's reload step failed once and
+  passed once on this branch.
+
+### Decisions
+
+- D128 (user-directed): the pin accordion and the project switcher.

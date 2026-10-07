@@ -120,9 +120,17 @@ async function waitPinsLoaded(page: Page): Promise<void> {
   // either the empty note or numbered list entries (pins or boxes). A load
   // failure renders a different note, so this wait fails loudly instead of
   // passing early.
-  await expect(page.getByTestId("capture-panel")).toContainText(
-    /No pins yet\.|(Pin|Box) \d+ · “/,
-  );
+  // Loaded: the empty note, a pin row, or the resolved group (D128).
+  {
+    const panel = page.getByTestId("capture-panel");
+    await expect(
+      panel
+        .getByText("No pins yet.")
+        .or(panel.locator(".pin-list > li > .pin-row"))
+        .or(panel.getByTestId("pin-resolved"))
+        .first(),
+    ).toBeVisible();
+  }
 }
 
 /** The badge for a saved pin number, and its draggable node wrapper. */
@@ -303,7 +311,7 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
     expect(Math.abs(fixture.tip.y - corner.y)).toBeLessThanOrEqual(1);
     await expectRenderedTip(page, fixtureNumber, corner, true);
     // The panel lists the pin and opens its comment.
-    await page.getByRole("button", { name: new RegExp(`Pin ${fixtureNumber} —`) }).click();
+    await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${fixtureNumber} · `) }).click();
     await expect(page.getByTestId("panel-pin")).toContainText(FIXTURE_BODY_PREFIX);
   }
 
@@ -338,8 +346,11 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
     await expectRenderedTip(page, fixtureNumber, persisted.tip, false);
   }
 
-  // Nothing but the (possible) single fixture create ever wrote.
-  expect(writes.filter((w) => w.startsWith("POST "))).toHaveLength(existing ? 0 : 1);
+  // Nothing but the (possible) single fixture create ever wrote a mark.
+  // Opening a pin marks its replies read (D075); that is not a mark write.
+  expect(writes.filter((w) => w.startsWith("POST ") && !w.endsWith("/seen"))).toHaveLength(
+    existing ? 0 : 1,
+  );
   expect(writes.filter((w) => !w.startsWith("POST "))).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
@@ -402,7 +413,8 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
   await expect(page.getByTestId("pin-composer")).toHaveCount(0);
-  await expect(page.getByTestId("capture-panel")).toContainText("Nothing selected.");
+  // Nothing is selected, so no pin row is open (D128).
+  await expect(page.getByTestId("capture-panel").getByTestId("panel-pin")).toHaveCount(0);
   expect(writes).toHaveLength(writesBeforeCancel);
 
   // The next save gets the very next number — the cancelled draft left no gap.

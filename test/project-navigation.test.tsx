@@ -20,7 +20,7 @@ import {
   type WorkspaceProject,
 } from "../src/components/project-workspace";
 import { installReactFlowMocks } from "./helpers/react-flow";
-import { openRail } from "./helpers/rail";
+import { openPageFromMenu, openRail } from "./helpers/rail";
 import { cameraMode, modePressed, waitForMode } from "./helpers/camera";
 
 installReactFlowMocks();
@@ -218,7 +218,6 @@ const tree = () => openRail();
 const overview = () => screen.getByRole("region", { name: "Project overview" });
 const detail = () => screen.getByRole("region", { name: "Selected capture" });
 const cards = () => within(overview()).getAllByTestId("overview-card");
-const pageButton = (url: string) => within(tree()).getByRole("button", { name: url });
 const deviceToggle = () => within(detail()).getByRole("group", { name: "Device" });
 const canvasImage = () => within(detail()).getByTestId("capture-stage").querySelector("img");
 const panelPin = () => within(detail()).getByTestId("panel-pin");
@@ -349,53 +348,59 @@ describe("the workspace opens on the overview", () => {
   });
 });
 
-describe("the rail", () => {
-  test("lists projects and pages only, with the feedback badge summed per page", () => {
+describe("the projects menu and the page picker (D128)", () => {
+  const switches = () =>
+    within(tree())
+      .getAllByRole("button")
+      .filter((button) => button.classList.contains("project-switch"));
+
+  test("the menu lists projects only, each with one count, and marks the one on screen", () => {
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
-    expect(within(tree()).queryByRole("button", { name: /capture of/ })).toBeNull();
-    expect(pageButton("https://chickpea.co/")).toBeInTheDocument();
-    expect(pageButton("https://chickpea.co/pricing")).toBeInTheDocument();
-    expect(pageButton("https://chickpea.co/about")).toBeInTheDocument();
-    const badges = within(tree()).getAllByTestId("feedback-badge");
-    // Home: Desktop (2 new · 1 open) plus Mobile (1 open); pricing: 1 open.
-    expect(badges.map((badge) => badge.textContent)).toEqual(["2 new · 2 open", "1 open"]);
-    expect(badges[0]).toHaveAttribute("aria-label", "https://chickpea.co/: 2 new · 2 open");
-    // The overview entry of the shown project is the current one.
-    expect(within(tree()).getByRole("button", { name: "Overview of chickpea.co" })).toHaveAttribute(
-      "aria-current",
-      "true",
-    );
+    expect(switches().map((button) => button.querySelector(".project-switch-name")!.textContent)).toEqual([
+      "chickpea.co",
+      "example.com",
+    ]);
+    // No pages, no overview entry, nothing that opens or closes.
+    expect(within(tree()).queryByRole("button", { name: /https:\/\// })).toBeNull();
+    expect(within(tree()).queryByRole("button", { name: /^Overview of/ })).toBeNull();
+    expect(tree().querySelector("details")).toBeNull();
+    expect(switches()[0]).toHaveAttribute("aria-current", "true");
+    expect(switches()[1]).not.toHaveAttribute("aria-current");
+    const badge = within(switches()[0]!).getByTestId("feedback-badge");
+    expect(badge).toHaveTextContent(/open/);
   });
 
-  test("a page opens its Desktop capture, or Mobile when Desktop is not usable, and is marked current", async () => {
+  test("the page picker opens a page's Desktop capture, or Mobile when Desktop is not usable", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/pricing"));
+    openPageFromMenu("https://chickpea.co/pricing");
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/pricing-d1/asset");
-    expect(pageButton("https://chickpea.co/pricing")).toHaveAttribute("aria-current", "true");
-    expect(within(tree()).getByRole("button", { name: "Overview of chickpea.co" })).not.toHaveAttribute(
-      "aria-current",
-    );
+    const picker = within(detail()).getByLabelText("Page") as HTMLSelectElement;
+    expect(picker).toHaveDisplayValue(/^https:\/\/chickpea\.co\/pricing/);
+    // Every page of the project, each with its own feedback count.
+    expect(Array.from(picker.options).map((option) => option.textContent)).toEqual([
+      "https://chickpea.co/ · 2 new · 2 open",
+      "https://chickpea.co/pricing · 1 open",
+      "https://chickpea.co/about",
+    ]);
 
-    await user.click(pageButton("https://chickpea.co/about"));
+    const about = Array.from(picker.options).find((option) =>
+      option.textContent!.startsWith("https://chickpea.co/about"),
+    )!;
+    await user.selectOptions(picker, about.value);
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/about-m1/asset");
     expect(within(deviceToggle()).getByRole("button", { name: /^Mobile/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    const current = within(tree())
-      .getAllByRole("button")
-      .filter((button) => button.getAttribute("aria-current") === "true");
-    expect(current).toHaveLength(1);
-    expect(current[0]).toHaveTextContent("https://chickpea.co/about");
   });
 
-  test("another project's Overview entry switches the detail area to that project", async () => {
+  test("picking another project shows that project's overview", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/"));
+    openPageFromMenu("https://chickpea.co/");
     expect(detail()).toBeInTheDocument();
-    await user.click(within(tree()).getByRole("button", { name: "Overview of example.com" }));
+    await user.click(switches()[1]!);
     expect(overview()).toBeInTheDocument();
     expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
     expect(cards()).toHaveLength(2);
@@ -408,11 +413,12 @@ describe("the rail", () => {
   });
 });
 
+
 describe("the device toggle", () => {
   test("sits above the canvas with exactly one device pressed, and switches the plane", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/pricing"));
+    openPageFromMenu("https://chickpea.co/pricing");
     const toggle = deviceToggle();
     const desktop = within(toggle).getByRole("button", { name: "Desktop capture of https://chickpea.co/pricing" });
     const mobile = within(toggle).getByRole("button", { name: "Mobile capture of https://chickpea.co/pricing" });
@@ -438,7 +444,7 @@ describe("the device toggle", () => {
 
 describe("cross-capture pin stepping", () => {
   async function openHome(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(pageButton("https://chickpea.co/"));
+    openPageFromMenu("https://chickpea.co/");
     await waitFor(() => expect(stepPosition()).toHaveTextContent("4 pins in this project"));
   }
 
@@ -473,7 +479,7 @@ describe("cross-capture pin stepping", () => {
     await next();
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/pricing-d1/asset");
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note pd-1."));
-    expect(pageButton("https://chickpea.co/pricing")).toHaveAttribute("aria-current", "true");
+    expect(within(detail()).getByLabelText("Page")).toHaveDisplayValue(/^https:\/\/chickpea\.co\/pricing/);
 
     // Wrap only at the project's end.
     await next();
@@ -533,7 +539,7 @@ describe("cross-capture pin stepping", () => {
   test("the controls are disabled for a project with no pins", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[secondProject()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://example.com/"));
+    openPageFromMenu("https://example.com/");
     await waitFor(() => expect(stepPosition()).toHaveTextContent("No pins in this project"));
     expect(within(detail()).getByRole("button", { name: "Next pin" })).toBeDisabled();
     expect(within(detail()).getByRole("button", { name: "Previous pin" })).toBeDisabled();
@@ -544,7 +550,7 @@ describe("the table scope toggle", () => {
   test("filters to this capture by default and widens to the whole project", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/"));
+    openPageFromMenu("https://chickpea.co/");
     await waitFor(() =>
       expect(within(detail()).getByRole("heading", { name: "All pins on this capture" })).toBeInTheDocument(),
     );
@@ -570,7 +576,7 @@ describe("the table scope toggle", () => {
     await waitFor(() => expect(panelPin()).toHaveTextContent("Note rm-1."));
     // The scope is a view preference: it survives a page switch inside the
     // project, and the widened table follows to the new plane.
-    await user.click(pageButton("https://chickpea.co/pricing"));
+    openPageFromMenu("https://chickpea.co/pricing");
     expect(within(detail()).getByRole("heading", { name: "All pins in this project" })).toBeInTheDocument();
     await waitFor(() => expect(within(table()).getAllByRole("row")).toHaveLength(5));
     await user.click(within(table()).getByRole("button", { name: "This capture" }));
@@ -583,7 +589,7 @@ describe("the table scope toggle", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/"));
+    openPageFromMenu("https://chickpea.co/");
     await user.click(within(detail()).getByRole("button", { name: "Whole project" }));
     await waitFor(() => expect(within(detail()).getAllByRole("row")).toHaveLength(5));
     await user.click(within(detail()).getByRole("button", { name: "Copy all as Markdown" }));
@@ -621,7 +627,7 @@ describe("the table scope toggle", () => {
       ],
     };
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    await user.click(pageButton("https://chickpea.co/"));
+    openPageFromMenu("https://chickpea.co/");
     await waitFor(() => expect(stepPosition()).toHaveTextContent("4 pins in this project"));
     await user.click(within(detail()).getByRole("button", { name: "Copy all as Markdown" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));

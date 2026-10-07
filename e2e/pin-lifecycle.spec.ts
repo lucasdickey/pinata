@@ -129,9 +129,17 @@ async function mutatePin(
 
 /** Wait until the workspace has finished loading this plane's pins. */
 async function waitPinsLoaded(page: Page): Promise<void> {
-  await expect(page.getByTestId("capture-panel")).toContainText(
-    /No pins yet\.|(Pin|Box) \d+ · “/,
-  );
+  // Loaded: the empty note, a pin row, or the resolved group (D128).
+  {
+    const panel = page.getByTestId("capture-panel");
+    await expect(
+      panel
+        .getByText("No pins yet.")
+        .or(panel.locator(".pin-list > li > .pin-row"))
+        .or(panel.getByTestId("pin-resolved"))
+        .first(),
+    ).toBeVisible();
+  }
 }
 
 /**
@@ -371,7 +379,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
 
   // Edit the comment through the panel: one PATCH, revision bumps again,
   // snapshot stays byte-identical.
-  await page.getByRole("button", { name: new RegExp(`Pin ${number} —`) }).click();
+  await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${number} · `) }).click();
   await page.getByRole("button", { name: "Edit comment" }).click();
   await page.getByLabel("Edit comment").fill("e2e: lifecycle move-edit-delete (edited)");
   await page.getByRole("button", { name: "Save edit" }).click();
@@ -464,7 +472,7 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
 
   // This UI still holds the stale revision: its edit conflicts, the editor
   // closes, and the panel shows the authoritative body instead of ours.
-  await page.getByRole("button", { name: new RegExp(`Pin ${number} —`) }).click();
+  await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${number} · `) }).click();
   await page.getByRole("button", { name: "Edit comment" }).click();
   await page.getByLabel("Edit comment").fill("e2e: the losing edit");
   await page.getByRole("button", { name: "Save edit" }).click();
