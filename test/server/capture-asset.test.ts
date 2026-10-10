@@ -24,6 +24,7 @@ import {
   ASSET_CACHE_CONTROL,
   ASSET_RANGE_UNIT,
   ASSET_VARY,
+  EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
 } from "../../src/lib/boundaries";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import { __setScreenshotStoreForTests } from "../../src/lib/server/captures/deps";
@@ -329,7 +330,7 @@ describe("denials are generic and byte-free", () => {
       cookie: `${EDITOR_SESSION_COOKIE}=${session.token.slice(0, -2)}xx`,
     });
     expect(tampered.status).toBe(401);
-    const expired = createEditorSession(TEST_SECRET, T0 - 100 * 3_600_000);
+    const expired = createEditorSession(TEST_SECRET, T0 - EDITOR_SESSION_ABSOLUTE_LIFETIME_MS - 1);
     const stale = await get(captureId, {
       cookie: `${EDITOR_SESSION_COOKIE}=${expired.token}`,
     });

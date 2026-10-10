@@ -93,3 +93,54 @@ export function normalizeProjectUrl(input: string): UrlNormalizationResult {
   const query = parsed.search === "?" ? "" : parsed.search;
   return { ok: true, url: `https://${hostname}${path}${query}` };
 }
+
+/**
+ * The page identity of an uploaded capture's address (D134). An upload is
+ * never fetched — the editor's own browser already rendered it — so its
+ * address is a label that files the capture under a page, not a capture
+ * target. Wherever the project rule admits the address, the result is
+ * exactly that rule's, so an upload of a page the project already has lands
+ * on that page. Beyond it, an upload may also name what only the editor's
+ * browser can reach: plain http, a port, a reserved name like localhost, or
+ * an IP literal. Credentials, other schemes, and oversized input are still
+ * refused, and the fragment is still dropped. A page filed this way is
+ * captured by the provider only if its address also passes the project rule
+ * and the capture admission that runs before every provider call.
+ */
+export function normalizeUploadUrl(input: string): UrlNormalizationResult {
+  const strict = normalizeProjectUrl(input);
+  if (strict.ok) return strict;
+  if (
+    strict.reason === "blank" ||
+    strict.reason === "too-long" ||
+    strict.reason === "relative" ||
+    strict.reason === "malformed" ||
+    strict.reason === "credentials"
+  ) {
+    return strict;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(input.trim());
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    return { ok: false, reason: "scheme" };
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    return { ok: false, reason: "credentials" };
+  }
+  const hostname = parsed.hostname.endsWith(".")
+    ? parsed.hostname.slice(0, -1)
+    : parsed.hostname;
+  if (hostname === "") return { ok: false, reason: "malformed" };
+  if (!hostname.startsWith("[") && hostname.split(".").some((label) => label === "")) {
+    return { ok: false, reason: "malformed" };
+  }
+  const port = parsed.port === "" ? "" : `:${parsed.port}`;
+  const path = parsed.pathname === "" ? "/" : parsed.pathname;
+  const query = parsed.search === "?" ? "" : parsed.search;
+  return { ok: true, url: `${parsed.protocol}//${hostname}${port}${path}${query}` };
+}

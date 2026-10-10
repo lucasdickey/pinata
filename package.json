@@ -23,7 +23,8 @@
     "e2e": "playwright test",
     "walkthrough": "remotion studio remotion/index.ts",
     "walkthrough:render": "remotion render remotion/index.ts PinataWalkthrough out/pinata-walkthrough.mp4",
-    "validate": "npm run lint && npm run typecheck && npm test && npm run docs:check && npm run build && npm run e2e"
+    "validate": "npm run lint && npm run typecheck && npm test && npm run docs:check && npm run build && npm run e2e",
+    "extension:build": "vitest run test/extension-shared.test.ts -u"
   },
   "dependencies": {
     "@libsql/client": "0.18.0",

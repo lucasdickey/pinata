@@ -8,7 +8,7 @@
 // any value in this catalog changes.
 
 /** Dated catalog version. Bump on any boundary change. */
-export const POLICY_VERSION = "2026-09-25.1";
+export const POLICY_VERSION = "2026-10-10.1";
 
 export * from "./session";
 export * from "./asset";
@@ -23,3 +23,4 @@ export * from "./quotas";
 export * from "./feedback";
 export * from "./interaction";
 export * from "./performance";
+export * from "./upload";

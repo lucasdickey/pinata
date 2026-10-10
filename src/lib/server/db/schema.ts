@@ -96,8 +96,11 @@ export type CaptureStatus = (typeof CAPTURE_STATUSES)[number];
  * submission commits and for a retry the editor pressed; `automatic` for the
  * one retry the server creates on its own after a retryable failure or a
  * stale attempt. An automatic attempt is never retried automatically again.
+ * `upload` is a capture the editor made elsewhere and sent in (D131): the
+ * Chrome extension's screenshot and element list, or a plain image. It is
+ * written ready, and the capture provider never retries it.
  */
-export const CAPTURE_ORIGINS = ["manual", "automatic"] as const;
+export const CAPTURE_ORIGINS = ["manual", "automatic", "upload"] as const;
 export type CaptureOrigin = (typeof CAPTURE_ORIGINS)[number];
 
 export const captures = sqliteTable(

@@ -4245,6 +4245,162 @@ pre code {
   }
 }
 
+/* Uploading a capture (D131): the panel the overview's "Upload a capture"
+   card opens across the row, the canvas view's "Upload a new version"
+   opens under the stage, and the New project page opens below its form.
+   It wears the Add pages form's frame. */
+.upload-panel {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.upload-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.upload-panel .hint,
+.upload-panel p {
+  margin: 0;
+}
+
+.upload-panel .form-actions {
+  margin: 0.15rem 0 0;
+}
+
+.upload-drop {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  border: var(--hairline) dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.upload-drop:hover,
+.upload-drop[data-dragging="true"] {
+  border-style: solid;
+  background: var(--raised);
+}
+
+/* The file input is visually hidden, so its keyboard focus ring is drawn
+   on the drop zone that stands for it. */
+.upload-drop:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.upload-drop-label {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.upload-drop-hint,
+.upload-status {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.upload-status:empty {
+  display: none;
+}
+
+.upload-review {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.upload-review-image {
+  grid-template-columns: 6rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.upload-preview {
+  width: 6rem;
+  max-height: 8rem;
+  object-fit: cover;
+  object-position: top;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: 4px;
+}
+
+.upload-url {
+  overflow-wrap: anywhere;
+}
+
+.upload-variant {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.upload-variant legend {
+  float: left;
+  margin-right: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.upload-variant label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.upload-page select,
+.upload-address input,
+.upload-title input {
+  max-width: 36rem;
+}
+
+/* Under the canvas: the upload control beside the provider's own retry. */
+.upload-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.upload-version-status {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.workspace-detail > .upload-panel {
+  margin: 0.5rem 0;
+}
+
+/* The New project page: the capture-file start below the form, in the
+   form's own column. */
+.new-project-upload {
+  margin: 0 0 1.5rem;
+}
+
+.new-project-upload > p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.new-project-upload .link-button {
+  font-weight: 550;
+}
+
+@media (max-width: 480px) {
+  .upload-review-image {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* The canvas view's controls: one compact row directly above the stage
    (D111). The camera and mark tools float over the canvas itself. */
 .canvas-toolbar {

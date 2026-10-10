@@ -217,7 +217,7 @@ closing statement:
 ## Published boundaries
 
 Every runtime boundary is exported exactly once from `src/lib/boundaries/`
-(policy version `2026-09-25.1`, constant `POLICY_VERSION`). Unit tests import
+(policy version `2026-10-10.1`, constant `POLICY_VERSION`). Unit tests import
 the same constants and compare them against this page, `docs/ARCHITECTURE.md`,
 and the deployed `/reqs` routes; any drift between code, docs, and deployed
 content fails the gate, and duplicating one of these literals anywhere else in
@@ -225,14 +225,14 @@ the application is a defect.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-25.1 | Dated catalog version; bumps on any boundary change. |
+| `POLICY_VERSION` | 2026-10-10.1 | Dated catalog version; bumps on any boundary change. |
 
 ### Editor session
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | A session is never valid past its absolute expiry. |
-| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal is allowed only when the remaining lifetime is inside this threshold; a renewal sets a fresh absolute expiry. |
+| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 604,800,000 ms (7 days) | A session is never valid past its absolute expiry (D130). The Chrome extension's sign-in follows the same policy. |
+| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 518,400,000 ms (6 days) | Renewal is allowed only when the remaining lifetime is inside this threshold; a renewal sets a fresh absolute expiry. Any session at least a day old renews, so signing in again is needed only after 7 days without use. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Login/logout request bodies larger than this are rejected before parsing. |
 | `EDITOR_PASSWORD_MAX_CHARS` | 256 | The password field accepts at most this many characters. |
 
@@ -529,6 +529,27 @@ answered from the persisted hash without a provider read.
 | `ASSET_CACHE_CONTROL` | private, no-store, max-age=0 | Every asset response; no browser or intermediary may retain private bytes after authority ends. |
 | `ASSET_VARY` | Cookie | Asset authorization rides on the authority-carrying Cookie header, so any cache key must include it. |
 | `ASSET_RANGE_UNIT` | bytes | The only range unit served; exactly one range with an explicit start. |
+
+### Uploaded captures
+
+A capture can also arrive as an upload (D131): the Chrome extension's
+screenshot and element list of a page open in the editor's own browser, or a
+plain image. `POST /api/imports` takes one device per request as
+`multipart/form-data` — a `meta` JSON part and an `image` part — from the
+signed-in editor (session, CSRF proof, and same origin) or from the
+extension's bearer token (D132). The image passes the same structural
+decode as a provider screenshot, its real pixel size must equal the
+document size the upload names, and the element list is re-bounded on the
+server exactly like a provider manifest. An upload becomes the next ready
+attempt of its page device, with origin `upload`, and is never offered a
+provider retry.
+
+| Constant | Value | Policy |
+| --- | --- | --- |
+| `UPLOAD_IMAGE_MAX_BYTES` | 4,000,000 bytes | Largest uploaded screenshot; the extension and the upload form lower the WebP quality until an image fits. |
+| `UPLOAD_REQUEST_MAX_BYTES` | 4,450,000 bytes | Hard cap on one upload request body, enforced before parsing; inside the 4.5 MB a Vercel Function accepts. |
+| `CAPTURE_PACKAGE_FORMAT` | pinata-capture | The `format` field of a capture file the extension saves. |
+| `CAPTURE_PACKAGE_VERSION` | 1 | The capture file version this build reads and writes. |
 
 ### Geometry minimums
 
