@@ -12,7 +12,12 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { GET as assetGET, HEAD as assetHEAD } from "../../app/api/captures/[captureId]/asset/route";
 import { GET as annotationsGET } from "../../app/api/captures/[captureId]/annotations/route";
 import { EDITOR_SESSION_COOKIE, FOUNDER_SESSION_COOKIE } from "../../src/lib/auth-constants";
-import { ASSET_CACHE_CONTROL, ASSET_VARY } from "../../src/lib/boundaries";
+import {
+  ASSET_CACHE_CONTROL,
+  ASSET_VARY,
+  EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
+  EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
+} from "../../src/lib/boundaries";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import { __setScreenshotStoreForTests } from "../../src/lib/server/captures/deps";
 import {
@@ -199,7 +204,7 @@ describe("founder asset delivery (VAL-CAPTURE-010)", () => {
     const otherCookie = await founderCookieFor(other.publicId, other.projectId);
     const forged = `${FOUNDER_SESSION_COOKIE}=${ownCookie.split("=")[1]!.slice(0, -3)}xyz`;
     const expired = `${FOUNDER_SESSION_COOKIE}=${
-      createFounderSession(TEST_SECRET, { projectId: own.projectId, version: 1 }, T0 - 100 * 3_600_000).token
+      createFounderSession(TEST_SECRET, { projectId: own.projectId, version: 1 }, T0 - EDITOR_SESSION_ABSOLUTE_LIFETIME_MS - 1).token
     }`;
     const staleVersion = await founderCookieFor(own.publicId, own.projectId, 99);
 
@@ -250,7 +255,7 @@ describe("founder asset delivery (VAL-CAPTURE-010)", () => {
     const nearExpiry = createFounderSession(
       TEST_SECRET,
       { projectId: own.projectId, version: 1 },
-      T0 - 11 * 3_600_000,
+      T0 - (EDITOR_SESSION_ABSOLUTE_LIFETIME_MS - EDITOR_SESSION_RENEWAL_THRESHOLD_MS) - 1,
     );
     const response = await asset(own.captureId, `${FOUNDER_SESSION_COOKIE}=${nearExpiry.token}`);
     expect(response.status).toBe(200);

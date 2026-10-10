@@ -26,3 +26,13 @@ export const FOUNDER_SESSION_COOKIE = "pinata_founder_session";
  * founder session. Founder reply mutations echo it in EDITOR_CSRF_HEADER.
  */
 export const FOUNDER_CSRF_COOKIE = "pinata_founder_csrf";
+
+/**
+ * Response header carrying a renewed Chrome extension token (D132). The
+ * extension cannot receive cookies, so a renewal rides back on whichever
+ * response noticed the token was a day old; the extension stores it.
+ */
+export const EXTENSION_TOKEN_HEADER = "x-pinata-token";
+
+/** Response header carrying the renewed extension token's expiry, as ISO 8601. */
+export const EXTENSION_TOKEN_EXPIRES_HEADER = "x-pinata-token-expires";
