@@ -33,7 +33,7 @@ import {
   type ReadyTarget,
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
-import { cameraMode } from "./camera";
+import { cameraMode, wheelZoom } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
 
@@ -126,7 +126,7 @@ async function zoomToMax(page: Page): Promise<void> {
   const pane = await visiblePane(page);
   for (let i = 0; i < 200 && camera.zoom < 8; i += 1) {
     await page.mouse.move(pane.left + pane.width / 2, pane.top + pane.height / 2);
-    await page.mouse.wheel(0, -240);
+    await wheelZoom(page, -240);
     await page.waitForTimeout(25);
     camera = await readCamera(page);
   }

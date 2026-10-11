@@ -36,7 +36,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { cameraMode } from "./camera";
+import { cameraMode, wheelZoom } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -182,7 +182,7 @@ async function zoomToMax(page: Page): Promise<void> {
   const pane = await visiblePane(page);
   for (let i = 0; i < 200 && camera.zoom < CANVAS_MAX_ZOOM; i += 1) {
     await page.mouse.move(pane.left + pane.width / 2, pane.top + pane.height / 2);
-    await page.mouse.wheel(0, -240);
+    await wheelZoom(page, -240);
     await page.waitForTimeout(25);
     camera = await readCamera(page);
   }
@@ -430,10 +430,11 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   );
   await expectRenderedTip(page, second.number, aim2, true);
 
-  // Camera-only work — pan, wheel zoom, mode buttons, zoom buttons — never
-  // writes (VAL-CANVAS-006). Pins are draggable in the only state there is,
-  // so the pan press must start on clear background: pin A sits at the pane
-  // center and pin B at two thirds, so press at (one third, two thirds).
+  // Camera-only work — drag and scroll pans, wheel zoom, mode buttons, zoom
+  // buttons — never writes (VAL-CANVAS-006). Pins are draggable in the only
+  // state there is, so the pan press must start on clear background: pin A
+  // sits at the pane center and pin B at two thirds, so press at (one
+  // third, two thirds).
   const writesBeforeCamera = writes.length;
   const paneCam = await visiblePane(page);
   await page.mouse.move(paneCam.left + paneCam.width / 3, paneCam.top + (paneCam.height * 2) / 3);
@@ -443,6 +444,7 @@ test("pins placed at 8x hold the tip contract and numbering is monotonic (VAL-PI
   });
   await page.mouse.up();
   await page.mouse.wheel(0, 480);
+  await wheelZoom(page, 480);
   await (await cameraMode(page, "Entire page")).click();
   await (await cameraMode(page, "Fit width")).click();
   await (await cameraMode(page, "Natural size")).click();

@@ -66,8 +66,9 @@
 //
 // Camera state is local UI state only. The three named modes — entire
 // capture (the initial contain view), fit width, and natural size — come
-// from the pure math in src/lib/canvas/camera.ts, and pan/zoom gestures
-// never issue annotation writes or touch browser history. Domain records
+// from the pure math in src/lib/canvas/camera.ts. A two-finger scroll pans
+// and a pinch zooms (D136), and pan/zoom gestures never issue annotation
+// writes or touch browser history. Domain records
 // stay canonical: nothing here reads or persists raw React Flow state.
 //
 // The stage is inert toward the captured site: it renders a static image
@@ -1298,6 +1299,10 @@ function CaptureCanvasInner({
             ? widthFitCamera(viewport, doc)
             : naturalCamera(viewport, doc);
       setMode(next);
+      // The report below must name the new mode now, not after the next
+      // render: React Flow's own move-end report comes 150 ms later with
+      // panOnScroll (D136), and a plane switch can land in between.
+      modeRef.current = next;
       autoFollow.current = true;
       void instance.setViewport({ x: camera.x, y: camera.y, zoom: camera.zoom });
       reportCamera(camera);
@@ -2223,6 +2228,15 @@ function CaptureCanvasInner({
             nodeDragThreshold={0}
             zoomOnDoubleClick={false}
             panOnDrag
+            // A two-finger scroll pans in any direction and moves the page as
+            // far as the fingers moved, the way a scroll does everywhere else
+            // in the browser (D136). A pinch still zooms: browsers report it
+            // as a wheel event with ctrlKey set, which React Flow zooms on
+            // even with panOnScroll, as it does for Ctrl (Cmd on a Mac) held
+            // with a mouse wheel.
+            panOnScroll
+            panOnScrollSpeed={1}
+            zoomOnScroll={false}
             onMove={(_event, viewport: Viewport) => {
               // Badge hit boxes keep the shared minimum screen target by
               // tracking the live zoom. Only a zoom change re-renders the

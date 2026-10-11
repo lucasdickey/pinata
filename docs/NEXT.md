@@ -54,10 +54,6 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   selected box or circle can still have its top-left handle over the number
   badge; stacking the badge above the corner handle wants a pass checked by
   eye.
-- Two-finger scroll on a trackpad zooms rather than pans (`D058`'s
-  scroll-to-zoom). React Flow's `panOnScroll` would make a tall page scroll
-  naturally at the cost of Ctrl+wheel to zoom with a mouse; it is the
-  owner's call, left open in `D096`.
 - The production smoke (`scripts/production-smoke.mjs`,
   `e2e/production-smoke.spec.ts`) still asserts that a visitor without the
   bypass header meets Vercel's SSO page. Protection is off (`D100`), so that

@@ -31,7 +31,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { cameraMode, expectModePressed } from "./camera";
+import { cameraMode, expectModePressed, wheelZoom } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -89,7 +89,7 @@ async function zoomToMax(page: Page): Promise<Viewport> {
   const pane = await visiblePane(page);
   for (let i = 0; i < 200 && camera.zoom < CANVAS_MAX_ZOOM; i += 1) {
     await page.mouse.move(pane.left + pane.width / 2, pane.top + pane.height / 2);
-    await page.mouse.wheel(0, -240);
+    await wheelZoom(page, -240);
     await page.waitForTimeout(25);
     camera = await readCamera(page);
   }

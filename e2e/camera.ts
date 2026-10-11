@@ -28,3 +28,16 @@ export async function expectModePressed(
   await expect(mode).toHaveAttribute("aria-pressed", pressed);
   if (!wasOpen) await page.getByRole("button", { name: "Zoom and fit" }).click();
 }
+
+/**
+ * Zoom with the mouse wheel. A plain wheel pans since D136 (a two-finger
+ * scroll on a trackpad is the same event), so this holds the key React
+ * Flow zooms the wheel with: Cmd on a Mac, Ctrl everywhere else. Each
+ * step is the same size a plain wheel zoomed by before D136.
+ */
+export async function wheelZoom(page: Page, deltaY: number): Promise<void> {
+  const key = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.down(key);
+  await page.mouse.wheel(0, deltaY);
+  await page.keyboard.up(key);
+}

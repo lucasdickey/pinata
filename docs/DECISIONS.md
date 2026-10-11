@@ -15,11 +15,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 53 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132 |
+| Human directed | 54 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136 |
 | Agent proposed, human approved | 24 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
 | Raised and deferred | 5 | D003, D054, D094, D109, D135 |
-| **Total** | **135** | |
+| **Total** | **136** | |
 
 ## Key decisions
 
@@ -196,6 +196,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D133](#d133--uploads-go-through-pinatas-own-route-one-device-per-request-with-a-4-mb-image-cap) | build | Uploads go through Pinata's own route, one device per request, with a 4 MB image cap | Agent decided alone | accepted |
 | [D134](#d134--an-uploads-address-is-a-label-localhost-ports-and-plain-http-are-allowed) | build | An upload's address is a label: localhost, ports, and plain http are allowed | Agent decided alone | accepted |
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
+| [D136](#d136--a-two-finger-scroll-pans-the-canvas-in-any-direction-a-pinch-zooms) | build | A two-finger scroll pans the canvas in any direction; a pinch zooms | Human directed | accepted |
 
 ---
 
@@ -5478,4 +5479,47 @@ Human instruction:
 
 ---
 
-<sub>Generated from 135 record(s) as of 2026-10-10 · source `2ba3317b88c1`</sub>
+## D136 — A two-finger scroll pans the canvas in any direction; a pinch zooms
+
+*2026-10-11 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+On a trackpad, a two-finger scroll up or down zoomed the screenshot instead of moving it, because React Flow zooms on the wheel by default and a two-finger scroll arrives as a wheel event. Reading down a tall page meant dragging it with the mouse button held. D096 left this open as the owner's call, and NEXT.md listed it.
+
+**Decision**
+
+The canvas turns on React Flow's panOnScroll and turns off zoomOnScroll. A two-finger scroll, or a plain mouse wheel, pans up, down, left, or right and moves the page exactly as far as the scroll, the way a scroll moves any other page. A pinch still zooms around the fingers: browsers report it as a wheel event with ctrlKey set, which React Flow zooms on even with panOnScroll. Holding Cmd (on a Mac) or Ctrl (elsewhere) with a mouse wheel also zooms, and the zoom buttons and fit modes are unchanged.
+
+**Alternatives considered**
+
+- *Keep scroll-to-zoom* — The owner asked for scroll to pan; zooming on a two-finger scroll fights the gesture people use to read down a page.
+- *Pan at React Flow's default speed of 0.5* — The page would move half as far as the fingers did, which feels sticky next to every other scrolling page in the browser. Speed 1 matches a normal page scroll.
+- *Pan up and down only (panOnScrollMode vertical)* — The owner asked for left and right as well, and a wide capture at natural size or deep zoom needs sideways movement.
+
+**Rationale**
+
+Direct execution of the request. React Flow already separates the two gestures (a pinch carries ctrlKey, a scroll does not), so three props on the canvas do the whole job with no new code paths. The pan speed of 1 and leaving the help strip's four verbs as they are (its 120-character limit from D078 and D111) were the agent's calls inside the request.
+
+**Consequences**
+
+- A plain mouse wheel now pans too. Zooming with a mouse takes Cmd or Ctrl with the wheel, or the zoom buttons.
+- React Flow waits 150 ms before its move-end report while panOnScroll is on. Picking a named mode used to rely on that report to carry the new mode name; the canvas's own report now names it at once.
+- The credentialed browser specs zoom through e2e/camera.ts wheelZoom, which holds Cmd or Ctrl so each step zooms by the same amount as before; canvas.spec.ts also checks in a real browser that a plain wheel pans and keeps the zoom.
+- test/canvas/capture-canvas.test.tsx proves the wiring in CI without credentials: scroll pans both ways at a fixed zoom, a ctrlKey wheel zooms, and a scroll reports the camera with follow off.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Please use two-finger panning up, down, left, or right, or otherwise pinch to zoom in and out. Right now, if you use two fingers to go up or down, it's actually zooming, which is really annoying.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — panOnScroll, panOnScrollSpeed, and zoomOnScroll on the canvas.
+- `test/canvas/capture-canvas.test.tsx` — The trackpad scroll and pinch tests.
+- `e2e/camera.ts` — wheelZoom: the held-key wheel zoom the browser specs use.
+
+---
+
+<sub>Generated from 136 record(s) as of 2026-10-11 · source `82047b650217`</sub>

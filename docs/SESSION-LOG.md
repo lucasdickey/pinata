@@ -3823,3 +3823,33 @@ Harness: Claude Code, on the owner's Mac.
 ### Decisions
 
 - D128 (user-directed): the pin accordion and the project switcher.
+
+---
+
+## 2026-10-11 — two-finger scroll pans, pinch zooms (D136)
+
+Harness: Claude Code, in a cloud session.
+
+- A two-finger scroll on a trackpad zoomed the canvas. React Flow zooms on
+  the wheel unless told otherwise; the canvas now pans on scroll at the
+  scroll's own distance and still zooms on a pinch, which browsers send as
+  a wheel with ctrlKey set.
+- Wrote the jsdom tests first and watched three of them fail (a scroll
+  zoomed, a sideways scroll did nothing), then passed them with the fix.
+- The canvas browser specs need editor credentials, so they skip here.
+  They zoomed with a plain wheel, which now pans, so they zoom through a
+  new wheelZoom helper that holds Cmd or Ctrl. Checked by hand on a
+  throwaway route under `next dev` in Chromium: scrolls of 200 down, 80 up
+  and 120 right moved the page exactly that far at a fixed zoom, and Ctrl
+  with the wheel zoomed in and back out to the same camera.
+- Two existing camera tests then failed: with panOnScroll, React Flow
+  delays its move-end report by 150 ms, and that late report was what had
+  been carrying a newly picked mode's name. The canvas's own report read
+  the mode from a ref the next render updates; it now sets the ref first.
+- `next dev` appended a Next.js block to AGENTS.md and rewrote
+  next-env.d.ts; both reverted, not committed.
+
+### Decisions
+
+- D136 (user-directed): two-finger scroll pans in any direction; a pinch
+  zooms.

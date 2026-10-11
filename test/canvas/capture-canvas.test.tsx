@@ -794,6 +794,74 @@ describe("per-capture session camera", () => {
   });
 });
 
+describe("trackpad scroll and pinch (D136)", () => {
+  // A known starting camera, so a scroll's distance reads straight off the
+  // transform.
+  const start: CaptureCameraState = {
+    camera: { x: 0, y: -1000, zoom: 2 },
+    mode: "natural",
+    follow: false,
+  };
+
+  /** The camera React Flow last wrote onto the viewport element. */
+  function viewport(): { x: number; y: number; zoom: number } {
+    const transform = (document.querySelector(".react-flow__viewport") as HTMLElement).style
+      .transform;
+    const match = /translate\((-?[\d.e+-]+)px, ?(-?[\d.e+-]+)px\) scale\(([\d.e+-]+)\)/.exec(
+      transform,
+    );
+    if (!match) throw new Error(`unexpected viewport transform: ${transform}`);
+    return { x: Number(match[1]), y: Number(match[2]), zoom: Number(match[3]) };
+  }
+
+  /** One wheel event, the way a browser reports a trackpad or mouse wheel. */
+  function wheel(init: WheelEventInit): void {
+    const pane = document.querySelector(".react-flow__pane") as HTMLElement;
+    pane.dispatchEvent(new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init }));
+  }
+
+  async function renderAtStart(onCameraChange = vi.fn(), saved = start) {
+    render(<CaptureCanvas {...props} savedCamera={saved} onCameraChange={onCameraChange} />);
+    await waitFor(() => expect(viewport()).toEqual(saved.camera));
+    return onCameraChange;
+  }
+
+  test("a two-finger scroll up or down pans the page and keeps the zoom", async () => {
+    await renderAtStart();
+    wheel({ deltaY: 120 });
+    expect(viewport()).toEqual({ x: 0, y: -1120, zoom: 2 });
+    wheel({ deltaY: -40 });
+    expect(viewport()).toEqual({ x: 0, y: -1080, zoom: 2 });
+  });
+
+  test("a two-finger scroll left or right pans sideways and keeps the zoom", async () => {
+    await renderAtStart();
+    wheel({ deltaX: 90 });
+    expect(viewport()).toEqual({ x: -90, y: -1000, zoom: 2 });
+  });
+
+  test("a pinch zooms in and out around the fingers", async () => {
+    // Browsers report a trackpad pinch as a wheel event with ctrlKey set,
+    // the same event Ctrl (or Cmd) and a mouse wheel produce.
+    await renderAtStart();
+    wheel({ deltaY: -50, ctrlKey: true });
+    expect(viewport().zoom).toBeGreaterThan(2);
+    wheel({ deltaY: 200, ctrlKey: true });
+    expect(viewport().zoom).toBeLessThan(2);
+  });
+
+  test("a scroll takes the camera over and reports where it stopped", async () => {
+    // Following a named mode, so the report shows the scroll ending it.
+    const onCameraChange = await renderAtStart(vi.fn(), { ...start, follow: true });
+    const reportsBefore = onCameraChange.mock.calls.length;
+    wheel({ deltaY: 300 });
+    await waitFor(() => expect(onCameraChange.mock.calls.length).toBeGreaterThan(reportsBefore));
+    const last = onCameraChange.mock.calls.at(-1)![0] as CaptureCameraState;
+    expect(last.follow).toBe(false);
+    expect(last.camera).toEqual({ x: 0, y: -1300, zoom: 2 });
+  });
+});
+
 describe("rectangles (D079)", () => {
   // A remembered camera at a known zoom, so screen deltas convert to
   // natural pixels predictably: 4 screen px per natural px.

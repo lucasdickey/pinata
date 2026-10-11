@@ -34,7 +34,7 @@ import {
 } from "./canvas-session";
 import { localEnvGate } from "./local-env";
 import { stubDispatchQuota } from "./stub-dispatch";
-import { cameraMode, expectModePressed } from "./camera";
+import { cameraMode, expectModePressed, wheelZoom } from "./camera";
 
 const gate = localEnvGate(["EDITOR_PASSWORD", "SESSION_SECRET"]);
 
@@ -119,7 +119,7 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
     const focus = { x: before.width / 2, y: before.height / 2 };
     const focalContent = toNatural(focus, camera);
     await page.mouse.move(before.left + focus.x, before.top + focus.y);
-    await page.mouse.wheel(0, -240);
+    await wheelZoom(page, -240);
     await page.waitForTimeout(30);
     camera = await readCamera(page);
     const now = toScreen(focalContent, camera);
@@ -136,6 +136,22 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   expect(camera.zoom).toBeLessThanOrEqual(CANVAS_MAX_ZOOM + 1e-6);
   expect(camera.zoom).toBeGreaterThan(CANVAS_MAX_ZOOM / 2);
   await expect(page.getByLabel("Current zoom")).toHaveText(`${Math.round(camera.zoom * 100)}%`);
+
+  // A plain wheel, which is what a two-finger scroll on a trackpad sends,
+  // pans and keeps the zoom (D136): down moves the page up, right moves it
+  // left, each by the distance scrolled.
+  await page.mouse.wheel(0, 200);
+  await page.waitForTimeout(30);
+  const scrolled = await readCamera(page);
+  expect(scrolled.zoom).toBe(camera.zoom);
+  expect(scrolled.x).toBeCloseTo(camera.x, 3);
+  expect(scrolled.y).toBeCloseTo(camera.y - 200, 3);
+  await page.mouse.wheel(120, 0);
+  await page.waitForTimeout(30);
+  const sideways = await readCamera(page);
+  expect(sideways.zoom).toBe(camera.zoom);
+  expect(sideways.x).toBeCloseTo(camera.x - 120, 3);
+  expect(sideways.y).toBeCloseTo(scrolled.y, 3);
 
   // Pan at 8x to the far corner: drag until the pane center shows the
   // bottom-right natural pixel. Intermediate frames never write.

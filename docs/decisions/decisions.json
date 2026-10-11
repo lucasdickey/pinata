@@ -6292,6 +6292,59 @@
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D136",
+      "date": "2026-10-11",
+      "phase": "build",
+      "title": "A two-finger scroll pans the canvas in any direction; a pinch zooms",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "On a trackpad, a two-finger scroll up or down zoomed the screenshot instead of moving it, because React Flow zooms on the wheel by default and a two-finger scroll arrives as a wheel event. Reading down a tall page meant dragging it with the mouse button held. D096 left this open as the owner's call, and NEXT.md listed it.",
+      "decision": "The canvas turns on React Flow's panOnScroll and turns off zoomOnScroll. A two-finger scroll, or a plain mouse wheel, pans up, down, left, or right and moves the page exactly as far as the scroll, the way a scroll moves any other page. A pinch still zooms around the fingers: browsers report it as a wheel event with ctrlKey set, which React Flow zooms on even with panOnScroll. Holding Cmd (on a Mac) or Ctrl (elsewhere) with a mouse wheel also zooms, and the zoom buttons and fit modes are unchanged.",
+      "alternatives": [
+        {
+          "option": "Keep scroll-to-zoom",
+          "why_not": "The owner asked for scroll to pan; zooming on a two-finger scroll fights the gesture people use to read down a page."
+        },
+        {
+          "option": "Pan at React Flow's default speed of 0.5",
+          "why_not": "The page would move half as far as the fingers did, which feels sticky next to every other scrolling page in the browser. Speed 1 matches a normal page scroll."
+        },
+        {
+          "option": "Pan up and down only (panOnScrollMode vertical)",
+          "why_not": "The owner asked for left and right as well, and a wide capture at natural size or deep zoom needs sideways movement."
+        }
+      ],
+      "rationale": "Direct execution of the request. React Flow already separates the two gestures (a pinch carries ctrlKey, a scroll does not), so three props on the canvas do the whole job with no new code paths. The pan speed of 1 and leaving the help strip's four verbs as they are (its 120-character limit from D078 and D111) were the agent's calls inside the request.",
+      "consequences": [
+        "A plain mouse wheel now pans too. Zooming with a mouse takes Cmd or Ctrl with the wheel, or the zoom buttons.",
+        "React Flow waits 150 ms before its move-end report while panOnScroll is on. Picking a named mode used to rely on that report to carry the new mode name; the canvas's own report now names it at once.",
+        "The credentialed browser specs zoom through e2e/camera.ts wheelZoom, which holds Cmd or Ctrl so each step zooms by the same amount as before; canvas.spec.ts also checks in a real browser that a plain wheel pans and keeps the zoom.",
+        "test/canvas/capture-canvas.test.tsx proves the wiring in CI without credentials: scroll pans both ways at a fixed zoom, a ctrlKey wheel zooms, and a scroll reports the camera with follow off."
+      ],
+      "transcript": {
+        "request": "Please use two-finger panning up, down, left, or right, or otherwise pinch to zoom in and out. Right now, if you use two fingers to go up or down, it's actually zooming, which is really annoying."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "panOnScroll, panOnScrollSpeed, and zoomOnScroll on the canvas."
+        },
+        {
+          "type": "file",
+          "path": "test/canvas/capture-canvas.test.tsx",
+          "caption": "The trackpad scroll and pinch tests."
+        },
+        {
+          "type": "file",
+          "path": "e2e/camera.ts",
+          "caption": "wheelZoom: the held-key wheel zoom the browser specs use."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
