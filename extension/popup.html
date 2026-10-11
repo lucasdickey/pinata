@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pinata capture</title>
+  <link rel="stylesheet" href="popup.css">
+  <script type="module" src="popup.js"></script>
+</head>
+<body>
+  <main class="popup">
+    <header class="popup-head">
+      <img src="icons/icon-32.png" width="20" height="20" alt="">
+      <h1>Pinata</h1>
+      <span class="account" id="account"></span>
+    </header>
+
+    <section class="tab" aria-label="This tab">
+      <p class="tab-title" id="tab-title">Loading…</p>
+      <label class="field">
+        <span>Page address</span>
+        <input id="address" type="url" spellcheck="false" autocomplete="off">
+      </label>
+      <p class="note" id="tab-note" hidden></p>
+    </section>
+
+    <form class="sign-in" id="sign-in" hidden>
+      <p class="note">Sign in to send captures straight to Pinata. You stay signed in for 7 days.</p>
+      <label class="field">
+        <span>Pinata address</span>
+        <input id="server" type="url" spellcheck="false" autocomplete="off" required>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input id="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit" id="sign-in-button">Sign in</button>
+    </form>
+
+    <section class="target" id="target" hidden aria-label="Where it goes">
+      <label class="field">
+        <span>Project</span>
+        <select id="project"></select>
+      </label>
+      <label class="field" id="new-project-row" hidden>
+        <span>New project name</span>
+        <input id="project-title" type="text" maxlength="120" autocomplete="off">
+      </label>
+      <p class="note" id="page-note"></p>
+    </section>
+
+    <fieldset class="devices">
+      <legend>Capture</legend>
+      <label><input type="checkbox" id="desktop" checked> Desktop</label>
+      <label><input type="checkbox" id="mobile" checked> Mobile</label>
+    </fieldset>
+
+    <div class="actions">
+      <button type="button" class="primary" id="send" hidden>Send to Pinata</button>
+      <button type="button" id="download">Download file</button>
+    </div>
+
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <p class="status-link" id="status-link" hidden><a id="open-link" target="_blank" rel="noopener">Open in Pinata</a></p>
+
+    <footer class="popup-foot" id="foot" hidden>
+      <span id="signed-in-as"></span>
+      <button type="button" class="link" id="sign-out">Sign out</button>
+    </footer>
+  </main>
+</body>
+</html>

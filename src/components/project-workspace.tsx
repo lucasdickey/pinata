@@ -82,6 +82,7 @@ import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
 import { AddPagesCard } from "./add-pages";
+import { UploadCaptureCard, UploadPanel } from "./upload-capture";
 import { ProjectOverview } from "./project-overview";
 import type { ReplySendState, ThreadStatus } from "./thread-view";
 
@@ -90,6 +91,8 @@ export interface AttemptView {
   variant: string;
   attempt: number;
   state: "pending" | "capturing" | "stale" | "ready" | "failed";
+  /** `upload` for a capture sent in rather than taken by Pinata (D131). */
+  origin?: string;
   errorCode: string | null;
   imageHash: string | null;
   /** Natural screenshot dimensions; null until the capture is ready. */
@@ -197,6 +200,10 @@ export function ProjectWorkspace({
   const [tableScope, setTableScope] = useState<PinTableScope>("capture");
   const [retryError, setRetryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  // "Upload a new version" under the open capture (D131): which page device
+  // the panel is open for, and what the last upload said.
+  const [uploadFor, setUploadFor] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<{ key: string; text: string } | null>(null);
   // The project drawer (D106): an overlay that slides over the canvas from
   // a fixed 2.25rem strip, so opening or closing it never moves the canvas.
   // It starts closed and closes itself once a page or an overview is chosen,
@@ -312,6 +319,23 @@ export function ProjectWorkspace({
   // One idempotency key per retry intent: it is refreshed only after the
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
+
+  // A link to /pins?project=<publicId> opens that project (D131: the
+  // Chrome extension links to the project it just sent a capture to). Read
+  // once, on the first list that has the project in it.
+  const linkedProject = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (linkedProject.current === undefined) {
+      linkedProject.current = new URLSearchParams(window.location.search).get("project");
+    }
+    const publicId = linkedProject.current;
+    if (!publicId) return;
+    const match = projects.find((project) => project.publicId === publicId);
+    if (!match) return;
+    linkedProject.current = null;
+    setSelectedProjectId(match.projectId);
+    setSelection(null);
+  }, [projects]);
 
   // The project the detail area shows: the chosen one, or the first when
   // nothing has been chosen yet or the chosen project has gone.
@@ -1789,6 +1813,63 @@ export function ProjectWorkspace({
               </button>
             ) : null}
 
+            {/* A new version from elsewhere (D131): the Chrome extension's
+                capture file, or an image. For an uploaded capture this is
+                the only way to a new version — Pinata cannot visit the
+                screens uploads exist for — and for a device with nothing
+                yet it is how the first one arrives. */}
+            {uploadFor === `${active.page.id}:${active.device.variant}` ? (
+              <UploadPanel
+                key={`upload-${active.page.id}:${active.device.variant}`}
+                mode={{
+                  kind: "page",
+                  project: activeProject,
+                  page: active.page,
+                  variant: active.device.variant === "mobile" ? "mobile" : "desktop",
+                }}
+                onCancel={() => setUploadFor(null)}
+                onPartial={onChanged}
+                onUploaded={(result, devices) => {
+                  setUploadFor(null);
+                  setUploadStatus({
+                    key: `${result.page.id}:${result.capture.variant}`,
+                    text:
+                      devices === 1
+                        ? `Uploaded version ${result.capture.attempt}.`
+                        : `Uploaded ${devices} screenshots.`,
+                  });
+                  // Follow the upload: a refreshed hierarchy defaults the
+                  // device to its newest ready version, the one just sent.
+                  openCapture(
+                    activeProject.projectId,
+                    result.page.id,
+                    result.capture.variant,
+                  );
+                  onChanged();
+                }}
+              />
+            ) : (
+              <p className="upload-version">
+                <button
+                  type="button"
+                  data-testid="upload-version"
+                  onClick={() => {
+                    setUploadStatus(null);
+                    setUploadFor(`${active.page.id}:${active.device.variant}`);
+                  }}
+                >
+                  {active.device.latest
+                    ? "Upload a new version"
+                    : `Upload a ${variantLabel(active.device.variant)} capture`}
+                </button>
+                {uploadStatus?.key === `${active.page.id}:${active.device.variant}` ? (
+                  <span className="upload-version-status" role="status">
+                    {uploadStatus.text}
+                  </span>
+                ) : null}
+              </p>
+            )}
+
             {/* Every pin at once, below the canvas (D071) — the side panel can
                 only ever show the selected one. Filtered to this capture, or
                 widened to the whole project (D077). */}
@@ -1815,7 +1896,8 @@ export function ProjectWorkspace({
         ) : (
           <>
             {/* The project overview (D077): every capture as a card, then
-                every pin in the project. The last card adds pages (D129). */}
+                every pin in the project. The last two cards upload a
+                capture (D131) and add pages (D129). */}
             <ProjectOverview
               project={activeProject}
               adjustments={seenAdjust}
@@ -1823,11 +1905,18 @@ export function ProjectWorkspace({
                 openCapture(activeProject.projectId, pageId, variant)
               }
               trailing={
-                <AddPagesCard
-                  key={`add-pages-${activeProject.publicId}`}
-                  project={activeProject}
-                  onAdded={onChanged}
-                />
+                <>
+                  <UploadCaptureCard
+                    key={`upload-${activeProject.publicId}`}
+                    project={activeProject}
+                    onUploaded={onChanged}
+                  />
+                  <AddPagesCard
+                    key={`add-pages-${activeProject.publicId}`}
+                    project={activeProject}
+                    onAdded={onChanged}
+                  />
+                </>
               }
             />
             <PinTable

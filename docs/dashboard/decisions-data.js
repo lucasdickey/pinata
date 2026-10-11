@@ -6002,8 +6002,301 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D130",
+      "date": "2026-10-10",
+      "phase": "build",
+      "title": "Sign in once a week: editor sessions last 7 days",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "An editor session lasted 12 hours and renewed only inside its last 2 hours, so a day away from Pinata meant signing in again. With a Chrome extension that signs in too (D132), that would have meant signing in twice as often.",
+      "decision": "EDITOR_SESSION_ABSOLUTE_LIFETIME_MS is 7 days (604,800,000 ms) and EDITOR_SESSION_RENEWAL_THRESHOLD_MS is 6 days (518,400,000 ms): any session at least a day old renews on its next request, with a fresh 7-day expiry. Signing in again is needed only after 7 days without using Pinata. The extension's token follows the same two constants. POLICY_VERSION moves to 2026-10-10.1; docs/EVALS.md and docs/ARCHITECTURE.md republish the values, and the tests that hardcoded 12-hour ages now derive them from the constants.",
+      "alternatives": [
+        {
+          "option": "A fixed 7 days from sign-in, with no renewal",
+          "why_not": "Active use would still end in a sign-in prompt mid-week; the existing renewal mechanism already gives a sliding window."
+        },
+        {
+          "option": "A separate, longer lifetime for the extension only",
+          "why_not": "One sign-in policy is simpler to reason about, and the owner asked for the window itself to change."
+        }
+      ],
+      "rationale": "The owner asked to change the re-auth window to 7 days. The renewal threshold keeps the existing design (renew inside a threshold, D024/D098) and sets it so the window slides with use; at most one renewal a day rewrites the cookie pair.",
+      "consequences": [
+        "Founder sessions reuse the same two constants (D087), so a founder who opened a share link also stays in for 7 days; rotating or revoking the link still ends those sessions at once, because they are bound to the link's version.",
+        "A stolen session cookie or extension token is useful for longer. The production SESSION_SECRET is shorter than the advised 32 characters (the server logs a warning); rotating it to a long random value matters more now."
+      ],
+      "transcript": {
+        "request": "also, change the re-auth to a 7-day window rather than whatever it is now."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/boundaries/session.ts",
+          "caption": "The two session constants."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D131",
+      "date": "2026-10-10",
+      "phase": "build",
+      "title": "Screens behind a sign-in: a Chrome extension captures them, and Pinata imports captures",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Pinata's capture visits a page from a remote browser as a stranger, so anything behind a sign-in, on a staging host, or on the editor's machine came back as a sign-in page. The workaround was to save the pages as HTML, publish them on a public host, and capture those addresses. There was no way to comment on a screenshot taken any other way.",
+      "decision": "A Manifest V3 Chrome extension (extension/, loaded unpacked, no build step) captures the tab the editor is looking at. Through chrome.debugger it drives the tab the way the provider drives its browser: Desktop (1440) and Mobile (390) viewports at DPR 1, one lazy-scroll pass, animation disabled, the provider's own element pass (MANIFEST_INSPECT_SOURCE with the same limits, copied into extension/shared.generated.js and drift-checked by a test), and one full-page WebP screenshot of exactly the document that pass measured; then it restores the tab. It runs in the service worker, so closing the popup does not stop it. Its result goes one of two ways: \"Send to Pinata\" (D132), or \"Download file\", a .pinata.json capture file (format pinata-capture, version 1: the page address and title, the time, and per device the viewport, document size, element list, and base64 image). A failed send saves the file instead. Pinata imports both through POST /api/imports, one device per multipart request (a meta JSON part and an image part, D133), from the editor's page or the extension's token: the image is decoded structurally and must be exactly the document size it claims, the element list gets the provider envelope's schema and the same server-side bounding, the image is stored privately, and one transaction writes the idempotency record, a new project or page when needed, and the capture as the next ready attempt with origin upload. In the editor: an \"Upload a capture\" card on the overview (a capture file's address picks or makes the page), \"Upload a new version\" under every capture (always that page), and \"Start from a capture file\" on New project. A plain PNG, JPEG, or WebP uploads too: re-encoded in the browser as WebP (which drops its metadata), a high-DPR screenshot scaled to the device width, and no element list, so marks on it attach to no element. /pins?project=<publicId> opens a project, which is where the extension's \"Open in Pinata\" goes.",
+      "alternatives": [
+        {
+          "option": "Authenticated capture: give the capture provider the editor's sign-in for each site",
+          "why_not": "Pinata would hold session cookies or passwords for other services, handle MFA, SSO, and expiry per site, fail when a session lapses, and widen what a breach exposes; the editor's own browser is already signed in."
+        },
+        {
+          "option": "Upload saved HTML and have the provider render it",
+          "why_not": "Saved pages lose fonts, styles, and images that sit behind the same sign-in; the extension captures what the editor actually sees."
+        },
+        {
+          "option": "Stitch viewport screenshots with chrome.tabs.captureVisibleTab",
+          "why_not": "Sticky headers repeat in every slice and there is no device emulation; the DevTools protocol gives one true full-page screenshot at a chosen viewport."
+        },
+        {
+          "option": "A browser-side element pass written for the extension",
+          "why_not": "Elements would be chosen differently from provider captures; sharing the provider's exact source keeps nearest-element pre-selection identical."
+        }
+      ],
+      "rationale": "The owner asked for a Chrome plugin that screenshots a page and pulls down the rendered DOM as one uploadable asset, image upload with comments, and feedback on whether authenticated capture would be better. The agent recommended the extension over authenticated capture, with the capture file, the upload card, origin upload, and no provider retry for uploads. The owner pulled Send to Pinata into scope and approved the rest. Chrome shows a \"started debugging this browser\" bar during a capture; that is the cost of the protocol, and the README says so.",
+      "consequences": [
+        "An uploaded capture is never retried by the provider (it would photograph the sign-in page); its next version is another upload.",
+        "Mobile is the page re-laid out at 390 pixels with touch and a mobile user agent, not reloaded, so a site that serves different markup to phones only on a fresh load shows its responsive layout.",
+        "Element pre-selection on uploads behaves exactly as on provider captures, including the box from the owner's report: a box over the toolbar now attaches to the toolbar's elements.",
+        "The extension's copy of the element pass must be regenerated (npm run extension:build) when the server's changes; the test suite fails until it is."
+      ],
+      "transcript": {
+        "request": "Let's make another change to the canvas import, similar to our import for authenticated screens, where we did a runaround and inserted a public URL and support the ability to comment on an image upload, along with HTML, and package together. Simultaneously, give me a small Chrome plugin that I can use to screenshot a page and pull down the rendered DOM as a single asset that can be uploaded into pinata to perform the feedback loop. Alternatively, if you think there's a better implementation, let me know. Perhaps that's biting the bullet and actually supporting authentication to get there, but I think that's actually a larger lift with integration and other interfaces. Simply performing a long screenshot or similar with DOM extraction is probably simpler, but I'd be curious to hear your feedback.",
+        "proposal": "Recommended skipping authenticated capture and building the extension instead: the extension runs the same in-page element pass the server uses and takes a true full-page screenshot through chrome.debugger at Pinata's Desktop and Mobile sizes; it saves one .pinata.json capture file; Pinata gets an upload next to Capture that takes the file or a plain image, validates it like provider output, stores it privately, and marks it origin upload with no recapture; raw-HTML upload left out, and Send to Pinata as a later step.",
+        "approval": "let's actually pull this into scope for now, since it's just me. also, change the re-auth to a 7-day window rather than whatever it is now. expand the scope to include (1) the core extension, (2) pinata auth for me (see above) for \"send to pinata\", (3) option not to \"send to pinata\" and just download the necessary pieces to upload into pinata otherwise, (4) pinata supporting this sort of import. you can go ahead and take this and run with it!"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "extension/README.md",
+          "caption": "Installing and using the extension."
+        },
+        {
+          "type": "file",
+          "path": "extension/capture.js",
+          "caption": "The capture through the DevTools protocol."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/extension/shared-source.ts",
+          "caption": "The extension's generated copy of the capture contract."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/imports/import.ts",
+          "caption": "Validating, storing, and filing an upload."
+        },
+        {
+          "type": "file",
+          "path": "app/api/imports/route.ts",
+          "caption": "The import route."
+        },
+        {
+          "type": "file",
+          "path": "src/components/upload-capture.tsx",
+          "caption": "The upload card and panel."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/box-attaches-element.jpg",
+          "caption": "A box over a heading on an extension capture of a signed-in page attaches to that heading."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/overview-uploaded.jpg",
+          "caption": "Uploaded captures on the overview, with the Upload a capture card before Add pages."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/upload-capture-file.jpg",
+          "caption": "Uploading a capture file: the page it goes to and what is in it."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/upload-capture-phone.jpg",
+          "caption": "The upload panel at phone width."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/upload-capture-dark.jpg",
+          "caption": "The upload panel in dark."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/upload-new-version.jpg",
+          "caption": "A plain image uploaded as version 2 of a Mobile capture."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/new-project-from-file.jpg",
+          "caption": "Start from a capture file on New project."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D132",
+      "date": "2026-10-10",
+      "phase": "build",
+      "title": "The extension signs in to Pinata with its own token and sends captures directly",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Downloading a file and uploading it again is two steps for every capture. Sending straight from the extension needs it to act as the editor, but the editor's cookie is SameSite=Strict, every write checks the Origin and a CSRF proof, and an extension's requests come from its own origin.",
+      "decision": "The popup signs in with the editor password through POST /api/extension/session, which has the login route's boundary and shares its throttle buckets, and returns a bearer token, never a cookie. The token is the session's HMAC over SESSION_SECRET with its own version prefix (x1) and audience, so it never verifies as a cookie session and a cookie never verifies as it; it lasts 7 days and comes back renewed once a day old in the x-pinata-token response header (D130). It is kept in chrome.storage.local and sent in the Authorization header, which no browser attaches on its own, so those requests need no CSRF proof or Origin check. It opens only the extension's routes: GET/DELETE /api/extension/session (check or sign out), GET /api/extension/projects (live projects and their pages, to pick a target and spot a page the project already has), and POST /api/imports. The popup shows the tab's address (editable), a project (the one that already has this page, else the one this site went to last, else New project with a name), Desktop and Mobile, and Send to Pinata beside Download file; after a send it links to the project and selects it for the next send. The Pinata address defaults to https://yourpinata.dev; http://127.0.0.1:3100 works for local runs, and any other address asks Chrome for permission first.",
+      "alternatives": [
+        {
+          "option": "Reuse the browser's Pinata cookie from the extension",
+          "why_not": "It would need SameSite and Origin exceptions on the editor's mutation boundary, which exist to stop other origins writing as the editor."
+        },
+        {
+          "option": "Pair the extension from a signed-in Pinata page",
+          "why_not": "It needs a page-to-extension channel (a fixed extension id or a content script on Pinata); typing the password once a week is simpler for one editor."
+        }
+      ],
+      "rationale": "The owner pulled Send to Pinata into scope with sign-in for the one editor. A separate token kind keeps the cookie boundary exactly as it was, and the shared throttle means the extension adds no new way to guess the password.",
+      "consequences": [
+        "Signing out of the extension forgets its token and revokes it on the instance that answers; like editor logout, that revocation is per instance, and the token otherwise ends at its expiry.",
+        "Under the local-only auth bypass (D052), extension sign-in accepts any password, as the page does."
+      ],
+      "transcript": {
+        "request": "let's actually pull this into scope for now, since it's just me. also, change the re-auth to a 7-day window rather than whatever it is now. expand the scope to include (1) the core extension, (2) pinata auth for me (see above) for \"send to pinata\", (3) option not to \"send to pinata\" and just download the necessary pieces to upload into pinata otherwise, (4) pinata supporting this sort of import."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/auth/extension-token.ts",
+          "caption": "The extension token."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/auth/extension-guard.ts",
+          "caption": "Bearer authorization, and the import route's editor-or-extension guard."
+        },
+        {
+          "type": "file",
+          "path": "app/api/extension/session/route.ts",
+          "caption": "Sign in, check, sign out."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/extension-popup-sign-in.jpg",
+          "caption": "The popup signed out: Download works, Send needs a sign-in."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/extension-popup-send.jpg",
+          "caption": "Signed in: project, devices, Send to Pinata."
+        },
+        {
+          "type": "screenshot",
+          "path": "../pr-screenshots/capture-extension/extension-popup-sent.jpg",
+          "caption": "After sending, with the link to the project."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D133",
+      "date": "2026-10-10",
+      "phase": "build",
+      "title": "Uploads go through Pinata's own route, one device per request, with a 4 MB image cap",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "A Vercel Function accepts at most 4.5 MB of request body, and a full-page screenshot plus its element list can be larger, especially as PNG.",
+      "decision": "Each device is its own request, and an uploaded image may be at most UPLOAD_IMAGE_MAX_BYTES (4,000,000 bytes) inside a request capped at UPLOAD_REQUEST_MAX_BYTES (4,450,000 bytes), enforced while the body is read. The extension screenshots as WebP and steps the quality down (90 to 40) until the image fits; a page too tall for WebP (over 16,383 pixels) falls back to PNG and fails if that does not fit. The upload form does the same for a plain image. MAX_IMAGE_BYTES still bounds everything stored.",
+      "alternatives": [
+        {
+          "option": "Browser-to-Blob client uploads with a token route",
+          "why_not": "It splits validation from the upload (the server would download and re-check, and delete what fails), needs a completion step that does not work against localhost, and adds a third party to the extension's network surface, all for pages that fit in 4 MB as WebP."
+        },
+        {
+          "option": "One request with both devices",
+          "why_not": "Two screenshots routinely exceed the 4.5 MB body limit."
+        }
+      ],
+      "rationale": "Inside the latitude the owner gave (\"take this and run with it\"): the server keeps its existing decode-then-store order (D044, VAL-CAPTURE-014) with no new storage pattern. Full-page WebP at DPR 1 is typically well under 1 MB (the end-to-end run measured 15 to 52 KB on Pinata's own pages).",
+      "consequences": [
+        "Very long, image-heavy pages may lose image quality to fit, and a page that cannot fit even at quality 40 is refused with a message rather than stored."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/boundaries/upload.ts",
+          "caption": "The upload limits and the capture file format."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D134",
+      "date": "2026-10-10",
+      "phase": "build",
+      "title": "An upload's address is a label: localhost, ports, and plain http are allowed",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Page identity was defined by the project URL rule (public https only, no ports, no IP literals, no reserved names) because the provider fetches those addresses. Uploads exist for exactly the screens that rule refuses: a local build on http://localhost:3000, a staging host on a port, an intranet name.",
+      "decision": "normalizeUploadUrl gives an upload's page identity: wherever the project rule admits the address, its result exactly (so an upload of a page the project already has lands on that page); beyond it, http, ports, reserved names, and IP literals are allowed. Credentials, other schemes, oversize input, and fragments are still refused or dropped. Nothing fetches an upload's address, and an uploaded capture is never offered a provider retry (VariantSummary.retryable is false for origin upload); a page filed this way is captured by the provider only if its address also passes the project rule and the capture admission that runs before every provider call.",
+      "alternatives": [
+        {
+          "option": "Keep the project rule for uploads",
+          "why_not": "It would refuse the local and staging screens the extension is for."
+        }
+      ],
+      "rationale": "Inside the latitude the owner gave: the address is only displayed and matched, and the provider-side guards (D043, the DNS and redirect admission) are unchanged, so a label cannot become a fetch.",
+      "consequences": [
+        "Founders and agent briefs may show local addresses (for example http://localhost:3000/settings) as page labels."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/url/normalize.ts",
+          "caption": "normalizeUploadUrl beside the project rule."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D135",
+      "date": "2026-10-10",
+      "phase": "design",
+      "title": "Look at Codex's in-browser element comments",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "The owner pointed at Codex's in-browser commenting: pick an element on the live page and type (or dictate) a comment in a bubble anchored to it. Pinata's extension captures the page and the comment happens on the canvas afterwards.",
+      "decision": "Deferred: compare later whether the extension should also take a comment on the live page, with the element picked there, and send it as a pin on the capture.",
+      "alternatives": [],
+      "rationale": "Raised as a side note for later while the extension was being built.",
+      "consequences": [
+        "The extension's capture and the import route are where such a comment would plug in: a pin with an element id from the same element list."
+      ],
+      "transcript": {
+        "request": "side note for later: look at what Codex has now!"
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-07",
-  "source_hash": "ab2197398458"
+  "as_of": "2026-10-10",
+  "source_hash": "2ba3317b88c1"
 };

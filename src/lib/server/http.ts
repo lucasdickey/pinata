@@ -102,3 +102,58 @@ export async function readBoundedJson(
     return { ok: false, error: "invalid-json" };
   }
 }
+
+export type BoundedFormResult =
+  | { ok: true; form: FormData }
+  | { ok: false; error: "content-type" | "too-large" | "invalid-form" };
+
+/**
+ * Read a multipart/form-data request body with a hard byte cap enforced
+ * while reading, before anything is parsed: a declared Content-Length over
+ * the cap is rejected unread, and a body that grows past it is abandoned
+ * mid-stream rather than buffered whole.
+ */
+export async function readBoundedForm(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedFormResult> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!/^multipart\/form-data\b/i.test(contentType)) return { ok: false, error: "content-type" };
+  const declared = request.headers.get("content-length");
+  if (declared !== null) {
+    const size = Number(declared);
+    if (!Number.isFinite(size) || size > maxBytes) return { ok: false, error: "too-large" };
+  }
+  if (!request.body) return { ok: false, error: "invalid-form" };
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = request.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      // Stop reading and let the rest go unread; cancelling here races the
+      // runtime's own producer, which then fails on a closed stream.
+      if (total > maxBytes) {
+        reader.releaseLock();
+        return { ok: false, error: "too-large" };
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return { ok: false, error: "invalid-form" };
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    const form = await new Response(body, { headers: { "content-type": contentType } }).formData();
+    return { ok: true, form };
+  } catch {
+    return { ok: false, error: "invalid-form" };
+  }
+}

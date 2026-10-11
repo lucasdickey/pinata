@@ -26,7 +26,11 @@ import {
   FOUNDER_CSRF_COOKIE,
   FOUNDER_SESSION_COOKIE,
 } from "../../src/lib/auth-constants";
-import { AUTH_REQUEST_MAX_BYTES } from "../../src/lib/boundaries";
+import {
+  AUTH_REQUEST_MAX_BYTES,
+  EDITOR_SESSION_ABSOLUTE_LIFETIME_MS,
+  EDITOR_SESSION_RENEWAL_THRESHOLD_MS,
+} from "../../src/lib/boundaries";
 import { createEditorSession } from "../../src/lib/server/auth/session";
 import {
   __resetDatabaseCacheForTests,
@@ -372,7 +376,7 @@ describe("GET /api/founder/[publicId] (founder hierarchy read)", () => {
       null,
       editorCookie(),
       `${FOUNDER_SESSION_COOKIE}=f1.forged.forged`,
-      `${FOUNDER_SESSION_COOKIE}=${createFounderSession(TEST_SECRET, { projectId: "proj-a", version: 1 }, T0 - 100 * 3_600_000).token}`,
+      `${FOUNDER_SESSION_COOKIE}=${createFounderSession(TEST_SECRET, { projectId: "proj-a", version: 1 }, T0 - EDITOR_SESSION_ABSOLUTE_LIFETIME_MS - 1).token}`,
     ]) {
       const response = await founderGET(build(founderUrl("pub-a"), "GET", { cookie }), ctx("pub-a"));
       expect(response.status, String(cookie)).toBe(401);
@@ -409,7 +413,7 @@ describe("GET /api/founder/[publicId] (founder hierarchy read)", () => {
     const nearExpiry = createFounderSession(
       TEST_SECRET,
       { projectId: "proj-a", version: 1 },
-      T0 - 11 * 3_600_000,
+      T0 - (EDITOR_SESSION_ABSOLUTE_LIFETIME_MS - EDITOR_SESSION_RENEWAL_THRESHOLD_MS) - 1,
     );
     const response = await founderGET(
       build(founderUrl("pub-a"), "GET", { cookie: `${FOUNDER_SESSION_COOKIE}=${nearExpiry.token}` }),

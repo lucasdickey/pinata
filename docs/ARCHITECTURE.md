@@ -43,8 +43,19 @@ Playwright e2e — in that order, locally and in GitHub Actions.
 - **Editor.** Lucas logs in with one password prompt. The server compares the
   submission against `EDITOR_PASSWORD` with a timing-safe comparison and
   issues a session signed with `SESSION_SECRET`: `HttpOnly`, `Secure` when
-  deployed, `SameSite=Strict`, path `/`, short-lived but renewable. Every
+  deployed, `SameSite=Strict`, path `/`. It lasts 7 days and renews once a
+  day old, so the editor signs in again only after a week away (D130). Every
   editor mutation rechecks the session close to the data access.
+- **Chrome extension (D132).** The extension signs in with the same password
+  through `POST /api/extension/session`, behind the login route's throttle,
+  and gets a bearer token instead of a cookie: the same HMAC over
+  `SESSION_SECRET` with its own version prefix and audience, so it never
+  verifies as a cookie session and a cookie never verifies as it. It lives
+  in the extension's storage, rides in the `Authorization` header (which no
+  browser attaches on its own, so it needs no CSRF proof), follows the
+  session's 7-day policy, and comes back renewed in the `x-pinata-token`
+  response header. It opens only the extension's routes: its sign-in check,
+  the projects list, and the capture import.
 - **Founder.** A high-entropy project capability (at least 256 random bits)
   arrives in the URL fragment, is exchanged once through a same-origin POST,
   and lives on as a secure capability-session cookie. Turso stores only its
@@ -71,7 +82,7 @@ Text UUID/ULID keys and UTC timestamps, with committed repeatable migrations:
 | --- | --- |
 | `projects` | title, root URL, public ID, share-token and agent-token digest/version/revocation |
 | `pages` | requested and normalized URL, per-project order; unique `(project_id, normalized_url)` |
-| `captures` | one row per page/viewport attempt: status, viewport, document dimensions, Blob path, hash, manifest, error fields |
+| `captures` | one row per page/viewport attempt: status, origin (`manual`, `automatic`, or `upload`), viewport, document dimensions, Blob path, hash, manifest, error fields |
 | `annotations` | kind (pin/rectangle/circle/arrow), versioned geometry, original body, optional element snapshot, and for a box or circle up to four more element snapshots |
 | `thread_entries` | append-only replies with actor role, server label, idempotency key |
 
@@ -157,20 +168,51 @@ dispatch request or a server continuation started it. An admitted attempt is
 claimed, captured, and finalized before that run ends, so no attempt is ever
 left as an open `capturing` claim waiting for a second call (`D035`).
 
+## Uploaded captures
+
+Pinata's own capture only visits public pages. A screen behind a sign-in, on
+a staging host, or on the editor's own machine arrives as an upload instead
+(D131): the Chrome extension in `extension/` captures the page in the
+editor's own, signed-in browser, or the editor uploads a plain image.
+
+The extension drives the tab through the Chrome DevTools Protocol
+(`chrome.debugger`), the way the provider drives its browser: it emulates
+the Desktop and Mobile viewports at DPR 1, scrolls once for lazy content,
+disables animation, runs the provider's own element pass
+(`MANIFEST_INSPECT_SOURCE` with the same limits, copied into
+`extension/shared.generated.js` and drift-checked by a test), and takes one
+full-page WebP screenshot of exactly the document that pass measured. Then
+it restores the tab. It either sends each device to Pinata ("Send to
+Pinata") or saves a `.pinata.json` capture file ("Download file") for the
+upload form; a failed send saves the file instead.
+
+`POST /api/imports` files one device per request: a `multipart/form-data`
+body with a `meta` JSON part and an `image` part, capped at
+`UPLOAD_REQUEST_MAX_BYTES` while it is read, from the editor's page (session,
+CSRF proof, same origin) or the extension's bearer token. The image passes
+the same structural decode as a provider screenshot and its pixels must
+equal the document size the upload names; the element list goes through the
+provider envelope's schema and the same server-side bounding. The image is
+stored privately first, then one transaction writes the idempotency record,
+a new project or page if the upload makes one, and the capture as the next
+ready attempt with `origin = upload`. An upload's address only files it
+under a page (D134); nothing fetches it, and an uploaded capture is never
+offered a provider retry — its next version is another upload.
+
 ## Published runtime boundaries
 
 The capture pipeline, session policy, and every other runtime limit are
 exported once from `src/lib/boundaries/` (policy version
-`2026-09-25.1`, constant `POLICY_VERSION`) and drift-checked against this
+`2026-10-10.1`, constant `POLICY_VERSION`) and drift-checked against this
 document and the [Evals catalog](/reqs/evals), which publishes the complete
 set — URL fixtures, manifest bounds, motion matrix, outcome catalog, geometry
 minimums, quotas, interaction limits, and performance budgets.
 
 | Constant | Value | Policy |
 | --- | --- | --- |
-| `POLICY_VERSION` | 2026-09-25.1 | Dated catalog version; bumps on any boundary change. |
-| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 43,200,000 ms (12 hours) | Editor sessions are never valid past absolute expiry. |
-| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 7,200,000 ms (2 hours) | Renewal only when remaining lifetime is inside this threshold. |
+| `POLICY_VERSION` | 2026-10-10.1 | Dated catalog version; bumps on any boundary change. |
+| `EDITOR_SESSION_ABSOLUTE_LIFETIME_MS` | 604,800,000 ms (7 days) | Editor and extension sessions are never valid past absolute expiry. |
+| `EDITOR_SESSION_RENEWAL_THRESHOLD_MS` | 518,400,000 ms (6 days) | Renewal only when remaining lifetime is inside this threshold; a session a day old renews. |
 | `AUTH_REQUEST_MAX_BYTES` | 1,024 bytes | Auth request bodies larger than this are rejected before parsing. |
 | `EDITOR_PASSWORD_MAX_CHARS` | 256 | Password field length cap. |
 | `DESKTOP_VIEWPORT` | 1440 × 900 CSS px, DPR 1 | Standard desktop capture. |
@@ -204,6 +246,10 @@ minimums, quotas, interaction limits, and performance budgets.
 | `ASSET_CACHE_CONTROL` | private, no-store, max-age=0 | Every private-asset response; no browser or intermediary may retain bytes after authority ends. |
 | `ASSET_VARY` | Cookie | Asset authorization rides on the Cookie header, so caches must key on it. |
 | `ASSET_RANGE_UNIT` | bytes | The asset route serves one explicit-start byte range; suffix and multi-range requests are rejected. |
+| `UPLOAD_IMAGE_MAX_BYTES` | 4,000,000 bytes | Largest uploaded screenshot (D131). |
+| `UPLOAD_REQUEST_MAX_BYTES` | 4,450,000 bytes | Hard cap on one upload request body, inside a Vercel Function's 4.5 MB. |
+| `CAPTURE_PACKAGE_FORMAT` | pinata-capture | The `format` field of an extension capture file. |
+| `CAPTURE_PACKAGE_VERSION` | 1 | The capture file version this build reads and writes. |
 | `MANIFEST_SCHEMA_VERSION` | 1 | Persisted per capture as `dom_manifest_version`. |
 | `MAX_MANIFEST_ELEMENTS` | 500 | Element cap; overflow truncates with a warning. |
 | `MAX_MANIFEST_BYTES` | 262,144 bytes (256 KiB) | Exact persisted manifest size cap. |

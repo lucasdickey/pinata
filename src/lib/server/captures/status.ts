@@ -12,7 +12,11 @@
 //   result from an older attempt can finish and persist on its own row yet
 //   never displace a newer ready capture;
 // - retry is offered only for a terminal or computed-stale latest attempt,
-//   and never for an outcome the catalog marks non-retryable.
+//   and never for an outcome the catalog marks non-retryable;
+// - an uploaded capture (D131) is never offered a provider retry: the
+//   provider would photograph whatever the address shows a stranger — for
+//   the screens uploads exist for, a sign-in page. A new version of an
+//   upload is another upload.
 
 import { CAPTURE_OUTCOMES, STALE_CAPTURE_AGE_MS } from "../../boundaries";
 import type { CaptureVariant } from "../db/schema";
@@ -23,6 +27,8 @@ export interface CaptureAttemptRecord {
   variant: string;
   attempt: number;
   status: string;
+  /** Who asked for the attempt (CAPTURE_ORIGINS); absent on older rows. */
+  origin?: string;
   errorCode: string | null;
   imageHash: string | null;
   /** Natural screenshot dimensions; null until the capture is ready. */
@@ -42,6 +48,8 @@ export interface CaptureAttemptView {
   variant: string;
   attempt: number;
   state: CaptureAttemptState;
+  /** `upload` for a capture sent in rather than taken by the provider. */
+  origin: string;
   errorCode: string | null;
   imageHash: string | null;
   /** Natural screenshot dimensions; null until the capture is ready. */
@@ -94,6 +102,7 @@ function toView(row: CaptureAttemptRecord, now: number): CaptureAttemptView {
     variant: row.variant,
     attempt: row.attempt,
     state: captureAttemptState(row, now),
+    origin: row.origin ?? "manual",
     errorCode: row.errorCode,
     imageHash: row.imageHash,
     documentWidth: row.documentWidth,
@@ -126,6 +135,7 @@ export function selectActiveAttempt(
 /** Whether a new attempt may be created for this variant's current state. */
 export function isRetryable(latest: CaptureAttemptView | null): boolean {
   if (!latest) return false;
+  if (latest.origin === "upload") return false;
   if (latest.state === "stale") return true;
   if (!isTerminalCaptureState(latest.state)) return false;
   if (latest.state === "failed" && latest.errorCode !== null) {

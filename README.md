@@ -55,8 +55,17 @@ edits; Pinata just makes "try tightening this" unambiguous.
    note resolved, and reopen it later; each change is recorded in the
    thread.
 
-Guardrails: public pages only, static captures only, no runtime AI, and
-directional feedback only. Full rationale lives in the decision log.
+Screens Pinata cannot visit — behind a sign-in, on a staging host, or on
+your own machine — come in through the **Pinata Chrome extension**
+(`extension/`, D131): one click captures the page in your own browser,
+Desktop and Mobile, with the same element list Pinata's capture makes, and
+either sends it to a project or saves a `.pinata.json` file to upload. Any
+plain screenshot uploads too, without the element list. See
+[`extension/README.md`](./extension/README.md) to install it.
+
+Guardrails: Pinata itself visits public pages only, static captures only,
+no runtime AI, and directional feedback only. Full rationale lives in the
+decision log.
 
 ### The walkthrough
 
@@ -192,6 +201,13 @@ npm run dev    # Next.js on http://127.0.0.1:3100
 
 Port 3100 is reserved for this project; the dev and production servers bind
 only to localhost.
+
+The Chrome extension needs no build: load `extension/` unpacked from
+`chrome://extensions`. It signs in to `http://127.0.0.1:3100` as readily as
+to production. Its copy of the capture contract, `extension/shared.generated.js`,
+is rendered from the server's source; after changing the element pass or the
+capture limits, run `npm run extension:build` (the test suite fails until
+you do).
 
 ## Deployment
 

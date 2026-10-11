@@ -26,6 +26,8 @@ import {
   CAPTURE_CONTINUATION_MARGIN_MS,
   CAPTURE_INVOCATION_MAX_DURATION_MS,
   CAPTURE_OUTCOMES,
+  CAPTURE_PACKAGE_FORMAT,
+  CAPTURE_PACKAGE_VERSION,
   CAPTURE_POLL_DEADLINE_MS,
   CAPTURE_POLL_INITIAL_INTERVAL_MS,
   CAPTURE_POLL_MAX_INTERVAL_MS,
@@ -103,6 +105,8 @@ import {
   STALE_CAPTURE_AGE_MS,
   SUPPORTED_MOTION,
   TOTAL_CAPTURE_TIMEOUT_MS,
+  UPLOAD_IMAGE_MAX_BYTES,
+  UPLOAD_REQUEST_MAX_BYTES,
   URL_NORMALIZATION_FIXTURES,
   type UrlNormalizationFixture,
 } from "../src/lib/boundaries";
@@ -246,6 +250,13 @@ const OUTCOME_ROWS: DocRow[] = [
   { name: "MAX_PUBLIC_MESSAGE_BYTES", value: fmtBytes(MAX_PUBLIC_MESSAGE_BYTES) },
 ];
 
+const UPLOAD_ROWS: DocRow[] = [
+  { name: "UPLOAD_IMAGE_MAX_BYTES", value: fmtBytes(UPLOAD_IMAGE_MAX_BYTES) },
+  { name: "UPLOAD_REQUEST_MAX_BYTES", value: fmtBytes(UPLOAD_REQUEST_MAX_BYTES) },
+  { name: "CAPTURE_PACKAGE_FORMAT", value: CAPTURE_PACKAGE_FORMAT },
+  { name: "CAPTURE_PACKAGE_VERSION", value: fmtNum(CAPTURE_PACKAGE_VERSION) },
+];
+
 const ASSET_ROWS: DocRow[] = [
   { name: "ASSET_CACHE_CONTROL", value: ASSET_CACHE_CONTROL },
   { name: "ASSET_VARY", value: ASSET_VARY },
@@ -262,6 +273,7 @@ const EVALS_ROWS: DocRow[] = [
   ...MOTION_ROWS,
   ...OUTCOME_ROWS,
   ...ASSET_ROWS,
+  ...UPLOAD_ROWS,
   ...GEOMETRY_ROWS,
   ...QUOTA_ROWS,
   ...FEEDBACK_ROWS,
@@ -275,6 +287,7 @@ const ARCHITECTURE_ROWS: DocRow[] = [
   ...SESSION_ROWS,
   ...CAPTURE_ROWS,
   ...ASSET_ROWS,
+  ...UPLOAD_ROWS,
   { name: "MANIFEST_SCHEMA_VERSION", value: fmtNum(MANIFEST_SCHEMA_VERSION) },
   { name: "MAX_MANIFEST_ELEMENTS", value: fmtNum(MAX_MANIFEST_ELEMENTS) },
   { name: "MAX_MANIFEST_BYTES", value: fmtBytes(MAX_MANIFEST_BYTES) },
@@ -369,6 +382,14 @@ describe("boundary catalog coverage and consistency", () => {
   test("attempt quota admits the initial attempts of a maximum-size project", () => {
     expect(MAX_CAPTURE_ATTEMPTS_PER_PROJECT).toBeGreaterThanOrEqual(MAX_UNIQUE_PAGE_URLS * 2);
     expect(MAX_SUBMITTED_URL_ROWS).toBeGreaterThanOrEqual(MAX_UNIQUE_PAGE_URLS);
+  });
+
+  test("one upload request fits an image, its element list, and a Vercel Function body", () => {
+    // The image and a full manifest both fit, and the whole request stays
+    // under the 4.5 MB a Vercel Function accepts.
+    expect(UPLOAD_REQUEST_MAX_BYTES).toBeGreaterThan(UPLOAD_IMAGE_MAX_BYTES + MAX_MANIFEST_BYTES);
+    expect(UPLOAD_REQUEST_MAX_BYTES).toBeLessThan(4_500_000);
+    expect(UPLOAD_IMAGE_MAX_BYTES).toBeLessThanOrEqual(MAX_IMAGE_BYTES);
   });
 
   test("the project request cap admits a maximum submission", () => {
@@ -657,6 +678,8 @@ describe("no duplicated runtime literals", () => {
     CAPTURE_POLL_DEADLINE_MS,
     CLIENT_REQUEST_TIMEOUT_MS,
     PERF_RETAINED_HEAP_MAX_BYTES,
+    UPLOAD_IMAGE_MAX_BYTES,
+    UPLOAD_REQUEST_MAX_BYTES,
   ];
 
   function numericForms(v: number): string[] {

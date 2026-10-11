@@ -2,15 +2,20 @@
 // docs/EVALS.md and docs/ARCHITECTURE.md; test/boundaries.test.ts fails if
 // any of the three drift apart.
 
-/** Absolute editor-session lifetime: 12 hours. Never valid past this. */
-export const EDITOR_SESSION_ABSOLUTE_LIFETIME_MS = 43_200_000;
+/**
+ * Absolute editor-session lifetime: 7 days (D130). Never valid past this.
+ * The Chrome extension's sign-in (D132) follows the same policy.
+ */
+export const EDITOR_SESSION_ABSOLUTE_LIFETIME_MS = 604_800_000;
 
 /**
- * Renewal threshold: 2 hours. A session may be renewed only when its
+ * Renewal threshold: 6 days. A session may be renewed only when its
  * remaining lifetime is inside this threshold; renewal sets a fresh absolute
- * expiry of now + EDITOR_SESSION_ABSOLUTE_LIFETIME_MS.
+ * expiry of now + EDITOR_SESSION_ABSOLUTE_LIFETIME_MS. With a 7-day lifetime
+ * that renews any session at least a day old, so signing in again is needed
+ * only after 7 days without using Pinata.
  */
-export const EDITOR_SESSION_RENEWAL_THRESHOLD_MS = 7_200_000;
+export const EDITOR_SESSION_RENEWAL_THRESHOLD_MS = 518_400_000;
 
 /**
  * Maximum byte size of an authentication request body (login/logout JSON),
