@@ -18,8 +18,8 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Human directed | 54 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136 |
 | Agent proposed, human approved | 24 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
-| Raised and deferred | 5 | D003, D054, D094, D109, D135 |
-| **Total** | **136** | |
+| Raised and deferred | 6 | D003, D054, D094, D109, D135, D137 |
+| **Total** | **137** | |
 
 ## Key decisions
 
@@ -197,6 +197,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D134](#d134--an-uploads-address-is-a-label-localhost-ports-and-plain-http-are-allowed) | build | An upload's address is a label: localhost, ports, and plain http are allowed | Agent decided alone | accepted |
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
 | [D136](#d136--a-two-finger-scroll-pans-the-canvas-in-any-direction-a-pinch-zooms) | build | A two-finger scroll pans the canvas in any direction; a pinch zooms | Human directed | accepted |
+| [D137](#d137--revisit-how-the-canvas-treats-a-mouse-wheel-versus-a-trackpad) | design | Revisit how the canvas treats a mouse wheel versus a trackpad | Raised and deferred | pending |
 
 ---
 
@@ -5522,4 +5523,32 @@ Human instruction:
 
 ---
 
-<sub>Generated from 136 record(s) as of 2026-10-11 · source `82047b650217`</sub>
+## D137 — Revisit how the canvas treats a mouse wheel versus a trackpad
+
+*2026-10-11 · phase: design · origin: **Raised and deferred** · status: **pending***
+
+**Problem**
+
+Since D136 a two-finger scroll pans and a pinch zooms, but browsers send a mouse wheel and a trackpad scroll as the same event, so a plain mouse wheel pans too. Zooming with a mouse now takes Cmd or Ctrl with the wheel, or the zoom buttons.
+
+**Decision**
+
+Deferred for a week: decide whether to keep D136 as it is, try to tell a mouse wheel from a trackpad scroll and zoom on the mouse wheel only, or offer a setting.
+
+**Rationale**
+
+Raised by the owner right after D136 landed, as something to think over rather than change now.
+
+**Consequences**
+
+- D136 stays as shipped until this is answered. A reminder is set in the agent session for 2026-10-18.
+
+**Provenance evidence**
+
+Human instruction:
+
+> actually, remind me to revisit this... the mouse vs. trackpad behavior challenges have me thinking. remind me to look at this in a week.
+
+---
+
+<sub>Generated from 137 record(s) as of 2026-10-11 · source `16459552854e`</sub>

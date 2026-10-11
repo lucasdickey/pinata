@@ -3853,3 +3853,5 @@ Harness: Claude Code, in a cloud session.
 
 - D136 (user-directed): two-finger scroll pans in any direction; a pinch
   zooms.
+- D137 (user-deferred): how a mouse wheel should behave next to a
+  trackpad, to revisit in a week.

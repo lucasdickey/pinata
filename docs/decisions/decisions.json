@@ -6345,6 +6345,27 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D137",
+      "date": "2026-10-11",
+      "phase": "design",
+      "title": "Revisit how the canvas treats a mouse wheel versus a trackpad",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "Since D136 a two-finger scroll pans and a pinch zooms, but browsers send a mouse wheel and a trackpad scroll as the same event, so a plain mouse wheel pans too. Zooming with a mouse now takes Cmd or Ctrl with the wheel, or the zoom buttons.",
+      "decision": "Deferred for a week: decide whether to keep D136 as it is, try to tell a mouse wheel from a trackpad scroll and zoom on the mouse wheel only, or offer a setting.",
+      "alternatives": [],
+      "rationale": "Raised by the owner right after D136 landed, as something to think over rather than change now.",
+      "consequences": [
+        "D136 stays as shipped until this is answered. A reminder is set in the agent session for 2026-10-18."
+      ],
+      "transcript": {
+        "request": "actually, remind me to revisit this... the mouse vs. trackpad behavior challenges have me thinking. remind me to look at this in a week."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }
