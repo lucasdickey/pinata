@@ -1,0 +1,7 @@
+# Pinata
+
+Pinata is a lightweight workspace for pinning directional feedback to public web pages. It captures pages so an editor can mark exact places with notes and share the feedback.
+
+- [Landing page](https://yourpinata.dev/): What Pinata does.
+- [Walkthrough](https://yourpinata.dev/walkthrough): A guided product tour.
+- [Requirements](https://yourpinata.dev/reqs): Product requirements and design decisions.

@@ -15,11 +15,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 53 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132 |
+| Human directed | 54 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136 |
 | Agent proposed, human approved | 24 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
 | Raised and deferred | 5 | D003, D054, D094, D109, D135 |
-| **Total** | **135** | |
+| **Total** | **136** | |
 
 ## Key decisions
 
@@ -196,6 +196,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D133](#d133--uploads-go-through-pinatas-own-route-one-device-per-request-with-a-4-mb-image-cap) | build | Uploads go through Pinata's own route, one device per request, with a 4 MB image cap | Agent decided alone | accepted |
 | [D134](#d134--an-uploads-address-is-a-label-localhost-ports-and-plain-http-are-allowed) | build | An upload's address is a label: localhost, ports, and plain http are allowed | Agent decided alone | accepted |
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
+| [D136](#d136--publish-landing-discovery-metadata-and-public-only-crawl-entry-points) | build | Publish landing discovery metadata and public-only crawl entry points | Human directed | accepted |
 
 ---
 
@@ -5478,4 +5479,46 @@ Human instruction:
 
 ---
 
-<sub>Generated from 135 record(s) as of 2026-10-10 · source `2ba3317b88c1`</sub>
+## D136 — Publish landing discovery metadata and public-only crawl entry points
+
+*2026-10-11 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The landing had only a title and description. Search engines, social unfurls, and agents lacked an image, a canonical URL, and crawlable public entry points.
+
+**Decision**
+
+Set the production origin as the metadata base; give only the root page its canonical URL, Open Graph and Twitter cards using existing same-origin landing art. Publish robots.txt, a sitemap of the seven public pages, and a short llms.txt pointing at the landing, walkthrough, and requirements hub. Keep private workspace, founder, agent-capability, and API paths out of discovery.
+
+**Alternatives considered**
+
+- *Put canonical and social URLs on the shared root layout* — Next.js inherits layout metadata on every child route, so a founder page or walkthrough would incorrectly advertise the homepage as its canonical URL.
+- *Create a new externally hosted social-card image* — The landing already ships a same-origin illustration, and external assets would add an unnecessary request and maintenance surface.
+
+**Rationale**
+
+The owner explicitly asked for search, social, and agent discovery of the landing. Reusing the existing copy and art and limiting crawl entries to anonymous public routes makes this a bounded implementation choice without new product claims or dependencies.
+
+**Consequences**
+
+- The root canonical and social URL use https://yourpinata.dev; child pages do not inherit that canonical.
+- Only the seven named public pages appear in the sitemap; new public pages must be added deliberately.
+- Founder and agent-link response headers remain noindex, nofollow, noarchive, and robots.txt disallows those paths as well as /pins and /api/.
+
+**Provenance evidence**
+
+Human instruction:
+
+> <@U0C894SB9NH> please check the pinata root/landing page for all the relevant og and other metadata so that the landing page is search, social, and agent ready for discovery and consumption
+
+**Artifacts**
+
+- `app/page.tsx` — Landing-only canonical and social metadata.
+- `app/robots.ts` — Public crawl allowlist and protected-route exclusions.
+- `app/sitemap.ts` — The public page list.
+- `public/llms.txt` — Short agent discovery guide.
+
+---
+
+<sub>Generated from 136 record(s) as of 2026-10-11 · source `56b00f9ed497`</sub>
