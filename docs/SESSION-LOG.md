@@ -3823,3 +3823,29 @@ Harness: Claude Code, on the owner's Mac.
 ### Decisions
 
 - D128 (user-directed): the pin accordion and the project switcher.
+
+---
+
+## 2026-10-11 — a cheaper brief for agents (D136, D137)
+
+Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
+
+- The owner asked whether the agent link could cost fewer tokens: Claude was
+  cutting each full-page screenshot into pieces and paying for every piece.
+- Worked out where the cost was. A vision model shrinks a tall screenshot
+  past reading, so every crop is unavoidable once an agent decides to look;
+  what was avoidable was the wasted whole-image read, the local tooling to
+  crop, and crops for notes the text already explained.
+- Shipped the two no-dependency changes: nearby elements per mark from the
+  stored manifest, the image size beside each screenshot link, and
+  instructions that lead with the text and say how to crop.
+- Set up `docs/RECOMMENDATIONS.md` for suggestions raised but not taken up,
+  with the three crop-serving options costed (R001 to R003).
+- The container had Node 22; the repository wants 24. Installed 24 through
+  nvm before the gate would run.
+
+### Decisions
+
+- D136 (agent proposed, owner approved): the text-first brief.
+- D137 (deferred): serving crops or tiles to agents.
+

@@ -6295,8 +6295,88 @@ window.PINATA = {
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D136",
+      "date": "2026-10-11",
+      "phase": "build",
+      "title": "The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The owner noticed that a coding agent reading the agent link (D121) cuts each full-page screenshot into pieces and pays for every piece, and asked whether the hand-off could cost fewer tokens. A full-page capture is tall (the mobile Chickpea page is about 13,000 px), and a vision model shrinks any image to roughly 1,568 px on its long edge before reading it, so the whole image is unreadable and the agent has to crop around each mark. The brief told it to \"download each screenshot\" without saying how big the image was or that the element text and path were often enough.",
+      "decision": "The brief now leads with text. Each mark lists the elements around it from the capture's own persisted manifest (tag, text, position, size; the nearest four that have something to read, never the mark's own elements), ranked the way the composer ranks candidates. Each screenshot link names the image's pixel size. The \"What to do\" section says to start from the text, open the image only when the note cannot be understood without it, and crop about 1400 × 800 px around the mark before viewing. The copy export is unchanged: the nearby lines are an optional field it does not fill.",
+      "alternatives": [
+        {
+          "option": "Serve crops from Pinata (a crop route, or one crop stored per mark)",
+          "why_not": "Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D137; see docs/RECOMMENDATIONS.md R001 and R002."
+        },
+        {
+          "option": "Store viewport-height tiles at capture time",
+          "why_not": "No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D137; R003."
+        },
+        {
+          "option": "Leave the brief as it was",
+          "why_not": "An agent read the whole image first (wasted), then cropped every mark with local tooling, including marks whose note was plain from the text."
+        }
+      ],
+      "rationale": "The avoidable cost was around the crops, not in them: the wasted whole-image read, the tooling to crop, and crops for notes the text already explained. Nearby elements cost a few dozen tokens each and replace most crops; the size line lets an agent crop straight away when it does need to look. No dependency and no database change: the manifest and the document size were already persisted per capture.",
+      "consequences": [
+        "The brief route reads each open mark's capture row (size and manifest) in one extra query per request.",
+        "A capture without a manifest or a recorded size (older rows) gets the plain link and no Nearby lines; nothing is invented.",
+        "docs/RECOMMENDATIONS.md is the log for suggestions not taken up yet, starting with the three above."
+      ],
+      "transcript": {
+        "proposal": "Do options 1 and 2 now. They attack the dominant cost, need no dependency, and fit the existing pure-formatter tests. Treat option 3 or 4 as a later decision only if agents still crop often after the text carries neighbours and dimensions.",
+        "approval": "go ahead with options 1 and 2, and set up a recommendaiton log for later."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/agent-brief.ts",
+          "caption": "The brief's instructions and the screenshot size line."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/agent/nearby.ts",
+          "caption": "Nearby elements per mark, from the capture's manifest."
+        },
+        {
+          "type": "file",
+          "path": "docs/RECOMMENDATIONS.md",
+          "caption": "The recommendations log."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D137",
+      "date": "2026-10-11",
+      "phase": "design",
+      "title": "Serving crops or tiles of a screenshot to agents",
+      "origin": "user-deferred",
+      "status": "pending",
+      "problem": "Beyond the text-first brief (D136), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.",
+      "decision": "Deferred: revisit once the text-first brief has been used on a few projects. If agents still crop on most marks, pick between a crop route, a stored crop per mark, and capture-time tiles. The options, their costs, and what would make each worth doing are written up in docs/RECOMMENDATIONS.md (R001, R002, R003).",
+      "alternatives": [],
+      "rationale": "The owner took the two no-dependency changes and asked for the rest to be logged for later rather than decided now.",
+      "consequences": [
+        "docs/RECOMMENDATIONS.md exists from here on as the place for suggestions that are raised but not yet acted on."
+      ],
+      "transcript": {
+        "request": "go ahead with options 1 and 2, and set up a recommendaiton log for later."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "docs/RECOMMENDATIONS.md",
+          "caption": "R001 to R003: the deferred options."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-10",
-  "source_hash": "2ba3317b88c1"
+  "as_of": "2026-10-11",
+  "source_hash": "c76cacc6ca7b"
 };

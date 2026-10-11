@@ -96,6 +96,35 @@ async function seedProject(label: string) {
     deviceScaleFactor: 1,
     documentWidth: 64,
     documentHeight: 40,
+    domManifestJson: JSON.stringify({
+      schemaVersion: 1,
+      truncated: false,
+      elements: [
+        {
+          id: "title",
+          kind: "heading",
+          tag: "h1",
+          role: "",
+          text: `${label} headline`,
+          accessibleName: "",
+          hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+          path: ["body:0", "h1:0"],
+          rect: { x: 2, y: 2, width: 40, height: 10 },
+        },
+        {
+          id: "lede",
+          kind: "text",
+          tag: "p",
+          role: "",
+          text: `${label} lede`,
+          accessibleName: "",
+          hints: { id: "", classes: [], alt: "", title: "", testId: "" },
+          path: ["body:0", "p:0"],
+          rect: { x: 2, y: 14, width: 40, height: 10 },
+        },
+      ],
+    }),
+    domManifestVersion: 1,
     blobPath: `captures/${pageId}/${captureId}-internal.png`,
     blobContentType: "image/png",
     blobBytes: PNG.byteLength,
@@ -293,7 +322,12 @@ describe("public brief /a/[token]", () => {
     // Resolved marks are left out, and the header says so.
     expect(text).not.toContain("already handled");
     expect(text).toContain("(1 resolved left out)");
-    expect(text).toContain(`Screenshot: ${ORIGIN}/a/${token}/captures/${own.captureId}`);
+    expect(text).toContain(
+      `Screenshot: ${ORIGIN}/a/${token}/captures/${own.captureId} (64 × 40 px, full page)`,
+    );
+    // The elements around the mark, from the capture's own manifest (D136).
+    expect(text).toContain("- Nearby: <h1> “own headline” at 2, 2 · 40 × 10 px");
+    expect(text).toContain("- Nearby: <p> “own lede” at 2, 14 · 40 × 10 px");
   });
 
   test("an unknown, rotated, or revoked token is the same plain 404", async () => {

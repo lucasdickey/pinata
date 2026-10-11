@@ -68,7 +68,10 @@ Playwright e2e — in that order, locally and in GitHub Actions.
   The token is in the path because an agent fetches a plain URL and cannot
   read a fragment; in exchange, the link can only read, and every answer is
   `no-store`, `noindex`, and `no-referrer`. It never touches the founder
-  link.
+  link. The brief is written to cost an agent few tokens (D136): each mark
+  carries the elements around it from the capture's persisted manifest, each
+  screenshot link names the image's size, and the instructions say to work
+  from the text and to crop around a mark before viewing a tall image.
 - **Threads.** The editor owns the one editable original comment per
   annotation. Everything after that is an append-only `thread_entries` row
   authored by `editor` or `founder`. Database triggers reject `UPDATE` and

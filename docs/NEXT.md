@@ -9,6 +9,11 @@ _Nothing cut yet. Entries here should link to the decision record that cut them.
 
 ## Would build next
 
+- **Crops or tiles of a screenshot for agents** (`D137`). The brief now
+  leads with text (`D136`); if agents still crop on most marks, the three
+  ways to spare them that work are costed in
+  [`RECOMMENDATIONS.md`](RECOMMENDATIONS.md) (R001 to R003).
+
 - **Voice-over and captions for the walkthrough** (`D072`). The slide table
   already carries a prose transcript per chapter; Remotion can time captions
   from it and mix a recorded narration track, which would make the rendered

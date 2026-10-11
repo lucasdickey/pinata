@@ -116,6 +116,7 @@ trail is maintained continuously rather than reconstructed afterwards.
 | `docs/dashboard/index.html` | Same data as a browser page, with screenshots. Open it directly, no server needed. |
 | [`docs/SESSION-LOG.md`](docs/SESSION-LOG.md) | What actually happened each session, dead ends included. |
 | [`docs/NEXT.md`](docs/NEXT.md) | What I'd do with more time. |
+| [`docs/RECOMMENDATIONS.md`](docs/RECOMMENDATIONS.md) | Suggestions the agent raised that are not acted on yet, with what each would cost. |
 | [`AGENTS.md`](AGENTS.md) | The rules the agent works under. |
 | [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md) | Product requirements, naming story, scope, and non-goals. |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System shape, stack, capture pipeline, security boundaries. |
