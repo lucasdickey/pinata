@@ -6297,6 +6297,102 @@ window.PINATA = {
       "superseded_by": null
     },
     {
+      "id": "D136",
+      "date": "2026-10-11",
+      "phase": "design",
+      "title": "Keep a brand reference at the repository root, updated with every material branding decision",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The brand lived in pieces: tokens and their contrast notes in app/globals.css, the mark in src/lib/brand-mark.ts, the illustration style in docs/brand/homepage-illustration-prompts.json, the voice and casing rules in D078 and D127, and the direction in D102, D104, D107 and D119. Nothing gathered them, so a new surface (the extension popup, the walkthrough) had to rediscover the rules and sometimes diverged.",
+      "decision": "brand.md at the repository root gathers the name and casing rules, taglines, voice, the mark, the light and dark tokens with their contrast contracts, the Inter weight scale and type sizes, shape and spacing, motion, how marks are drawn, the illustration style, theming, the accessibility floor, the surfaces that diverge on purpose, and a checklist for changing any of it. The sources stay authoritative (the stylesheet, the mark module, the decision log, the tests that lock them); brand.md explains them in one place. Any material branding decision gets a record here and an edit to brand.md in the same commit; AGENTS.md carries that rule.",
+      "alternatives": [
+        {
+          "option": "Put the brand reference under docs/brand/ beside the exploration board",
+          "why_not": "The owner asked for it at the root, where AGENTS.md and README.md already are, so an agent or a person opening the repository sees it first."
+        },
+        {
+          "option": "Generate it from the stylesheet the way DECISIONS.md is generated from decisions.json",
+          "why_not": "Half of the brand is prose (voice, casing, what the accent may color, why the dashboard looks different) that no stylesheet carries; a generator would only reproduce the token table."
+        },
+        {
+          "option": "Move the token values out of the stylesheet into brand.md and have the CSS read from it",
+          "why_not": "The stylesheet, the mark module, and the walkthrough theme already share values through tests; adding a build step for a Markdown file buys nothing and risks the zero-dependency docs tooling."
+        }
+      ],
+      "rationale": "Requested by the owner. Writing it from what is already shipped, rather than from a fresh design pass, keeps it honest: every value in the file is one a test or a stylesheet already enforces, and the two places that drift (the extension popup, the walkthrough weights) are named rather than papered over.",
+      "consequences": [
+        "brand.md is a maintained document: a branding change without an edit to it is incomplete, the same way a decision without a regenerated DECISIONS.md is.",
+        "The file cites the tests that lock each value (visual-tokens, brand-mark, walkthrough-slides) so a change knows which assertions it must update.",
+        "The character's species is left open in copy: the code says llama, the illustration prompts said donkey; brand.md says to call it the piñata character until the owner picks.",
+        "The extension popup's divergences (system font, accent-filled primary button) are recorded as known rather than fixed in this change."
+      ],
+      "transcript": {
+        "request": "create a brand.md file at root of the project based on all font, styling, color, etc, we've used thus far and want to adhere to going forward. we should update this file if we make material branding decisions."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "brand.md",
+          "caption": "The brand reference."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D137",
+      "date": "2026-10-11",
+      "phase": "build",
+      "title": "Publish landing discovery metadata and public-only crawl entry points",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The landing had only a title and description. Search engines, social unfurls, and agents lacked an image, a canonical URL, and crawlable public entry points.",
+      "decision": "Set the production origin as the metadata base; give only the root page its canonical URL, Open Graph and Twitter cards using existing same-origin landing art. Publish robots.txt, a sitemap of the seven public pages, and a short llms.txt pointing at the landing, walkthrough, and requirements hub. Keep private workspace, founder, agent-capability, and API paths out of discovery.",
+      "alternatives": [
+        {
+          "option": "Put canonical and social URLs on the shared root layout",
+          "why_not": "Next.js inherits layout metadata on every child route, so a founder page or walkthrough would incorrectly advertise the homepage as its canonical URL."
+        },
+        {
+          "option": "Create a new externally hosted social-card image",
+          "why_not": "The landing already ships a same-origin illustration, and external assets would add an unnecessary request and maintenance surface."
+        }
+      ],
+      "rationale": "The owner explicitly asked for search, social, and agent discovery of the landing. Reusing the existing copy and art and limiting crawl entries to anonymous public routes makes this a bounded implementation choice without new product claims or dependencies.",
+      "consequences": [
+        "The root canonical and social URL use https://yourpinata.dev; child pages do not inherit that canonical.",
+        "Only the seven named public pages appear in the sitemap; new public pages must be added deliberately.",
+        "Founder and agent-link response headers remain noindex, nofollow, noarchive, and robots.txt disallows those paths as well as /pins and /api/."
+      ],
+      "transcript": {
+        "request": "<@U0C894SB9NH> please check the pinata root/landing page for all the relevant og and other metadata so that the landing page is search, social, and agent ready for discovery and consumption"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/page.tsx",
+          "caption": "Landing-only canonical and social metadata."
+        },
+        {
+          "type": "file",
+          "path": "app/robots.ts",
+          "caption": "Public crawl allowlist and protected-route exclusions."
+        },
+        {
+          "type": "file",
+          "path": "app/sitemap.ts",
+          "caption": "The public page list."
+        },
+        {
+          "type": "file",
+          "path": "public/llms.txt",
+          "caption": "Short agent discovery guide."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
       "id": "D138",
       "date": "2026-10-11",
       "phase": "build",
@@ -6378,5 +6474,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-10-11",
-  "source_hash": "d294939de169"
+  "source_hash": "33b7f0553581"
 };

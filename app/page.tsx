@@ -1,6 +1,27 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AnonymousLanding } from "../src/components/landing";
 import { hasEditorSession } from "../src/lib/server/auth/editor-page";
+
+const description = "pin + annotation + at ya — directional feedback on public websites";
+const image = "/illustrations/hero.png";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Pinata",
+    description,
+    url: "/",
+    type: "website",
+    images: [{ url: image, width: 1536, height: 1024, alt: "Pinata landing illustration" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Pinata",
+    description,
+    images: [image],
+  },
+};
 
 // The root route is the public front door (VAL-LANDING-*, D066/D069): the
 // pinata mark above the URL capture entry, a brief value proposition, a
