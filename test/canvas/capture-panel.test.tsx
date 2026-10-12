@@ -4,7 +4,7 @@
 // the panel's job is the selected saved pin, the pins list, and the capture
 // facts. Hostile captured text in a saved snapshot renders as inert escaped
 // text, the panel copy names the one gesture that drops a pin, marks are
-// named by comment and element (D078), and the internals sit behind one
+// named by comment and element (D078), and capture facts sit behind one
 // Details disclosure.
 
 import "@testing-library/jest-dom/vitest";
@@ -261,7 +261,7 @@ describe("rectangles in the panel (D079)", () => {
 });
 
 // The internals behind one disclosure (D078): closed by default, a real
-// <summary>, the capture facts and coordinates inside, and the keyboard list.
+// <summary>, with capture facts and coordinates inside.
 describe("Details disclosure (D078)", () => {
   const pin = {
     id: "ann-1",
@@ -316,19 +316,14 @@ describe("Details disclosure (D078)", () => {
     expect(visible).not.toContain("Version");
   });
 
-  test("lists the keyboard shortcuts", () => {
+  test("keeps capture facts in Details without duplicating canvas help", () => {
     render(<CapturePanel {...panelProps()} />);
     const details = screen.getByTestId("panel-details");
-    const keys = within(details).getByTestId("panel-keys");
-    const items = within(keys).getAllByRole("listitem").map((item) => item.textContent);
-    expect(items).toEqual([
-      "Enter saves a comment; Shift+Enter starts a new line",
-      "Escape cancels, then lets go of the selected mark",
-      "J and K, or the arrow keys, step through the marks",
-      "N drops a pin at the center of the view",
-      "B, C, or A arms the box, circle, or arrow tool for the next drag",
-      "Shift-drag also draws a box",
-    ]);
+    expect(details).toHaveTextContent("Page");
+    expect(details).toHaveTextContent("Device");
+    expect(within(details).queryByTestId("panel-keys")).toBeNull();
+    expect(details).not.toHaveTextContent("Keyboard");
+    expect(details).not.toHaveTextContent("Shift-drag");
     // With nothing selected there is no position row.
     expect(within(details).queryByTestId("panel-position")).toBeNull();
   });

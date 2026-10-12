@@ -1984,9 +1984,6 @@ pre code {
   max-width: var(--max);
 }
 
-/* The verb strip beside the canvas controls (D078): what a click, a
-   shift-drag, and a drag do, in a handful of words. A paragraph, not a
-   heading; it wraps under the controls when the row is full. */
 .workspace-verbs {
   margin: 0;
   color: var(--ink-soft);
@@ -2396,21 +2393,6 @@ pre code {
   margin-top: 0.5rem;
 }
 
-.panel-facts-label {
-  margin: 0.5rem 0 0.15rem;
-  color: var(--ink-soft);
-}
-
-.panel-keys {
-  margin: 0;
-  padding-left: 1.1rem;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-}
-
-.panel-keys li {
-  margin: 0.1rem 0;
-}
 
 /* ---- all-pins table (D071) ---- */
 
@@ -2728,10 +2710,33 @@ pre code {
   right: 0;
   width: min(20rem, calc(100vw - 2rem));
   padding: 0.75rem 0.9rem;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .canvas-help-popup p {
   margin: 0;
+}
+.canvas-help-popup .canvas-help-heading {
+  font-weight: 600;
+}
+
+.canvas-help-popup .canvas-help-heading:not(:first-child) {
+  margin-top: 0.75rem;
+}
+
+.canvas-help-keys {
+  margin: 0.25rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.canvas-help-keys li + li {
+  margin-top: 0.25rem;
 }
 
 /* The help text takes focus when it opens so Escape and screen readers

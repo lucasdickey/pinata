@@ -3898,3 +3898,47 @@ Roughly 15 minutes of agent time for the first implementation and another
 
 - D137 (user-directed): search, social, and agent discovery for the public
   landing, using existing copy and art and excluding private surfaces.
+
+---
+
+## 2026-10-12 — consolidate canvas help
+
+Harness: Warp Factory implementation agent in a sandbox. Elapsed: about 10
+minutes against no fixed timebox.
+
+### What was attempted
+
+- Moved the existing keyboard instructions from panel Details to the existing
+  `?` canvas popup, alongside its action gestures. Kept Details for capture
+  facts and left the keyboard handlers unchanged.
+- Added component assertions for the popup contents, focus return, and
+  absence of duplicate keyboard help in Details. Both new assertions failed
+  on the old UI before they passed on the new one.
+
+### What broke
+
+- The first validation run stopped at Playwright: its Chromium binary was
+  absent. Installed the pinned binary; the second run found missing Debian
+  browser libraries. Installed Playwright's Chromium system dependencies and
+  reran the full gate.
+- The first browser attempt stopped at editor sign-in: this sandbox had no
+  `.env.local` or real editor credential. For UI inspection, migrated a
+  disposable local libSQL database under `/tmp`, seeded one ready capture,
+  and ran the production app with the documented local-only auth bypass.
+  The screenshot asset did not load without a Blob provider; this was a
+  fixture for the actual help UI, not a capture-integrity test.
+- The UI session left port 3100 occupied, so one later full-gate attempt
+  stopped at the Playwright web-server start. Stopped that local server
+  before rerunning the gate.
+
+### Validation and decisions
+
+- `npm run validate` passed under Node 24: lint, typecheck, 1,898 Vitest tests
+  passed (44 skipped), docs:check, build, and 28 Playwright tests passed
+  (46 credentialed skips).
+- In the browser, the actual `?` popup showed actions and all six keyboard
+  instructions; Escape returned focus to the button. Details held capture
+  facts only. The popup's last item stayed reachable by scrolling at high
+  browser zoom.
+- No new decision ID: this moves existing instructions into the help surface
+  already chosen in D111. It makes no new product or architecture choice.

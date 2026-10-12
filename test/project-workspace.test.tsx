@@ -468,7 +468,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("a short verb strip behind the toolbar's ? names the four verbs (VAL-CANVAS-009, D074, D078, D111)", () => {
+  test("the toolbar's ? groups the four gestures and keyboard help without duplicating Details", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
     // Plain words, no modes, no jargon: the page teaches the whole workflow
@@ -479,6 +479,11 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(help).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(help);
     expect(help).toHaveAttribute("aria-expanded", "true");
+    const popup = document.getElementById(help.getAttribute("aria-controls")!)!;
+    expect(popup).toHaveAttribute("role", "group");
+    expect(popup).toHaveAccessibleName("Canvas help");
+    expect(popup).toHaveFocus();
+    expect(within(popup).getByText("Actions")).toBeInTheDocument();
     const strip = within(detail()).getByTestId("workspace-verbs");
     expect(strip.tagName.toLowerCase()).toBe("p");
     expect(strip).toHaveTextContent(
@@ -494,9 +499,21 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(strip.closest('[data-testid="canvas-toolbar-float"]')).not.toBeNull();
     expect(detail().querySelector(".workspace-hint")).toBeNull();
     expect(within(detail()).queryByRole("heading", { name: /drop a pin/i })).toBeNull();
+    expect(within(popup).getByText("Keyboard")).toBeInTheDocument();
+    const keys = within(popup).getByTestId("canvas-help-keys");
+    expect(within(keys).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Enter saves a comment; Shift+Enter starts a new line",
+      "Escape cancels, then lets go of the selected mark",
+      "J or ArrowDown selects the next mark; K or ArrowUp selects the previous",
+      "N drops a pin at the center of the view",
+      "B, C, or A arms the box, circle, or arrow tool for the next drag",
+      "Shift-drag also draws a box",
+    ]);
+    expect(within(sidePanel()).getByTestId("panel-details")).not.toHaveTextContent("Keyboard");
     // Escape puts it away again.
     fireEvent.keyDown(window, { key: "Escape" });
     expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
+    expect(help).toHaveFocus();
   });
 
   test("the verb strip is not shown for a capture that cannot be pinned", async () => {
