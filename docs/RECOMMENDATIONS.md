@@ -17,7 +17,7 @@ decision record that deferred it, and a status line (`open`, `done`, `declined`)
 
 ## R001 — Serve crops of a screenshot from Pinata
 
-- Raised: 2026-10-11, alongside `D136`. Deferred in `D137`.
+- Raised: 2026-10-11, alongside `D138`. Deferred in `D139`.
 - Status: open.
 
 **What.** A route such as `/a/<token>/captures/<id>?x=&y=&w=&h=`, or a
@@ -40,14 +40,14 @@ its own decision record and a check that the Vercel function size stays
 within limits.
 
 **Worth doing when.** The brief's text (element, path, nearby elements, image
-size: `D136`) turns out not to be enough, and agents are still seen cropping
+size: `D138`) turns out not to be enough, and agents are still seen cropping
 on most marks.
 
 ---
 
 ## R002 — Make a crop once, when a mark is saved
 
-- Raised: 2026-10-11, alongside `D136`. Deferred in `D137`.
+- Raised: 2026-10-11, alongside `D138`. Deferred in `D139`.
 - Status: open.
 
 **What.** When a mark is created or moved, cut a crop around it once and store
@@ -69,7 +69,7 @@ serverless function matters more than the storage.
 
 ## R003 — Store viewport-height tiles at capture time
 
-- Raised: 2026-10-11, alongside `D136`. Deferred in `D137`.
+- Raised: 2026-10-11, alongside `D138`. Deferred in `D139`.
 - Status: open.
 
 **What.** During the one Browserless session (`D016`), also take clipped

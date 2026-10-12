@@ -1,4 +1,4 @@
-// Nearby elements for the agent brief (D136): the manifest elements around a
+// Nearby elements for the agent brief (D138): the manifest elements around a
 // mark, as text, so an agent can usually place the mark without opening the
 // screenshot.
 //

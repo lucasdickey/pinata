@@ -16,9 +16,9 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 53 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132 |
-| Agent proposed, human approved | 25 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D136 |
+| Agent proposed, human approved | 25 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
-| Raised and deferred | 6 | D003, D054, D094, D109, D135, D137 |
+| Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
 | **Total** | **137** | |
 
 ## Key decisions
@@ -196,8 +196,8 @@ The product and architecture decisions to read first. The full index follows.
 | [D133](#d133--uploads-go-through-pinatas-own-route-one-device-per-request-with-a-4-mb-image-cap) | build | Uploads go through Pinata's own route, one device per request, with a 4 MB image cap | Agent decided alone | accepted |
 | [D134](#d134--an-uploads-address-is-a-label-localhost-ports-and-plain-http-are-allowed) | build | An upload's address is a label: localhost, ports, and plain http are allowed | Agent decided alone | accepted |
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
-| [D136](#d136--the-agent-brief-leads-with-text-nearby-elements-screenshot-sizes-and-crop-before-viewing) | build | The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing | Agent proposed, human approved | accepted |
-| [D137](#d137--serving-crops-or-tiles-of-a-screenshot-to-agents) | design | Serving crops or tiles of a screenshot to agents | Raised and deferred | pending |
+| [D138](#d138--the-agent-brief-leads-with-text-nearby-elements-screenshot-sizes-and-crop-before-viewing) | build | The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing | Agent proposed, human approved | accepted |
+| [D139](#d139--serving-crops-or-tiles-of-a-screenshot-to-agents) | design | Serving crops or tiles of a screenshot to agents | Raised and deferred | pending |
 
 ---
 
@@ -5480,7 +5480,7 @@ Human instruction:
 
 ---
 
-## D136 — The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing
+## D138 — The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing
 
 *2026-10-11 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
 
@@ -5494,8 +5494,8 @@ The brief now leads with text. Each mark lists the elements around it from the c
 
 **Alternatives considered**
 
-- *Serve crops from Pinata (a crop route, or one crop stored per mark)* — Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D137; see docs/RECOMMENDATIONS.md R001 and R002.
-- *Store viewport-height tiles at capture time* — No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D137; R003.
+- *Serve crops from Pinata (a crop route, or one crop stored per mark)* — Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D139; see docs/RECOMMENDATIONS.md R001 and R002.
+- *Store viewport-height tiles at capture time* — No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D139; R003.
 - *Leave the brief as it was* — An agent read the whole image first (wasted), then cropped every mark with local tooling, including marks whose note was plain from the text.
 
 **Rationale**
@@ -5526,13 +5526,13 @@ Human approved:
 
 ---
 
-## D137 — Serving crops or tiles of a screenshot to agents
+## D139 — Serving crops or tiles of a screenshot to agents
 
 *2026-10-11 · phase: design · origin: **Raised and deferred** · status: **pending***
 
 **Problem**
 
-Beyond the text-first brief (D136), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.
+Beyond the text-first brief (D138), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.
 
 **Decision**
 
@@ -5558,4 +5558,4 @@ Human instruction:
 
 ---
 
-<sub>Generated from 137 record(s) as of 2026-10-11 · source `c76cacc6ca7b`</sub>
+<sub>Generated from 137 record(s) as of 2026-10-11 · source `d294939de169`</sub>

@@ -3826,7 +3826,7 @@ Harness: Claude Code, on the owner's Mac.
 
 ---
 
-## 2026-10-11 — a cheaper brief for agents (D136, D137)
+## 2026-10-11 — a cheaper brief for agents (D138, D139)
 
 Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
 
@@ -3846,6 +3846,6 @@ Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
 
 ### Decisions
 
-- D136 (agent proposed, owner approved): the text-first brief.
-- D137 (deferred): serving crops or tiles to agents.
+- D138 (agent proposed, owner approved): the text-first brief.
+- D139 (deferred): serving crops or tiles to agents.
 

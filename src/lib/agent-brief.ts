@@ -4,11 +4,11 @@
 // URL: a short "what to do" section first, then one section per screenshot
 // with a direct link to the image and its size, then each mark as the copy
 // export writes it (status, position, element, path, the note, its thread)
-// plus the elements around it (D136). Resolved marks are left out — the
+// plus the elements around it (D138). Resolved marks are left out — the
 // brief is the work still to do — and the header says how many were left out
 // so nothing looks lost.
 //
-// The brief is written to cost an agent as few tokens as it can (D136). A
+// The brief is written to cost an agent as few tokens as it can (D138). A
 // full-page screenshot is tall, and a vision model shrinks it until nothing
 // is readable, so the brief leads with text: the element, its path, and what
 // sits around it. It names each screenshot's size so an agent knows before
@@ -36,17 +36,17 @@ export interface AgentBriefContext {
   /** The absolute URL of one screenshot, readable without signing in. */
   screenshotUrl: (captureId: string) => string;
   /**
-   * The pixel size of one screenshot, or null when unknown (D136). Printed
+   * The pixel size of one screenshot, or null when unknown (D138). Printed
    * beside the link so an agent can decide to crop before it downloads.
    */
   screenshotSize?: (captureId: string) => { width: number; height: number } | null;
-  /** Elements around each mark, by annotation id, nearest first (D136). */
+  /** Elements around each mark, by annotation id, nearest first (D138). */
   nearby?: ReadonlyMap<string, readonly PinElementSnapshot[]>;
   generatedAt: number;
 }
 
 /**
- * The crop an agent should take around a mark before looking (D136): about
+ * The crop an agent should take around a mark before looking (D138): about
  * the size of one desktop viewport, which a vision model reads at full
  * detail, where a whole tall page would be shrunk past reading.
  */

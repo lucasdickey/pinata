@@ -38,7 +38,7 @@ export interface PinExportContext {
    */
   threads?: ReadonlyMap<string, readonly ThreadEntryView[]>;
   /**
-   * Elements around each mark, by annotation id, nearest first (D136). The
+   * Elements around each mark, by annotation id, nearest first (D138). The
    * agent brief fills this from the capture's manifest so a reader can place
    * the mark without opening the screenshot; the copy export leaves it out.
    */
@@ -113,7 +113,7 @@ export function arrowPointsLine(annotation: AnnotationView): string | null {
 }
 
 /**
- * One nearby element as the brief names it (D136): what it is, where it is,
+ * One nearby element as the brief names it (D138): what it is, where it is,
  * and how big, in the screenshot's own pixels. The position is what lets an
  * agent tell "above the mark" from "below it" without seeing either.
  */
@@ -196,7 +196,7 @@ export function formatPinsAsMarkdown(
       const alsoPath = snapshotPath(also);
       if (alsoPath) lines.push(`  - Path: \`${alsoPath}\``);
     }
-    // What sits around the mark (D136), so the note reads in context without
+    // What sits around the mark (D138), so the note reads in context without
     // a crop of the screenshot.
     for (const near of context.nearby?.get(pin.id) ?? []) lines.push(nearbyElementLine(near));
     lines.push("");

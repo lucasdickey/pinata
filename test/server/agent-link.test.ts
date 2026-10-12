@@ -325,7 +325,7 @@ describe("public brief /a/[token]", () => {
     expect(text).toContain(
       `Screenshot: ${ORIGIN}/a/${token}/captures/${own.captureId} (64 × 40 px, full page)`,
     );
-    // The elements around the mark, from the capture's own manifest (D136).
+    // The elements around the mark, from the capture's own manifest (D138).
     expect(text).toContain("- Nearby: <h1> “own headline” at 2, 2 · 40 × 10 px");
     expect(text).toContain("- Nearby: <p> “own lede” at 2, 14 · 40 × 10 px");
   });

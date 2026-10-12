@@ -1,7 +1,7 @@
 // The agent brief's Markdown (D121): what to do first, one section per
 // screenshot with its link and size, resolved marks left out, every open mark
 // in the same shape as the copy export, and the elements around each mark
-// (D136) so the text alone usually places it.
+// (D138) so the text alone usually places it.
 
 import { describe, expect, test } from "vitest";
 import {

@@ -1,4 +1,4 @@
-// Nearby elements for the agent brief (D136): the manifest elements around a
+// Nearby elements for the agent brief (D138): the manifest elements around a
 // mark, ranked as the composer ranks them, minus the mark's own elements and
 // anything with nothing to read, capped.
 

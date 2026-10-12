@@ -6297,7 +6297,7 @@ window.PINATA = {
       "superseded_by": null
     },
     {
-      "id": "D136",
+      "id": "D138",
       "date": "2026-10-11",
       "phase": "build",
       "title": "The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing",
@@ -6308,11 +6308,11 @@ window.PINATA = {
       "alternatives": [
         {
           "option": "Serve crops from Pinata (a crop route, or one crop stored per mark)",
-          "why_not": "Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D137; see docs/RECOMMENDATIONS.md R001 and R002."
+          "why_not": "Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D139; see docs/RECOMMENDATIONS.md R001 and R002."
         },
         {
           "option": "Store viewport-height tiles at capture time",
-          "why_not": "No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D137; R003."
+          "why_not": "No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D139; R003."
         },
         {
           "option": "Leave the brief as it was",
@@ -6350,13 +6350,13 @@ window.PINATA = {
       "superseded_by": null
     },
     {
-      "id": "D137",
+      "id": "D139",
       "date": "2026-10-11",
       "phase": "design",
       "title": "Serving crops or tiles of a screenshot to agents",
       "origin": "user-deferred",
       "status": "pending",
-      "problem": "Beyond the text-first brief (D136), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.",
+      "problem": "Beyond the text-first brief (D138), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.",
       "decision": "Deferred: revisit once the text-first brief has been used on a few projects. If agents still crop on most marks, pick between a crop route, a stored crop per mark, and capture-time tiles. The options, their costs, and what would make each worth doing are written up in docs/RECOMMENDATIONS.md (R001, R002, R003).",
       "alternatives": [],
       "rationale": "The owner took the two no-dependency changes and asked for the rest to be logged for later rather than decided now.",
@@ -6378,5 +6378,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-10-11",
-  "source_hash": "c76cacc6ca7b"
+  "source_hash": "d294939de169"
 };

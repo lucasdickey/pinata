@@ -36,7 +36,7 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
     const now = Date.now();
     const listed = await listProjectPins(db, grant.publicId, now);
     if (!listed.ok) return agentNotFound();
-    // Each open mark's screenshot size and the elements around it (D136),
+    // Each open mark's screenshot size and the elements around it (D138),
     // from the captures' own persisted records, so the brief can be read
     // without downloading or cropping the image.
     const open = listed.annotations.filter((mark) => mark.status !== "resolved");
