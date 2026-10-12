@@ -3826,7 +3826,34 @@ Harness: Claude Code, on the owner's Mac.
 
 ---
 
-## 2026-10-11 — landing discovery (D136)
+## 2026-10-11 — a brand reference at the root (D136)
+
+Harness: Claude Code, cloud session, on branch `claude/bold-cannon-dhfm6u`.
+
+- The owner asked for a `brand.md` at the root gathering every font, color,
+  and styling choice made so far, to be kept current with material branding
+  decisions.
+- Written from what is shipped, not from a new design pass: the tokens and
+  their contrast notes in `app/globals.css`, the mark in
+  `src/lib/brand-mark.ts`, the walkthrough theme, the illustration prompts,
+  the extension popup, and the design decisions (D047, D066, D078, D102,
+  D104, D107, D113, D118, D119, D127).
+- Two things surfaced while reading: the code calls the character a llama
+  and the illustration prompts call it a donkey, and the extension popup
+  uses the system font and an accent-filled primary button. Both are
+  recorded in `brand.md` as open or divergent rather than changed here.
+- The rule to update `brand.md` with every material branding decision is
+  in `AGENTS.md`.
+- The container runs Node 22 by default; Node 24 was fetched by hand to run
+  the gate.
+
+### Decisions
+
+- D136 (user-directed): the brand reference and the rule to keep it current.
+
+---
+
+## 2026-10-11 — landing discovery (D137)
 
 Harness: Warp Factory implementation agent in a sandbox.
 
@@ -3848,20 +3875,26 @@ Harness: Warp Factory implementation agent in a sandbox.
   `/robots.txt` and `/llms.txt`. The landing head check could not start:
   this sandbox had no Playwright Chromium executable. Installed it through
   the same step as CI, then the browser suite ran.
+- The brand-reference branch merged into `main` while this branch was open.
+  Both branches had assigned D136 to different decisions. Kept the brand
+  record as D136, renumbered landing discovery to D137, and regenerated the
+  Markdown and dashboard projections from the combined JSON log.
 
 ### Validation
 
-- `npm run validate` passed under Node 24: lint, typecheck, 1,898 passing
-  Vitest tests (44 integration skips without provider configuration),
-  docs:check, build, and 28 passing browser tests (46 credentialed skips).
+- `npm run validate` passed under Node 24 before and after the merge: lint,
+  typecheck, 1,898 passing Vitest tests (44 integration skips without
+  provider configuration), docs:check, build, and 28 passing browser tests
+  (46 credentialed skips).
 - All three new discovery browser checks passed. The existing anonymous
   landing browser check also passed with no external requests.
 
 ### Elapsed
 
-Roughly 15 minutes of agent time including the final validation pass.
+Roughly 15 minutes of agent time for the first implementation and another
+10 minutes to reconcile the brand-reference merge and rerun the gate.
 
 ### Decisions
 
-- D136 (user-directed): search, social, and agent discovery for the public
+- D137 (user-directed): search, social, and agent discovery for the public
   landing, using existing copy and art and excluding private surfaces.
