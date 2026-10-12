@@ -6338,8 +6338,61 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D137",
+      "date": "2026-10-11",
+      "phase": "build",
+      "title": "Publish landing discovery metadata and public-only crawl entry points",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The landing had only a title and description. Search engines, social unfurls, and agents lacked an image, a canonical URL, and crawlable public entry points.",
+      "decision": "Set the production origin as the metadata base; give only the root page its canonical URL, Open Graph and Twitter cards using existing same-origin landing art. Publish robots.txt, a sitemap of the seven public pages, and a short llms.txt pointing at the landing, walkthrough, and requirements hub. Keep private workspace, founder, agent-capability, and API paths out of discovery.",
+      "alternatives": [
+        {
+          "option": "Put canonical and social URLs on the shared root layout",
+          "why_not": "Next.js inherits layout metadata on every child route, so a founder page or walkthrough would incorrectly advertise the homepage as its canonical URL."
+        },
+        {
+          "option": "Create a new externally hosted social-card image",
+          "why_not": "The landing already ships a same-origin illustration, and external assets would add an unnecessary request and maintenance surface."
+        }
+      ],
+      "rationale": "The owner explicitly asked for search, social, and agent discovery of the landing. Reusing the existing copy and art and limiting crawl entries to anonymous public routes makes this a bounded implementation choice without new product claims or dependencies.",
+      "consequences": [
+        "The root canonical and social URL use https://yourpinata.dev; child pages do not inherit that canonical.",
+        "Only the seven named public pages appear in the sitemap; new public pages must be added deliberately.",
+        "Founder and agent-link response headers remain noindex, nofollow, noarchive, and robots.txt disallows those paths as well as /pins and /api/."
+      ],
+      "transcript": {
+        "request": "<@U0C894SB9NH> please check the pinata root/landing page for all the relevant og and other metadata so that the landing page is search, social, and agent ready for discovery and consumption"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "app/page.tsx",
+          "caption": "Landing-only canonical and social metadata."
+        },
+        {
+          "type": "file",
+          "path": "app/robots.ts",
+          "caption": "Public crawl allowlist and protected-route exclusions."
+        },
+        {
+          "type": "file",
+          "path": "app/sitemap.ts",
+          "caption": "The public page list."
+        },
+        {
+          "type": "file",
+          "path": "public/llms.txt",
+          "caption": "Short agent discovery guide."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
   "as_of": "2026-10-11",
-  "source_hash": "36752eb5fb59"
+  "source_hash": "36930a3d22c0"
 };
