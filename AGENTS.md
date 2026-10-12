@@ -258,6 +258,13 @@ escapes to a human, add the failing test before fixing it.
   build: the founder-links stream (`D084`) and the cross-harness review
   (`D093`) each ran on a branch carrying the same gate. The CI workflow's
   `pull_request` trigger exists for those.
+- **Keep `brand.md` current.** The brand reference at the root (`D136`) gathers
+  the name and casing rules, voice, the mark, the color tokens, type, shape,
+  motion, and the illustration style. Any material branding decision (a token,
+  the typeface or weights, the mark or the character, a tagline, a casing or
+  voice rule, what the accent may color) gets a decision record and an edit to
+  `brand.md` in the same commit. A branding change without that edit is
+  incomplete.
 - **Commit hygiene.** Conventional-ish subject line, body naming the decision IDs
   the commit implements. Regenerate docs before committing. Commit and push early
   and often — at minimum whenever a decision lands — rather than batching; the
@@ -272,6 +279,7 @@ pinata/
 ├── AGENTS.md                       # this file
 ├── CLAUDE.md                       # pointer to this file
 ├── README.md
+├── brand.md                        # the brand reference (D136); update it with every material branding decision
 ├── .nvmrc                          # Node 24 (D019); npm ci fails outright under Node 22
 ├── .env.example                    # environment NAMES only; values live in git-ignored .env.local
 ├── package.json                    # scripts + the approved pinned dependency set

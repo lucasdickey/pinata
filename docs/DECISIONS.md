@@ -15,11 +15,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 53 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132 |
+| Human directed | 54 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136 |
 | Agent proposed, human approved | 24 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
 | Raised and deferred | 5 | D003, D054, D094, D109, D135 |
-| **Total** | **135** | |
+| **Total** | **136** | |
 
 ## Key decisions
 
@@ -196,6 +196,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D133](#d133--uploads-go-through-pinatas-own-route-one-device-per-request-with-a-4-mb-image-cap) | build | Uploads go through Pinata's own route, one device per request, with a 4 MB image cap | Agent decided alone | accepted |
 | [D134](#d134--an-uploads-address-is-a-label-localhost-ports-and-plain-http-are-allowed) | build | An upload's address is a label: localhost, ports, and plain http are allowed | Agent decided alone | accepted |
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
+| [D136](#d136--keep-a-brand-reference-at-the-repository-root-updated-with-every-material-branding-decision) | design | Keep a brand reference at the repository root, updated with every material branding decision | Human directed | accepted |
 
 ---
 
@@ -5478,4 +5479,45 @@ Human instruction:
 
 ---
 
-<sub>Generated from 135 record(s) as of 2026-10-10 · source `2ba3317b88c1`</sub>
+## D136 — Keep a brand reference at the repository root, updated with every material branding decision
+
+*2026-10-11 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The brand lived in pieces: tokens and their contrast notes in app/globals.css, the mark in src/lib/brand-mark.ts, the illustration style in docs/brand/homepage-illustration-prompts.json, the voice and casing rules in D078 and D127, and the direction in D102, D104, D107 and D119. Nothing gathered them, so a new surface (the extension popup, the walkthrough) had to rediscover the rules and sometimes diverged.
+
+**Decision**
+
+brand.md at the repository root gathers the name and casing rules, taglines, voice, the mark, the light and dark tokens with their contrast contracts, the Inter weight scale and type sizes, shape and spacing, motion, how marks are drawn, the illustration style, theming, the accessibility floor, the surfaces that diverge on purpose, and a checklist for changing any of it. The sources stay authoritative (the stylesheet, the mark module, the decision log, the tests that lock them); brand.md explains them in one place. Any material branding decision gets a record here and an edit to brand.md in the same commit; AGENTS.md carries that rule.
+
+**Alternatives considered**
+
+- *Put the brand reference under docs/brand/ beside the exploration board* — The owner asked for it at the root, where AGENTS.md and README.md already are, so an agent or a person opening the repository sees it first.
+- *Generate it from the stylesheet the way DECISIONS.md is generated from decisions.json* — Half of the brand is prose (voice, casing, what the accent may color, why the dashboard looks different) that no stylesheet carries; a generator would only reproduce the token table.
+- *Move the token values out of the stylesheet into brand.md and have the CSS read from it* — The stylesheet, the mark module, and the walkthrough theme already share values through tests; adding a build step for a Markdown file buys nothing and risks the zero-dependency docs tooling.
+
+**Rationale**
+
+Requested by the owner. Writing it from what is already shipped, rather than from a fresh design pass, keeps it honest: every value in the file is one a test or a stylesheet already enforces, and the two places that drift (the extension popup, the walkthrough weights) are named rather than papered over.
+
+**Consequences**
+
+- brand.md is a maintained document: a branding change without an edit to it is incomplete, the same way a decision without a regenerated DECISIONS.md is.
+- The file cites the tests that lock each value (visual-tokens, brand-mark, walkthrough-slides) so a change knows which assertions it must update.
+- The character's species is left open in copy: the code says llama, the illustration prompts said donkey; brand.md says to call it the piñata character until the owner picks.
+- The extension popup's divergences (system font, accent-filled primary button) are recorded as known rather than fixed in this change.
+
+**Provenance evidence**
+
+Human instruction:
+
+> create a brand.md file at root of the project based on all font, styling, color, etc, we've used thus far and want to adhere to going forward. we should update this file if we make material branding decisions.
+
+**Artifacts**
+
+- `brand.md` — The brand reference.
+
+---
+
+<sub>Generated from 136 record(s) as of 2026-10-11 · source `36752eb5fb59`</sub>
