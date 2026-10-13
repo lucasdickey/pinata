@@ -3901,6 +3901,31 @@ Roughly 15 minutes of agent time for the first implementation and another
 
 ---
 
+## 2026-10-11 — a cheaper brief for agents (D138, D139)
+
+Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
+
+- The owner asked whether the agent link could cost fewer tokens: Claude was
+  cutting each full-page screenshot into pieces and paying for every piece.
+- Worked out where the cost was. A vision model shrinks a tall screenshot
+  past reading, so every crop is unavoidable once an agent decides to look;
+  what was avoidable was the wasted whole-image read, the local tooling to
+  crop, and crops for notes the text already explained.
+- Shipped the two no-dependency changes: nearby elements per mark from the
+  stored manifest, the image size beside each screenshot link, and
+  instructions that lead with the text and say how to crop.
+- Set up `docs/RECOMMENDATIONS.md` for suggestions raised but not taken up,
+  with the three crop-serving options costed (R001 to R003).
+- The container had Node 22; the repository wants 24. Installed 24 through
+  nvm before the gate would run.
+
+### Decisions
+
+- D138 (agent proposed, owner approved): the text-first brief.
+- D139 (deferred): serving crops or tiles to agents.
+
+---
+
 ## 2026-10-12 — consolidate canvas help
 
 Harness: Warp Factory implementation agent in a sandbox. Elapsed: about 10
