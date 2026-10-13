@@ -3850,3 +3850,37 @@ Harness: Claude Code, cloud session, on branch `claude/bold-cannon-dhfm6u`.
 ### Decisions
 
 - D136 (user-directed): the brand reference and the rule to keep it current.
+
+---
+
+## 2026-10-12 — focused brand pass (D137)
+
+Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
+15 minutes of agent time against no fixed timebox.
+
+- The agent proposed a small contrast, casing, and accent cleanup after a
+  read-only brand audit. The owner approved that scope, including the narrow
+  destructive-action and mark-linked-thread accent exceptions. The tagline
+  variants and utility popup remain unchanged.
+- Targeted tests failed in six places before the CSS and chapter label fix;
+  all twenty targeted tests passed after it. The first `npm ci` could not
+  start on untouched `main`: Vitest's nested esbuild and its platform entries
+  were missing from the lockfile. Regenerating those entries was necessary to
+  run the repository's gate; the lockfile diff is additive only.
+- The first full gate reached the production build but lacked the Playwright
+  browser. The second had the browser but lacked its Linux libraries. After
+  installing both prerequisites, lint, typecheck, 1,904 unit tests,
+  documentation freshness, the build, and 25 public browser tests passed;
+  44 unit and 46 browser tests skipped without `.env.local`.
+- The built app was inspected in light and dark on the landing process cards,
+  the selectable walkthrough chapters, and `/reqs/decisions`. Visiting
+  `/pins` while signed out returned to the landing and its password dialog;
+  without editor credentials the saved pin, resolved badge, link panel,
+  add actions, and canvas focus state could not be inspected in a live editor.
+  The visual check also visited a guessed nonexistent `/reqs/requirements`
+  URL, which returned 404 and was not used as evidence.
+
+### Decisions
+
+- D137 (agent-proposed, user-approved): AA-readable small text and resolved
+  badges, blue canvas focus, sentence case, and ink-led navigation.

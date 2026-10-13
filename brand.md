@@ -106,7 +106,8 @@ link's spoken name.
 
 Direction from paper.design (D102): a warm off-white sheet, near-black type,
 hairline rules, and the interface almost monochrome so the screenshot being
-reviewed carries the color. One accent, reserved for the marks.
+reviewed carries the color. One accent, reserved for marks and a few
+purposeful signals.
 
 ### Light theme (default)
 
@@ -119,7 +120,7 @@ reviewed carries the color. One accent, reserved for the marks.
 | `--ink-strong` | `#000000` | Primary button hover. |
 | `--ink-soft` | `#666666` | Secondary text (5.59:1 on the sheet). |
 | `--ink-quiet` | `#868682` | Large text only, 24px and up: the second tone of a headline (3.56:1). Never body copy. |
-| `--accent` | `#c9381a` | The brand spark deepened until it clears 4.5:1 on `--bg`, `--surface`, and `--raised`. Marks, badges, unread counts, errors. |
+| `--accent` | `#c9381a` | The brand spark deepened until it clears 4.5:1 on `--bg`, `--surface`, and `--raised`. Marks and open badges, unread counts, errors, destructive states, and mark-linked thread rules. |
 | `--accent-soft` | `#fbe7df` | Tints behind accent content. |
 | `--focus` | `#2d6fcd` | Focus rings. The one blue in the interface. |
 | `--line` | `#e2e1dc` | Hairline rules and card borders. |
@@ -159,9 +160,12 @@ has saved a choice.
 
 ### Rules
 
-- **The accent is for the marks.** Pins, circles, arrows, boxes, their number
-  badges, unread counts, and error text. Links, the wordmark, headings, and
-  selected controls are ink, not accent (D102).
+- **Reserve the accent for marks and their context.** Pins, circles, arrows,
+  boxes, open number badges, unread counts, errors and destructive actions
+  or states may use it. The rule beside a mark-linked comment thread may
+  use it to tie the message to its mark. Navigation, selected rows and
+  controls, add actions, links, the wordmark, and headings use ink, not
+  accent (D102, D137).
 - **Two oranges, two jobs.** `--brand-spark #fe512d` is the mark's and the
   illustrations' orange and carries no contrast contract. `--accent` is the
   same hue deepened (light) or lifted (dark) so it passes WCAG AA as text.
@@ -326,7 +330,7 @@ canvas, in the landing example, and in the walkthrough.
 | Circle, arrow, box | An `--accent` stroke of constant screen width at any zoom, round caps, a one-pixel white halo. |
 | Selected | The stroke turns to `--ink`. |
 | Draft | Dashed. |
-| Resolved | The badge goes quiet gray; a box's badge is squared. |
+| Resolved | The badge uses `--ink-soft` behind `--bg` digits to keep its small number AA-readable; a box's badge is squared. |
 
 The number badge in the panel list matches the badge on the canvas, so a
 row and its mark are tied at a glance (D113).
@@ -374,8 +378,9 @@ controls follow through `color-scheme`.
 
 ## 10. Accessibility is part of the brand
 
-- Text clears WCAG AA: 4.5:1, or 3:1 at 24px and up. Locked by
-  `test/visual-tokens.test.ts`.
+- Text clears WCAG AA: 4.5:1, or 3:1 at 24px and up. Small text
+  uses `--ink-soft`, and resolved badge digits clear 4.5:1 in both themes.
+  Locked by `test/visual-tokens.test.ts`.
 - Every focusable element shows the `--focus` ring.
 - Decoration (the washes, the illustrations) is `aria-hidden` and
   disappears under forced-colors mode; the page reads fine without it.
@@ -422,4 +427,4 @@ not), D047 (accent to AA), D066 (the mark as the landing's logo), D078
 (speak the user's language), D102 (direction from paper.design), D104 (dark
 theme), D107 (illustration set), D113 (panel rhythm), D118 (Geist
 interaction patterns), D119 (halftone wash), D127 (sentence case and
-"Pinata"), D136 (this file).
+"Pinata"), D136 (this file), D137 (AA and accent scope).

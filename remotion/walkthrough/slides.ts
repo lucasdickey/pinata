@@ -40,7 +40,7 @@ const seconds = (s: number) => s * FPS;
 export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
   {
     id: "title",
-    chapter: "pinata",
+    chapter: "Pinata",
     title: "pin + annotate + at ya",
     durationInFrames: seconds(8),
     notes:
