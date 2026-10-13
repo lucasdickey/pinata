@@ -3967,3 +3967,42 @@ minutes against no fixed timebox.
   browser zoom.
 - No new decision ID: this moves existing instructions into the help surface
   already chosen in D111. It makes no new product or architecture choice.
+
+---
+
+## 2026-10-13 — clarify canvas help presentation
+
+Harness: Warp Factory implementation agent in a sandbox. Elapsed: about 15
+minutes against no fixed timebox.
+
+### What was attempted
+
+- Replaced the dense action sentence with four bullets and emphasized the
+  action names and shortcut keys in the same canvas popup. Kept the existing
+  wording, help behavior, and Details separation.
+- Combined this branch with the newer agent-brief work on main. Both
+  append-only session entries remain in date order.
+
+### What broke
+
+- The focused component test first failed because the old action instructions
+  were still a paragraph instead of a named list.
+- The first full gate reached Playwright but its Chromium could not load the
+  sandbox's missing `libglib-2.0.so.0`. Installed Playwright's declared Debian
+  dependencies and reran the gate.
+- The disposable local preview has no Blob-backed screenshot; the canvas
+  shows missing image alt text. This preview tests the rendered help popup,
+  not capture integrity.
+
+### Validation and decisions
+
+- The component test covers the list structure, emphasized labels and keys,
+  keyboard text, popup focus, and Escape focus return.
+- `npm run validate` passed under Node 24: lint, typecheck, 1,909 Vitest
+  tests passed (44 skipped), docs:check, production build, and 28 Playwright
+  tests passed (46 credentialed skips).
+- In Chromium, the four action bullets and six keyboard bullets were visible,
+  the popup scrolled to its final item at a narrow viewport, and Escape
+  returned focus to the help button. Details still held capture facts only.
+- No new decision ID: this is a presentation change within the existing
+  canvas-help direction.

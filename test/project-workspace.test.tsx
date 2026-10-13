@@ -468,12 +468,9 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(within(detail()).getByLabelText("Current zoom")).toHaveTextContent(/%$/);
   });
 
-  test("the toolbar's ? groups the four gestures and keyboard help without duplicating Details", () => {
+  test("the toolbar's ? groups bulleted actions and keyboard help without duplicating Details", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    // Plain words, no modes, no jargon: the page teaches the whole workflow
-    // in a handful of words, and there is no toggle anywhere to find first.
-    // Since D111 the words wait behind "?" instead of taking a line.
     expect(within(detail()).queryByTestId("workspace-verbs")).toBeNull();
     const help = within(detail()).getByRole("button", { name: "How the canvas works" });
     expect(help).toHaveAttribute("aria-expanded", "false");
@@ -484,19 +481,26 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(popup).toHaveAccessibleName("Canvas help");
     expect(popup).toHaveFocus();
     expect(within(popup).getByText("Actions")).toBeInTheDocument();
-    const strip = within(detail()).getByTestId("workspace-verbs");
-    expect(strip.tagName.toLowerCase()).toBe("p");
-    expect(strip).toHaveTextContent(
-      "drop a pin: click the page · draw a box, circle, or arrow: pick a tool, then drag · move: drag it · read: click a mark",
-    );
-    expect(strip.textContent!.length).toBeLessThan(120);
-    const lower = strip.textContent!.toLowerCase();
+    const actions = within(popup).getByRole("list", { name: "Canvas actions" });
+    expect(actions).toHaveAttribute("data-testid", "workspace-verbs");
+    expect(within(actions).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Drop a pin: click the page",
+      "Draw a box, circle, or arrow: pick a tool, then drag",
+      "Move: drag it",
+      "Read: click a mark",
+    ]);
+    expect(Array.from(actions.querySelectorAll("strong"), (label) => label.textContent)).toEqual([
+      "Drop a pin",
+      "Draw a box, circle, or arrow",
+      "Move",
+      "Read",
+    ]);
+    const lower = actions.textContent!.toLowerCase();
     for (const jargon of ["mode", "navigate", "canvas update", "natural pixel", "plane"]) {
       expect(lower).not.toContain(jargon);
     }
     expect(within(detail()).queryByRole("button", { name: /place pin|navigate/i })).toBeNull();
-    // In the canvas's own floating toolbar, not a paragraph below the stage.
-    expect(strip.closest('[data-testid="canvas-toolbar-float"]')).not.toBeNull();
+    expect(actions.closest('[data-testid="canvas-toolbar-float"]')).not.toBeNull();
     expect(detail().querySelector(".workspace-hint")).toBeNull();
     expect(within(detail()).queryByRole("heading", { name: /drop a pin/i })).toBeNull();
     expect(within(popup).getByText("Keyboard")).toBeInTheDocument();
@@ -509,6 +513,20 @@ describe("camera modes (VAL-CANVAS-002)", () => {
       "B, C, or A arms the box, circle, or arrow tool for the next drag",
       "Shift-drag also draws a box",
     ]);
+    expect(Array.from(keys.querySelectorAll("kbd"), (key) => key.textContent)).toEqual([
+      "Enter",
+      "Shift+Enter",
+      "Escape",
+      "J",
+      "ArrowDown",
+      "K",
+      "ArrowUp",
+      "N",
+      "B",
+      "C",
+      "A",
+      "Shift",
+    ]);
     expect(within(sidePanel()).getByTestId("panel-details")).not.toHaveTextContent("Keyboard");
     // Escape puts it away again.
     fireEvent.keyDown(window, { key: "Escape" });
@@ -516,7 +534,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(help).toHaveFocus();
   });
 
-  test("the verb strip is not shown for a capture that cannot be pinned", async () => {
+  test("action help is not shown for a capture that cannot be pinned", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
@@ -1859,10 +1877,9 @@ describe("rectangle drafts (D079)", () => {
       within(list).getByRole("button", { name: /^Box 1 · “This whole card needs more air.”/ }),
     ).toBeInTheDocument();
     expect(within(detail()).getByRole("table")).toHaveTextContent("Box 1This whole card");
-    // The verb strip, behind the toolbar's "?" (D111), names the gesture.
     fireEvent.click(within(detail()).getByRole("button", { name: "How the canvas works" }));
     expect(within(detail()).getByTestId("workspace-verbs")).toHaveTextContent(
-      "draw a box, circle, or arrow: pick a tool, then drag",
+      "Draw a box, circle, or arrow: pick a tool, then drag",
     );
   });
 });

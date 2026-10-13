@@ -268,15 +268,12 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
   const target = await openDesktopPlane(page);
   const doc = { width: target.width, height: target.height };
 
-  // The page documents itself (VAL-CANVAS-009, D074, D078): a verb strip
-  // names the verbs, behind the floating toolbar's "?" since D111, and
-  // there is no mode toggle to find.
   await page.getByRole("button", { name: "How the canvas works" }).click();
   const verbs = page.getByTestId("workspace-verbs");
-  await expect(verbs).toContainText("drop a pin: click the page");
-  await expect(verbs).toContainText("draw a box, circle, or arrow: pick a tool, then drag");
-  await expect(verbs).toContainText("move: drag it");
-  await expect(verbs).toContainText("read: click a mark");
+  await expect(verbs).toContainText("Drop a pin: click the page");
+  await expect(verbs).toContainText("Draw a box, circle, or arrow: pick a tool, then drag");
+  await expect(verbs).toContainText("Move: drag it");
+  await expect(verbs).toContainText("Read: click a mark");
   await page.keyboard.press("Escape");
   await expect(verbs).toHaveCount(0);
   await expect(page.getByRole("button", { name: /place pin|navigate/i })).toHaveCount(0);
