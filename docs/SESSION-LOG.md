@@ -3853,10 +3853,58 @@ Harness: Claude Code, cloud session, on branch `claude/bold-cannon-dhfm6u`.
 
 ---
 
-## 2026-10-12 — focused brand pass (D137)
+## 2026-10-11 — landing discovery (D137)
+
+Harness: Warp Factory implementation agent in a sandbox.
+
+### What was attempted
+
+- Added landing-only canonical, Open Graph, and Twitter metadata against the
+  existing production origin and same-origin illustration. Published public
+  crawl and agent entry points without changing the protected routes.
+- Added production-build end-to-end checks for the head, the image, the
+  crawlability files, and founder and agent-link noindex headers.
+
+### What broke
+
+- The untouched lockfile lacked the transitive esbuild 0.28.2 entries needed
+  by npm 11 under Node 24. `npm ci` failed before tests. Reconstructed only
+  the missing lock entries with `npm install --package-lock-only`, then a
+  clean `npm ci` succeeded; no direct dependency versions changed.
+- Before implementation, the new checks observed 404 responses for
+  `/robots.txt` and `/llms.txt`. The landing head check could not start:
+  this sandbox had no Playwright Chromium executable. Installed it through
+  the same step as CI, then the browser suite ran.
+- The brand-reference branch merged into `main` while this branch was open.
+  Both branches had assigned D136 to different decisions. Kept the brand
+  record as D136, renumbered landing discovery to D137, and regenerated the
+  Markdown and dashboard projections from the combined JSON log.
+
+### Validation
+
+- `npm run validate` passed under Node 24 before and after the merge: lint,
+  typecheck, 1,898 passing Vitest tests (44 integration skips without
+  provider configuration), docs:check, build, and 28 passing browser tests
+  (46 credentialed skips).
+- All three new discovery browser checks passed. The existing anonymous
+  landing browser check also passed with no external requests.
+
+### Elapsed
+
+Roughly 15 minutes of agent time for the first implementation and another
+10 minutes to reconcile the brand-reference merge and rerun the gate.
+
+### Decisions
+
+- D137 (user-directed): search, social, and agent discovery for the public
+  landing, using existing copy and art and excluding private surfaces.
+
+---
+
+## 2026-10-12 — focused brand pass (D138)
 
 Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
-15 minutes of agent time against no fixed timebox.
+20 minutes of agent time against no fixed timebox.
 
 - The agent proposed a small contrast, casing, and accent cleanup after a
   read-only brand audit. The owner approved that scope, including the narrow
@@ -3866,12 +3914,19 @@ Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
   all twenty targeted tests passed after it. The first `npm ci` could not
   start on untouched `main`: Vitest's nested esbuild and its platform entries
   were missing from the lockfile. Regenerating those entries was necessary to
-  run the repository's gate; the lockfile diff is additive only.
+  run the repository's gate. The landing-discovery branch independently
+  repaired the same lockfile gap before this branch merged main, so this
+  PR carries no lockfile repair in its final diff.
+- Main also took D137 for landing discovery while this review branch held
+  D137 for the brand pass. Kept both decisions: discovery stays D137, this
+  pass became D138, and both generated views were rebuilt from the combined
+  decision source.
 - The first full gate reached the production build but lacked the Playwright
   browser. The second had the browser but lacked its Linux libraries. After
   installing both prerequisites, lint, typecheck, 1,904 unit tests,
-  documentation freshness, the build, and 25 public browser tests passed;
-  44 unit and 46 browser tests skipped without `.env.local`.
+  documentation freshness, the build, and 28 public browser tests passed
+  on the merged tree. Without `.env.local`, 44 unit and 46 browser tests
+  skipped.
 - The built app was inspected in light and dark on the landing process cards,
   the selectable walkthrough chapters, and `/reqs/decisions`. Visiting
   `/pins` while signed out returned to the landing and its password dialog;
@@ -3882,5 +3937,5 @@ Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
 
 ### Decisions
 
-- D137 (agent-proposed, user-approved): AA-readable small text and resolved
+- D138 (agent-proposed, user-approved): AA-readable small text and resolved
   badges, blue canvas focus, sentence case, and ink-led navigation.
