@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 55 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137 |
-| Agent proposed, human approved | 25 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138 |
+| Agent proposed, human approved | 26 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D140 |
 | Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
-| Raised and deferred | 5 | D003, D054, D094, D109, D135 |
-| **Total** | **138** | |
+| Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
+| **Total** | **140** | |
 
 ## Key decisions
 
@@ -198,7 +198,9 @@ The product and architecture decisions to read first. The full index follows.
 | [D135](#d135--look-at-codexs-in-browser-element-comments) | design | Look at Codex's in-browser element comments | Raised and deferred | pending |
 | [D136](#d136--keep-a-brand-reference-at-the-repository-root-updated-with-every-material-branding-decision) | design | Keep a brand reference at the repository root, updated with every material branding decision | Human directed | accepted |
 | [D137](#d137--publish-landing-discovery-metadata-and-public-only-crawl-entry-points) | build | Publish landing discovery metadata and public-only crawl entry points | Human directed | accepted |
-| [D138](#d138--keep-small-text-readable-and-reserve-the-accent-for-marks-and-their-context) | design | Keep small text readable and reserve the accent for marks and their context | Agent proposed, human approved | accepted |
+| [D138](#d138--the-agent-brief-leads-with-text-nearby-elements-screenshot-sizes-and-crop-before-viewing) | build | The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing | Agent proposed, human approved | accepted |
+| [D139](#d139--serving-crops-or-tiles-of-a-screenshot-to-agents) | design | Serving crops or tiles of a screenshot to agents | Raised and deferred | pending |
+| [D140](#d140--keep-small-text-readable-and-reserve-the-accent-for-marks-and-their-context) | design | Keep small text readable and reserve the accent for marks and their context | Agent proposed, human approved | accepted |
 
 ---
 
@@ -5564,7 +5566,85 @@ Human instruction:
 
 ---
 
-## D138 — Keep small text readable and reserve the accent for marks and their context
+## D138 — The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing
+
+*2026-10-11 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The owner noticed that a coding agent reading the agent link (D121) cuts each full-page screenshot into pieces and pays for every piece, and asked whether the hand-off could cost fewer tokens. A full-page capture is tall (the mobile Chickpea page is about 13,000 px), and a vision model shrinks any image to roughly 1,568 px on its long edge before reading it, so the whole image is unreadable and the agent has to crop around each mark. The brief told it to "download each screenshot" without saying how big the image was or that the element text and path were often enough.
+
+**Decision**
+
+The brief now leads with text. Each mark lists the elements around it from the capture's own persisted manifest (tag, text, position, size; the nearest four that have something to read, never the mark's own elements), ranked the way the composer ranks candidates. Each screenshot link names the image's pixel size. The "What to do" section says to start from the text, open the image only when the note cannot be understood without it, and crop about 1400 × 800 px around the mark before viewing. The copy export is unchanged: the nearby lines are an optional field it does not fill.
+
+**Alternatives considered**
+
+- *Serve crops from Pinata (a crop route, or one crop stored per mark)* — Removes the agent's cropping overhead but not the image tokens, and needs an image codec the repository does not have (stored captures are PNG and WebP). Deferred in D139; see docs/RECOMMENDATIONS.md R001 and R002.
+- *Store viewport-height tiles at capture time* — No dependency, but more storage per capture and pressure on the 120-second Browserless session. Deferred in D139; R003.
+- *Leave the brief as it was* — An agent read the whole image first (wasted), then cropped every mark with local tooling, including marks whose note was plain from the text.
+
+**Rationale**
+
+The avoidable cost was around the crops, not in them: the wasted whole-image read, the tooling to crop, and crops for notes the text already explained. Nearby elements cost a few dozen tokens each and replace most crops; the size line lets an agent crop straight away when it does need to look. No dependency and no database change: the manifest and the document size were already persisted per capture.
+
+**Consequences**
+
+- The brief route reads each open mark's capture row (size and manifest) in one extra query per request.
+- A capture without a manifest or a recorded size (older rows) gets the plain link and no Nearby lines; nothing is invented.
+- docs/RECOMMENDATIONS.md is the log for suggestions not taken up yet, starting with the three above.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Do options 1 and 2 now. They attack the dominant cost, need no dependency, and fit the existing pure-formatter tests. Treat option 3 or 4 as a later decision only if agents still crop often after the text carries neighbours and dimensions.
+
+Human approved:
+
+> go ahead with options 1 and 2, and set up a recommendaiton log for later.
+
+**Artifacts**
+
+- `src/lib/agent-brief.ts` — The brief's instructions and the screenshot size line.
+- `src/lib/server/agent/nearby.ts` — Nearby elements per mark, from the capture's manifest.
+- `docs/RECOMMENDATIONS.md` — The recommendations log.
+
+---
+
+## D139 — Serving crops or tiles of a screenshot to agents
+
+*2026-10-11 · phase: design · origin: **Raised and deferred** · status: **pending***
+
+**Problem**
+
+Beyond the text-first brief (D138), the agent could be spared cropping altogether if Pinata served a crop around each mark, stored one per mark, or stored viewport tiles at capture time. Each needs either an image codec (a new native dependency) or more capture-time work and storage.
+
+**Decision**
+
+Deferred: revisit once the text-first brief has been used on a few projects. If agents still crop on most marks, pick between a crop route, a stored crop per mark, and capture-time tiles. The options, their costs, and what would make each worth doing are written up in docs/RECOMMENDATIONS.md (R001, R002, R003).
+
+**Rationale**
+
+The owner took the two no-dependency changes and asked for the rest to be logged for later rather than decided now.
+
+**Consequences**
+
+- docs/RECOMMENDATIONS.md exists from here on as the place for suggestions that are raised but not yet acted on.
+
+**Provenance evidence**
+
+Human instruction:
+
+> go ahead with options 1 and 2, and set up a recommendaiton log for later.
+
+**Artifacts**
+
+- `docs/RECOMMENDATIONS.md` — R001 to R003: the deferred options.
+
+---
+
+## D140 — Keep small text readable and reserve the accent for marks and their context
 
 *2026-10-12 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
 
@@ -5608,4 +5688,4 @@ Human approved:
 
 ---
 
-<sub>Generated from 138 record(s) as of 2026-10-12 · source `b30277dc4488`</sub>
+<sub>Generated from 140 record(s) as of 2026-10-12 · source `6bdbd3b15f6d`</sub>

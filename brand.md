@@ -165,7 +165,7 @@ has saved a choice.
   or states may use it. The rule beside a mark-linked comment thread may
   use it to tie the message to its mark. Navigation, selected rows and
   controls, add actions, links, the wordmark, and headings use ink, not
-  accent (D102, D138).
+  accent (D102, D140).
 - **Two oranges, two jobs.** `--brand-spark #fe512d` is the mark's and the
   illustrations' orange and carries no contrast contract. `--accent` is the
   same hue deepened (light) or lifted (dark) so it passes WCAG AA as text.
@@ -427,4 +427,4 @@ not), D047 (accent to AA), D066 (the mark as the landing's logo), D078
 (speak the user's language), D102 (direction from paper.design), D104 (dark
 theme), D107 (illustration set), D113 (panel rhythm), D118 (Geist
 interaction patterns), D119 (halftone wash), D127 (sentence case and
-"Pinata"), D136 (this file), D138 (AA and accent scope).
+"Pinata"), D136 (this file), D140 (AA and accent scope).

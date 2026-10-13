@@ -3901,7 +3901,32 @@ Roughly 15 minutes of agent time for the first implementation and another
 
 ---
 
-## 2026-10-12 — focused brand pass (D138)
+## 2026-10-11 — a cheaper brief for agents (D138, D139)
+
+Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
+
+- The owner asked whether the agent link could cost fewer tokens: Claude was
+  cutting each full-page screenshot into pieces and paying for every piece.
+- Worked out where the cost was. A vision model shrinks a tall screenshot
+  past reading, so every crop is unavoidable once an agent decides to look;
+  what was avoidable was the wasted whole-image read, the local tooling to
+  crop, and crops for notes the text already explained.
+- Shipped the two no-dependency changes: nearby elements per mark from the
+  stored manifest, the image size beside each screenshot link, and
+  instructions that lead with the text and say how to crop.
+- Set up `docs/RECOMMENDATIONS.md` for suggestions raised but not taken up,
+  with the three crop-serving options costed (R001 to R003).
+- The container had Node 22; the repository wants 24. Installed 24 through
+  nvm before the gate would run.
+
+### Decisions
+
+- D138 (agent proposed, owner approved): the text-first brief.
+- D139 (deferred): serving crops or tiles to agents.
+
+---
+
+## 2026-10-12 — focused brand pass (D140)
 
 Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
 20 minutes of agent time against no fixed timebox.
@@ -3917,10 +3942,11 @@ Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
   run the repository's gate. The landing-discovery branch independently
   repaired the same lockfile gap before this branch merged main, so this
   PR carries no lockfile repair in its final diff.
-- Main also took D137 for landing discovery while this review branch held
-  D137 for the brand pass. Kept both decisions: discovery stays D137, this
-  pass became D138, and both generated views were rebuilt from the combined
-  decision source.
+- Main took D137 for landing discovery while this branch held the brand
+  pass as D137, then took D138/D139 for the agent brief while the branch
+  held the brand pass as D138. Kept every record: discovery stays D137,
+  the brief and deferral stay D138/D139, and this pass is D140. Both
+  generated views were rebuilt from the combined decision source.
 - The first full gate reached the production build but lacked the Playwright
   browser. The second had the browser but lacked its Linux libraries. After
   installing both prerequisites, lint, typecheck, 1,904 unit tests,
@@ -3937,5 +3963,33 @@ Harness: Warp Factory implementation, on a review branch. Elapsed: roughly
 
 ### Decisions
 
-- D138 (agent-proposed, user-approved): AA-readable small text and resolved
+- D140 (agent-proposed, user-approved): AA-readable small text and resolved
   badges, blue canvas focus, sentence case, and ink-led navigation.
+
+---
+
+## 2026-10-13 — reconcile the brand pass with the agent brief
+
+Harness: Warp Factory implementation, continuing the review branch. Elapsed:
+roughly 10 minutes of agent time against no fixed timebox.
+
+- Main merged the text-first agent brief and its crop deferral as D138 and
+  D139 while the brand pass was under review as D138. Merged main, kept
+  both of its records, moved the brand decision to D140, and regenerated
+  the Markdown and dashboard views from the combined JSON source.
+- The first gate in the fresh sandbox reached Playwright but had no
+  Chromium executable. Installing the pinned browser and its Debian
+  libraries let the full Node 24 gate pass: 1,915 unit tests and 28
+  public browser tests passed; 44 unit and 46 browser tests skipped without
+  provider configuration.
+- The owner chose a configured non-production editor environment for
+  visual verification. This sandbox has no `.env.local`, preview setup,
+  editor session, or Turso/Blob configuration, and the URL and seeded
+  project have not yet been supplied. The editor capture, resolved badge,
+  pin/link notes, add actions, and canvas focus remain unverified in a
+  rendered editor; no substitute data or credentials were invented.
+
+### Decisions
+
+- D140 (agent-proposed, user-approved): the brand pass, renumbered after
+  the agent brief's D138 and D139 reached main.
