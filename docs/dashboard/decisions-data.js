@@ -6471,8 +6471,52 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D140",
+      "date": "2026-10-12",
+      "phase": "design",
+      "title": "Keep small text readable and reserve the accent for marks and their context",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The brand guide reserved quiet gray for large copy and blue for focus, but small pin and link notes, resolved badge numbers, and the canvas focus ring used colors that broke those rules. Forced uppercase and orange on ordinary navigation also conflicted with the sentence-case and ink-led interface.",
+      "decision": "Use --ink-soft on small pin/link notes and resolved number badges, and --focus on the canvas ring. Remove forced uppercase and its tracking from the landing step numbers and requirements labels; capitalize Pinata in the walkthrough chapter. Use ink-soft for step labels and chapter numbers, an ink-bordered raised row for the selected chapter, and ink for add-action plus signs. Explicitly permit accent on destructive actions and states and on a mark-linked comment thread's rule. Keep the sanctioned tagline forms and the utility popup exception; defer popup token synchronization.",
+      "alternatives": [
+        {
+          "option": "Rebrand all product surfaces and normalize the extension popup in this pass",
+          "why_not": "The guide already sanctions the tagline variants and popup divergence; the owner approved a focused correction, not a redesign."
+        },
+        {
+          "option": "Remove accent from destructive actions and comment-thread rules",
+          "why_not": "Those uses signal a destructive state or link a reply to its mark; documenting them as narrow exceptions preserves their meaning."
+        }
+      ],
+      "rationale": "The agent proposed one scoped pass after comparing the shipped UI to brand.md, and the owner approved that scope. No token values or sanctioned utility exceptions need to change.",
+      "consequences": [
+        "Small resolved badge digits and secondary copy have AA-clearing light and dark pairings; targeted tests guard those uses.",
+        "Navigation, selection, and add actions read through ink rather than competing with marks for accent.",
+        "Popup token alignment remains deferred, without changing its documented utility exception."
+      ],
+      "transcript": {
+        "proposal": "*Proposed brand pass* — one focused PR, no redesign: • Make small pin/link text and resolved badges AA-readable with `--ink-soft`; use blue `--focus` on the canvas. • Remove four forced-uppercase CSS rules, tidy their tracking, and capitalize the walkthrough chapter “Pinata”. • Move orange off landing step labels, selected walkthrough navigation and add-action + signs; use quiet ink/raised states instead. • Keep orange on destructive actions and mark-linked thread borders, but explicitly permit both in `brand.md`. Defer popup token sync; keep approved tagline variants. • Add regression tests, update the decision log, run the full validation gate and verify key screens. *Approve this scope?* I’ll wait before changing code.",
+        "approval": "approved"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "brand.md",
+          "caption": "The accent exceptions and accessibility contract."
+        },
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "The contrast, focus, casing, and navigation rules."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-11",
-  "source_hash": "33b7f0553581"
+  "as_of": "2026-10-12",
+  "source_hash": "6bdbd3b15f6d"
 };

@@ -45,6 +45,10 @@ describe("the walkthrough slide table", () => {
     }
   });
 
+  test("uses the brand name's running-text casing in the chapter list", () => {
+    expect(SLIDES[0]!.chapter).toBe("Pinata");
+  });
+
   test("frame ranges are contiguous and sum to the composition length", () => {
     expect(SLIDE_STARTS[0]).toBe(0);
     for (let i = 1; i < SLIDES.length; i++) {

@@ -1270,9 +1270,7 @@ pre code {
   margin: 0 0 0.6rem;
   font-size: 0.72rem;
   font-weight: 550;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--accent);
+  color: var(--ink-soft);
 }
 
 .home-main--landing .landing-points h3 {
@@ -1711,7 +1709,7 @@ pre code {
 }
 
 .rail-new-project span {
-  color: var(--accent);
+  color: var(--ink);
   font-size: 1.1em;
   line-height: 1;
 }
@@ -2115,7 +2113,7 @@ pre code {
 
 .pin-row-badge[data-status="resolved"],
 .panel-strip-badge[data-status="resolved"] {
-  background: var(--ink-quiet);
+  background: var(--ink-soft);
 }
 
 .workspace-panel h4 + p {
@@ -2243,7 +2241,7 @@ pre code {
 
 .pin-row-element {
   overflow: hidden;
-  color: var(--ink-quiet);
+  color: var(--ink-soft);
   font-size: 0.78rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3091,7 +3089,7 @@ pre code {
 /* Keyboard focus on the canvas region: J/K step through pins, N drops a
    draft at the viewport center (D074). */
 .capture-canvas:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -3391,7 +3389,7 @@ pre code {
 }
 
 .link-panel-note {
-  color: var(--ink-quiet);
+  color: var(--ink-soft);
   font-size: 0.78rem;
   line-height: 1.45;
 }
@@ -3741,8 +3739,6 @@ pre code {
 
 .doc h4 {
   font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--ink-soft);
   margin: 1.25rem 0 0.25rem;
 }
@@ -3826,8 +3822,6 @@ pre code {
 
 .decision-card h3 {
   font-size: 0.95rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--ink-soft);
   margin: 1.25rem 0 0.25rem;
 }
@@ -3858,8 +3852,6 @@ pre code {
 
 .artifact-type {
   font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
 
@@ -3977,17 +3969,17 @@ pre code {
 }
 
 .walkthrough-chapters button:hover {
-  background: var(--accent-soft);
+  background: var(--raised);
 }
 
 .walkthrough-chapters button[aria-current="step"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--ink);
+  background: var(--raised);
   font-weight: 550;
 }
 
 .walkthrough-chapter-number {
-  color: var(--accent);
+  color: var(--ink-soft);
   font-weight: 620;
   font-variant-numeric: tabular-nums;
 }
@@ -4161,7 +4153,7 @@ pre code {
 }
 
 .overview-add-plus {
-  color: var(--accent);
+  color: var(--ink);
   font-size: 1.1em;
   line-height: 1;
 }

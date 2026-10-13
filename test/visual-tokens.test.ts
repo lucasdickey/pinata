@@ -70,6 +70,14 @@ const deviceDark = block(
   /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/,
 );
 
+function rule(selector: string): string {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const match of withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1]!.split(",").some((part) => part.trim() === selector)) return match[2]!;
+  }
+  throw new Error(`rule ${selector} not found in app/globals.css`);
+}
+
 describe("dark color tokens meet WCAG AA (D104)", () => {
   test("the device-preference and saved-choice blocks carry identical values", () => {
     expect(Object.keys(savedDark).length).toBeGreaterThanOrEqual(12);
@@ -102,6 +110,55 @@ describe("dark color tokens meet WCAG AA (D104)", () => {
       expect(contrast(savedDark[status]!, savedDark["--surface"]!)).toBeGreaterThanOrEqual(
         AA_NORMAL_TEXT,
       );
+    }
+  });
+});
+
+describe("small text and controls follow the brand contrast rules", () => {
+  test("pin context and link notes use the AA-clearing secondary ink", () => {
+    for (const selector of [".pin-row-element", ".link-panel-note"]) {
+      expect(rule(selector)).toMatch(/color:\s*var\(--ink-soft\)\s*;/);
+    }
+  });
+
+  test("resolved badge numbers clear AA in both themes", () => {
+    expect(rule('.pin-row-badge[data-status="resolved"]')).toMatch(
+      /background:\s*var\(--ink-soft\)\s*;/,
+    );
+    for (const colors of [
+      { background: token("--ink-soft"), text: token("--bg") },
+      { background: savedDark["--ink-soft"]!, text: savedDark["--bg"]! },
+    ]) {
+      expect(contrast(colors.text, colors.background)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
+    }
+  });
+
+  test("canvas keyboard focus uses the blue focus token", () => {
+    expect(rule(".capture-canvas:focus-visible")).toMatch(/outline:\s*2px solid var\(--focus\)/);
+  });
+
+  test("small headings and labels do not force uppercase or uppercase tracking", () => {
+    for (const selector of [
+      ".landing-points .process-number",
+      ".doc h4",
+      ".decision-card h3",
+      ".artifact-type",
+    ]) {
+      expect(rule(selector)).not.toMatch(/text-transform|letter-spacing/);
+    }
+  });
+
+  test("steps, chapter navigation, and add actions use ink instead of accent", () => {
+    expect(rule(".landing-points .process-number")).toMatch(/color:\s*var\(--ink-soft\)/);
+    expect(rule(".walkthrough-chapter-number")).toMatch(/color:\s*var\(--ink-soft\)/);
+    expect(rule('.walkthrough-chapters button[aria-current="step"]')).toMatch(
+      /border-color:\s*var\(--ink\)/,
+    );
+    expect(rule('.walkthrough-chapters button[aria-current="step"]')).toMatch(
+      /background:\s*var\(--raised\)/,
+    );
+    for (const selector of [".rail-new-project span", ".overview-add-plus"]) {
+      expect(rule(selector)).toMatch(/color:\s*var\(--ink\)/);
     }
   });
 });
