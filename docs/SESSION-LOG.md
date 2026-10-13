@@ -3924,3 +3924,85 @@ Harness: Claude Code, cloud session, on branch `claude/gracious-goodall-ur6omw`.
 - D138 (agent proposed, owner approved): the text-first brief.
 - D139 (deferred): serving crops or tiles to agents.
 
+---
+
+## 2026-10-12 — consolidate canvas help
+
+Harness: Warp Factory implementation agent in a sandbox. Elapsed: about 10
+minutes against no fixed timebox.
+
+### What was attempted
+
+- Moved the existing keyboard instructions from panel Details to the existing
+  `?` canvas popup, alongside its action gestures. Kept Details for capture
+  facts and left the keyboard handlers unchanged.
+- Added component assertions for the popup contents, focus return, and
+  absence of duplicate keyboard help in Details. Both new assertions failed
+  on the old UI before they passed on the new one.
+
+### What broke
+
+- The first validation run stopped at Playwright: its Chromium binary was
+  absent. Installed the pinned binary; the second run found missing Debian
+  browser libraries. Installed Playwright's Chromium system dependencies and
+  reran the full gate.
+- The first browser attempt stopped at editor sign-in: this sandbox had no
+  `.env.local` or real editor credential. For UI inspection, migrated a
+  disposable local libSQL database under `/tmp`, seeded one ready capture,
+  and ran the production app with the documented local-only auth bypass.
+  The screenshot asset did not load without a Blob provider; this was a
+  fixture for the actual help UI, not a capture-integrity test.
+- The UI session left port 3100 occupied, so one later full-gate attempt
+  stopped at the Playwright web-server start. Stopped that local server
+  before rerunning the gate.
+
+### Validation and decisions
+
+- `npm run validate` passed under Node 24: lint, typecheck, 1,898 Vitest tests
+  passed (44 skipped), docs:check, build, and 28 Playwright tests passed
+  (46 credentialed skips).
+- In the browser, the actual `?` popup showed actions and all six keyboard
+  instructions; Escape returned focus to the button. Details held capture
+  facts only. The popup's last item stayed reachable by scrolling at high
+  browser zoom.
+- No new decision ID: this moves existing instructions into the help surface
+  already chosen in D111. It makes no new product or architecture choice.
+
+---
+
+## 2026-10-13 — clarify canvas help presentation
+
+Harness: Warp Factory implementation agent in a sandbox. Elapsed: about 15
+minutes against no fixed timebox.
+
+### What was attempted
+
+- Replaced the dense action sentence with four bullets and emphasized the
+  action names and shortcut keys in the same canvas popup. Kept the existing
+  wording, help behavior, and Details separation.
+- Combined this branch with the newer agent-brief work on main. Both
+  append-only session entries remain in date order.
+
+### What broke
+
+- The focused component test first failed because the old action instructions
+  were still a paragraph instead of a named list.
+- The first full gate reached Playwright but its Chromium could not load the
+  sandbox's missing `libglib-2.0.so.0`. Installed Playwright's declared Debian
+  dependencies and reran the gate.
+- The disposable local preview has no Blob-backed screenshot; the canvas
+  shows missing image alt text. This preview tests the rendered help popup,
+  not capture integrity.
+
+### Validation and decisions
+
+- The component test covers the list structure, emphasized labels and keys,
+  keyboard text, popup focus, and Escape focus return.
+- `npm run validate` passed under Node 24: lint, typecheck, 1,909 Vitest
+  tests passed (44 skipped), docs:check, production build, and 28 Playwright
+  tests passed (46 credentialed skips).
+- In Chromium, the four action bullets and six keyboard bullets were visible,
+  the popup scrolled to its final item at a narrow viewport, and Escape
+  returned focus to the help button. Details still held capture facts only.
+- No new decision ID: this is a presentation change within the existing
+  canvas-help direction.

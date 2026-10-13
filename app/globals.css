@@ -1984,16 +1984,6 @@ pre code {
   max-width: var(--max);
 }
 
-/* The verb strip beside the canvas controls (D078): what a click, a
-   shift-drag, and a drag do, in a handful of words. A paragraph, not a
-   heading; it wraps under the controls when the row is full. */
-.workspace-verbs {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
 /* The stage and its screen-fixed panel sit side by side; the panel never
    moves with the transformed canvas. */
 .workspace-body {
@@ -2396,21 +2386,6 @@ pre code {
   margin-top: 0.5rem;
 }
 
-.panel-facts-label {
-  margin: 0.5rem 0 0.15rem;
-  color: var(--ink-soft);
-}
-
-.panel-keys {
-  margin: 0;
-  padding-left: 1.1rem;
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-}
-
-.panel-keys li {
-  margin: 0.1rem 0;
-}
 
 /* ---- all-pins table (D071) ---- */
 
@@ -2728,10 +2703,51 @@ pre code {
   right: 0;
   width: min(20rem, calc(100vw - 2rem));
   padding: 0.75rem 0.9rem;
+  box-sizing: border-box;
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .canvas-help-popup p {
   margin: 0;
+}
+
+.canvas-help-popup .canvas-help-heading {
+  font-weight: 550;
+}
+
+.canvas-help-popup .canvas-help-heading:not(:first-child) {
+  margin-top: 0.75rem;
+}
+
+.workspace-verbs,
+.canvas-help-keys {
+  margin: 0.25rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.workspace-verbs li + li,
+.canvas-help-keys li + li {
+  margin-top: 0.25rem;
+}
+
+.workspace-verbs strong {
+  color: var(--ink);
+}
+
+.canvas-help-keys kbd {
+  padding: 0.05rem 0.22rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 550;
+  white-space: nowrap;
 }
 
 /* The help text takes focus when it opens so Escape and screen readers

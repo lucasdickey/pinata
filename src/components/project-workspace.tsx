@@ -1680,12 +1680,42 @@ export function ProjectWorkspace({
                   onStepPin={stepPinByKey}
                   autoFocus={focusCanvasFor === selectedReady.id}
                   help={
-                    // The verb strip (VAL-CANVAS-009, D078), behind the
-                    // toolbar's "?" since D111. A paragraph, never a heading.
-                    <p className="workspace-verbs" data-testid="workspace-verbs">
-                      drop a pin: click the page · draw a box, circle, or arrow: pick a tool,
-                      then drag · move: drag it · read: click a mark
-                    </p>
+                    <>
+                      <p className="canvas-help-heading">Actions</p>
+                      <ul
+                        className="workspace-verbs"
+                        data-testid="workspace-verbs"
+                        aria-label="Canvas actions"
+                      >
+                        <li><strong>Drop a pin</strong>: click the page</li>
+                        <li>
+                          <strong>Draw a box, circle, or arrow</strong>: pick a tool, then drag
+                        </li>
+                        <li><strong>Move</strong>: drag it</li>
+                        <li><strong>Read</strong>: click a mark</li>
+                      </ul>
+                      <p className="canvas-help-heading">Keyboard</p>
+                      <ul
+                        className="canvas-help-keys"
+                        data-testid="canvas-help-keys"
+                        aria-label="Keyboard shortcuts"
+                      >
+                        <li>
+                          <kbd>Enter</kbd> saves a comment; <kbd>Shift+Enter</kbd> starts a new line
+                        </li>
+                        <li><kbd>Escape</kbd> cancels, then lets go of the selected mark</li>
+                        <li>
+                          <kbd>J</kbd> or <kbd>ArrowDown</kbd> selects the next mark; <kbd>K</kbd> or{" "}
+                          <kbd>ArrowUp</kbd> selects the previous
+                        </li>
+                        <li><kbd>N</kbd> drops a pin at the center of the view</li>
+                        <li>
+                          <kbd>B</kbd>, <kbd>C</kbd>, or <kbd>A</kbd> arms the box, circle, or arrow
+                          tool for the next drag
+                        </li>
+                        <li><kbd>Shift</kbd>-drag also draws a box</li>
+                      </ul>
+                    </>
                   }
                   composer={{
                     draftBody,

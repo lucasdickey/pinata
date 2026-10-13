@@ -997,8 +997,8 @@ function CaptureCanvasInner({
    */
   revealSelected?: number;
   /**
-   * What the "?" button on the floating toolbar opens (D111): the verbs
-   * that used to sit in a line above the canvas. No button without it.
+   * What the "?" button on the floating toolbar opens (D111): canvas
+   * actions and keyboard help. No button without it.
    */
   help?: ReactNode;
   /**
@@ -2064,6 +2064,8 @@ function CaptureCanvasInner({
                 ref={popupRef}
                 className="canvas-popup canvas-help-popup"
                 id={`${menuIds}-help`}
+                role="group"
+                aria-label="Canvas help"
                 tabIndex={-1}
               >
                 {help}

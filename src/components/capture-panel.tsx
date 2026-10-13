@@ -14,10 +14,10 @@
 // "N resolved" group that opens when its mark is selected. Edits and deletes
 // carry the mark's revision; a conflict says so while the workspace reloads.
 //
-// Page, device, natural-pixel coordinates, the capture's version, state,
-// size, and image hash, and the keyboard shortcuts sit behind one native
-// "Details" disclosure, closed by default (D078). A draft is composed beside
-// its badge, not here (D074): see pin-composer.tsx.
+// Page, device, natural-pixel coordinates, and the capture's version, state,
+// size, and image hash sit behind one native "Details" disclosure, closed
+// by default (D078). A draft is composed beside its badge, not here (D074):
+// see pin-composer.tsx.
 
 import { useEffect, useState } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
@@ -440,9 +440,8 @@ export function CapturePanel({
 
         {/* The internals (D078), one click away and closed by default: the
             page and device, where the selected mark sits in screenshot
-            pixels, the capture's version, state, size, and image hash, and
-            the keyboard shortcuts. A native <details> so the browser
-            supplies the toggle and its announcement. */}
+            pixels, and the capture's version, state, size, and image hash.
+            A native <details> supplies the toggle and its announcement. */}
         <details className="panel-details" data-testid="panel-details">
           <summary>Details</summary>
           <dl className="panel-facts">
@@ -481,15 +480,6 @@ export function CapturePanel({
               </>
             ) : null}
           </dl>
-          <p className="panel-facts-label">Keyboard</p>
-          <ul className="panel-keys" data-testid="panel-keys">
-            <li>Enter saves a comment; Shift+Enter starts a new line</li>
-            <li>Escape cancels, then lets go of the selected mark</li>
-            <li>J and K, or the arrow keys, step through the marks</li>
-            <li>N drops a pin at the center of the view</li>
-            <li>B, C, or A arms the box, circle, or arrow tool for the next drag</li>
-            <li>Shift-drag also draws a box</li>
-          </ul>
         </details>
       </div>
     </aside>
