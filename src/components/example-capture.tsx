@@ -15,7 +15,6 @@ import {
   EXAMPLE_LAYOUT,
   type ExampleMark,
 } from "../lib/example-capture";
-import { ExampleDemo } from "./example-demo";
 import { ExamplePinTable } from "./example-pin-table";
 
 const FRAME_W = EXAMPLE_CAPTURE_FRAME.width;
@@ -402,46 +401,41 @@ export function ExampleCapture() {
       </p>
       <div className="example-grid">
         <figure className="example-figure">
-          {/* The demo video (D127) plays here when motion is fine; this
-              static example is what renders without script or with
-              reduced motion. */}
-          <ExampleDemo
-            label={`A short looping demo on ${EXAMPLE_CAPTURE.pageUrl}: a pin, a circle, an arrow, and a box are added, each with its comment, then the link is sent and the founder replies to pin 1.`}
+          {/* The still example. The demo video that played here (D127) now
+              opens the page under the hero, filmed in the product (D140). */}
+          <div
+            className="example-shot"
+            data-testid="example-shot"
+            role="img"
+            aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.marks.length} numbered marks: a pin, a circle, an arrow, and a box`}
           >
-            <div
-              className="example-shot"
-              data-testid="example-shot"
-              role="img"
-              aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.marks.length} numbered marks: a pin, a circle, an arrow, and a box`}
-            >
-              <ExamplePage />
-              <ExampleMarkStrokes selected={selected.number} />
-              {EXAMPLE_CAPTURE.marks.map((mark) => {
-                const at = badgePoint(mark);
-                return (
-                  <span
-                    key={mark.number}
-                    className="pin-badge pin-badge-example"
-                    data-mark-number={mark.number}
-                    data-mark-kind={mark.kind}
-                    data-selected={
-                      mark.number === selected.number ? "true" : undefined
-                    }
-                    aria-hidden="true"
-                    style={{
-                      left: `${(at.x / FRAME_W) * 100}%`,
-                      top: `${(at.y / FRAME_H) * 100}%`,
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" focusable="false">
-                      <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
-                    </svg>
-                    <span className="pin-badge-number">{mark.number}</span>
-                  </span>
-                );
-              })}
-            </div>
-          </ExampleDemo>
+            <ExamplePage />
+            <ExampleMarkStrokes selected={selected.number} />
+            {EXAMPLE_CAPTURE.marks.map((mark) => {
+              const at = badgePoint(mark);
+              return (
+                <span
+                  key={mark.number}
+                  className="pin-badge pin-badge-example"
+                  data-mark-number={mark.number}
+                  data-mark-kind={mark.kind}
+                  data-selected={
+                    mark.number === selected.number ? "true" : undefined
+                  }
+                  aria-hidden="true"
+                  style={{
+                    left: `${(at.x / FRAME_W) * 100}%`,
+                    top: `${(at.y / FRAME_H) * 100}%`,
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
+                  </svg>
+                  <span className="pin-badge-number">{mark.number}</span>
+                </span>
+              );
+            })}
+          </div>
           <figcaption className="hint">
             {EXAMPLE_CAPTURE.projectTitle} — {EXAMPLE_CAPTURE.pageUrl} ·{" "}
             {EXAMPLE_CAPTURE.device} · version {EXAMPLE_CAPTURE.version}

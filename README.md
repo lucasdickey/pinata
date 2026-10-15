@@ -83,6 +83,19 @@ npm run walkthrough          # Remotion Studio, to scrub and edit the slides
 npm run walkthrough:render   # writes out/pinata-walkthrough.mp4 (git-ignored)
 ```
 
+### The demo video
+
+The landing opens, under the hero, with a short video of the product itself
+(`D140`): a page captured, a pin and a circle with their notes, the
+founder's link and reply, and the hand-off to a coding agent. It is filmed
+from a local build, screen by screen, by `npm run demo:film`, and played by
+Remotion over those screens, so one scene can be filmed again when its part
+of the product changes without redoing the rest. How it fits together, how
+to tell which scenes are stale, and how to add one:
+[`remotion/demo/README.md`](remotion/demo/README.md). The demo data it is
+filmed from is a seed kept in the repository (`D142`):
+[`scripts/seed/README.md`](scripts/seed/README.md).
+
 ## Stack
 
 Next.js + React + TypeScript on Vercel · Browserless for capture · Turso
@@ -123,6 +136,8 @@ trail is maintained continuously rather than reconstructed afterwards.
 | [`docs/MILESTONES.md`](docs/MILESTONES.md) | The three vertical slices and their status. |
 | [`docs/EVALS.md`](docs/EVALS.md) | The human-readable eval catalog. |
 | `remotion/walkthrough/slides.ts` | The ten-slide walkthrough played at `/walkthrough`; chapters, durations, and transcript in one table. |
+| [`remotion/demo/README.md`](remotion/demo/README.md) | The landing's demo video: how it is filmed from the product, and how to update one scene. |
+| [`scripts/seed/README.md`](scripts/seed/README.md) | The seed data: a known project state, rebuilt on a scratch Pinata through the API. |
 
 The same sources are rendered live in the running app: the requirements hub at
 `/reqs` (plus `/reqs/architecture`, `/reqs/milestones`, `/reqs/decisions`, and
@@ -202,6 +217,10 @@ npm run dev    # Next.js on http://127.0.0.1:3100
 
 Port 3100 is reserved for this project; the dev and production servers bind
 only to localhost.
+
+To look around a Pinata with real captures and marks but none of the shared
+data, `npm run build && npm run seed` starts a scratch one on the same port,
+with its own file database and screenshots on disk (`D141`, `D142`).
 
 The Chrome extension needs no build: load `extension/` unpacked from
 `chrome://extensions`. It signs in to `http://127.0.0.1:3100` as readily as

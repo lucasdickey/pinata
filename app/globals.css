@@ -768,6 +768,108 @@ pre code {
   letter-spacing: -0.02em;
 }
 
+/* The demo video (D140): the product, filmed, first thing under the hero.
+   The frame holds the video's 16:10 shape before the player mounts, so
+   nothing below it moves when the still gives way to the video. */
+.demo-video {
+  margin: 0;
+}
+
+.demo-video-frame {
+  position: relative;
+  aspect-ratio: 1440 / 900;
+  overflow: hidden;
+  border: var(--hairline) solid var(--line);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+
+.demo-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The still in the page's theme: the saved choice, else the device's. */
+.demo-poster-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .demo-poster-light {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .demo-poster-dark {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .demo-poster-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .demo-poster-dark {
+  display: block;
+}
+
+.demo-play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.65rem 1.15rem 0.65rem 0.9rem;
+  border-radius: 999px;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.demo-play:hover {
+  background: var(--ink-strong);
+}
+
+.demo-play:active {
+  transform: translate(-50%, -50%) scale(0.97);
+}
+
+.demo-chapters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-chapters button {
+  gap: 0.5rem;
+  padding: 0.3rem 0.9rem 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  /* The current chapter changes color at once: a fade would pass through
+     shades that fail contrast while the video moves the highlight along. */
+  transition: transform 150ms ease-out;
+}
+
+.demo-chapters button[aria-current="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.demo-chapter-number {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+
+.demo-video figcaption {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+
 .landing-points {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -1442,7 +1544,9 @@ pre code {
     max-height: 210px;
   }
 
-  .landing-invitation,
+  .landing-invitation {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
   .invitation-mascot {
     width: 120px;

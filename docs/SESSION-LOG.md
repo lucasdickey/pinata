@@ -4006,3 +4006,61 @@ minutes against no fixed timebox.
   returned focus to the help button. Details still held capture facts only.
 - No new decision ID: this is a presentation change within the existing
   canvas-help direction.
+
+---
+
+## 2026-10-15 — the demo video, filmed from the product; the phone sign-in card (D140–D142)
+
+Harness: Claude Code on the owner's Mac, branch `claude/landing-demo-video`.
+Elapsed: about two hours against no fixed timebox.
+
+### What was attempted
+
+- The owner sent a phone screenshot of the landing's sign-in card squeezed
+  into a narrow column, one word per line, with the sign-in pushed off to
+  the side. The phone rule that stacks the card had lost its body when D126
+  removed a neighbouring selector (`.landing-invitation,` was left on its
+  own line and merged into the mascot's `width: 120px` rule). Wrote the
+  failing check first: the old one only measured the page's scroll width,
+  which `overflow-x: clip` hides, so it now also checks that text and
+  controls stay on screen and that the card spans the column. Restored the
+  rule.
+- Moved the demo video directly under the hero and replaced the drawn demo
+  (D127) with the real product, filmed. `scripts/demo/film.mjs` starts a
+  scratch Pinata per theme, seeds it, drives the story in
+  `scripts/demo/story.mjs` through the real interface, and saves each
+  screen with where its targets sit. `remotion/demo/` plays those screens
+  with a cursor, typing, a drawn circle, camera moves, and chapters. The
+  owner asked mid-way whether a seed kept in the repository would help;
+  it became `scripts/seed/` (D142), and the film's partial reruns start
+  from its stages.
+- A scratch Pinata could not show a screenshot without the production Blob
+  token, so added a local-disk store behind `PINATA_LOCAL_BLOB_DIR` (D141),
+  refused on Vercel and beside any database that is not a local file.
+
+### What broke
+
+- The first Playwright run against a scratch database let the global
+  teardown consume a cleanup entry from 6 October meant for the shared
+  store (`e2e/.run-cleanup/`). Restored the file byte for byte and wrapped
+  later scratch runs so the registry is set aside and put back.
+- Importing the queued project's page made its captures version 2, which
+  would have disagreed with every seeded scene. The capture scene now
+  archives the queued project and imports into a fresh one.
+- The build traced the whole repository into the server functions because
+  of the local store's dynamic file paths; `turbopackIgnore` on those calls
+  fixed it (checked in the routes' trace files).
+- The arrow's composer picked the page heading as its element; the story
+  picks "Pro" from the list, as the landing's example has it.
+- Typed-text overlays first used the light theme's colors in dark; fields
+  now record their colors per theme.
+- axe flagged the current chapter button while its background was still
+  fading to ink; the chapter buttons no longer fade.
+
+### Validation and decisions
+
+- D140 (owner-directed): the demo video under the hero, filmed from the
+  product scene by scene, with a reference for refilming one scene.
+- D141 (agent-autonomous): screenshots on local disk for scratch runs.
+- D142 (owner-directed): the seed data and its staged replay.
+- Gate: see the pull request for the run.

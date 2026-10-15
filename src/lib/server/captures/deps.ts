@@ -5,6 +5,7 @@
 // network. This module is the one place both concerns meet.
 
 import { createVercelBlobStore, type ScreenshotStore } from "../providers/blob";
+import { createLocalScreenshotStore } from "../providers/local-store";
 import { createBrowserlessClient } from "../providers/browserless";
 import { createRedirectProbe, type AdmissionDeps } from "./admission";
 import {
@@ -31,6 +32,14 @@ export function __setAdmissionDepsForTests(deps: AdmissionDeps | null): void {
 }
 
 /**
+ * The private screenshot store this process uses: the local-disk store when
+ * a scratch run asks for it (D141), otherwise private Vercel Blob.
+ */
+function createScreenshotStore(): ScreenshotStore | null {
+  return createLocalScreenshotStore(process.env) ?? createVercelBlobStore(process.env);
+}
+
+/**
  * Live Browserless client and private Blob store, or whatever a test
  * injected. Both fail closed to null when their credential is absent, which
  * execution turns into a bounded failed attempt: a claim is never left open
@@ -40,7 +49,7 @@ export function getCaptureExecutionDeps(): CaptureExecutionDeps {
   if (executionOverride) return executionOverride;
   return {
     client: createBrowserlessClient(process.env),
-    store: createVercelBlobStore(process.env),
+    store: createScreenshotStore(),
   };
 }
 
@@ -79,7 +88,7 @@ export function __setCaptureHandoffForTests(handoff: CaptureHandoff | null | und
  */
 export function getScreenshotStore(): ScreenshotStore | null {
   if (storeOverride !== undefined) return storeOverride;
-  return createVercelBlobStore(process.env);
+  return createScreenshotStore();
 }
 
 export function __setScreenshotStoreForTests(store: ScreenshotStore | null | undefined): void {

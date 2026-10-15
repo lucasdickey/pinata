@@ -1,532 +1,504 @@
-// The landing's demo video (D127): the experience in about eighteen seconds,
-// on the same example page and with the same four marks the landing's table
-// lists. A cursor picks each tool, places a pin, a circle, an arrow, and a
-// box, and types each comment; then the share link appears and the founder's
-// reply lands on pin 1. It loops.
+// The landing's demo video (D140): the real product, filmed screen by screen
+// (scripts/demo/film.mjs) and played back here with a cursor, typing, a
+// drawn circle, and a camera that leans in on what matters. The script is
+// timeline.ts; the screens and where their buttons sit are shots.json; how
+// it all fits together, and how to update one part, is README.md.
 //
 // It plays in the browser through @remotion/player (src/components/
-// example-demo.tsx), so it paints with the page's own CSS: the example page's
-// classes and the color tokens, which follow light and dark. Everything
-// comes from src/lib/example-capture.ts, so the video and the table below it
-// can never disagree.
+// demo-video.tsx), in the page's own fonts and colors; `theme` picks the
+// light or dark filming of each screen to match the page.
 
-import type { ReactNode } from "react";
-import { Easing, interpolate, useCurrentFrame } from "remotion";
+import type { CSSProperties } from "react";
+import { AbsoluteFill, Easing, Img, interpolate, useCurrentFrame } from "remotion";
+import { BRAND_MARK } from "../../src/lib/brand-mark";
+import { getShot, SHOT_TEXT, shotSrc, type Shot, type ShotField, type ShotMark, type Theme } from "./shots";
 import {
-  EXAMPLE_CAPTURE,
-  EXAMPLE_CAPTURE_FRAME,
-  type ExampleMark,
-} from "../../src/lib/example-capture";
-import { ExamplePage, badgePoint } from "../../src/components/example-capture";
+  beatAt,
+  briefExcerpt,
+  cameraAt,
+  cameraTransform,
+  CHAPTERS,
+  chapterAt,
+  cursorAt,
+  HEIGHT,
+  TIMELINE,
+  WIDTH,
+  type TimedBeat,
+} from "./timeline";
 
-export const DEMO_FPS = 30;
-export const DEMO_WIDTH = EXAMPLE_CAPTURE_FRAME.width;
-export const DEMO_HEIGHT = EXAMPLE_CAPTURE_FRAME.height;
+export { DURATION as DEMO_FRAMES, FPS as DEMO_FPS, HEIGHT as DEMO_HEIGHT, WIDTH as DEMO_WIDTH } from "./timeline";
 
-/** Frames per mark: move there, place it, type its comment. */
-const SEGMENT = 95;
-const START = 25;
-const MOVE = 22;
-const PLACE = 24;
-const MARKS = EXAMPLE_CAPTURE.marks;
-const SHARE_AT = START + MARKS.length * SEGMENT;
-const REPLY_AT = SHARE_AT + 50;
-const FADE_AT = REPLY_AT + 75;
-export const DEMO_FRAMES = FADE_AT + 30;
-
-const TOOL_LABEL: Record<ExampleMark["kind"], string> = {
-  pin: "Pin",
-  rectangle: "Box",
-  circle: "Circle",
-  arrow: "Arrow",
+// A type, not an interface: Remotion wants props it can treat as a record.
+export type PinataDemoProps = {
+  theme: Theme;
 };
-const TOOLS: ExampleMark["kind"][] = ["pin", "rectangle", "circle", "arrow"];
-// A vertical strip in the page's empty left margin, clear of every card.
-const TOOLBAR = { x: 18, y: 300, width: 118, step: 74 };
-
-/** Where the cursor presses, and where a drag ends. */
-function strokeEnds(mark: ExampleMark): {
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-} {
-  switch (mark.kind) {
-    case "pin":
-      return { from: mark.tip, to: mark.tip };
-    case "rectangle":
-      return {
-        from: { x: mark.rect.x, y: mark.rect.y },
-        to: {
-          x: mark.rect.x + mark.rect.width,
-          y: mark.rect.y + mark.rect.height,
-        },
-      };
-    case "circle":
-      return {
-        from: { x: mark.circle.x, y: mark.circle.y },
-        to: {
-          x: mark.circle.x + mark.circle.size,
-          y: mark.circle.y + mark.circle.size,
-        },
-      };
-    case "arrow":
-      return { from: mark.arrow.start, to: mark.arrow.end };
-  }
-}
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const ease = Easing.inOut(Easing.cubic);
 
-/** Where the toolbar button for a tool sits, for the cursor to visit. */
-function toolPoint(kind: ExampleMark["kind"]): { x: number; y: number } {
-  const index = TOOLS.indexOf(kind);
-  return {
-    x: TOOLBAR.x + TOOLBAR.width / 2,
-    y: TOOLBAR.y + 46 + index * TOOLBAR.step,
-  };
+/** The page's tokens, with the theme's values for anywhere they are not defined. */
+const TOKENS: Record<Theme, Record<string, string>> = {
+  light: { bg: "#fcfcf9", surface: "#ffffff", ink: "#141414", soft: "#666666", line: "#cfcec8", accent: "#c9381a" },
+  dark: { bg: "#181818", surface: "#1f1f1e", ink: "#efefe4", soft: "#a8a8a2", line: "#464641", accent: "#ff6b47" },
+};
+
+function token(theme: Theme, name: keyof (typeof TOKENS)["light"]): string {
+  const css = { bg: "--bg", surface: "--surface", ink: "--ink", soft: "--ink-soft", line: "--line-strong", accent: "--accent" }[name];
+  return `var(${css}, ${TOKENS[theme][name]})`;
 }
 
-/** The cursor's position at a frame, along tool → press → release for each mark. */
-function cursorAt(frame: number): { x: number; y: number; down: boolean } {
-  const rest = { x: 1340, y: 160 };
-  let last = rest;
-  for (let i = 0; i < MARKS.length; i += 1) {
-    const mark = MARKS[i]!;
-    const s = START + i * SEGMENT;
-    const tool = toolPoint(mark.kind);
-    const { from, to } = strokeEnds(mark);
-    if (frame < s) return { ...last, down: false };
-    if (frame < s + MOVE / 2) {
-      const t = interpolate(frame, [s, s + MOVE / 2], [0, 1], {
-        ...clamp,
-        easing: ease,
-      });
-      return {
-        x: last.x + (tool.x - last.x) * t,
-        y: last.y + (tool.y - last.y) * t,
-        down: false,
-      };
-    }
-    if (frame < s + MOVE) {
-      const t = interpolate(frame, [s + MOVE / 2, s + MOVE], [0, 1], {
-        ...clamp,
-        easing: ease,
-      });
-      return {
-        x: tool.x + (from.x - tool.x) * t,
-        y: tool.y + (from.y - tool.y) * t,
-        down: false,
-      };
-    }
-    if (frame < s + MOVE + PLACE) {
-      const t = interpolate(frame, [s + MOVE, s + MOVE + PLACE], [0, 1], {
-        ...clamp,
-        easing: ease,
-      });
-      return {
-        x: from.x + (to.x - from.x) * t,
-        y: from.y + (to.y - from.y) * t,
-        down: true,
-      };
-    }
-    last = to;
-  }
-  if (frame < SHARE_AT + 20) {
-    const t = interpolate(frame, [SHARE_AT, SHARE_AT + 20], [0, 1], {
-      ...clamp,
-      easing: ease,
-    });
-    return {
-      x: last.x + (1260 - last.x) * t,
-      y: last.y + (60 - last.y) * t,
-      down: false,
-    };
-  }
-  return {
-    x: 1260,
-    y: 60,
-    down: frame >= SHARE_AT + 20 && frame < SHARE_AT + 26,
-  };
-}
-
-/** 0 → 1 as a mark is placed; 1 once it is down. */
-function placed(frame: number, index: number): number {
-  const s = START + index * SEGMENT + MOVE;
-  return interpolate(frame, [s, s + PLACE], [0, 1], { ...clamp, easing: ease });
-}
-
-function MarkStroke({
-  mark,
-  progress,
-}: {
-  mark: ExampleMark;
-  progress: number;
-}) {
-  if (progress <= 0) return null;
-  const common = {
-    fill: "none",
-    stroke: "var(--accent)",
-    strokeWidth: 4,
-    strokeLinecap: "round" as const,
-  };
-  switch (mark.kind) {
-    case "rectangle":
-      return (
-        <rect
-          {...common}
-          x={mark.rect.x}
-          y={mark.rect.y}
-          width={mark.rect.width * progress}
-          height={mark.rect.height * progress}
-          rx={6}
-        />
-      );
-    case "circle": {
-      const r = (mark.circle.size / 2) * progress;
-      return (
-        <ellipse
-          {...common}
-          cx={mark.circle.x + r}
-          cy={mark.circle.y + r}
-          rx={r}
-          ry={r}
-        />
-      );
-    }
-    case "arrow": {
-      const end = {
-        x:
-          mark.arrow.start.x +
-          (mark.arrow.end.x - mark.arrow.start.x) * progress,
-        y:
-          mark.arrow.start.y +
-          (mark.arrow.end.y - mark.arrow.start.y) * progress,
-      };
-      return (
-        <line
-          {...common}
-          x1={mark.arrow.start.x}
-          y1={mark.arrow.start.y}
-          x2={end.x}
-          y2={end.y}
-          markerEnd={progress >= 1 ? "url(#demo-arrow-head)" : undefined}
-        />
-      );
-    }
-    default:
-      return null;
-  }
-}
-
-/** The numbered badge, a teardrop for a pin and a tag for the rest. */
-function Badge({ mark, scale }: { mark: ExampleMark; scale: number }) {
-  if (scale <= 0) return null;
-  const at = badgePoint(mark);
-  const size = 40;
+/** One filmed screen, laid at the shot's own pixel size. */
+function ShotLayer({ shot, theme, opacity, offsetY }: { shot: Shot; theme: Theme; opacity: number; offsetY: number }) {
   return (
-    <g transform={`translate(${at.x} ${at.y}) scale(${scale})`}>
-      {mark.kind === "pin" ? (
-        <g transform={`translate(${-size / 2} ${-size})`}>
-          <path
-            d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z"
-            transform={`scale(${size / 24})`}
-            fill="var(--accent)"
-            stroke="var(--surface)"
-            strokeWidth={0.8}
-          />
-          <text
-            x={size / 2}
-            y={size * 0.42}
-            textAnchor="middle"
-            fontSize={15}
-            fontWeight={800}
-            fill="var(--surface)"
-          >
-            {mark.number}
-          </text>
-        </g>
-      ) : (
-        <g transform="translate(-4 -4)">
-          <rect width={28} height={28} rx={7} fill="var(--accent)" />
-          <text
-            x={14}
-            y={19.5}
-            textAnchor="middle"
-            fontSize={15}
-            fontWeight={800}
-            fill="var(--surface)"
-          >
-            {mark.number}
-          </text>
-        </g>
-      )}
-    </g>
+    <Img
+      src={shotSrc(shot, theme)}
+      alt=""
+      pauseWhenLoading
+      style={{
+        position: "absolute",
+        left: 0,
+        top: offsetY,
+        width: WIDTH,
+        height: HEIGHT,
+        opacity,
+      }}
+    />
   );
 }
 
-/** Where a comment card hangs: past the mark's far edge, not over it. */
-function cardAnchor(mark: ExampleMark): { x: number; y: number; left: number } {
-  switch (mark.kind) {
-    case "pin":
-      return { x: mark.tip.x, y: mark.tip.y - 30, left: mark.tip.x };
-    case "rectangle":
-      return {
-        x: mark.rect.x + mark.rect.width,
-        y: mark.rect.y,
-        left: mark.rect.x,
-      };
-    case "circle":
-      return {
-        x: mark.circle.x + mark.circle.size,
-        y: mark.circle.y,
-        left: mark.circle.x,
-      };
-    case "arrow":
-      return {
-        x: Math.max(mark.arrow.start.x, mark.arrow.end.x),
-        y: Math.min(mark.arrow.start.y, mark.arrow.end.y),
-        left: Math.min(mark.arrow.start.x, mark.arrow.end.x),
-      };
+/** The screens to show at a frame: this beat's, over the last beat's while it gives way. */
+function layersAt(frame: number, beat: TimedBeat): { shot: Shot; opacity: number; offsetY: number }[] {
+  const shot = getShot(beat.shot);
+  const previous = TIMELINE[beat.index - 1];
+  const local = frame - beat.start;
+  if (!previous || previous.shot === beat.shot || previous.end) {
+    return [{ shot, opacity: 1, offsetY: 0 }];
   }
+  const kind = beat.enter?.kind ?? "cut";
+  // After typing, cut at once: the typed text was drawn over the last shot,
+  // and fading would let its empty field show through.
+  const frames = previous.type ? 0 : (beat.enter?.frames ?? 3);
+  if (local >= frames) return [{ shot, opacity: 1, offsetY: 0 }];
+  const before = getShot(previous.shot);
+  const t = interpolate(local, [0, frames], [0, 1], { ...clamp, easing: ease });
+  if (kind === "scroll") {
+    // The page moves up: the old screen leaves by the distance scrolled and
+    // the new one, which starts at that scroll, rises into its place.
+    const distance = (shot.scrollY ?? 0) - (before.scrollY ?? 0);
+    return [
+      { shot: before, opacity: 1, offsetY: -distance * t },
+      { shot, opacity: 1, offsetY: distance * (1 - t) },
+    ];
+  }
+  return [
+    { shot: before, opacity: 1, offsetY: 0 },
+    { shot, opacity: t, offsetY: 0 },
+  ];
 }
 
-/** A dark comment card beside the mark, its text typed in. */
-function Bubble({
-  at,
-  children,
-  opacity,
+/** Text typed into a field, set where the field sets it, with a caret. */
+function Typing({
+  field,
+  frame,
+  start,
+  perFrame,
+  theme,
 }: {
-  at: { x: number; y: number; left: number };
-  children: ReactNode;
-  opacity: number;
+  field: ShotField;
+  frame: number;
+  start: number;
+  perFrame: number;
+  theme: Theme;
 }) {
-  if (opacity <= 0) return null;
-  // To the right of the mark, or to its left when there is no room, so a
-  // card never covers the mark it describes.
-  const left = at.x + 24 + 450 <= DEMO_WIDTH - 16 ? at.x + 24 : at.left - 474;
-  // Kept inside the frame: a card under a low mark rises above it.
-  const top = Math.min(Math.max(at.y - 20, 70), DEMO_HEIGHT - 190);
+  const text = field.text ?? "";
+  const { color, background } = field.colors[theme] ?? field.colors.light ?? Object.values(field.colors)[0]!;
+  const shown = text.slice(0, Math.max(0, Math.floor((frame - start) * perFrame)));
+  const { rect, padding, font } = field;
+  const caretOn = Math.floor(frame / 8) % 2 === 0 || shown.length < text.length;
+  const box: CSSProperties = {
+    position: "absolute",
+    left: rect.x + padding.left,
+    top: rect.y + padding.top,
+    width: rect.width - padding.left - padding.right,
+    height: rect.height - padding.top - padding.bottom,
+    background,
+    color,
+    fontFamily: font.family,
+    fontSize: font.size,
+    fontWeight: font.weight as CSSProperties["fontWeight"],
+    lineHeight: `${font.lineHeight}px`,
+    letterSpacing: font.letterSpacing,
+    whiteSpace: field.multiline ? "pre-wrap" : "pre",
+    overflowWrap: "break-word",
+    overflow: "hidden",
+    display: field.multiline ? "block" : "flex",
+    alignItems: "center",
+  };
   return (
-    <div
-      style={{
-        position: "absolute",
-        left,
-        top,
-        width: 450,
-        padding: "14px 18px",
-        borderRadius: 12,
-        background: "#141414",
-        color: "#fcfcf9",
-        fontSize: 30,
-        lineHeight: 1.4,
-        boxShadow: "0 12px 32px -8px rgba(0,0,0,0.45)",
-        opacity,
-        transform: `translateY(${(1 - opacity) * 8}px)`,
-      }}
-    >
-      {children}
+    <div style={box}>
+      <span>
+        {shown}
+        <span
+          style={{
+            display: "inline-block",
+            width: 1.5,
+            height: font.size * 1.15,
+            marginLeft: 1,
+            verticalAlign: "text-bottom",
+            background: color,
+            opacity: caretOn ? 1 : 0,
+          }}
+        />
+      </span>
     </div>
   );
 }
 
-function typed(text: string, frame: number, start: number): string {
-  const chars = Math.max(0, Math.floor((frame - start) * 1.6));
-  return text.slice(0, chars);
-}
-
-function Cursor({ x, y, down }: { x: number; y: number; down: boolean }) {
-  return (
-    <svg
-      width={34}
-      height={34}
-      viewBox="0 0 24 24"
-      style={{
-        position: "absolute",
-        left: x - 4,
-        top: y - 3,
-        transform: `scale(${down ? 0.88 : 1})`,
-        transformOrigin: "4px 3px",
-        filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.35))",
-      }}
-    >
-      <path
-        d="M4 3 L4 19 L8.5 15 L11.5 21.5 L14 20.4 L11.1 14 L17 14 Z"
-        fill="#141414"
-        stroke="#fff"
-        strokeWidth={1.4}
-        strokeLinejoin="round"
+/** A mark being drawn as the cursor drags: dashed, as the canvas draws a draft. */
+function Drawing({ mark, progress, theme }: { mark: ShotMark; progress: number; theme: Theme }) {
+  if (progress <= 0) return null;
+  const stroke = {
+    fill: "none",
+    stroke: token(theme, "accent"),
+    strokeWidth: 2,
+    strokeDasharray: "6 4",
+    strokeLinecap: "round" as const,
+  };
+  let shape = null;
+  if (mark.kind === "circle" || mark.kind === "rectangle") {
+    const width = mark.rect.width * progress;
+    const height = mark.rect.height * progress;
+    shape =
+      mark.kind === "circle" ? (
+        <ellipse {...stroke} cx={mark.rect.x + width / 2} cy={mark.rect.y + height / 2} rx={width / 2} ry={height / 2} />
+      ) : (
+        <rect {...stroke} x={mark.rect.x} y={mark.rect.y} width={width} height={height} />
+      );
+  } else if (mark.kind === "arrow") {
+    shape = (
+      <line
+        {...stroke}
+        x1={mark.start.x}
+        y1={mark.start.y}
+        x2={mark.start.x + (mark.end.x - mark.start.x) * progress}
+        y2={mark.start.y + (mark.end.y - mark.start.y) * progress}
       />
+    );
+  }
+  return (
+    <svg width={WIDTH} height={HEIGHT} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+      {shape}
     </svg>
   );
 }
 
-function Toolbar({ active }: { active: ExampleMark["kind"] | null }) {
+/** The pointer: an arrow, or a crosshair while a tool draws; pressed, it shrinks and ripples. */
+function Cursor({ frame, crosshair }: { frame: number; crosshair: boolean }) {
+  const { x, y, down, pressedAt } = cursorAt(frame);
+  const since = pressedAt === null ? Infinity : frame - pressedAt;
+  const ripple = since < 14 ? interpolate(since, [0, 14], [0, 1], clamp) : null;
+  return (
+    <>
+      {ripple !== null && !crosshair ? (
+        <div
+          style={{
+            position: "absolute",
+            left: x - 22,
+            top: y - 22,
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            border: "2px solid rgba(20, 20, 20, 0.45)",
+            transform: `scale(${0.4 + ripple * 0.8})`,
+            opacity: 1 - ripple,
+          }}
+        />
+      ) : null}
+      {crosshair ? (
+        <svg width={28} height={28} viewBox="0 0 28 28" style={{ position: "absolute", left: x - 14, top: y - 14 }}>
+          <path d="M14 2v24M2 14h24" stroke="#fff" strokeWidth={4} strokeLinecap="round" />
+          <path d="M14 2v24M2 14h24" stroke="#141414" strokeWidth={1.6} strokeLinecap="round" />
+        </svg>
+      ) : (
+        <svg
+          width={26}
+          height={26}
+          viewBox="0 0 24 24"
+          style={{
+            position: "absolute",
+            left: x - 4,
+            top: y - 3,
+            transform: `scale(${down ? 0.86 : 1})`,
+            transformOrigin: "4px 3px",
+            filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.3))",
+          }}
+        >
+          <path
+            d="M4 3 L4 19 L8.5 15 L11.5 21.5 L14 20.4 L11.1 14 L17 14 Z"
+            fill="#141414"
+            stroke="#fff"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </>
+  );
+}
+
+/** How long a chapter's title stays up once the chapter starts. */
+const CAPTION_FRAMES = 80;
+
+/**
+ * The chapter's title, up for a moment as the chapter starts and then out of
+ * the way; the chapter buttons under the player keep the place after that.
+ */
+function Caption({ frame, theme }: { frame: number; theme: Theme }) {
+  const id = chapterAt(frame);
+  const index = CHAPTERS.findIndex((chapter) => chapter.id === id);
+  const start = TIMELINE.find((beat) => beat.chapter === id)!.start;
+  const since = frame - start;
+  if (since > CAPTION_FRAMES) return null;
+  const appear = interpolate(since, [0, 10, CAPTION_FRAMES - 12, CAPTION_FRAMES], [0, 1, 1, 0], clamp);
   return (
     <div
       style={{
         position: "absolute",
-        left: TOOLBAR.x,
-        top: TOOLBAR.y,
-        width: TOOLBAR.width,
-        padding: "10px 0",
+        left: 28,
+        top: 24,
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: TOOLBAR.step - 52,
-        borderRadius: 14,
-        background: "var(--surface)",
-        border: "1px solid var(--line-strong)",
-        boxShadow: "0 10px 28px -10px rgba(0,0,0,0.3)",
+        gap: 14,
+        padding: "12px 22px 12px 14px",
+        borderRadius: 999,
+        background: token(theme, "ink"),
+        color: token(theme, "bg"),
+        fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
         fontSize: 26,
-        fontWeight: 600,
-        color: "var(--ink)",
+        fontWeight: 500,
+        letterSpacing: "-0.01em",
+        boxShadow: "0 10px 30px -12px rgba(0,0,0,0.45)",
+        opacity: appear,
+        transform: `translateY(${(1 - appear) * -8}px)`,
       }}
     >
-      {TOOLS.map((kind) => (
-        <span
-          key={kind}
-          style={{
-            width: TOOLBAR.width - 20,
-            height: 52,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 10,
-            background: active === kind ? "var(--ink)" : "transparent",
-            color: active === kind ? "var(--bg)" : "var(--ink)",
-          }}
-        >
-          {TOOL_LABEL[kind]}
-        </span>
-      ))}
+      <span
+        style={{
+          display: "grid",
+          placeItems: "center",
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          // As the canvas sets a badge's number: --surface on --accent.
+          background: token(theme, "accent"),
+          color: token(theme, "surface"),
+          fontSize: 20,
+          fontWeight: 600,
+        }}
+      >
+        {index + 1}
+      </span>
+      {CHAPTERS[index]!.title}
     </div>
   );
 }
 
-export function PinataDemo() {
-  const frame = useCurrentFrame();
-  const fade = interpolate(frame, [FADE_AT, FADE_AT + 24], [1, 0], clamp);
-  const cursor = cursorAt(frame);
-  const segment = Math.floor((frame - START) / SEGMENT);
-  const activeTool =
-    segment >= 0 &&
-    segment < MARKS.length &&
-    frame - START - segment * SEGMENT >= MOVE / 2
-      ? MARKS[segment]!.kind
-      : null;
-  const shareIn = interpolate(
-    frame,
-    [SHARE_AT + 22, SHARE_AT + 36],
-    [0, 1],
-    clamp,
-  );
-  const replyIn = interpolate(frame, [REPLY_AT, REPLY_AT + 14], [0, 1], clamp);
-  const pinOne = MARKS[0]!;
-  const founderReply = pinOne.thread.find(
-    (entry) => entry.author === "founder",
-  );
-
+/** A key press, shown as a key cap while the note saves. */
+function KeyCap({ label, since, theme }: { label: string; since: number; theme: Theme }) {
+  if (since < 0 || since > 18) return null;
+  const opacity = interpolate(since, [0, 3, 14, 18], [0, 1, 1, 0], clamp);
+  const press = since >= 3 && since < 8 ? 0.94 : 1;
   return (
     <div
       style={{
         position: "absolute",
-        inset: 0,
-        background: "var(--bg)",
-        fontFamily: "var(--font-sans)",
+        left: "50%",
+        bottom: 34,
+        transform: `translateX(-50%) scale(${press})`,
+        padding: "10px 22px",
+        borderRadius: 10,
+        border: `2px solid ${token(theme, "line")}`,
+        borderBottomWidth: 5,
+        background: token(theme, "surface"),
+        color: token(theme, "ink"),
+        fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
+        fontSize: 26,
+        fontWeight: 550,
+        opacity,
       }}
     >
-      <ExamplePage />
-      <svg
-        viewBox={`0 0 ${DEMO_WIDTH} ${DEMO_HEIGHT}`}
+      {label} ↵
+    </div>
+  );
+}
+
+/**
+ * What the coding agent does with the link: the prompt Pinata wrote, pasted,
+ * then the brief the link returns, as the agent reads it. The words are the
+ * product's own, kept when the scene was filmed; the terminal around them is
+ * only a frame.
+ */
+function Terminal({ since, theme }: { since: number; theme: Theme }) {
+  if (since < 0) return null;
+  const enter = interpolate(since, [0, 12], [0, 1], { ...clamp, easing: ease });
+  const text = SHOT_TEXT[theme] ?? SHOT_TEXT.light ?? SHOT_TEXT.dark ?? {};
+  const prompt = text.prompt ?? "";
+  const lines = briefExcerpt(text.brief ?? "").slice(0, 20);
+  const reading = since >= 30;
+  const shownLines = Math.max(0, Math.floor((since - 38) / 2.2));
+  const mono = "var(--font-mono, ui-monospace, Menlo, monospace)";
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 150,
+        right: 150,
+        top: 56,
+        bottom: 56,
+        borderRadius: 18,
+        overflow: "hidden",
+        background: "#1f1f1e",
+        color: "#efefe4",
+        boxShadow: "0 40px 90px -30px rgba(0,0,0,0.7)",
+        opacity: enter,
+        transform: `translateY(${(1 - enter) * 40}px)`,
+        fontFamily: mono,
+        fontSize: 18,
+        lineHeight: 1.45,
+      }}
+    >
+      <div
         style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          overflow: "visible",
-          opacity: fade,
+          display: "flex",
+          alignItems: "center",
+          gap: 9,
+          padding: "14px 20px",
+          borderBottom: "1px solid #2e2e2b",
+          color: "#a8a8a2",
+          fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
+          fontSize: 18,
         }}
       >
-        <defs>
-          <marker
-            id="demo-arrow-head"
-            viewBox="0 0 10 10"
-            refX="7"
-            refY="5"
-            markerUnits="userSpaceOnUse"
-            markerWidth="26"
-            markerHeight="26"
-            orient="auto-start-reverse"
-          >
-            <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)" />
-          </marker>
-        </defs>
-        {MARKS.map((mark, index) => (
-          <MarkStroke
-            key={mark.number}
-            mark={mark}
-            progress={mark.kind === "pin" ? 0 : placed(frame, index)}
-          />
+        {["#464641", "#464641", "#464641"].map((fill, i) => (
+          <span key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: fill }} />
         ))}
-        {MARKS.map((mark, index) => {
-          const s = START + index * SEGMENT + MOVE + PLACE;
-          const pop = interpolate(frame, [s - 4, s + 6], [0, 1], {
-            ...clamp,
-            easing: Easing.out(Easing.back(2)),
-          });
-          return <Badge key={mark.number} mark={mark} scale={pop} />;
-        })}
-      </svg>
-      <div style={{ position: "absolute", inset: 0, opacity: fade }}>
-        {MARKS.map((mark, index) => {
-          const s = START + index * SEGMENT + MOVE + PLACE;
-          const shown = interpolate(
-            frame,
-            [s, s + 8, s + SEGMENT - 8, s + SEGMENT],
-            [0, 1, 1, 0],
-            clamp,
-          );
-          return (
-            <Bubble key={mark.number} at={cardAnchor(mark)} opacity={shown}>
-              <div style={{ fontSize: 22, opacity: 0.7, marginBottom: 4 }}>
-                {TOOL_LABEL[mark.kind]} {mark.number}
-              </div>
-              {typed(mark.body, frame, s + 4)}
-            </Bubble>
-          );
-        })}
-        {founderReply ? (
-          <Bubble at={cardAnchor(pinOne)} opacity={replyIn}>
-            <div style={{ fontSize: 22, opacity: 0.7, marginBottom: 4 }}>
-              founder replied
-            </div>
-            {founderReply.body}
-          </Bubble>
+        <span style={{ marginLeft: 10 }}>Your coding agent</span>
+      </div>
+      <div style={{ padding: "22px 28px" }}>
+        <div style={{ display: "flex", gap: 12 }}>
+          <span style={{ color: "#ff6b47" }}>›</span>
+          <span style={{ opacity: since >= 10 ? 1 : 0, color: "#efefe4" }}>{prompt}</span>
+        </div>
+        {reading ? (
+          <div style={{ marginTop: 18, color: "#a8a8a2" }}>
+            Reading {prompt.match(/https:\/\/\S+/)?.[0]?.replace(/(\/a\/.{6}).*/, "$1…") ?? "the brief"}
+          </div>
         ) : null}
-        <div
-          style={{
-            position: "absolute",
-            right: 40,
-            top: 24,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "10px 18px",
-            borderRadius: 999,
-            background: "var(--ink)",
-            color: "var(--bg)",
-            fontSize: 28,
-            fontWeight: 600,
-            opacity: shareIn,
-            transform: `translateY(${(1 - shareIn) * -10}px)`,
-          }}
-        >
-          Link copied · send it to the founder
+        <div style={{ marginTop: 10, borderLeft: "2px solid #464641", paddingLeft: 18 }}>
+          {lines.slice(0, shownLines).map((line, i) => (
+            <div
+              key={i}
+              style={{
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                color: line.startsWith("#") ? "#efefe4" : "#a8a8a2",
+                fontWeight: line.startsWith("#") ? 600 : 400,
+              }}
+            >
+              {line}
+            </div>
+          ))}
         </div>
       </div>
-      <Toolbar active={activeTool} />
-      <div style={{ opacity: fade }}>
-        <Cursor {...cursor} />
-      </div>
     </div>
+  );
+}
+
+/** The close: the mark, the name, the promise. */
+function EndCard({ since, frames, theme }: { since: number; frames: number; theme: Theme }) {
+  const opacity = interpolate(since, [0, 12, frames - 14, frames], [0, 1, 1, 0], clamp);
+  return (
+    <AbsoluteFill
+      style={{
+        background: token(theme, "bg"),
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 26,
+        opacity,
+        fontFamily: "var(--font-sans, Inter, system-ui, sans-serif)",
+      }}
+    >
+      <svg viewBox={BRAND_MARK.viewBox} width={132} height={132} aria-hidden="true">
+        <rect width="64" height="64" rx={BRAND_MARK.tileRadius} fill={BRAND_MARK.tileFill} />
+        <path d={BRAND_MARK.bodyPath} fill={BRAND_MARK.bodyFill} fillRule={BRAND_MARK.fillRule} />
+        <path d={BRAND_MARK.inkPath} fill={BRAND_MARK.inkFill} fillRule={BRAND_MARK.fillRule} />
+      </svg>
+      <div style={{ textAlign: "center", fontSize: 64, fontWeight: 360, letterSpacing: "-0.025em", lineHeight: 1.08 }}>
+        <div style={{ color: token(theme, "ink") }}>Pinata</div>
+        <div style={{ color: token(theme, "soft") }}>Feedback pinned to the exact pixel,</div>
+        <div style={{ color: token(theme, "soft") }}>sent in one link</div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+export function PinataDemo({ theme }: PinataDemoProps) {
+  const frame = useCurrentFrame();
+  const beat = beatAt(frame);
+  const local = frame - beat.start;
+  const shot = getShot(beat.shot);
+  const camera = cameraAt(frame);
+  const terminalSince = beat.terminal ? local - beat.terminal.at : -1;
+  const drawing = beat.draw;
+  const drawProgress = drawing ? interpolate(local, [drawing.at, drawing.at + drawing.frames], [0, 1], clamp) : 0;
+  const crosshair = Boolean(drawing && local >= drawing.at - 3 && local <= drawing.at + drawing.frames);
+  const field = beat.type ? shot.fields[beat.type.field] : undefined;
+  const showCursor = !beat.end && terminalSince < 6;
+
+  return (
+    <AbsoluteFill style={{ background: token(theme, "bg"), overflow: "hidden" }}>
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: WIDTH,
+          height: HEIGHT,
+          transformOrigin: "0 0",
+          transform: cameraTransform(camera),
+        }}
+      >
+        {layersAt(frame, beat).map((layer, i) => (
+          <ShotLayer key={`${i}-${layer.shot.files.light}`} theme={theme} {...layer} />
+        ))}
+        {field && beat.type && local >= beat.type.at ? (
+          <Typing
+            field={field}
+            frame={frame}
+            start={beat.start + beat.type.at}
+            perFrame={beat.type.perFrame ?? 1.6}
+            theme={theme}
+          />
+        ) : null}
+        {drawing && shot.marks?.[drawing.mark] ? (
+          <Drawing mark={shot.marks[drawing.mark]!} progress={drawProgress} theme={theme} />
+        ) : null}
+        {showCursor ? <Cursor frame={frame} crosshair={crosshair} /> : null}
+      </div>
+      {beat.terminal ? (
+        <>
+          <AbsoluteFill
+            style={{ background: "rgba(10, 10, 10, 0.5)", opacity: interpolate(terminalSince, [0, 12], [0, 1], clamp) }}
+          />
+          <Terminal since={terminalSince} theme={theme} />
+        </>
+      ) : null}
+      {beat.key ? <KeyCap label={beat.key.label} since={local - beat.key.at} theme={theme} /> : null}
+      {!beat.end ? <Caption frame={frame} theme={theme} /> : null}
+      {beat.end ? <EndCard since={local} frames={beat.frames} theme={theme} /> : null}
+    </AbsoluteFill>
   );
 }

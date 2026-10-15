@@ -14,6 +14,18 @@ _Nothing cut yet. Entries here should link to the decision record that cut them.
   ways to spare them that work are costed in
   [`RECOMMENDATIONS.md`](RECOMMENDATIONS.md) (R001 to R003).
 
+- **Canvas e2e specs on the seed** (`D142`). The canvas, pin, and
+  lifecycle specs still look for "the seeded Chickpea pages" in the shared
+  store, which only the shared database has, so they skip anywhere else.
+  Pointing them at a scratch Pinata seeded by `scripts/seed/` would make
+  them run, and stop depending on shared data, everywhere the gate runs.
+
+- **More of the product in the demo video** (`D140`). Scenes worth filming
+  next: the Chrome extension capturing a signed-in screen (`D131`), the
+  mobile capture, and resolving a mark. Each is a scene in
+  `scripts/demo/story.mjs` and a few beats in `remotion/demo/timeline.ts`
+  (`remotion/demo/README.md`, "Adding a scene").
+
 - **Voice-over and captions for the walkthrough** (`D072`). The slide table
   already carries a prose transcript per chapter; Remotion can time captions
   from it and mix a recorded narration track, which would make the rendered
@@ -76,6 +88,11 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   current link again would mean storing the token recoverably, a change to
   the capability posture (`D018`, `D089`) that `D097` declined to make
   quietly.
+- The demo video (`D140`) shows each screen as it was when its scene was
+  filmed. `npm run demo:film -- --list` names scenes whose screens' sources
+  changed since, but not stylesheet changes, and dates in the shots (a
+  reply's time) are the filming day's, so scenes filmed on different days
+  can disagree by a date.
 - The dark theme (`D104`) leaves two things light on purpose: the landing
   example's captured page and real screenshots, which depict someone
   else's light site, and the brand mark's white tile. The walkthrough video

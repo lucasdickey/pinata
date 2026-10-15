@@ -1,0 +1,65 @@
+{
+  "$comment": "The Chickpea demo project, replayed through Pinata's own API into a scratch database by scripts/seed/apply.mjs (see scripts/seed/README.md). The marks and replies mirror the landing's example (src/lib/example-capture.ts); test/seed.test.ts keeps the two in step. Coordinates are capture pixels on the 1440px desktop capture.",
+  "project": { "title": "Chickpea review" },
+  "pages": [
+    {
+      "key": "pricing",
+      "url": "https://chickpea.co/pricing",
+      "site": "site/pricing.html",
+      "variants": ["desktop", "mobile"],
+      "capturedMinutesAgo": 12
+    }
+  ],
+  "marks": [
+    {
+      "key": "toggle",
+      "page": "pricing",
+      "variant": "desktop",
+      "kind": "pin",
+      "tip": { "x": 884, "y": 318 },
+      "element": { "tag": "button", "text": "Annual (save 20%)" },
+      "body": "This billing toggle reads the same in both states — which one is active?",
+      "replies": [
+        {
+          "author": "founder",
+          "body": "Good catch — monthly is the default. We'll add a pressed state this sprint."
+        }
+      ]
+    },
+    {
+      "key": "price",
+      "page": "pricing",
+      "variant": "desktop",
+      "kind": "circle",
+      "circle": { "x": 538, "y": 460, "size": 128 },
+      "element": { "tag": "p", "text": "$12 /mo" },
+      "body": "Per person or per team? The price doesn't say which.",
+      "replies": []
+    },
+    {
+      "key": "popular",
+      "page": "pricing",
+      "variant": "desktop",
+      "kind": "arrow",
+      "arrow": { "start": { "x": 806, "y": 400 }, "end": { "x": 944, "y": 448 } },
+      "element": { "tag": "h3", "text": "Pro" },
+      "body": "Move “Most popular” to Pro — it's the plan you want picked.",
+      "replies": []
+    },
+    {
+      "key": "pro-cta",
+      "page": "pricing",
+      "variant": "desktop",
+      "kind": "rectangle",
+      "rect": { "x": 944, "y": 758, "width": 332, "height": 76 },
+      "element": { "tag": "a", "text": "Start free" },
+      "body": "The Pro card's CTA sits below the fold on smaller laptops — worth lifting.",
+      "replies": [
+        {
+          "author": "founder",
+          "body": "Agreed. Moving it above the feature list in the next deploy."
+        }
+      ]
+    }
+  ]
+}

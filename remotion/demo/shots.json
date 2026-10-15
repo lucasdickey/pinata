@@ -1,0 +1,1236 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "scale": 1.5,
+  "shots": {
+    "agent-canvas": {
+      "scene": "agent",
+      "files": {
+        "light": "/demo/agent-canvas.light.webp",
+        "dark": "/demo/agent-canvas.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pill": {
+          "x": 393,
+          "y": 114.8,
+          "width": 128,
+          "height": 30.6
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:09:24.260Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "agent-copied": {
+      "scene": "agent",
+      "files": {
+        "light": "/demo/agent-copied.light.webp",
+        "dark": "/demo/agent-copied.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "copied": {
+          "x": 774.6,
+          "y": 476,
+          "width": 93.1,
+          "height": 28.8
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:09:24.260Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "agent-created": {
+      "scene": "agent",
+      "files": {
+        "light": "/demo/agent-created.light.webp",
+        "dark": "/demo/agent-created.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "copy": {
+          "x": 736.3,
+          "y": 476,
+          "width": 131.3,
+          "height": 28.8
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:09:24.260Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "agent-panel": {
+      "scene": "agent",
+      "files": {
+        "light": "/demo/agent-panel.light.webp",
+        "dark": "/demo/agent-panel.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "create": {
+          "x": 409,
+          "y": 256.2,
+          "width": 99.5,
+          "height": 31
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:09:24.260Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "annotate-canvas": {
+      "scene": "annotate",
+      "files": {
+        "light": "/demo/annotate-canvas.light.webp",
+        "dark": "/demo/annotate-canvas.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "circleTool": {
+          "x": 482.7,
+          "y": 824.6,
+          "width": 36,
+          "height": 36
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "annotate-circle": {
+      "scene": "annotate",
+      "files": {
+        "light": "/demo/annotate-circle.light.webp",
+        "dark": "/demo/annotate-circle.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {},
+      "fields": {
+        "comment": {
+          "rect": {
+            "x": 589.46875,
+            "y": 623.8125,
+            "width": 290.8125,
+            "height": 92.390625
+          },
+          "padding": {
+            "top": 9,
+            "right": 10.6,
+            "bottom": 9,
+            "left": 10.6
+          },
+          "font": {
+            "family": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+            "size": 16,
+            "weight": "400",
+            "lineHeight": 24.8,
+            "letterSpacing": 0.048
+          },
+          "multiline": true,
+          "text": "Per person or per team? The price doesn't say which.",
+          "colors": {
+            "light": {
+              "color": "rgb(20, 20, 20)",
+              "background": "rgb(255, 255, 255)"
+            },
+            "dark": {
+              "color": "rgb(239, 239, 228)",
+              "background": "rgb(31, 31, 30)"
+            }
+          }
+        }
+      },
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "annotate-done": {
+      "scene": "annotate",
+      "files": {
+        "light": "/demo/annotate-done.light.webp",
+        "dark": "/demo/annotate-done.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pin": {
+          "x": 1145,
+          "y": 285.8,
+          "width": 238,
+          "height": 65.7
+        },
+        "circle": {
+          "x": 1145,
+          "y": 357.3,
+          "width": 238,
+          "height": 65.7
+        },
+        "arrow": {
+          "x": 1145,
+          "y": 428.8,
+          "width": 238,
+          "height": 65.7
+        },
+        "box": {
+          "x": 1145,
+          "y": 500.2,
+          "width": 238,
+          "height": 65.7
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "annotate-pin": {
+      "scene": "annotate",
+      "files": {
+        "light": "/demo/annotate-pin.light.webp",
+        "dark": "/demo/annotate-pin.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {},
+      "fields": {
+        "comment": {
+          "rect": {
+            "x": 751.34375,
+            "y": 517.4375,
+            "width": 290.8125,
+            "height": 92.390625
+          },
+          "padding": {
+            "top": 9,
+            "right": 10.6,
+            "bottom": 9,
+            "left": 10.6
+          },
+          "font": {
+            "family": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+            "size": 16,
+            "weight": "400",
+            "lineHeight": 24.8,
+            "letterSpacing": 0.048
+          },
+          "multiline": true,
+          "text": "This billing toggle reads the same in both states — which one is active?",
+          "colors": {
+            "light": {
+              "color": "rgb(20, 20, 20)",
+              "background": "rgb(255, 255, 255)"
+            },
+            "dark": {
+              "color": "rgb(239, 239, 228)",
+              "background": "rgb(31, 31, 30)"
+            }
+          }
+        }
+      },
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "annotate-pin-saved": {
+      "scene": "annotate",
+      "files": {
+        "light": "/demo/annotate-pin-saved.light.webp",
+        "dark": "/demo/annotate-pin-saved.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "row": {
+          "x": 1145,
+          "y": 285.8,
+          "width": 238,
+          "height": 65.7
+        },
+        "circleTool": {
+          "x": 482.7,
+          "y": 824.6,
+          "width": 36,
+          "height": 36
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "capture-form": {
+      "scene": "capture",
+      "files": {
+        "light": "/demo/capture-form.light.webp",
+        "dark": "/demo/capture-form.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "address": {
+          "x": 393,
+          "y": 591.5,
+          "width": 654,
+          "height": 39.6
+        },
+        "submit": {
+          "x": 393,
+          "y": 829.5,
+          "width": 136.8,
+          "height": 35.6
+        }
+      },
+      "fields": {
+        "address": {
+          "rect": {
+            "x": 393,
+            "y": 591.46875,
+            "width": 654,
+            "height": 39.5625
+          },
+          "padding": {
+            "top": 8.2,
+            "right": 11.4,
+            "bottom": 8.2,
+            "left": 11.4
+          },
+          "font": {
+            "family": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+            "size": 16,
+            "weight": "400",
+            "lineHeight": 23.2,
+            "letterSpacing": 0.048
+          },
+          "multiline": false,
+          "text": "https://chickpea.co/pricing",
+          "colors": {
+            "light": {
+              "color": "rgb(20, 20, 20)",
+              "background": "rgb(255, 255, 255)"
+            },
+            "dark": {
+              "color": "rgb(239, 239, 228)",
+              "background": "rgb(31, 31, 30)"
+            }
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "capture-progress": {
+      "scene": "capture",
+      "files": {
+        "light": "/demo/capture-progress.light.webp",
+        "dark": "/demo/capture-progress.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "status": {
+          "x": 92,
+          "y": 154.4,
+          "width": 1308,
+          "height": 23.3
+        },
+        "desktop": {
+          "x": 102.6,
+          "y": 393.7,
+          "width": 227.6,
+          "height": 19.8
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "capture-ready": {
+      "scene": "capture",
+      "files": {
+        "light": "/demo/capture-ready.light.webp",
+        "dark": "/demo/capture-ready.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "status": {
+          "x": 92,
+          "y": 154.4,
+          "width": 1308,
+          "height": 23.3
+        },
+        "desktop": {
+          "x": 102.6,
+          "y": 393.7,
+          "width": 227.6,
+          "height": 19.8
+        },
+        "mobile": {
+          "x": 367.4,
+          "y": 393.7,
+          "width": 227.6,
+          "height": 19.8
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "capture-typed": {
+      "scene": "capture",
+      "files": {
+        "light": "/demo/capture-typed.light.webp",
+        "dark": "/demo/capture-typed.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "address": {
+          "x": 393,
+          "y": 591.5,
+          "width": 654,
+          "height": 39.6
+        },
+        "submit": {
+          "x": 393,
+          "y": 829.5,
+          "width": 136.8,
+          "height": 35.6
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "founder-open": {
+      "scene": "founder",
+      "files": {
+        "light": "/demo/founder-open.light.webp",
+        "dark": "/demo/founder-open.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pin": {
+          "x": 396,
+          "y": 293.5,
+          "width": 1024,
+          "height": 54.3
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 409,
+        "y": 555.2,
+        "scale": 0.5
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 851,
+            "y": 714.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 678,
+            "y": 785.2,
+            "width": 64,
+            "height": 64
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 812,
+            "y": 755.2
+          },
+          "end": {
+            "x": 881,
+            "y": 779.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 881,
+            "y": 934.2,
+            "width": 166,
+            "height": 38
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "founder-replied": {
+      "scene": "founder",
+      "files": {
+        "light": "/demo/founder-replied.light.webp",
+        "dark": "/demo/founder-replied.dark.webp"
+      },
+      "scrollY": 350,
+      "targets": {},
+      "fields": {},
+      "capture": {
+        "x": 409,
+        "y": 205.2,
+        "scale": 0.5
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 851,
+            "y": 364.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 678,
+            "y": 435.2,
+            "width": 64,
+            "height": 64
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 812,
+            "y": 405.2
+          },
+          "end": {
+            "x": 881,
+            "y": 429.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 881,
+            "y": 584.2,
+            "width": 166,
+            "height": 38
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "founder-selected": {
+      "scene": "founder",
+      "files": {
+        "light": "/demo/founder-selected.light.webp",
+        "dark": "/demo/founder-selected.dark.webp"
+      },
+      "scrollY": 350,
+      "targets": {
+        "send": {
+          "x": 1165,
+          "y": 703.5,
+          "width": 98.5,
+          "height": 31.6
+        }
+      },
+      "fields": {
+        "reply": {
+          "rect": {
+            "x": 1165,
+            "y": 595.09375,
+            "width": 238,
+            "height": 92.390625
+          },
+          "padding": {
+            "top": 9,
+            "right": 10.6,
+            "bottom": 9,
+            "left": 10.6
+          },
+          "font": {
+            "family": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+            "size": 16,
+            "weight": "400",
+            "lineHeight": 24.8,
+            "letterSpacing": 0.048
+          },
+          "multiline": true,
+          "text": "Good catch — monthly is the default. We'll add a pressed state this sprint.",
+          "colors": {
+            "light": {
+              "color": "rgb(20, 20, 20)",
+              "background": "rgb(255, 255, 255)"
+            },
+            "dark": {
+              "color": "rgb(239, 239, 228)",
+              "background": "rgb(31, 31, 30)"
+            }
+          }
+        }
+      },
+      "capture": {
+        "x": 409,
+        "y": 205.2,
+        "scale": 0.5
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 851,
+            "y": 364.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 678,
+            "y": 435.2,
+            "width": 64,
+            "height": 64
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 812,
+            "y": 405.2
+          },
+          "end": {
+            "x": 881,
+            "y": 429.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 881,
+            "y": 584.2,
+            "width": 166,
+            "height": 38
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "founder-typed": {
+      "scene": "founder",
+      "files": {
+        "light": "/demo/founder-typed.light.webp",
+        "dark": "/demo/founder-typed.dark.webp"
+      },
+      "scrollY": 350,
+      "targets": {
+        "send": {
+          "x": 1165,
+          "y": 703.5,
+          "width": 98.5,
+          "height": 31.6
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 409,
+        "y": 205.2,
+        "scale": 0.5
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 851,
+            "y": 364.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 678,
+            "y": 435.2,
+            "width": 64,
+            "height": 64
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 812,
+            "y": 405.2
+          },
+          "end": {
+            "x": 881,
+            "y": 429.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 881,
+            "y": 584.2,
+            "width": 166,
+            "height": 38
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:18:06.437Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "reply-open": {
+      "scene": "reply",
+      "files": {
+        "light": "/demo/reply-open.light.webp",
+        "dark": "/demo/reply-open.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pin": {
+          "x": 1146,
+          "y": 292.4,
+          "width": 236,
+          "height": 36.8
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "reply-unread": {
+      "scene": "reply",
+      "files": {
+        "light": "/demo/reply-unread.light.webp",
+        "dark": "/demo/reply-unread.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pin": {
+          "x": 1145,
+          "y": 285.8,
+          "width": 238,
+          "height": 65.7
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "share-canvas": {
+      "scene": "share",
+      "files": {
+        "light": "/demo/share-canvas.light.webp",
+        "dark": "/demo/share-canvas.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "pill": {
+          "x": 93,
+          "y": 114.8,
+          "width": 188.7,
+          "height": 30.6
+        }
+      },
+      "fields": {},
+      "capture": {
+        "x": 105,
+        "y": 246.6,
+        "scale": 0.7
+      },
+      "marks": {
+        "toggle": {
+          "kind": "pin",
+          "tip": {
+            "x": 723.8,
+            "y": 469.2
+          }
+        },
+        "price": {
+          "kind": "circle",
+          "rect": {
+            "x": 481.6,
+            "y": 568.6,
+            "width": 89.6,
+            "height": 89.6
+          }
+        },
+        "popular": {
+          "kind": "arrow",
+          "start": {
+            "x": 669.2,
+            "y": 526.6
+          },
+          "end": {
+            "x": 765.8,
+            "y": 560.2
+          }
+        },
+        "pro-cta": {
+          "kind": "rectangle",
+          "rect": {
+            "x": 765.8,
+            "y": 777.2,
+            "width": 232.4,
+            "height": 53.2
+          }
+        }
+      },
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "share-copied": {
+      "scene": "share",
+      "files": {
+        "light": "/demo/share-copied.light.webp",
+        "dark": "/demo/share-copied.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "copied": {
+          "x": 480.3,
+          "y": 273.4,
+          "width": 94.7,
+          "height": 34.9
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "share-created": {
+      "scene": "share",
+      "files": {
+        "light": "/demo/share-created.light.webp",
+        "dark": "/demo/share-created.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "copy": {
+          "x": 466.3,
+          "y": 273.4,
+          "width": 108.8,
+          "height": 34.9
+        },
+        "field": {
+          "x": 121,
+          "y": 273.4,
+          "width": 346.3,
+          "height": 34.9
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    },
+    "share-panel": {
+      "scene": "share",
+      "files": {
+        "light": "/demo/share-panel.light.webp",
+        "dark": "/demo/share-panel.dark.webp"
+      },
+      "scrollY": 0,
+      "targets": {
+        "create": {
+          "x": 109,
+          "y": 256.2,
+          "width": 99.5,
+          "height": 31
+        }
+      },
+      "fields": {},
+      "filmed": {
+        "at": "2026-10-15T18:07:04.461Z",
+        "commit": "ddaabcd+"
+      }
+    }
+  },
+  "text": {
+    "dark": {
+      "brief": "# Pinata brief — Chickpea review\n\n- Site: https://chickpea.co/pricing\n- To do: 1 pin · 1 box · 1 circle · 1 arrow on 1 screenshot\n- Generated: 2026-10-15T18:07:49.660Z\n\n## What to do\n\nThis is design feedback on https://chickpea.co/pricing, left as marks on screenshots in Pinata. Each section below is one screenshot; each mark under it is one note about the page.\n\n1. Start from the text. Each mark names its element (tag, role, visible text), the element's path in the page, its size, and the elements nearby with their positions. For most notes that is enough to find the code and make the change without opening the image.\n2. Open the screenshot only when the note cannot be understood from the text (a visual judgement, a layout problem, something the note points at but does not name). Each screenshot is a full-page image at the size shown beside its link; a tall one is shrunk past reading when viewed whole, so crop about 1400 × 800 px around the mark's position first and view the crop. Positions are in the screenshot's own pixels, measured from its top-left corner.\n3. Make the change the note asks for. When a mark has replies, read them in order: the latest one is the current ask.\n4. When you finish, list what you changed for each mark (for example, \"Desktop, pin 2: …\") so it can be checked and resolved in Pinata.\n\nThis link only reads; it cannot change anything in Pinata. Fetch it again for the latest notes — resolved marks drop off.\n\n## https://chickpea.co/pricing — Desktop\n\nDesktop · version 1 · 1 pin · 1 box · 1 circle · 1 arrow\n\nScreenshot: https://yourpinata.dev/a/vYJQ8n29q0-PtCPkB8qGGYfO60209cRXBd63L4ZQpVg/captures/f5609feb-4d64-4320-ba6f-1d0b95955bbe (1440 × 1527 px, full page)\n\n### Pin 1\n\n- Status: Replied\n- Position: 884, 318 px natural\n- Element: <button> role=switch “Annual (save 20%)”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:1 > button:2`\n- Bounds: 176 × 44 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <p> “Start free. Upgrade when your team grows.” at 150, 238 · 1140 × 30 px\n- Nearby: <h1> “Plans for every kitchen” at 150, 166 · 1140 × 60 px\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n\n> This billing toggle reads the same in both states — which one is active?\n\n**founder** replied:\n\n> Good catch — monthly is the default. We'll add a pressed state this sprint.\n\n### Circle 2\n\n- Status: Open\n- Circle: 602, 524 · 128 wide px natural\n- Element: <p> “$12 /mo”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:2 > p:1`\n- Bounds: 127 × 58 px natural\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n- Nearby: <li> “5 kitchens” at 568, 585 · 304 × 40 px\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <li> “Unlimited recipes” at 568, 625 · 304 × 40 px\n\n> Per person or per team? The price doesn't say which.\n\n### Arrow 3\n\n- Status: Open\n- Arrow: 806, 400 → 944, 448 px natural (tail to head)\n- Element: <h3> “Pro”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:3 > h3:1`\n- Bounds: 304 × 32 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <p> “$29 /mo” at 958, 505 · 137 × 58 px\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n- Nearby: <button> role=switch “Annual (save 20%)” at 720, 304 · 176 × 44 px\n\n> Move “Most popular” to Pro — it's the plan you want picked.\n\n### Box 4\n\n- Status: Replied\n- Box: 944, 758 · 332 × 76 px natural\n- Element: <a> “Start free”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:3 > a:1`\n- Bounds: 304 × 52 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <li> “Priority support” at 958, 665 · 304 × 40 px\n- Nearby: <a> “Start trial” at 568, 770 · 304 × 52 px\n- Nearby: <li> “Shared shopping lists” at 568, 665 · 304 × 40 px\n\n> The Pro card's CTA sits below the fold on smaller laptops — worth lifting.\n\n**founder** replied:\n\n> Agreed. Moving it above the feature list in the next deploy.\n",
+      "prompt": "Read https://yourpinata.dev/a/vYJQ8n29q0-PtCPkB8qGGYfO60209cRXBd63L4ZQpVg — it lists open design feedback on our site, with screenshots. Work through each open mark, make the changes in this codebase, then tell me what you changed for each one."
+    },
+    "light": {
+      "brief": "# Pinata brief — Chickpea review\n\n- Site: https://chickpea.co/pricing\n- To do: 1 pin · 1 box · 1 circle · 1 arrow on 1 screenshot\n- Generated: 2026-10-15T18:09:28.524Z\n\n## What to do\n\nThis is design feedback on https://chickpea.co/pricing, left as marks on screenshots in Pinata. Each section below is one screenshot; each mark under it is one note about the page.\n\n1. Start from the text. Each mark names its element (tag, role, visible text), the element's path in the page, its size, and the elements nearby with their positions. For most notes that is enough to find the code and make the change without opening the image.\n2. Open the screenshot only when the note cannot be understood from the text (a visual judgement, a layout problem, something the note points at but does not name). Each screenshot is a full-page image at the size shown beside its link; a tall one is shrunk past reading when viewed whole, so crop about 1400 × 800 px around the mark's position first and view the crop. Positions are in the screenshot's own pixels, measured from its top-left corner.\n3. Make the change the note asks for. When a mark has replies, read them in order: the latest one is the current ask.\n4. When you finish, list what you changed for each mark (for example, \"Desktop, pin 2: …\") so it can be checked and resolved in Pinata.\n\nThis link only reads; it cannot change anything in Pinata. Fetch it again for the latest notes — resolved marks drop off.\n\n## https://chickpea.co/pricing — Desktop\n\nDesktop · version 1 · 1 pin · 1 box · 1 circle · 1 arrow\n\nScreenshot: https://yourpinata.dev/a/NrbtH-2HmcGBI8H8bOoQUyJjxVLqVzOEYj17H4aH7uE/captures/2819ef54-9718-4196-a756-df480088ce51 (1440 × 1527 px, full page)\n\n### Pin 1\n\n- Status: Replied\n- Position: 884, 318 px natural\n- Element: <button> role=switch “Annual (save 20%)”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:1 > button:2`\n- Bounds: 176 × 44 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <p> “Start free. Upgrade when your team grows.” at 150, 238 · 1140 × 30 px\n- Nearby: <h1> “Plans for every kitchen” at 150, 166 · 1140 × 60 px\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n\n> This billing toggle reads the same in both states — which one is active?\n\n**founder** replied:\n\n> Good catch — monthly is the default. We'll add a pressed state this sprint.\n\n### Circle 2\n\n- Status: Open\n- Circle: 602, 524 · 128 wide px natural\n- Element: <p> “$12 /mo”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:2 > p:1`\n- Bounds: 127 × 58 px natural\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n- Nearby: <li> “5 kitchens” at 568, 585 · 304 × 40 px\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <li> “Unlimited recipes” at 568, 625 · 304 × 40 px\n\n> Per person or per team? The price doesn't say which.\n\n### Arrow 3\n\n- Status: Open\n- Arrow: 806, 400 → 944, 448 px natural (tail to head)\n- Element: <h3> “Pro”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:3 > h3:1`\n- Bounds: 304 × 32 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <p> “$29 /mo” at 958, 505 · 137 × 58 px\n- Nearby: <h3> “Team” at 568, 436 · 304 × 32 px\n- Nearby: <button> role=switch “Annual (save 20%)” at 720, 304 · 176 × 44 px\n\n> Move “Most popular” to Pro — it's the plan you want picked.\n\n### Box 4\n\n- Status: Replied\n- Box: 944, 758 · 332 × 76 px natural\n- Element: <a> “Start free”\n- Path: `html:1 > body:1 > main:1 > section:1 > div:2 > article:3 > a:1`\n- Bounds: 304 × 52 px natural\n- Nearby: <main> “Plans for every kitchen Start free. Upgrade when your team grows. Monthly Annual (save 20%) Starter $0 /mo 1 kitchen 50” at 150, 166 · 1140 × 1115 px\n- Nearby: <li> “Priority support” at 958, 665 · 304 × 40 px\n- Nearby: <a> “Start trial” at 568, 770 · 304 × 52 px\n- Nearby: <li> “Shared shopping lists” at 568, 665 · 304 × 40 px\n\n> The Pro card's CTA sits below the fold on smaller laptops — worth lifting.\n\n**founder** replied:\n\n> Agreed. Moving it above the feature list in the next deploy.\n",
+      "prompt": "Read https://yourpinata.dev/a/NrbtH-2HmcGBI8H8bOoQUyJjxVLqVzOEYj17H4aH7uE — it lists open design feedback on our site, with screenshots. Work through each open mark, make the changes in this codebase, then tell me what you changed for each one."
+    }
+  }
+}
