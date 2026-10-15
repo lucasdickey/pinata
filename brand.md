@@ -189,6 +189,12 @@ has saved a choice.
   for its dark slides only: night `#151312` and ember `#ff5a2d`
   (`remotion/walkthrough/theme.ts`, locked to the light tokens by
   `test/walkthrough-slides.test.ts`).
+- The landing's demo video (D140) is the product filmed in each theme, and
+  plays the filming that matches the page. Its one constant is the coding
+  agent's terminal: the dark theme's surface `#1f1f1e`, ink `#efefe4`, soft
+  ink `#a8a8a2`, and accent `#ff6b47` in both themes, as a terminal reads.
+  Its chapter label is ink on the sheet, with the number in `--surface` on
+  `--accent`, as a mark's badge sets it.
 
 ### The halftone wash (D119)
 
@@ -310,8 +316,9 @@ landing, sections are separated by `clamp(3.5rem, 9vw, 7rem)`.
   (D118). They fade; they do not move.
 - One entrance animation, the hover card for a mark, 140ms after a 260ms
   pause.
-- Reduced motion is respected: the landing demo falls back to the static
-  example, and nothing else animates.
+- Reduced motion is respected: the landing's demo video holds a still of the
+  product with a play button and plays only when asked (D140), and nothing
+  else animates.
 
 ---
 
@@ -422,4 +429,4 @@ not), D047 (accent to AA), D066 (the mark as the landing's logo), D078
 (speak the user's language), D102 (direction from paper.design), D104 (dark
 theme), D107 (illustration set), D113 (panel rhythm), D118 (Geist
 interaction patterns), D119 (halftone wash), D127 (sentence case and
-"Pinata"), D136 (this file).
+"Pinata"), D136 (this file), D140 (the demo video).

@@ -1,0 +1,271 @@
+<!doctype html>
+<!--
+  The demo video's example site (remotion/demo/README.md): "chickpea.co/pricing",
+  the same made-up pricing page the landing draws in src/components/example-capture.tsx
+  and src/lib/example-capture.ts. At 1440px wide its toggle, cards, prices, and calls
+  to action sit where EXAMPLE_LAYOUT puts them, so the marks the video makes land on
+  the same elements the landing's pin table names. Served only to the capture tool's
+  own browser (scripts/demo/capture-file.mjs); never deployed, never fetched.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing · chickpea</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #ffffff;
+    color: #1d2b24;
+    font: 18px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  .nav {
+    display: flex;
+    align-items: center;
+    height: 118px;
+    padding: 76px 96px 0;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 42px;
+    font-size: 28px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .logo::after {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #2f6b4f;
+    margin-top: -14px;
+  }
+  .nav ul {
+    display: flex;
+    gap: 0;
+    margin: 0 0 0 auto;
+    padding: 0;
+    list-style: none;
+    font-size: 19px;
+    color: #5d6b63;
+  }
+  .nav li { width: 104px; }
+  .nav li:last-child { width: 144px; }
+  .nav .start {
+    display: grid;
+    place-items: center;
+    width: 160px;
+    height: 42px;
+    border-radius: 21px;
+    background: #2f6b4f;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  main { width: 1140px; margin: 0 auto; }
+  .pricing { text-align: center; }
+  h1 {
+    margin: 48px 0 0;
+    font-size: 50px;
+    line-height: 60px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+  }
+  .lede { margin: 12px 0 0; font-size: 22px; line-height: 30px; color: #5d6b63; }
+  .billing-toggle {
+    display: inline-flex;
+    gap: 0;
+    margin-top: 32px;
+    padding: 4px;
+    width: 360px;
+    height: 52px;
+    border-radius: 26px;
+    background: #eaf1ec;
+  }
+  .billing-toggle button {
+    flex: 1;
+    height: 44px;
+    border: 0;
+    border-radius: 22px;
+    background: #fff;
+    color: #1d2b24;
+    font: inherit;
+    font-size: 18px;
+    font-weight: 550;
+  }
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(3, 360px);
+    gap: 30px;
+    margin-top: 48px;
+    text-align: left;
+  }
+  .plan {
+    position: relative;
+    height: 440px;
+    padding: 34px 26px 0;
+    border: 2px solid #e1e5e1;
+    border-radius: 18px;
+  }
+  .plan-team { border-color: #2f6b4f; }
+  .plan h3 { margin: 0; height: 32px; font-size: 26px; line-height: 32px; font-weight: 650; }
+  .popular {
+    position: absolute;
+    top: -16px;
+    left: 98px;
+    width: 160px;
+    height: 32px;
+    border-radius: 16px;
+    background: #2f6b4f;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 32px;
+    text-align: center;
+  }
+  .price {
+    display: inline-block;
+    margin: 37px 0 0;
+    height: 58px;
+    font-size: 54px;
+    line-height: 58px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .price span { font-size: 22px; font-weight: 400; color: #5d6b63; letter-spacing: 0; }
+  .plan ul { margin: 22px 0 0; padding: 0; list-style: none; }
+  .plan li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 40px;
+    font-size: 20px;
+    color: #5d6b63;
+  }
+  .plan li::before {
+    content: "";
+    width: 20px;
+    height: 12px;
+    margin: -6px 0 0 2px;
+    border: solid #2f6b4f;
+    border-width: 0 0 3px 3px;
+    transform: rotate(-45deg);
+  }
+  .cta {
+    position: absolute;
+    left: 26px;
+    right: 26px;
+    top: 368px;
+    display: grid;
+    place-items: center;
+    height: 52px;
+    border-radius: 26px;
+    background: #eef2ef;
+    font-size: 19px;
+    font-weight: 600;
+  }
+  .plan-team .cta { background: #2f6b4f; color: #fff; }
+  .faq { width: 760px; margin: 120px auto 0; }
+  .faq h2 { margin: 0 0 18px; font-size: 32px; font-weight: 650; letter-spacing: -0.01em; text-align: center; }
+  .faq details { border-top: 2px solid #e1e5e1; padding: 20px 4px; }
+  .faq details:last-child { border-bottom: 2px solid #e1e5e1; }
+  .faq summary { font-size: 20px; font-weight: 600; list-style: none; }
+  .faq p { margin: 10px 0 0; color: #5d6b63; }
+  footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 120px;
+    padding: 40px 96px 56px;
+    background: #f4f7f5;
+    color: #5d6b63;
+    font-size: 16px;
+  }
+  footer strong { color: #1d2b24; font-size: 20px; }
+
+  @media (max-width: 720px) {
+    body { font-size: 16px; }
+    .nav { height: auto; padding: 22px 20px 0; }
+    .logo { font-size: 24px; }
+    .nav ul li:not(:last-child) { display: none; }
+    .nav li:last-child { width: auto; }
+    .nav .start { width: 112px; height: 38px; font-size: 16px; }
+    main { width: auto; padding: 0 20px; }
+    h1 { margin-top: 44px; font-size: 34px; line-height: 40px; }
+    .lede { font-size: 17px; line-height: 25px; }
+    .billing-toggle { width: 100%; max-width: 350px; height: 48px; margin-top: 26px; }
+    .billing-toggle button { height: 40px; font-size: 15px; }
+    .plans { grid-template-columns: 1fr; gap: 34px; margin-top: 40px; }
+    .plan { height: 400px; padding: 30px 24px 0; }
+    .popular { left: calc(50% - 70px); width: 140px; font-size: 14px; }
+    .price { margin-top: 26px; font-size: 46px; }
+    .plan li { height: 36px; font-size: 17px; }
+    .cta { top: 324px; left: 24px; right: 24px; height: 48px; font-size: 17px; }
+    .faq { width: auto; margin-top: 72px; padding: 0 20px; }
+    .faq h2 { font-size: 26px; }
+    .faq summary { font-size: 17px; }
+    footer { flex-direction: column; gap: 6px; margin-top: 72px; padding: 32px 20px 40px; }
+  }
+</style>
+</head>
+<body>
+  <header class="nav">
+    <a class="logo" href="/">chickpea</a>
+    <ul>
+      <li><a href="/product">Product</a></li>
+      <li><a href="/pricing" aria-current="page">Pricing</a></li>
+      <li><a href="/customers">Customers</a></li>
+      <li><a class="start" href="/signup">Start free</a></li>
+    </ul>
+  </header>
+  <main>
+    <section class="pricing">
+      <h1>Plans for every kitchen</h1>
+      <p class="lede">Start free. Upgrade when your team grows.</p>
+      <div class="billing-toggle">
+        <button type="button" role="switch" aria-checked="false">Monthly</button>
+        <button type="button" role="switch" aria-checked="true">Annual (save 20%)</button>
+      </div>
+      <div class="plans">
+        <article class="plan plan-starter">
+          <h3>Starter</h3>
+          <p class="price">$0<span>/mo</span></p>
+          <ul><li>1 kitchen</li><li>50 recipes</li><li>Email support</li></ul>
+          <a class="cta" href="/signup?plan=starter">Start free</a>
+        </article>
+        <article class="plan plan-team">
+          <span class="popular">Most popular</span>
+          <h3>Team</h3>
+          <p class="price">$12<span>/mo</span></p>
+          <ul><li>5 kitchens</li><li>Unlimited recipes</li><li>Shared shopping lists</li></ul>
+          <a class="cta" href="/signup?plan=team">Start trial</a>
+        </article>
+        <article class="plan plan-pro">
+          <h3>Pro</h3>
+          <p class="price">$29<span>/mo</span></p>
+          <ul><li>Unlimited kitchens</li><li>Supplier ordering</li><li>Priority support</li></ul>
+          <a class="cta" href="/signup?plan=pro">Start free</a>
+        </article>
+      </div>
+    </section>
+    <section class="faq">
+      <h2>Questions, answered</h2>
+      <details open>
+        <summary>Can I switch plans later?</summary>
+        <p>Any time. Changes take effect on your next bill, and we prorate the difference.</p>
+      </details>
+      <details><summary>Do you offer discounts for schools?</summary></details>
+      <details><summary>What counts as a kitchen?</summary></details>
+    </section>
+  </main>
+  <footer>
+    <strong>chickpea</strong>
+    <span>Recipes, stock, and shopping lists for every kitchen.</span>
+    <span>© 2026 Chickpea</span>
+  </footer>
+</body>
+</html>

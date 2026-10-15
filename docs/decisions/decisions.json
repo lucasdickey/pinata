@@ -6468,6 +6468,170 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D140",
+      "date": "2026-10-15",
+      "phase": "design",
+      "title": "The demo video opens the landing under the hero, filmed from the real product scene by scene",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The landing's demo (D127) was drawn in the browser from the example fixture: a toolbar of text buttons, dark comment bubbles, and a copied-link pill the product never had. As the product grew (the pin panel, the founder and agent links, capture import), the video showed less of it, and it sat third on the page, below the hero and three static illustrations. A drawn demo also has to be redrawn by hand whenever the interface changes.",
+      "decision": "The demo video now sits directly under the hero, at the full content width, with a button per chapter (Capture, Annotate, Share, Reply, Hand off). Every frame is a screen of the real product, filmed by `npm run demo:film` (scripts/demo/) from the production build on a scratch Pinata seeded with the demo data (D142): a project created and its page captured, a pin and a circle drawn and commented, the founder link created and copied, the founder replying in place, the reply arriving, and the agent link with the brief it returns. Remotion plays those screens with a cursor, typing, the circle being drawn, camera moves, and chapter titles, in the page's own theme; each screen is filmed in light and dark. The film is split into six scenes. Each scene records its screens' targets, text fields, and mark positions in remotion/demo/shots.json and lists the source files that draw them, so `--list` reports which scenes went stale and `--scenes` films only those, leaving the rest of the video as it was. Without script, and with reduced motion, the video is a still of the real workspace with a play button. This replaces the drawn demo from D127; that record's casing changes stand. The still example lower on the page keeps its capture, thread, and pin table.",
+      "alternatives": [
+        {
+          "option": "Keep drawing the demo from the fixture",
+          "why_not": "A drawing cannot look like the product, and this one had already drifted from it; every interface change would mean redrawing by hand."
+        },
+        {
+          "option": "Record one screen video (MP4) of the product",
+          "why_not": "Any change means recording the whole thing again, a recording cannot follow the page between light and dark, and each update adds a multi-megabyte file to the repository. Filmed screens can be refilmed one scene at a time, and the player is already a dependency (D072)."
+        },
+        {
+          "option": "Put the video in the hero, in place of the illustration",
+          "why_not": "At the hero's half width the product's text is unreadable, and the hero illustration is the brand's character (D107). Under the hero the video gets the full width."
+        }
+      ],
+      "rationale": "The owner asked for the video to move up because it represents the product better than the illustrations, for it to show the product as it is now, and for a reusable reference so that videos can be updated in part as the product changes. Filming the product itself answers the second; splitting the film into scenes, each with a recorded list of what is on its screens and which files draw them, answers the third: a changed screen is refilmed alone, and the cursor follows its buttons to wherever they moved.",
+      "consequences": [
+        "public/demo/ holds 23 screens in each theme, about 1.2 MB a theme as WebP. The landing loads only the theme it shows, and only once the player is on the page.",
+        "A screen in the video shows the product as it was when its scene was filmed; after a change to that part of the interface, `npm run demo:film -- --list` names the stale scenes and `--scenes` refilms them. Filming needs a production build and port 3100.",
+        "test/demo-video.test.ts fails when a beat names a shot, target, text field, or mark that a refilm removed, or when a screen is missing in either theme.",
+        "The same change restores the phone layout of the landing's sign-in card, whose one-column rule was lost when D126 removed a neighbouring selector; e2e/landing.spec.ts now checks the card's width and that text and controls stay on screen at 390 and 320 px."
+      ],
+      "transcript": {
+        "request": "Also, let's bring up the video higher on the page as it's more representative of the product than any of the static illustrations\n\nA video should also be updated to reflect the latest state of the product. Ideally, when you build out the video you put together a reusable reference for the iteration of the product so that we can update videos in part rather than whole as the product iterates and not necessarily every screen needs to be regenerated in the video"
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D140-landing-video.png",
+          "caption": "The video right under the hero, with its chapters (light)."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D140-video-frames.png",
+          "caption": "Frames from the video: capture, pin, the founder's reply, the agent's brief (dark)."
+        },
+        {
+          "type": "file",
+          "path": "remotion/demo/README.md",
+          "caption": "How the video is filmed and played, and how to update one scene."
+        },
+        {
+          "type": "file",
+          "path": "scripts/demo/story.mjs",
+          "caption": "The story, scene by scene, as the product is driven through it."
+        },
+        {
+          "type": "file",
+          "path": "remotion/demo/timeline.ts",
+          "caption": "The video's beats over the filmed screens."
+        },
+        {
+          "type": "file",
+          "path": "src/components/demo-video.tsx",
+          "caption": "The player on the landing, its chapters, and the still."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D141",
+      "date": "2026-10-15",
+      "phase": "build",
+      "title": "A scratch Pinata can keep its screenshots on local disk",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "Every screenshot lives in private Vercel Blob, so a local run against a scratch database could create projects but never show a capture: the 2026-10-13 sandbox sessions noted the canvas showing only alt text. Filming the demo (D140) that way would have meant writing screenshots to the production store with the production token and deleting them afterwards, on every filming.",
+      "decision": "With PINATA_LOCAL_BLOB_DIR set, the server keeps screenshots in that folder through the same ScreenshotStore contract the Blob adapter has (put, head, get, delete, with the same results and error codes). The variable is honored only when TURSO_DATABASE_URL is a file: database and VERCEL is unset, and pathnames cannot leave the folder; both rules are enforced in code and tested. Unset, nothing changes. The file calls carry turbopackIgnore so the build does not trace the whole repository into the server functions that can reach the store. scripts/seed/scratch.mjs sets the variable for every scratch run.",
+      "alternatives": [
+        {
+          "option": "Use the production Blob store and delete what the run wrote",
+          "why_not": "Every filming would write to and delete from production storage, and a run that died midway would leave objects behind."
+        },
+        {
+          "option": "A second Blob store for scratch runs",
+          "why_not": "Needs an account-level resource and a token on every machine or agent that films, which the sandboxed sessions do not have."
+        },
+        {
+          "option": "Write capture rows into the database directly",
+          "why_not": "Couples the tooling to the schema, and skips the import path the video shows."
+        }
+      ],
+      "rationale": "Safe to decide without asking: it is local tooling inside the owner's request for a reusable way to regenerate the video. It cannot take effect in production (refused on Vercel and beside any database that is not a local file), and with the variable unset the server behaves exactly as before.",
+      "consequences": [
+        "A scratch run (`npm run seed`, `npm run demo:film`) needs no cloud credentials and never touches the shared database, Blob, or Browserless.",
+        "A database row written by a scratch run points at a file on one machine; that is why the store refuses any database that is not a local file."
+      ],
+      "transcript": {},
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/server/providers/local-store.ts",
+          "caption": "The local store and its guards."
+        },
+        {
+          "type": "file",
+          "path": "test/server/local-store.test.ts",
+          "caption": "The contract, the guards, and path confinement."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D142",
+      "date": "2026-10-15",
+      "phase": "build",
+      "title": "Keep seed data in the repository and replay it into a scratch Pinata through the API",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "Filming the demo (D140), checking a change locally, or giving another agent a realistic workspace all need a known state: a captured page, marks with notes and elements, a founder link, replies. That state existed only in the shared database, which local runs must not touch, and no script built one.",
+      "decision": "scripts/seed/ keeps one seed, chickpea.json: the Chickpea project, its pricing page (an HTML copy laid out so its elements sit where the landing's example puts them), and the four marks with their elements, notes, and the founder's replies, the same as the landing's example (a test keeps the two in step). apply.mjs replays it into a running Pinata through the product's own API in stages (empty, captured, marked, shared, replied, handed-off): the page is captured on desktop and mobile the way the Chrome extension captures one (D131) and imported, then the marks, links, and replies are created as the editor and the founder would. scratch.mjs starts a throwaway Pinata on a file database with screenshots on disk (D141) and applies a seed; `npm run seed` does both for a look around.",
+      "alternatives": [
+        {
+          "option": "Commit a database file of the demo state",
+          "why_not": "It breaks with the next migration and carries ids and timestamps; replaying through the API breaks only when the API changes, and loudly."
+        },
+        {
+          "option": "Capture the real chickpea.co with Browserless",
+          "why_not": "It would depend on someone else's live site and on the production capture service, and the page could change under the video."
+        },
+        {
+          "option": "Build the state by hand in each script that needs it",
+          "why_not": "Each script would hold its own copy of the data and drift from the others and from the landing's example."
+        }
+      ],
+      "rationale": "The owner proposed keeping a seed in the repository to regenerate the video from as the application changes, updating the seed as it goes. Stages let any scene of the video start from its own point without replaying the ones before it through the interface.",
+      "consequences": [
+        "The seed and the landing's example change together: test/seed.test.ts fails when their marks, notes, or replies differ, or when the seed's page lacks an element a mark names.",
+        "A new kind of state (a resolved mark, a second capture version, another page) is a new stage in apply.mjs and new data in the seed.",
+        "The e2e specs that look for a seeded Chickpea project still read the shared store; moving them onto this seed is in docs/NEXT.md."
+      ],
+      "transcript": {
+        "request": "Would it be helpful for future video generation implementation to have a seed data set stored in the repository that can be used? As I iterate on the application. We can spin off updated seed data as we go"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "scripts/seed/README.md",
+          "caption": "Stages, usage, and how to change the seed."
+        },
+        {
+          "type": "file",
+          "path": "scripts/seed/chickpea.json",
+          "caption": "The seed."
+        },
+        {
+          "type": "file",
+          "path": "scripts/seed/apply.mjs",
+          "caption": "The replay, stage by stage."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

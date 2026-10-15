@@ -299,7 +299,9 @@ pinata/
 │   └── lib/                        # boundaries/, canvas/, server/ (auth, captures, db, founder, threads)
 ├── drizzle/                        # committed migrations + meta (D025)
 ├── remotion/                       # the /walkthrough composition (D072); Studio + render via npm run walkthrough*
+│   └── demo/                       # the landing's demo video (D140): timeline, shots.json, README
 ├── public/walkthrough/             # imagery the walkthrough borrows (derived from committed sources)
+├── public/demo/                    # the demo video's screens, filmed by npm run demo:film
 ├── remotion.config.ts              # Remotion CLI settings; the app never reads it
 ├── e2e/                            # Playwright specs, env gate, run-scoped cleanup
 ├── scripts/
@@ -309,6 +311,8 @@ pinata/
 │   ├── production-smoke.mjs        # API-level smoke against the deployment (D068)
 │   ├── chickpea-baseline.mjs       # same-run direct-browser baseline for Chickpea
 │   ├── publish-capture-fixtures.mjs # re-verifies the fixture host (D041)
+│   ├── seed/                       # seed data + a scratch Pinata to replay it into (D142)
+│   ├── demo/                       # films the demo video's screens from the product (D140)
 │   └── lib/
 │       ├── decisions.mjs           # pure validate + render functions
 │       └── approved-deps.mjs       # the approved dependency allowlist

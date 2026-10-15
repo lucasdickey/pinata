@@ -10,6 +10,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
+import { DemoVideo } from "./demo-video";
 import { ExampleCapture } from "./example-capture";
 import { PinataLogo } from "./pinata-logo";
 import { SignInButton, SignInProvider } from "./sign-in-dialog";
@@ -97,6 +98,20 @@ function SiteBar() {
         </ul>
       </nav>
     </div>
+  );
+}
+
+/**
+ * The demo video, first thing under the hero (D140): the whole loop, filmed
+ * in the product, which shows Pinata better than any illustration can.
+ */
+function DemoSection() {
+  return (
+    <section className="landing-section landing-demo" aria-labelledby="demo-heading">
+      <p className="section-eyebrow">Watch a review</p>
+      <h2 id="demo-heading">One page, start to finish</h2>
+      <DemoVideo />
+    </section>
   );
 }
 
@@ -229,8 +244,8 @@ function LandingCta() {
   );
 }
 
-/** The anonymous landing: bar, hero + sign-in call, the static example,
- * how it works, sign-in, and the footer. */
+/** The anonymous landing: bar, hero + sign-in call, the demo video, how it
+ * works, the static example, sign-in, and the footer. */
 export function AnonymousLanding() {
   return (
     <SignInProvider>
@@ -262,6 +277,7 @@ export function AnonymousLanding() {
             </span>
           </div>
         </div>
+        <DemoSection />
         <HowItWorks />
         <ExampleCapture />
         <div className="landing-invitation">

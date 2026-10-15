@@ -3,9 +3,9 @@
 //
 // The first test is fully anonymous and needs no configuration, so it runs in
 // CI too: brand mark and value proposition, a call to sign in and no address
-// field before sign-in (D103), the static example render, the sign-in path,
-// zero /api/* traffic, zero external requests, and no horizontal overflow at
-// the narrow breakpoints.
+// field before sign-in (D103), the demo video under the hero (D140), the
+// static example render, the sign-in path, zero /api/* traffic, zero
+// external requests, and no horizontal overflow at the narrow breakpoints.
 //
 // The second test is the landing-to-project-create flow: sign in from the
 // landing, then create the project on /pins/new. Credentialed sign-in
@@ -91,18 +91,39 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   // The brief value proposition.
   await expect(page.getByText(/pin plain, directional notes/i)).toBeVisible();
 
-  // D127: with motion allowed, the example plays the demo video, pausable.
-  const demo = page.getByTestId("example-demo");
+  // D140: the demo video, filmed in the product, comes straight after the
+  // hero and plays with motion allowed; its chapter buttons jump to a part.
+  const demo = page.getByTestId("demo-video");
   await expect(demo).toBeVisible();
-  await expect(demo).toHaveAccessibleName(/a pin, a circle, an arrow, and a box/);
+  await expect(demo).toHaveAccessibleName(/filmed in the product/);
+  const afterHero = await page.evaluate(() => {
+    const hero = document.querySelector(".illustrated-hero");
+    const video = document.querySelector(".landing-demo");
+    return Boolean(hero && video && hero.nextElementSibling === video);
+  });
+  expect(afterHero).toBe(true);
+  await expect(demo.locator(".demo-poster")).toHaveCount(0);
+  const chapters = page.getByRole("list", { name: "Chapters" });
+  await expect(chapters.getByRole("button")).toHaveCount(5);
+  await expect(chapters.getByRole("button", { name: "Capture" })).toHaveAttribute("aria-current", "true");
+  await chapters.getByRole("button", { name: "Share" }).click();
+  await expect(chapters.getByRole("button", { name: "Share" })).toHaveAttribute("aria-current", "true");
 
-  // VAL-LANDING-002: with reduced motion, the self-contained static example —
-  // a screenshot region with one numbered mark of each kind (D103), a
-  // two-entry comment thread, and a visible DOM metadata panel.
+  // With reduced motion the video does not start: a still of the real
+  // workspace with a play button stands in until the visitor asks.
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(demo.locator(".demo-poster-light")).toBeVisible();
+  const play = demo.getByRole("button", { name: "Play the demo" });
+  await expect(play).toBeVisible();
+  await play.click();
+  await expect(demo.locator(".demo-poster")).toHaveCount(0);
+  await expect(chapters.getByRole("button", { name: "Capture" })).toHaveAttribute("aria-current", "true");
+
+  // VAL-LANDING-002: the self-contained static example — a screenshot
+  // region with one numbered mark of each kind (D103), a two-entry comment
+  // thread, and a visible DOM metadata panel.
   const shot = page.getByTestId("example-shot");
   await expect(shot).toBeVisible();
-  await expect(demo).toHaveCount(0);
   await expect(shot.locator("[data-mark-number]")).toHaveCount(4);
   await expect(
     page.getByRole("list", { name: "Example thread" }).getByRole("listitem"),
@@ -149,6 +170,50 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(1);
+    // The page clips sideways overflow (overflow-x: clip), so the scroll
+    // width alone cannot see text pushed off the edge: a lost phone rule
+    // once squeezed the sign-in card to 120px and its sign-in column past
+    // the screen. Every piece of text and every control stays on screen
+    // (or inside a box that scrolls sideways, like the pin table's), and
+    // the card spans the column with its parts stacked.
+    const offscreen = await page.evaluate(() => {
+      const width = document.documentElement.clientWidth;
+      const scrolls = (element: Element) =>
+        ["auto", "scroll"].includes(getComputedStyle(element).overflowX);
+      // A box that clips (the video's frame, zoomed inside it) keeps what it
+      // holds out of view; only the box itself has to fit.
+      const clips = (element: Element) =>
+        ["auto", "scroll", "hidden", "clip"].includes(getComputedStyle(element).overflowX);
+      const out: string[] = [];
+      for (const element of document.querySelectorAll<HTMLElement>(
+        "main *:not([aria-hidden='true'] *):not([aria-hidden='true'])",
+      )) {
+        const hasText = [...element.childNodes].some(
+          (node) => node.nodeType === Node.TEXT_NODE && node.textContent!.trim() !== "",
+        );
+        if (!hasText && !element.matches("a, button, input, img, video") && !scrolls(element)) {
+          continue;
+        }
+        let inScroller = false;
+        for (let up = element.parentElement; up && up.tagName !== "MAIN"; up = up.parentElement) {
+          if (clips(up)) inScroller = true;
+        }
+        if (inScroller) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 || box.height === 0) continue;
+        if (box.left < -1 || box.right > width + 1) {
+          out.push(`${element.tagName.toLowerCase()} “${element.textContent!.trim().slice(0, 40)}”`);
+        }
+      }
+      return out;
+    });
+    expect(offscreen, `text or controls off screen at ${width}px`).toEqual([]);
+    const card = await page.locator(".landing-invitation").boundingBox();
+    const column = await page.locator(".landing-example").boundingBox();
+    expect(card!.width).toBeGreaterThanOrEqual(column!.width - 1);
+    const copy = await page.locator(".invitation-copy").boundingBox();
+    const signIn = await page.locator(".invitation-sign-in").boundingBox();
+    expect(signIn!.y).toBeGreaterThanOrEqual(copy!.y + copy!.height);
   }
 
   await page.setViewportSize({ width: 1440, height: 1000 });

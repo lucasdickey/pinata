@@ -15,11 +15,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 55 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137 |
+| Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
 | Agent proposed, human approved | 25 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138 |
-| Agent decided alone | 53 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134 |
+| Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **139** | |
+| **Total** | **142** | |
 
 ## Key decisions
 
@@ -200,6 +200,9 @@ The product and architecture decisions to read first. The full index follows.
 | [D137](#d137--publish-landing-discovery-metadata-and-public-only-crawl-entry-points) | build | Publish landing discovery metadata and public-only crawl entry points | Human directed | accepted |
 | [D138](#d138--the-agent-brief-leads-with-text-nearby-elements-screenshot-sizes-and-crop-before-viewing) | build | The agent brief leads with text: nearby elements, screenshot sizes, and crop-before-viewing | Agent proposed, human approved | accepted |
 | [D139](#d139--serving-crops-or-tiles-of-a-screenshot-to-agents) | design | Serving crops or tiles of a screenshot to agents | Raised and deferred | pending |
+| [D140](#d140--the-demo-video-opens-the-landing-under-the-hero-filmed-from-the-real-product-scene-by-scene) | design | The demo video opens the landing under the hero, filmed from the real product scene by scene | Human directed | accepted |
+| [D141](#d141--a-scratch-pinata-can-keep-its-screenshots-on-local-disk) | build | A scratch Pinata can keep its screenshots on local disk | Agent decided alone | accepted |
+| [D142](#d142--keep-seed-data-in-the-repository-and-replay-it-into-a-scratch-pinata-through-the-api) | build | Keep seed data in the repository and replay it into a scratch Pinata through the API | Human directed | accepted |
 
 ---
 
@@ -5643,4 +5646,130 @@ Human instruction:
 
 ---
 
-<sub>Generated from 139 record(s) as of 2026-10-11 · source `33b7f0553581`</sub>
+## D140 — The demo video opens the landing under the hero, filmed from the real product scene by scene
+
+*2026-10-15 · phase: design · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The landing's demo (D127) was drawn in the browser from the example fixture: a toolbar of text buttons, dark comment bubbles, and a copied-link pill the product never had. As the product grew (the pin panel, the founder and agent links, capture import), the video showed less of it, and it sat third on the page, below the hero and three static illustrations. A drawn demo also has to be redrawn by hand whenever the interface changes.
+
+**Decision**
+
+The demo video now sits directly under the hero, at the full content width, with a button per chapter (Capture, Annotate, Share, Reply, Hand off). Every frame is a screen of the real product, filmed by `npm run demo:film` (scripts/demo/) from the production build on a scratch Pinata seeded with the demo data (D142): a project created and its page captured, a pin and a circle drawn and commented, the founder link created and copied, the founder replying in place, the reply arriving, and the agent link with the brief it returns. Remotion plays those screens with a cursor, typing, the circle being drawn, camera moves, and chapter titles, in the page's own theme; each screen is filmed in light and dark. The film is split into six scenes. Each scene records its screens' targets, text fields, and mark positions in remotion/demo/shots.json and lists the source files that draw them, so `--list` reports which scenes went stale and `--scenes` films only those, leaving the rest of the video as it was. Without script, and with reduced motion, the video is a still of the real workspace with a play button. This replaces the drawn demo from D127; that record's casing changes stand. The still example lower on the page keeps its capture, thread, and pin table.
+
+**Alternatives considered**
+
+- *Keep drawing the demo from the fixture* — A drawing cannot look like the product, and this one had already drifted from it; every interface change would mean redrawing by hand.
+- *Record one screen video (MP4) of the product* — Any change means recording the whole thing again, a recording cannot follow the page between light and dark, and each update adds a multi-megabyte file to the repository. Filmed screens can be refilmed one scene at a time, and the player is already a dependency (D072).
+- *Put the video in the hero, in place of the illustration* — At the hero's half width the product's text is unreadable, and the hero illustration is the brand's character (D107). Under the hero the video gets the full width.
+
+**Rationale**
+
+The owner asked for the video to move up because it represents the product better than the illustrations, for it to show the product as it is now, and for a reusable reference so that videos can be updated in part as the product changes. Filming the product itself answers the second; splitting the film into scenes, each with a recorded list of what is on its screens and which files draw them, answers the third: a changed screen is refilmed alone, and the cursor follows its buttons to wherever they moved.
+
+**Consequences**
+
+- public/demo/ holds 23 screens in each theme, about 1.2 MB a theme as WebP. The landing loads only the theme it shows, and only once the player is on the page.
+- A screen in the video shows the product as it was when its scene was filmed; after a change to that part of the interface, `npm run demo:film -- --list` names the stale scenes and `--scenes` refilms them. Filming needs a production build and port 3100.
+- test/demo-video.test.ts fails when a beat names a shot, target, text field, or mark that a refilm removed, or when a screen is missing in either theme.
+- The same change restores the phone layout of the landing's sign-in card, whose one-column rule was lost when D126 removed a neighbouring selector; e2e/landing.spec.ts now checks the card's width and that text and controls stay on screen at 390 and 320 px.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Also, let's bring up the video higher on the page as it's more representative of the product than any of the static illustrations
+>
+> 
+>
+> A video should also be updated to reflect the latest state of the product. Ideally, when you build out the video you put together a reusable reference for the iteration of the product so that we can update videos in part rather than whole as the product iterates and not necessarily every screen needs to be regenerated in the video
+
+**Artifacts**
+
+- ![The video right under the hero, with its chapters (light).](dashboard/screenshots/D140-landing-video.png) — The video right under the hero, with its chapters (light).
+- ![Frames from the video: capture, pin, the founder's reply, the agent's brief (dark).](dashboard/screenshots/D140-video-frames.png) — Frames from the video: capture, pin, the founder's reply, the agent's brief (dark).
+- `remotion/demo/README.md` — How the video is filmed and played, and how to update one scene.
+- `scripts/demo/story.mjs` — The story, scene by scene, as the product is driven through it.
+- `remotion/demo/timeline.ts` — The video's beats over the filmed screens.
+- `src/components/demo-video.tsx` — The player on the landing, its chapters, and the still.
+
+---
+
+## D141 — A scratch Pinata can keep its screenshots on local disk
+
+*2026-10-15 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+Every screenshot lives in private Vercel Blob, so a local run against a scratch database could create projects but never show a capture: the 2026-10-13 sandbox sessions noted the canvas showing only alt text. Filming the demo (D140) that way would have meant writing screenshots to the production store with the production token and deleting them afterwards, on every filming.
+
+**Decision**
+
+With PINATA_LOCAL_BLOB_DIR set, the server keeps screenshots in that folder through the same ScreenshotStore contract the Blob adapter has (put, head, get, delete, with the same results and error codes). The variable is honored only when TURSO_DATABASE_URL is a file: database and VERCEL is unset, and pathnames cannot leave the folder; both rules are enforced in code and tested. Unset, nothing changes. The file calls carry turbopackIgnore so the build does not trace the whole repository into the server functions that can reach the store. scripts/seed/scratch.mjs sets the variable for every scratch run.
+
+**Alternatives considered**
+
+- *Use the production Blob store and delete what the run wrote* — Every filming would write to and delete from production storage, and a run that died midway would leave objects behind.
+- *A second Blob store for scratch runs* — Needs an account-level resource and a token on every machine or agent that films, which the sandboxed sessions do not have.
+- *Write capture rows into the database directly* — Couples the tooling to the schema, and skips the import path the video shows.
+
+**Rationale**
+
+Safe to decide without asking: it is local tooling inside the owner's request for a reusable way to regenerate the video. It cannot take effect in production (refused on Vercel and beside any database that is not a local file), and with the variable unset the server behaves exactly as before.
+
+**Consequences**
+
+- A scratch run (`npm run seed`, `npm run demo:film`) needs no cloud credentials and never touches the shared database, Blob, or Browserless.
+- A database row written by a scratch run points at a file on one machine; that is why the store refuses any database that is not a local file.
+
+**Artifacts**
+
+- `src/lib/server/providers/local-store.ts` — The local store and its guards.
+- `test/server/local-store.test.ts` — The contract, the guards, and path confinement.
+
+---
+
+## D142 — Keep seed data in the repository and replay it into a scratch Pinata through the API
+
+*2026-10-15 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+Filming the demo (D140), checking a change locally, or giving another agent a realistic workspace all need a known state: a captured page, marks with notes and elements, a founder link, replies. That state existed only in the shared database, which local runs must not touch, and no script built one.
+
+**Decision**
+
+scripts/seed/ keeps one seed, chickpea.json: the Chickpea project, its pricing page (an HTML copy laid out so its elements sit where the landing's example puts them), and the four marks with their elements, notes, and the founder's replies, the same as the landing's example (a test keeps the two in step). apply.mjs replays it into a running Pinata through the product's own API in stages (empty, captured, marked, shared, replied, handed-off): the page is captured on desktop and mobile the way the Chrome extension captures one (D131) and imported, then the marks, links, and replies are created as the editor and the founder would. scratch.mjs starts a throwaway Pinata on a file database with screenshots on disk (D141) and applies a seed; `npm run seed` does both for a look around.
+
+**Alternatives considered**
+
+- *Commit a database file of the demo state* — It breaks with the next migration and carries ids and timestamps; replaying through the API breaks only when the API changes, and loudly.
+- *Capture the real chickpea.co with Browserless* — It would depend on someone else's live site and on the production capture service, and the page could change under the video.
+- *Build the state by hand in each script that needs it* — Each script would hold its own copy of the data and drift from the others and from the landing's example.
+
+**Rationale**
+
+The owner proposed keeping a seed in the repository to regenerate the video from as the application changes, updating the seed as it goes. Stages let any scene of the video start from its own point without replaying the ones before it through the interface.
+
+**Consequences**
+
+- The seed and the landing's example change together: test/seed.test.ts fails when their marks, notes, or replies differ, or when the seed's page lacks an element a mark names.
+- A new kind of state (a resolved mark, a second capture version, another page) is a new stage in apply.mjs and new data in the seed.
+- The e2e specs that look for a seeded Chickpea project still read the shared store; moving them onto this seed is in docs/NEXT.md.
+
+**Provenance evidence**
+
+Human instruction:
+
+> Would it be helpful for future video generation implementation to have a seed data set stored in the repository that can be used? As I iterate on the application. We can spin off updated seed data as we go
+
+**Artifacts**
+
+- `scripts/seed/README.md` — Stages, usage, and how to change the seed.
+- `scripts/seed/chickpea.json` — The seed.
+- `scripts/seed/apply.mjs` — The replay, stage by stage.
+
+---
+
+<sub>Generated from 142 record(s) as of 2026-10-15 · source `19fb63a30b5f`</sub>
