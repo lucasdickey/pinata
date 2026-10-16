@@ -184,4 +184,36 @@ describe("editor live refresh (D097)", () => {
     await tick(5_000);
     expect(hierarchyReads()).toBe(2);
   });
+
+  test("header and documentation exits stay unavailable until a Send issue resolves", async () => {
+    render(<EditorHome />);
+    await act(async () => {});
+    const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
+    let finishIssue!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finishIssue = resolve;
+    });
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      url === "/api/projects/pub1/agent-link" && init?.method === "POST"
+        ? pending
+        : fetchNow(url),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+    const home = screen.getByRole("link", { name: "pinata" });
+    expect(home).toHaveAttribute("aria-disabled", "true");
+    expect(fireEvent.click(home)).toBe(false);
+    expect(document.querySelector(".app-footer")).toHaveAttribute("inert");
+
+    await act(async () => {
+      finishIssue(Response.json({ link: { state: "active", version: 1 }, path: "/a/new-agent" }));
+    });
+    expect(screen.getByLabelText(/Agent link \(shown once/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    expect(home).toHaveAttribute("aria-disabled", "false");
+    expect(document.querySelector(".app-footer")).not.toHaveAttribute("inert");
+  });
 });

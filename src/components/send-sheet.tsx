@@ -19,11 +19,13 @@ export function SendSheet({
   projectTitle,
   markdown,
   markdownReady,
+  onIssuingChange,
 }: {
   publicId: string;
   projectTitle: string;
   markdown: () => string;
   markdownReady: boolean;
+  onIssuingChange?: (issuing: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<Choice>("agent");
@@ -35,9 +37,10 @@ export function SendSheet({
   useEffect(() => {
     if (open) firstChoice.current?.focus();
   }, [open]);
-  const onIssuingChange = (pending: boolean) => {
+  const reportIssuingChange = (pending: boolean) => {
     issuingRef.current = pending;
     setIssuing(pending);
+    onIssuingChange?.(pending);
   };
 
   const close = () => {
@@ -151,7 +154,7 @@ export function SendSheet({
                 publicId={publicId}
                 projectTitle={projectTitle}
                 onClose={close}
-                onIssuingChange={onIssuingChange}
+                onIssuingChange={reportIssuingChange}
               />
             ) : null}
           </div>
@@ -167,7 +170,7 @@ export function SendSheet({
                 publicId={publicId}
                 projectTitle={projectTitle}
                 onClose={close}
-                onIssuingChange={onIssuingChange}
+                onIssuingChange={reportIssuingChange}
               />
             ) : null}
           </div>

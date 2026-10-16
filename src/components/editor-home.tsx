@@ -35,6 +35,7 @@ type ListState =
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const [pending, setPending] = useState(false);
+  const [linkIssuing, setLinkIssuing] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
@@ -175,7 +176,7 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   }, [list, load]);
 
   async function logout() {
-    if (pending) return;
+    if (pending || linkIssuing) return;
     setPending(true);
     try {
       await fetch("/api/auth/logout", {
@@ -208,13 +209,20 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
           sign out. "New project" lives in the projects menu (D126). Everything else on this screen belongs
           to the workspace. */}
       <header className="pins-header">
-        <Link href="/" className="wordmark">
+        <Link
+          href="/"
+          className="wordmark"
+          aria-disabled={linkIssuing}
+          onClick={(event) => {
+            if (linkIssuing) event.preventDefault();
+          }}
+        >
           pinata
         </Link>
         <p className="pins-identity">Signed in as Lucas (editor).</p>
         <nav className="pins-actions" aria-label="Editor actions">
           <ThemeToggle />
-          <button type="button" onClick={logout} disabled={pending}>
+          <button type="button" onClick={logout} disabled={pending || linkIssuing}>
             {pending ? "Signing out…" : "Sign out"}
           </button>
         </nav>
@@ -252,13 +260,14 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             onChanged={() => void load()}
             onRefresh={refresh}
             liveRefreshMs={liveRefreshMs}
+            onLinkIssuingChange={setLinkIssuing}
           />
         ) : null}
       </section>
 
       {/* Documentation lives in a thin fixed footer (D105), so the
           workspace above keeps the whole window for the canvas. */}
-      <footer className="app-footer">
+      <footer className="app-footer" inert={linkIssuing}>
         <LandingLinks />
       </footer>
     </main>

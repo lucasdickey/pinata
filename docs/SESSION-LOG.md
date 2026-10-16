@@ -4169,3 +4169,45 @@ Elapsed: about 9 minutes (18:03–18:12 UTC) against no fixed timebox.
 - Node 24 `npm run validate` passed, including lint, typecheck, 1,939 Vitest
   tests (44 skipped), current generated docs, production build, and 28
   Playwright tests (46 credentialed skips without `.env.local`).
+
+---
+
+## 2026-10-16 — keep the issuing project mounted across navigation (D143)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 20 minutes (18:14–18:34 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Lifted Send's pending-issue state into the workspace. A second project's
+  switch button and the selected project's Archive action are disabled until
+  the issue or rotation response is handled. The editor's New project, home,
+  sign-out, and documentation exits also cannot leave during that interval.
+- Captured the current editor address when issuance starts. A Back/Forward
+  event while it is pending restores that address and stops the later route
+  handler from switching projects. Ordinary navigation works again after the
+  response, while the one-time field remains available to copy.
+
+### What broke
+
+- A two-project delayed-POST test, an open Archive confirmation, and a
+  simulated history transition all failed before the fix. Those tests now
+  verify that the issuing project remains visible and its URL appears once.
+  An editor-shell test guards other in-app exits.
+- A retained browser tab showed the old client bundle after the scratch
+  server rebuild. In a fresh incognito Chromium profile with a throttled
+  request, Send announced its pending state, Archive and Sign out were
+  disabled, and the project drawer's New project link was unavailable.
+  The new one-time field appeared after the response, with its contents
+  visually masked during capture.
+- A GUI login helper echoed the disposable seed password in its tool output,
+  not in media or repository files. Stopped the scratch server and confirmed
+  it removed the generated password file and database, invalidating it.
+
+### Validation and decisions
+
+- This enforces D143's existing one-time display rule at the workspace
+  boundary. No new product choice or token-storage decision was made.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,943 Vitest tests
+  (44 credentialed skips), generated docs check, production build, and
+  28 Playwright tests (46 credentialed skips without `.env.local`).

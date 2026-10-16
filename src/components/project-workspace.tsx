@@ -163,6 +163,7 @@ export function ProjectWorkspace({
   onChanged,
   onRefresh,
   liveRefreshMs,
+  onLinkIssuingChange,
 }: {
   projects: WorkspaceProject[];
   onChanged: () => void;
@@ -173,12 +174,34 @@ export function ProjectWorkspace({
    */
   onRefresh?: () => Promise<unknown>;
   liveRefreshMs?: number;
+  onLinkIssuingChange?: (issuing: boolean) => void;
 }) {
   // Which project the detail area shows (its overview, or one of its
   // captures), and which capture is open in the canvas view; null opens
   // the overview (D077). The first project's overview is the default.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [linkIssuing, setLinkIssuing] = useState(false);
+  const linkIssuingRef = useRef(false);
+  const issuingAddress = useRef<string | null>(null);
+  const onIssuingChange = (pending: boolean) => {
+    issuingAddress.current = pending
+      ? `${window.location.pathname}${window.location.search}${window.location.hash}`
+      : null;
+    linkIssuingRef.current = pending;
+    setLinkIssuing(pending);
+    onLinkIssuingChange?.(pending);
+  };
+  useEffect(() => {
+    const keepProject = (event: PopStateEvent) => {
+      if (!linkIssuingRef.current || !issuingAddress.current) return;
+      // A history move must not replace the issuing project before its one-time URL appears.
+      event.stopImmediatePropagation();
+      window.history.replaceState(null, "", issuingAddress.current);
+    };
+    window.addEventListener("popstate", keepProject, true);
+    return () => window.removeEventListener("popstate", keepProject, true);
+  }, []);
   // A pin to select as soon as the plane it lives on is shown: set by a
   // step or a table row that lands on another capture, consumed by the
   // capture-change effect below so the plane switch and the selection are
@@ -332,6 +355,7 @@ export function ProjectWorkspace({
     const match = projects.find((project) => project.publicId === publicId);
     if (!match) return;
     linkedProject.current = null;
+    if (linkIssuingRef.current) return;
     setSelectedProjectId(match.projectId);
     setSelection(null);
   }, [projects]);
@@ -358,21 +382,23 @@ export function ProjectWorkspace({
   /** Show one capture in the canvas view. */
   const openCapture = useCallback(
     (projectId: string, pageId: string, variant: string, captureId: string | null = null) => {
+      if (linkIssuingRef.current && projectId !== activeProject?.projectId) return;
       pendingPin.current = null;
       setFocusCanvasFor(null);
       setSelectedProjectId(projectId);
       setSelection({ pageId, variant, captureId });
     },
-    [],
+    [activeProject?.projectId],
   );
 
   /** Show a project's overview (the default view of a project). */
   const showOverview = useCallback((projectId: string) => {
+    if (linkIssuingRef.current && projectId !== activeProject?.projectId) return;
     pendingPin.current = null;
     setFocusCanvasFor(null);
     setSelectedProjectId(projectId);
     setSelection(null);
-  }, []);
+  }, [activeProject?.projectId]);
 
   /** Open a page on its preferred device: Desktop, or Mobile when Desktop is not usable. */
   const openPage = useCallback(
@@ -1411,7 +1437,14 @@ export function ProjectWorkspace({
           </div>
           {/* Starting a project lives with the projects (D126), not in the
               top bar. */}
-          <Link href="/pins/new" className="rail-new-project">
+          <Link
+            href="/pins/new"
+            className="rail-new-project"
+            aria-disabled={linkIssuing}
+            onClick={(event) => {
+              if (linkIssuingRef.current) event.preventDefault();
+            }}
+          >
             <span aria-hidden="true">+</span> New project
           </Link>
           <ul className="project-switcher">
@@ -1433,7 +1466,9 @@ export function ProjectWorkspace({
                     type="button"
                     className="project-switch"
                     aria-current={current ? "true" : undefined}
+                    disabled={linkIssuing}
                     onClick={() => {
+                      if (linkIssuingRef.current) return;
                       showOverview(project.projectId);
                       closeRail();
                     }}
@@ -1495,6 +1530,7 @@ export function ProjectWorkspace({
             publicId={activeProject.publicId}
             projectTitle={activeProject.title}
             onArchived={onChanged}
+            disabled={linkIssuing}
           />
           <SendSheet
             key={activeProject.publicId}
@@ -1502,6 +1538,7 @@ export function ProjectWorkspace({
             projectTitle={activeProject.title}
             markdown={projectMarkdown}
             markdownReady={projectPinsStatus === "ready"}
+            onIssuingChange={onIssuingChange}
           />
         </div>
 
