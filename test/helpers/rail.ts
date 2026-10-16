@@ -23,11 +23,11 @@ export function openPageFromMenu(url: string): void {
       .getAllByRole("button")
       .filter((button) => button.classList.contains("project-switch"));
     fireEvent.click(switches[index]!);
-    const cards = screen
-      .queryAllByRole("button", { name: new RegExp(`^Open \\w+ capture of ${escape(url)}$`) })
-      .filter((card) => card.classList.contains("overview-card"));
-    if (cards.length > 0) {
-      fireEvent.click(cards.find((card) => card.dataset.ready === "true") ?? cards[0]!);
+    const card = screen
+      .queryAllByTestId("overview-card")
+      .find((entry) => entry.querySelector(".overview-url")?.textContent === url);
+    if (card) {
+      fireEvent.click(within(card).getByRole("link", { name: new RegExp(`^Open \\w+ capture of ${escape(url)}$`) }));
       return;
     }
   }
