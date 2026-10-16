@@ -64,22 +64,24 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const [linkIssuing, setLinkIssuing] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const sendTarget = useRef<string | null>(null);
-  // Polling and quiet refresh share one order: an older response cannot
-  // replace a newer hierarchy read, including the read after Send closes.
-  const hierarchyRequest = useRef(0);
+  // Only an applicable response advances the order. A failed quiet read
+  // cannot cancel the explicit hierarchy reload after Send closes.
+  const hierarchyRequest = useRef({ started: 0, load: 0, accepted: 0 });
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
   const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async () => {
-    const request = ++hierarchyRequest.current;
+    const request = ++hierarchyRequest.current.started;
+    hierarchyRequest.current.load = request;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
-      if (request !== hierarchyRequest.current) return;
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
       if (!response.ok) {
+        hierarchyRequest.current.accepted = request;
         setList((current) =>
-          request !== hierarchyRequest.current
+          request !== hierarchyRequest.current.load || request !== hierarchyRequest.current.accepted
             ? current
             : sendTarget.current && current.status === "ready"
               ? { ...current }
@@ -92,9 +94,10 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         projects: WorkspaceProject[];
         archivedProjects?: WorkspaceProject[];
       };
-      if (request !== hierarchyRequest.current) return;
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
       setList((current) =>
-        request === hierarchyRequest.current
+        request === hierarchyRequest.current.load && request === hierarchyRequest.current.accepted
           ? {
               status: "ready",
               ...keepSendTarget(
@@ -108,9 +111,10 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
           : current,
       );
     } catch {
-      if (request !== hierarchyRequest.current) return;
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
       setList((current) =>
-        request !== hierarchyRequest.current
+        request !== hierarchyRequest.current.load || request !== hierarchyRequest.current.accepted
           ? current
           : sendTarget.current && current.status === "ready"
             ? { ...current }
@@ -128,16 +132,18 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   // must never swap the workspace for the failure state — and an answer
   // identical to the last one is dropped, so a quiet tick re-renders nothing.
   const refresh = useCallback(async () => {
-    const request = ++hierarchyRequest.current;
+    const request = ++hierarchyRequest.current.started;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) return;
       const text = await response.text();
       const payload = JSON.parse(text) as { projects: WorkspaceProject[]; archivedProjects?: WorkspaceProject[] };
       if (!Array.isArray(payload.projects)) return;
-      if (request !== hierarchyRequest.current) return;
+      if (request <= hierarchyRequest.current.load || request <= hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
       setList((current) =>
-        request === hierarchyRequest.current &&
+        request === hierarchyRequest.current.accepted &&
+        request > hierarchyRequest.current.load &&
         current.status === "ready" &&
         text !== current.payload
           ? {

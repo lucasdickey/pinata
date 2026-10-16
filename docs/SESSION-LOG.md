@@ -4418,3 +4418,37 @@ Elapsed: about 21 minutes (18:48–19:09 UTC) against no fixed timebox.
 - D143–D145 remain the reviewed parent decisions. D146 and D147 retain the
   owner's approved Send and draft-PR choices; no new product decision arose
   from this correction or integration.
+
+---
+
+## 2026-10-16 — failed quiet reads cannot cancel Send dismissal (D146)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 5 minutes (19:15–19:20 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Delayed the hierarchy reload after closing Send, then rejected a newer
+  live-refresh request. The earlier reload succeeded but was discarded because
+  the failed quiet request had already advanced the shared generation. The
+  regression failed before the correction: the old project stayed selected.
+- Separated read starts from accepted results. A newer explicit reload
+  supersedes older work on success or failure. A successful quiet read
+  supersedes older work; a rejected, non-OK, or malformed quiet read does not.
+- Tested the inverse order and overlapping refreshes, including the existing
+  pre-close read against both successful and failed post-close reloads.
+
+### What broke
+
+- The first delayed test reproduced the stale heading after the quiet read
+  failed. The corrected order let the pending reload reconcile the project.
+  The full matrix also preserved failure state when an older capture poll
+  settled after a failed post-close reload.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,968 Vitest tests
+  (44 skips), generated docs check, production build, and 28 Playwright
+  tests (47 credentialed skips without `.env.local`).
+- This is a correction to D146's existing Send-dismissal behavior. No new
+  product or storage decision was made.

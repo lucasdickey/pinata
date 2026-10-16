@@ -177,47 +177,162 @@ describe("editor live refresh (D097)", () => {
     expect(screen.queryByText(/Projects could not be loaded/)).toBeNull();
     expect(screen.getByTestId("project-title")).toHaveTextContent("Review");
   });
+  test.each(["failed", "successful"] as const)(
+    "a later %s quiet read orders an earlier pending response",
+    async (outcome) => {
+      const view = render(<EditorHome liveRefreshMs={1_000} />);
+      await act(async () => {});
+      const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
+      let finishRefresh!: (response: Response) => void;
+      const firstRead = new Promise<Response>((resolve) => {
+        finishRefresh = resolve;
+      });
+      let reads = 0;
+      fetchMock.mockImplementation((url: string) => {
+        if (url === "/api/projects") {
+          reads += 1;
+          return reads === 1
+            ? firstRead
+            : outcome === "failed"
+              ? Promise.reject(new Error("newer refresh failed"))
+              : Promise.resolve(Response.json({
+                  projects: [{
+                    ...settledProject(),
+                    projectId: "p3",
+                    publicId: "pub3",
+                    title: "Newer review",
+                  }],
+                }));
+        }
+        return fetchNow(url);
+      });
 
-  test("a live refresh started before Send closes cannot restore an older project list", async () => {
-    render(<EditorHome />);
-    await act(async () => {});
-    const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
-    let finishRefresh!: (response: Response) => void;
-    const oldRead = new Promise<Response>((resolve) => {
-      finishRefresh = resolve;
-    });
-    let reads = 0;
-    fetchMock.mockImplementation((url: string) => {
-      if (url === "/api/projects") {
-        reads += 1;
-        return reads === 1
-          ? oldRead
-          : Promise.resolve(
-              Response.json({
-                projects: [
-                  {
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(reads).toBe(1);
+      view.rerender(<EditorHome liveRefreshMs={2_000} />);
+      await act(async () => window.dispatchEvent(new Event("focus")));
+      expect(reads).toBe(2);
+      await act(async () =>
+        finishRefresh(Response.json({
+          projects: [{
+            ...settledProject(),
+            projectId: "p2",
+            publicId: "pub2",
+            title: "Current review",
+          }],
+        })),
+      );
+      expect(screen.getByTestId("project-title")).toHaveTextContent(
+        outcome === "failed" ? "Current review" : "Newer review",
+      );
+    },
+  );
+
+  test.each(["success", "failure"] as const)(
+    "a live refresh started before Send closes cannot undo the newer reload's %s",
+    async (outcome) => {
+      render(<EditorHome />);
+      await act(async () => {});
+      const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
+      let finishRefresh!: (response: Response) => void;
+      const oldRead = new Promise<Response>((resolve) => {
+        finishRefresh = resolve;
+      });
+      let reads = 0;
+      fetchMock.mockImplementation((url: string) => {
+        if (url === "/api/projects") {
+          reads += 1;
+          return reads === 1
+            ? oldRead
+            : outcome === "success"
+              ? Promise.resolve(Response.json({
+                  projects: [{
                     ...settledProject(),
                     projectId: "p2",
                     publicId: "pub2",
                     title: "Current review",
-                  },
-                ],
-              }),
-            );
+                  }],
+                }))
+              : Promise.reject(new Error("reload failed"));
+        }
+        return fetchNow(url);
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await tick(LIVE_REFRESH_INTERVAL_MS);
+      expect(reads).toBe(1);
+      fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+      await act(async () => {});
+      expect(reads).toBe(2);
+      if (outcome === "success") {
+        expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+      } else {
+        expect(screen.getByRole("alert")).toHaveTextContent("Projects could not be loaded");
       }
-      return fetchNow(url);
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    await tick(LIVE_REFRESH_INTERVAL_MS);
-    expect(reads).toBe(1);
-    fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
-    await act(async () => {});
-    expect(reads).toBe(2);
-    expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
 
-    await act(async () => finishRefresh(Response.json({ projects: [settledProject()] })));
-    expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
-  });
+      await act(async () => finishRefresh(Response.json({ projects: [settledProject()] })));
+      if (outcome === "success") {
+        expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+      } else {
+        expect(screen.getByRole("alert")).toHaveTextContent("Projects could not be loaded");
+      }
+    },
+  );
+  test.each(["rejected", "non-OK", "successful"] as const)(
+    "a %s live refresh orders against the pending hierarchy read after Send closes",
+    async (outcome) => {
+      render(<EditorHome />);
+      await act(async () => {});
+      const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
+      let finishLoad!: (response: Response) => void;
+      const pendingLoad = new Promise<Response>((resolve) => {
+        finishLoad = resolve;
+      });
+      let reads = 0;
+      fetchMock.mockImplementation((url: string) => {
+        if (url === "/api/projects") {
+          reads += 1;
+          return reads === 1
+            ? pendingLoad
+            : outcome === "rejected"
+              ? Promise.reject(new Error("refresh failed"))
+              : outcome === "non-OK"
+                ? Promise.resolve(Response.json({ error: "Unavailable" }, { status: 503 }))
+                : Promise.resolve(Response.json({
+                    projects: [{
+                      ...settledProject(),
+                      projectId: "p3",
+                      publicId: "pub3",
+                      title: "Newer review",
+                    }],
+                  }));
+        }
+        return fetchNow(url);
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+      await act(async () => {});
+      expect(reads).toBe(1);
+
+      await tick(LIVE_REFRESH_INTERVAL_MS);
+      expect(reads).toBe(2);
+      const expected = outcome === "successful" ? "Newer review" : "Current review";
+      await act(async () =>
+        finishLoad(Response.json({
+          projects: [
+            {
+              ...settledProject(),
+              projectId: "p2",
+              publicId: "pub2",
+              title: "Current review",
+            },
+          ],
+        })),
+      );
+      expect(screen.getByTestId("project-title")).toHaveTextContent(expected);
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      expect(screen.getByRole("dialog", { name: `Send ${expected}` })).toBeInTheDocument();
+    },
+  );
 
   test("the interval is injectable", async () => {
     render(<EditorHome liveRefreshMs={5_000} />);

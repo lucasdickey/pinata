@@ -368,4 +368,40 @@ describe("editor project-entry states", () => {
       expect(screen.getByRole("dialog", { name: "Send Current review" })).toBeInTheDocument();
     },
   );
+  test("a failed post-close reload cannot be undone by an older successful poll", async () => {
+    let finishPoll!: (response: Response) => void;
+    const pendingPoll = new Promise<Response>((resolve) => {
+      finishPoll = resolve;
+    });
+    let reads = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/projects") {
+        reads += 1;
+        return reads === 1
+          ? Promise.resolve(Response.json({ projects: [projectWith("capturing")] }))
+          : reads === 2
+            ? pendingPoll
+            : Promise.resolve(Response.json({ error: "Unavailable" }, { status: 503 }));
+      }
+      if (url === "/api/projects/pub1/agent-link") {
+        return Promise.resolve(Response.json({ link: { state: "none", version: 0 } }));
+      }
+      if (url.endsWith("/annotations")) {
+        return Promise.resolve(Response.json({ annotations: [] }));
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    render(<EditorHome />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
+    expect(reads).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+    await flush();
+    expect(reads).toBe(3);
+    expect(screen.getByRole("alert")).toHaveTextContent("Projects could not be loaded");
+
+    await act(async () => finishPoll(Response.json({ projects: [projectWith("capturing")] })));
+    expect(screen.getByRole("alert")).toHaveTextContent("Projects could not be loaded");
+  });
 });
