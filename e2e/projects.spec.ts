@@ -353,8 +353,8 @@ test("Add pages on the overview adds a page and skips one the project has (D129)
     "Added 1 page. Its screenshots are on the way. Skipped 1 already in this project.",
   );
   await expect(
-    overview.locator(`button.overview-card[aria-label$=" capture of ${CONTACT}"]`),
-  ).toHaveCount(2);
+    overview.getByTestId("overview-card").filter({ hasText: CONTACT }),
+  ).toHaveCount(1);
 
   const project = runScoped(await projectsOf(page.request)).find(
     (p) => p.title === `${RUN_ID} review`,

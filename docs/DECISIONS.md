@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
-| Agent proposed, human approved | 26 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143 |
+| Agent proposed, human approved | 27 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144 |
 | Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **143** | |
+| **Total** | **144** | |
 
 ## Key decisions
 
@@ -137,7 +137,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D074](#d074--drop-a-pin-with-one-gesture-no-interaction-modes-a-composer-anchored-at-the-pin-a-pre-selected-element-with-overrides-and-keyboard-equivalents) | build | Drop a pin with one gesture: no interaction modes, a composer anchored at the pin, a pre-selected element with overrides, and keyboard equivalents | Agent proposed, human approved | accepted |
 | [D075](#d075--close-the-feedback-loop-a-pin-lifecycle-open-replied-resolved-per-role-last-seen-with-unread-counts-a-founder-pin-list-and-sharing-in-the-project-header) | build | Close the feedback loop: a pin lifecycle (open, replied, resolved), per-role last-seen with unread counts, a founder pin list, and sharing in the project header | Agent proposed, human approved | accepted |
 | [D076](#d076--drive-capture-from-the-server-with-progress-and-one-automatic-retry-the-browser-tab-is-no-longer-required-for-a-project-to-finish) | build | Drive capture from the server with progress and one automatic retry; the browser tab is no longer required for a project to finish | Agent proposed, human approved | accepted |
-| [D077](#d077--a-project-overview-capture-grid-with-counts-device-toggle-per-page-cross-capture-next-and-previous-pin-and-project-scoped-pin-table-and-export) | build | A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export | Agent proposed, human approved | accepted |
+| [D077](#d077--a-project-overview-capture-grid-with-counts-device-toggle-per-page-cross-capture-next-and-previous-pin-and-project-scoped-pin-table-and-export) | build | A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export | Agent proposed, human approved | superseded |
 | [D078](#d078--speak-the-users-language-pins-named-by-their-comment-and-element-internals-behind-a-details-disclosure-and-a-reading-first-founder-view-on-phones) | build | Speak the user's language: pins named by their comment and element, internals behind a Details disclosure, and a reading-first founder view on phones | Agent proposed, human approved | accepted |
 | [D079](#d079--rectangle-marks-drag-to-draw-a-box-comment-and-context-like-a-pin-shared-numbering-resizable-readable-by-the-founder) | build | Rectangle marks: drag to draw a box, comment and context like a pin, shared numbering, resizable, readable by the founder | Human directed | accepted |
 | [D080](#d080--project-header-feedback-counts-the-current-version-matching-the-rail-badges) | build | Project header feedback counts the current version, matching the rail badges | Agent decided alone | accepted |
@@ -204,6 +204,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D141](#d141--a-scratch-pinata-can-keep-its-screenshots-on-local-disk) | build | A scratch Pinata can keep its screenshots on local disk | Agent decided alone | accepted |
 | [D142](#d142--keep-seed-data-in-the-repository-and-replay-it-into-a-scratch-pinata-through-the-api) | build | Keep seed data in the repository and replay it into a scratch Pinata through the API | Human directed | accepted |
 | [D143](#d143--give-editor-project-page-device-and-note-durable-addresses-and-restore-archived-projects) | build | Give editor project, page, device, and note durable addresses and restore archived projects | Agent proposed, human approved | accepted |
+| [D144](#d144--show-one-overview-card-per-page-with-a-desktop-and-mobile-preview-toggle) | build | Show one overview card per page with a Desktop and Mobile preview toggle | Agent proposed, human approved | accepted |
 
 ---
 
@@ -3091,7 +3092,8 @@ Human approved:
 
 ## D077 — A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export
 
-*2026-09-12 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+*2026-09-12 · phase: build · origin: **Agent proposed, human approved** · status: **superseded***
+*Superseded by D144.*
 
 **Problem**
 
@@ -5820,4 +5822,48 @@ Human approved:
 
 ---
 
-<sub>Generated from 143 record(s) as of 2026-10-15 · source `5ac950fece8e`</sub>
+## D144 — Show one overview card per page with a Desktop and Mobile preview toggle
+
+*2026-10-16 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D077.*
+
+**Problem**
+
+D077 showed a separate overview card for each Desktop and Mobile capture. Reviewing a multi-page project meant scanning duplicated page addresses and twice as many cards as pages.
+
+**Decision**
+
+Show one overview card for each submitted page in page order. A Desktop and Mobile toggle changes that card's authorized thumbnail, capture state, and stable editor link without leaving the overview. The card's feedback line sums the selected captures of both devices, including local seen adjustments. Opening the selected preview navigates to its page and device; a modified click can open the same durable address in another tab. The canvas device toggle, independent capture versions, project-wide pin stepping and table, and per-capture Markdown remain as before.
+
+**Alternatives considered**
+
+- *Keep two capture cards and only shorten their labels* — Two cards still repeat the page address and make the overview twice as long.
+
+**Rationale**
+
+The agent raised page cards as an alternative to D077, and the owner approved. The existing page-level feedback helper and D143 editor address contract support a page card without changing capture storage or authorizing a new image route. D077's per-capture card layout is superseded; its remaining canvas and project-wide navigation choices continue.
+
+**Consequences**
+
+- A page with a failed Desktop capture opens on Mobile when Mobile is usable, while both states remain visible in the card's device toggle.
+- The page count represents both selected device captures, not only the device whose thumbnail is visible.
+- Each preview's open link carries project public ID, page ID, and device; ordinary clicks use the workspace's history navigation, and native modified clicks keep the href.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Page cards vs D077 per-device cards?
+
+Human approved:
+
+> One card per page (rec 6): yes. This replaces the per-device cards of D077. Desktop and Mobile become a toggle.
+
+**Artifacts**
+
+- `src/components/project-overview.tsx` — One page card, device preview, page counts, and editor address.
+- `test/project-navigation.test.tsx` — Overview and navigation behavior.
+
+---
+
+<sub>Generated from 144 record(s) as of 2026-10-16 · source `70a40a215dfa`</sub>

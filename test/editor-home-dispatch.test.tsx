@@ -245,11 +245,7 @@ describe("capture dispatch driver", () => {
     expect(dispatchCalls).toHaveLength(4);
     expect(Object.values(states).every((state) => state === "failed")).toBe(true);
 
-    // The catalog outcome is what the workspace surfaces: the overview names
-    // the failed state, and opening the page shows the outcome message.
     expect(screen.getAllByTestId("overview-state").map((node) => node.textContent)).toEqual([
-      "Failed",
-      "Failed",
       "Failed",
       "Failed",
     ]);
