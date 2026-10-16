@@ -1,40 +1,32 @@
 "use client";
 
-// The project overview (D077): one card per capture, in page order, Desktop
-// then Mobile, so a reviewer sees the whole project — where the notes are
-// and what is left to read — before opening any one plane.
-//
-// Each card shows a thumbnail of the capture (the same private asset the
-// canvas renders, through the authorizing route, sized down by CSS; no new
-// storage), the page URL, the capture state, and the pin, open, and unread
-// counts the hierarchy read carries (D075). A capture that is not ready
-// shows its state where the thumbnail would be. The card is a button that
-// opens that capture in the canvas view. After the cards comes whatever the
-// workspace puts last in the grid: the "Add pages" card (D129).
-
-import type { ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import type { FeedbackCounts } from "../lib/annotations";
+import { projectEditorUrl } from "../lib/editor-url";
 import {
   captureCountsLine,
-  captureFeedback,
+  pageFeedback,
   type SeenAdjustments,
 } from "../lib/feedback-counts";
+import { preferredVariant } from "../lib/pin-order";
 import { STATE_LABELS, variantLabel } from "./capture-panel";
 import type { AttemptView, DeviceView, WorkspacePage, WorkspaceProject } from "./project-workspace";
 
-/** One card's worth of facts, derived once per render. */
-export interface OverviewCard {
-  pageId: string;
-  pageUrl: string;
+interface OverviewDevice {
   variant: string;
-  /** The capture the card stands for: the default ready one, else the newest. */
   attempt: AttemptView | null;
   ready: boolean;
   stateLabel: string;
+}
+
+export interface OverviewCard {
+  pageId: string;
+  pageUrl: string;
+  defaultVariant: string | null;
+  devices: OverviewDevice[];
   counts: FeedbackCounts;
 }
 
-/** The attempt a device's card shows: its selected capture, else its newest. */
 function cardAttempt(device: DeviceView): AttemptView | null {
   return (
     device.attempts.find((attempt) => attempt.id === device.selectedCaptureId) ??
@@ -43,31 +35,114 @@ function cardAttempt(device: DeviceView): AttemptView | null {
   );
 }
 
-/** Every card in page order, Desktop then Mobile. */
 export function overviewCards(
   project: WorkspaceProject,
   adjustments: SeenAdjustments = {},
 ): OverviewCard[] {
-  const cards: OverviewCard[] = [];
-  for (const page of project.pages) {
-    for (const device of page.devices) {
+  return project.pages.map((page) => ({
+    pageId: page.id,
+    pageUrl: page.normalizedUrl,
+    defaultVariant: preferredVariant(page),
+    counts: pageFeedback(project, page, adjustments),
+    devices: page.devices.map((device) => {
       const attempt = cardAttempt(device);
-      const ready =
-        attempt?.state === "ready" &&
-        attempt.documentWidth !== null &&
-        attempt.documentHeight !== null;
-      cards.push({
-        pageId: page.id,
-        pageUrl: page.normalizedUrl,
+      return {
         variant: device.variant,
         attempt,
-        ready,
+        ready:
+          attempt?.state === "ready" &&
+          attempt.documentWidth !== null &&
+          attempt.documentHeight !== null,
         stateLabel: attempt ? STATE_LABELS[attempt.state] : "Not captured",
-        counts: captureFeedback(project, attempt?.id ?? null, adjustments),
-      });
+      };
+    }),
+  }));
+}
+
+function PageCard({
+  card,
+  publicId,
+  onOpenCapture,
+}: {
+  card: OverviewCard;
+  publicId: string;
+  onOpenCapture: (pageId: string, variant: string) => void;
+}) {
+  const [selectedVariant, setSelectedVariant] = useState(card.defaultVariant);
+  const device = card.devices.find((item) => item.variant === selectedVariant) ?? card.devices[0];
+  const label = device ? variantLabel(device.variant) : null;
+  const href =
+    device?.variant === "desktop" || device?.variant === "mobile"
+      ? projectEditorUrl({ project: publicId, page: card.pageId, device: device.variant })
+      : null;
+
+  const open = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
     }
-  }
-  return cards;
+    event.preventDefault();
+    if (device) onOpenCapture(card.pageId, device.variant);
+  };
+
+  return (
+    <li
+      className="overview-card"
+      data-testid="overview-card"
+      data-ready={device?.ready ? "true" : "false"}
+    >
+      {device && href ? (
+        <a
+          className="overview-open"
+          href={href}
+          aria-label={`Open ${label} capture of ${card.pageUrl}`}
+          onClick={open}
+        >
+          {device.ready && device.attempt ? (
+            <img
+              className="overview-thumb"
+              src={`/api/captures/${encodeURIComponent(device.attempt.id)}/asset`}
+              alt={`${label} capture of ${card.pageUrl}`}
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
+          ) : (
+            <span className="overview-thumb overview-thumb-empty" data-testid="overview-state">
+              {device.stateLabel}
+            </span>
+          )}
+          <span className="overview-url">{card.pageUrl}</span>
+          <span className="overview-meta" data-testid="overview-meta">
+            {label} · {device.stateLabel}
+            {device.attempt ? ` · v${device.attempt.attempt}` : ""}
+          </span>
+        </a>
+      ) : (
+        <span className="overview-url">{card.pageUrl}</span>
+      )}
+      <div className="overview-device-toggle" role="group" aria-label={`Preview of ${card.pageUrl}`}>
+        {card.devices.map((item) => (
+          <button
+            key={item.variant}
+            type="button"
+            aria-label={`${variantLabel(item.variant)} preview of ${card.pageUrl}`}
+            aria-pressed={item.variant === device?.variant}
+            onClick={() => setSelectedVariant(item.variant)}
+          >
+            {variantLabel(item.variant)}
+            <span className="overview-device-state"> · {item.stateLabel}</span>
+          </button>
+        ))}
+      </div>
+      <span
+        className="overview-counts"
+        data-testid="overview-counts"
+        data-unread={card.counts.unreadReplies > 0 ? "true" : "false"}
+      >
+        {captureCountsLine(card.counts)}
+      </span>
+    </li>
+  );
 }
 
 export function ProjectOverview({
@@ -79,57 +154,20 @@ export function ProjectOverview({
   project: WorkspaceProject;
   adjustments: SeenAdjustments;
   onOpenCapture: (pageId: WorkspacePage["id"], variant: string) => void;
-  /** A last grid item after the cards, already wrapped in its own <li>. */
   trailing?: ReactNode;
 }) {
   const cards = overviewCards(project, adjustments);
   return (
     <section className="project-overview" aria-label="Captures" data-testid="project-overview">
       <ul className="overview-grid">
-        {cards.map((card) => {
-          const label = variantLabel(card.variant);
-          return (
-            <li key={`${card.pageId}:${card.variant}`}>
-              <button
-                type="button"
-                className="overview-card"
-                data-testid="overview-card"
-                data-ready={card.ready ? "true" : "false"}
-                aria-label={`Open ${label} capture of ${card.pageUrl}`}
-                onClick={() => onOpenCapture(card.pageId, card.variant)}
-              >
-                {card.ready && card.attempt ? (
-                  // The private asset through the authorizing route, scaled by
-                  // CSS. Never a public or cross-origin URL.
-                  <img
-                    className="overview-thumb"
-                    src={`/api/captures/${encodeURIComponent(card.attempt.id)}/asset`}
-                    alt={`${label} capture of ${card.pageUrl}`}
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                  />
-                ) : (
-                  <span className="overview-thumb overview-thumb-empty" data-testid="overview-state">
-                    {card.stateLabel}
-                  </span>
-                )}
-                <span className="overview-url">{card.pageUrl}</span>
-                <span className="overview-meta" data-testid="overview-meta">
-                  {label} · {card.stateLabel}
-                  {card.attempt ? ` · v${card.attempt.attempt}` : ""}
-                </span>
-                <span
-                  className="overview-counts"
-                  data-testid="overview-counts"
-                  data-unread={card.counts.unreadReplies > 0 ? "true" : "false"}
-                >
-                  {captureCountsLine(card.counts)}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {cards.map((card) => (
+          <PageCard
+            key={`${project.projectId}:${card.pageId}`}
+            card={card}
+            publicId={project.publicId}
+            onOpenCapture={onOpenCapture}
+          />
+        ))}
         {trailing}
       </ul>
     </section>

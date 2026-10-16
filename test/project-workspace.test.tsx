@@ -126,6 +126,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   // The annotations list and the draft's nearby-context candidates are
   // per-plane reads every selection makes; the default plane has no pins
@@ -234,10 +235,11 @@ describe("hierarchy", () => {
 describe("partial status", () => {
   test("a failed device is labelled while its successful siblings stay ready", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // The overview names every capture's state (D077).
-    const labels = screen.getAllByTestId("overview-meta").map((node) => node.textContent);
-    expect(labels.filter((label) => label?.includes("Ready"))).toHaveLength(3);
-    expect(labels.filter((label) => label?.includes("Failed"))).toHaveLength(1);
+    const cards = screen.getAllByTestId("overview-card");
+    expect(cards).toHaveLength(2);
+    expect(within(cards[1]!).getByRole("button", {
+      name: "Mobile preview of https://chickpea.co/pricing",
+    })).toHaveTextContent("Failed");
     // So does the device toggle once the page is open.
     openPageFromMenu("https://chickpea.co/pricing");
     expect(deviceButton("Desktop capture of https://chickpea.co/pricing")).toHaveTextContent("Ready");
@@ -396,14 +398,11 @@ describe("capture canvas stage (VAL-CAPTURE-015, VAL-CANVAS-002)", () => {
 });
 
 describe("camera modes (VAL-CANVAS-002)", () => {
-  test("the initial camera is the named entire-capture (contain) mode", () => {
+  test("the initial camera is the named fit-width mode", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
-    // User-directed 2026-09-09: "it should be presented such that the entire
-    // page is in view". Contain is the pressed default; width-fit and
-    // natural-size remain reachable named modes.
-    expect(modePressed(detail(), "Entire page")).toBe("true");
-    expect(modePressed(detail(), "Fit width")).toBe("false");
+    expect(modePressed(detail(), "Entire page")).toBe("false");
+    expect(modePressed(detail(), "Fit width")).toBe("true");
     expect(modePressed(detail(), "Natural size")).toBe("false");
   });
 
@@ -432,7 +431,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     expect(natural()).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("changing the selected capture resets the camera to entire-in-view", async () => {
+  test("changing to an unvisited capture starts at fit width", async () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     openHome();
@@ -442,7 +441,7 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     await user.click(
       deviceButton("Mobile capture of https://chickpea.co/"),
     );
-    expect(modePressed(detail(), "Entire page")).toBe("true");
+    expect(modePressed(detail(), "Fit width")).toBe("true");
     expect(modePressed(detail(), "Natural size")).toBe("false");
 
     // Switching versions of the same device resets too.
@@ -454,10 +453,10 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     cleanup();
     render(<ProjectWorkspace projects={[mixed]} onChanged={onChanged} />);
     openHome();
-    await user.click(cameraMode(detail(), "Fit width"));
+    await user.click(cameraMode(detail(), "Natural size"));
     const versions = within(detail()).getByRole("list", { name: "Capture versions" });
     await user.click(within(versions).getByRole("button", { name: /Version 1 — Ready/ }));
-    expect(modePressed(detail(), "Entire page")).toBe("true");
+    expect(modePressed(detail(), "Fit width")).toBe("true");
   });
 
   test("zoom controls and a live zoom readout sit with the mode buttons", () => {
@@ -550,11 +549,11 @@ describe("camera modes (VAL-CANVAS-002)", () => {
     await user.click(cameraMode(detail(), "Natural size"));
     expect(modePressed(detail(), "Natural size")).toBe("true");
 
-    // An unvisited plane still opens in the entire-capture initial camera.
+    // An unvisited plane opens in fit-width mode.
     await user.click(
       deviceButton("Mobile capture of https://chickpea.co/"),
     );
-    await waitForMode(detail(), "Entire page");
+    await waitForMode(detail(), "Fit width");
 
     // Returning to the first plane restores its own camera, not the other's.
     await user.click(

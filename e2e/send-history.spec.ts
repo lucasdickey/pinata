@@ -60,12 +60,22 @@ test("Back and Forward preserve history and the issuing project's one-time resul
   await login.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 
-  await page.evaluate(() => {
-    history.replaceState({ marker: "first" }, "", "/pins?project=history-one");
-    history.pushState({ marker: "second" }, "", "/pins?project=history-two");
-    history.back();
-  });
+  await page.getByRole("button", { name: "Show projects" }).click();
+  await page.getByRole("button", { name: "First review", exact: true }).click();
   await expect(page).toHaveURL(/project=history-one$/);
+  await page.evaluate(() => {
+    history.replaceState({ ...history.state, marker: "first" }, "", location.href);
+  });
+  await page.getByRole("button", { name: "Show projects" }).click();
+  await page.getByRole("button", { name: "Second review", exact: true }).click();
+  await expect(page).toHaveURL(/project=history-two$/);
+  await page.evaluate(() => {
+    history.replaceState({ ...history.state, marker: "second" }, "", location.href);
+  });
+  await page.goBack();
+  await expect(page).toHaveURL(/project=history-one$/);
+  await expect(page.getByTestId("project-title")).toHaveText("First review");
+  expect(await page.evaluate(() => history.state)).toMatchObject({ marker: "first" });
   await page.getByRole("button", { name: "Send" }).click();
   await page.getByRole("button", { name: "Create link" }).click();
   await expect(page.getByRole("dialog", { name: "Send First review" })).toHaveAttribute(
@@ -76,19 +86,30 @@ test("Back and Forward preserve history and the issuing project's one-time resul
   await page.goForward();
   await expect(page).toHaveURL(/project=history-two$/);
   expect(await page.evaluate(() => history.state)).toMatchObject({ marker: "second" });
+  await expect(page.getByTestId("project-title")).toHaveText("Second review");
   await expect(page.getByRole("dialog", { name: "Send First review" })).toBeVisible();
   finishIssue();
   await expect(page.getByLabel(/Agent link \(shown once/)).toHaveValue(
     "http://127.0.0.1:3100/a/one-time-test",
   );
+  await page.goBack();
+  await expect(page.getByTestId("project-title")).toHaveText("First review");
+  await expect(page.getByLabel(/Agent link \(shown once/)).toHaveValue(
+    "http://127.0.0.1:3100/a/one-time-test",
+  );
+  await page.goForward();
+  await expect(page.getByTestId("project-title")).toHaveText("Second review");
+  await expect(page.getByLabel(/Agent link \(shown once/)).toHaveValue(
+    "http://127.0.0.1:3100/a/one-time-test",
+  );
   await page.getByRole("button", { name: "Close Send" }).click();
+  await expect(page.getByTestId("project-title")).toHaveText("Second review");
   await page.goBack();
   await expect(page).toHaveURL(/project=history-one$/);
+  await expect(page.getByTestId("project-title")).toHaveText("First review");
   expect(await page.evaluate(() => history.state)).toMatchObject({ marker: "first" });
   await page.goForward();
   await expect(page).toHaveURL(/project=history-two$/);
-  expect(await page.evaluate(() => history.state)).toMatchObject({ marker: "second" });
-  await page.getByRole("button", { name: "Show projects" }).click();
-  await page.getByRole("button", { name: "Second review", exact: true }).click();
   await expect(page.getByTestId("project-title")).toHaveText("Second review");
+  expect(await page.evaluate(() => history.state)).toMatchObject({ marker: "second" });
 });

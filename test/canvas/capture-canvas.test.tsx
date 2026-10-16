@@ -168,8 +168,6 @@ describe("click versus drag", () => {
 
     tap(frameImage(), 400, 300);
     const first = onDraftChange.mock.calls.at(-1)![0] as { tip: { x: number; y: number } };
-    // At the jsdom contain zoom the tall capture occupies a narrow strip;
-    // both taps must land inside the screenshot to place.
     tap(frameImage(), 410, 450);
     const second = onDraftChange.mock.calls.at(-1)![0] as { tip: { x: number; y: number } };
 
@@ -257,10 +255,10 @@ describe("transient state lifecycle", () => {
     unmount();
 
     // The parent keys the canvas by capture id, so another plane is a fresh
-    // mount with no draft and the entire-capture initial camera.
+    // mount with no draft and its own initial camera.
     render(<CaptureCanvas {...props} captureId="cap-root-mobile-v1" variant="Mobile" />);
     expect(draftNodes()).toHaveLength(0);
-    expect(modePressed(stage(), "Entire page")).toBe("true");
+    expect(modePressed(stage(), "Fit width")).toBe("true");
   });
 });
 
@@ -712,9 +710,9 @@ describe("per-capture session camera", () => {
     await user.click(toggle);
     // Focus lands on the pressed mode, as a menu's does.
     const named = (name: string) => within(stage()).getByRole("button", { name });
-    expect(named("Entire page")).toHaveFocus();
-    await user.keyboard("{ArrowDown}");
     expect(named("Fit width")).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(named("Natural size")).toHaveFocus();
     await user.keyboard("{End}");
     expect(named("Natural size")).toHaveFocus();
     await user.keyboard("{ArrowDown}");
@@ -727,7 +725,7 @@ describe("per-capture session camera", () => {
     expect(toggle).toHaveFocus();
     // A choice does the same.
     await user.click(toggle);
-    await user.keyboard("{ArrowDown}{Enter}");
+    await user.keyboard("{Enter}");
     expect(within(stage()).queryByRole("button", { name: "Fit width" })).toBeNull();
     expect(toggle).toHaveFocus();
     expect(modePressed(stage(), "Fit width")).toBe("true");
@@ -759,13 +757,34 @@ describe("per-capture session camera", () => {
     expect(last.camera.zoom).toBe(1);
   });
 
-  test("a first-visit plane reports the entire-capture initial camera", async () => {
+  test("a first-visit plane reports fit width with the top edge visible", async () => {
     const onCameraChange = vi.fn();
     render(<CaptureCanvas {...props} onCameraChange={onCameraChange} />);
     await waitFor(() => expect(onCameraChange).toHaveBeenCalled());
     const first = onCameraChange.mock.calls[0]![0] as CaptureCameraState;
-    expect(first.mode).toBe("entire");
+    expect(first.mode).toBe("width");
     expect(first.follow).toBe(true);
+    expect(first.camera.zoom).toBeCloseTo((800 - 24) / props.width);
+    expect(first.camera.y).toBe(12);
+    expect(modePressed(stage(), "Fit width")).toBe("true");
+  });
+
+  test("a narrow capture begins centered at 1x without enlarging", async () => {
+    const onCameraChange = vi.fn();
+    render(
+      <CaptureCanvas
+        {...props}
+        captureId="cap-root-mobile-v1"
+        variant="Mobile"
+        width={390}
+        height={13_091}
+        onCameraChange={onCameraChange}
+      />,
+    );
+    await waitFor(() => expect(onCameraChange).toHaveBeenCalled());
+    const first = onCameraChange.mock.calls[0]![0] as CaptureCameraState;
+    expect(first.mode).toBe("width");
+    expect(first.camera).toEqual({ x: (800 - 390) / 2, y: 12, zoom: 1 });
   });
 
   test("the zoom buttons take the camera over: a later resize must not re-apply the named mode", async () => {
@@ -1913,7 +1932,7 @@ describe("revealing the selected mark (D078)", () => {
     const { rerender } = render(
       <CaptureCanvas {...props} pins={pins} onCameraChange={onCameraChange} revealSelected={0} />,
     );
-    // Let the initial entire-capture camera land and settle first.
+    // Let the initial camera land and settle first.
     await waitFor(() => expect(onCameraChange).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 20));
     const reportsBefore = onCameraChange.mock.calls.length;

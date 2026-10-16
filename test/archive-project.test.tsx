@@ -8,7 +8,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { ArchiveProjectControl } from "../src/components/archive-project";
+import { ArchiveProjectControl, UnarchiveProjectControl } from "../src/components/archive-project";
 import { EDITOR_CSRF_COOKIE, EDITOR_CSRF_HEADER } from "../src/lib/auth-constants";
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -18,7 +18,7 @@ beforeEach(() => {
   answer = 200;
   fetchMock = vi.fn((url: unknown, init?: RequestInit) => {
     const target = String(url);
-    if (!target.endsWith("/api/projects/pub-1/archive") || init?.method !== "POST") {
+    if (!target.endsWith("/api/projects/pub-1/archive") || !["POST", "DELETE"].includes(init?.method ?? "")) {
       return Promise.reject(new Error(`unexpected fetch: ${init?.method} ${target}`));
     }
     return Promise.resolve(
@@ -29,6 +29,23 @@ beforeEach(() => {
   });
   vi.stubGlobal("fetch", fetchMock);
   document.cookie = `${EDITOR_CSRF_COOKIE}=editor-proof-sentinel`;
+});
+
+test("Unarchive restores without confirmation and shows failures", async () => {
+  const user = userEvent.setup();
+  const onUnarchived = vi.fn();
+  answer = 503;
+  render(<UnarchiveProjectControl publicId="pub-1" projectTitle="A-OK" onUnarchived={onUnarchived} />);
+  await user.click(screen.getByRole("button", { name: "Unarchive A-OK" }));
+  expect(fetchMock.mock.calls[0]![1]).toMatchObject({
+    method: "DELETE",
+    headers: { [EDITOR_CSRF_HEADER]: "editor-proof-sentinel" },
+  });
+  expect(screen.getByRole("alert")).toHaveTextContent("could not be unarchived");
+  expect(onUnarchived).not.toHaveBeenCalled();
+  answer = 200;
+  await user.click(screen.getByRole("button", { name: "Unarchive A-OK" }));
+  expect(onUnarchived).toHaveBeenCalledTimes(1);
 });
 
 afterEach(() => {

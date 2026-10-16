@@ -1,11 +1,6 @@
 "use client";
 
-// The editor's Archive control in the selected project's header (D108,
-// D110). Archiving takes the project out of the project list and leaves
-// everything else as it was, including the founder link. There is no
-// unarchive in the interface yet (D109), so the action asks once, inline —
-// the same Confirm / Cancel step the founder-link control uses — and says
-// plainly that nothing is lost.
+// Archive and Unarchive keep pages, pins, threads, and capability links intact.
 
 import { useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -102,6 +97,58 @@ export function ArchiveProjectControl({
           Archive
         </button>
       )}
+      {error ? (
+        <p role="alert" className="archive-project-error">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function UnarchiveProjectControl({
+  publicId,
+  projectTitle,
+  onUnarchived,
+}: {
+  publicId: string;
+  projectTitle: string;
+  onUnarchived: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const unarchive = async () => {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(publicId)}/archive`, {
+        method: "DELETE",
+        headers: { [EDITOR_CSRF_HEADER]: readCsrfProof() },
+      });
+      if (!response.ok) {
+        setError("The project could not be unarchived. Try again.");
+        return;
+      }
+      onUnarchived();
+    } catch {
+      setError("The project could not be unarchived. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="archive-project">
+      <button
+        type="button"
+        aria-label={`Unarchive ${projectTitle}`}
+        disabled={pending}
+        onClick={() => void unarchive()}
+      >
+        {pending ? "Unarchiving…" : "Unarchive"}
+      </button>
       {error ? (
         <p role="alert" className="archive-project-error">
           {error}

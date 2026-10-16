@@ -30,18 +30,33 @@ import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
   | { status: "loading" }
-  | { status: "ready"; projects: WorkspaceProject[]; payload: string }
+  | {
+      status: "ready";
+      projects: WorkspaceProject[];
+      archivedProjects: WorkspaceProject[];
+      payload: string;
+    }
   | { status: "failed" };
 function keepSendTarget(
   current: ListState,
   projects: WorkspaceProject[],
+  archivedProjects: WorkspaceProject[],
   targetId: string | null,
-): WorkspaceProject[] {
-  if (!targetId || current.status !== "ready" || projects.some((p) => p.publicId === targetId)) {
-    return projects;
+): { projects: WorkspaceProject[]; archivedProjects: WorkspaceProject[] } {
+  if (
+    !targetId ||
+    current.status !== "ready" ||
+    [...projects, ...archivedProjects].some((project) => project.publicId === targetId)
+  ) {
+    return { projects, archivedProjects };
   }
-  const target = current.projects.find((project) => project.publicId === targetId);
-  return target ? [...projects, target] : projects;
+  const active = current.projects.find((project) => project.publicId === targetId);
+  if (active) return { projects: [...projects, active], archivedProjects };
+  const archived = current.archivedProjects.find((project) => project.publicId === targetId);
+  return {
+    projects,
+    archivedProjects: archived ? [...archivedProjects, archived] : archivedProjects,
+  };
 }
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
@@ -73,13 +88,21 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         return;
       }
       const text = await response.text();
-      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      const payload = JSON.parse(text) as {
+        projects: WorkspaceProject[];
+        archivedProjects?: WorkspaceProject[];
+      };
       if (request !== hierarchyRequest.current) return;
       setList((current) =>
         request === hierarchyRequest.current
           ? {
               status: "ready",
-              projects: keepSendTarget(current, payload.projects, sendTarget.current),
+              ...keepSendTarget(
+                current,
+                payload.projects,
+                payload.archivedProjects ?? [],
+                sendTarget.current,
+              ),
               payload: text,
             }
           : current,
@@ -110,7 +133,7 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) return;
       const text = await response.text();
-      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      const payload = JSON.parse(text) as { projects: WorkspaceProject[]; archivedProjects?: WorkspaceProject[] };
       if (!Array.isArray(payload.projects)) return;
       if (request !== hierarchyRequest.current) return;
       setList((current) =>
@@ -119,7 +142,12 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         text !== current.payload
           ? {
               status: "ready",
-              projects: keepSendTarget(current, payload.projects, sendTarget.current),
+              ...keepSendTarget(
+                current,
+                payload.projects,
+                payload.archivedProjects ?? [],
+                sendTarget.current,
+              ),
               payload: text,
             }
           : current,
@@ -290,15 +318,15 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             <Link href="/pins/new">New project</Link>
           </div>
         ) : null}
-        {list.status === "ready" && list.projects.length === 0 ? (
+        {list.status === "ready" && list.projects.length + list.archivedProjects.length === 0 ? (
           <p className="list-empty">
             No projects yet. <Link href="/pins/new">Create your first project</Link> to
             capture a page.
           </p>
         ) : null}
-        {list.status === "ready" && list.projects.length > 0 ? (
+        {list.status === "ready" && list.projects.length + list.archivedProjects.length > 0 ? (
           <ProjectWorkspace
-            projects={list.projects}
+            projects={[...list.projects, ...list.archivedProjects]}
             onChanged={() => void load()}
             onRefresh={refresh}
             liveRefreshMs={liveRefreshMs}

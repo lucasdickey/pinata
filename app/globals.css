@@ -4241,9 +4241,6 @@ pre code {
   text-overflow: ellipsis;
 }
 
-/* One card per capture, in page order, Desktop then Mobile. The thumbnail
-   is the same private asset the canvas renders, clipped to a fixed frame
-   and sized by CSS; no new storage. */
 .project-overview {
   margin-top: 0.5rem;
 }
@@ -4272,9 +4269,22 @@ pre code {
   border-radius: var(--radius);
 }
 
-.overview-card:hover {
+.overview-card:hover,
+.overview-card:focus-within {
   background: var(--surface);
   border-color: var(--line-strong);
+}
+
+.overview-open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.overview-open:hover .overview-url {
+  text-decoration: underline;
 }
 
 .overview-thumb {
@@ -4305,6 +4315,35 @@ pre code {
 .overview-counts {
   color: var(--ink-soft);
   font-size: 0.8rem;
+}
+
+.overview-device-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.overview-device-toggle button {
+  min-width: 0;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8rem;
+  background: transparent;
+  border: var(--hairline) solid var(--line);
+  border-radius: 4px;
+}
+
+.overview-device-toggle button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.overview-device-state {
+  color: var(--ink-soft);
+}
+
+.overview-device-toggle button[aria-pressed="true"] .overview-device-state {
+  color: inherit;
 }
 
 .overview-counts[data-unread="true"] {

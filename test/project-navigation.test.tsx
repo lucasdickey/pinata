@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// The project overview and the navigation around it (D077): the workspace
-// opens on one card per capture in page/device order with thumbnails and
-// counts; a card opens the canvas and Back returns; the rail lists projects
+// The project overview and the navigation around it: the workspace
+// opens on one card per page with a device preview, thumbnails, and
+// page counts; a card opens the canvas and Back returns; the rail lists projects
 // and pages only, with the device chosen by a toggle above the canvas; Next
 // and Previous pin (and J/K) step through every pin in the project across
 // planes and wrap at the project's ends; and the pin table is filtered to
@@ -187,6 +187,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   threadsById = {};
   fetchMock = vi.fn((url: unknown) => {
@@ -341,74 +342,147 @@ const panelPin = () => within(detail()).getByTestId("panel-pin");
 const stepPosition = () => within(detail()).getByTestId("pin-step-position");
 
 describe("ProjectOverview", () => {
-  test("one card per capture, in page order, Desktop then Mobile", () => {
+  test("one card per page in submitted order, with both devices represented", () => {
     const list = overviewCards(project());
-    expect(list.map((card) => `${card.pageUrl} ${card.variant}`)).toEqual([
-      "https://chickpea.co/ desktop",
-      "https://chickpea.co/ mobile",
-      "https://chickpea.co/pricing desktop",
-      "https://chickpea.co/pricing mobile",
-      "https://chickpea.co/about desktop",
-      "https://chickpea.co/about mobile",
+    expect(list.map((card) => card.pageUrl)).toEqual([
+      "https://chickpea.co/",
+      "https://chickpea.co/pricing",
+      "https://chickpea.co/about",
     ]);
+    expect(list.map((card) => card.devices.map((device) => device.variant))).toEqual([
+      ["desktop", "mobile"],
+      ["desktop", "mobile"],
+      ["desktop", "mobile"],
+    ]);
+    expect(list.map((card) => card.defaultVariant)).toEqual(["desktop", "desktop", "mobile"]);
     render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={vi.fn()} />);
-    expect(screen.getAllByTestId("overview-card")).toHaveLength(6);
+    expect(screen.getAllByTestId("overview-card")).toHaveLength(3);
   });
 
-  test("a ready card shows a thumbnail from the authorized asset route, named by page and device", () => {
-    render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={vi.fn()} />);
-    const image = screen.getByRole("img", { name: "Mobile capture of https://chickpea.co/" });
+  test("the preview uses the authorized asset route and the selected device's durable address", async () => {
+    const user = userEvent.setup();
+    const onOpenCapture = vi.fn();
+    render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={onOpenCapture} />);
+    const home = screen.getByRole("link", { name: "Open Desktop capture of https://chickpea.co/" });
+    expect(home).toHaveAttribute("href", "/pins?project=pub1&page=page-root&device=desktop");
+    const toggle = screen.getByRole("group", { name: "Preview of https://chickpea.co/" });
+    const desktop = within(toggle).getByRole("button", { name: "Desktop preview of https://chickpea.co/" });
+    const mobile = within(toggle).getByRole("button", { name: "Mobile preview of https://chickpea.co/" });
+    expect(desktop).toHaveAttribute("aria-pressed", "true");
+    await user.click(mobile);
+    expect(mobile).toHaveAttribute("aria-pressed", "true");
+    expect(desktop).toHaveAttribute("aria-pressed", "false");
+    expect(onOpenCapture).not.toHaveBeenCalled();
+    const link = screen.getByRole("link", { name: "Open Mobile capture of https://chickpea.co/" });
+    expect(link).toHaveAttribute("href", "/pins?project=pub1&page=page-root&device=mobile");
+    const image = within(link).getByRole("img", { name: "Mobile capture of https://chickpea.co/" });
     expect(image).toHaveAttribute("src", "/api/captures/root-m1/asset");
     expect(image.getAttribute("src")).not.toMatch(/^[a-z]+:/i);
     expect(image).toHaveClass("overview-thumb");
+    expect(screen.getByRole("link", { name: "Open Desktop capture of https://chickpea.co/pricing" })).toHaveAttribute(
+      "href",
+      "/pins?project=pub1&page=page-pricing&device=desktop",
+    );
   });
-
-  test("a capture that is not ready shows its state instead of a thumbnail", () => {
+  test("a failed preview names the failure without hiding the ready sibling", async () => {
+    const user = userEvent.setup();
     render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={vi.fn()} />);
-    const failed = screen.getByRole("button", {
-      name: "Open Mobile capture of https://chickpea.co/pricing",
-    });
+    const card = screen.getAllByTestId("overview-card")[1]!;
+    expect(within(card).getByRole("button", { name: "Mobile preview of https://chickpea.co/pricing" })).toHaveTextContent("Failed");
+    await user.click(within(card).getByRole("button", { name: "Mobile preview of https://chickpea.co/pricing" }));
+    const failed = within(card).getByRole("link", { name: "Open Mobile capture of https://chickpea.co/pricing" });
     expect(within(failed).queryByRole("img")).toBeNull();
     expect(within(failed).getByTestId("overview-state")).toHaveTextContent("Failed");
-    expect(failed).toHaveAttribute("data-ready", "false");
+    expect(card).toHaveAttribute("data-ready", "false");
+    expect(failed).toHaveAttribute("href", "/pins?project=pub1&page=page-pricing&device=mobile");
   });
 
-  test("each card carries the page URL, device, state, and the pin, open, and unread counts", () => {
+  test("each card carries the page URL, preview state, and both devices' counts", () => {
     render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={vi.fn()} />);
-    const home = screen.getByRole("button", { name: "Open Desktop capture of https://chickpea.co/" });
+    const home = screen.getAllByTestId("overview-card")[0]!;
     expect(home).toHaveTextContent("https://chickpea.co/");
     expect(within(home).getByTestId("overview-meta")).toHaveTextContent("Desktop · Ready · v1");
-    expect(within(home).getByTestId("overview-counts")).toHaveTextContent("2 pins · 1 open · 2 unread");
+    expect(within(home).getByTestId("overview-counts")).toHaveTextContent("3 pins · 2 open · 2 unread");
     expect(within(home).getByTestId("overview-counts")).toHaveAttribute("data-unread", "true");
-    const about = screen.getByRole("button", { name: "Open Mobile capture of https://chickpea.co/about" });
+    const about = screen.getAllByTestId("overview-card")[2]!;
     expect(within(about).getByTestId("overview-counts")).toHaveTextContent("No pins");
     expect(within(about).getByTestId("overview-counts")).toHaveAttribute("data-unread", "false");
   });
-
-  test("local seen adjustments lower a card's unread count", () => {
+  test("local seen adjustments lower a page's unread count", () => {
     render(
       <ProjectOverview project={project()} adjustments={{ "root-d1": 2 }} onOpenCapture={vi.fn()} />,
     );
-    const home = screen.getByRole("button", { name: "Open Desktop capture of https://chickpea.co/" });
-    expect(within(home).getByTestId("overview-counts")).toHaveTextContent("2 pins · 1 open · 0 unread");
+    const home = screen.getAllByTestId("overview-card")[0]!;
+    expect(within(home).getByTestId("overview-counts")).toHaveTextContent("3 pins · 2 open · 0 unread");
   });
 
-  test("a card reports the capture to open", async () => {
+  test("the selected device opens on an ordinary click and retains its href for a new tab", async () => {
     const user = userEvent.setup();
     const onOpenCapture = vi.fn();
     render(<ProjectOverview project={project()} adjustments={{}} onOpenCapture={onOpenCapture} />);
     await user.click(
-      screen.getByRole("button", { name: "Open Desktop capture of https://chickpea.co/pricing" }),
+      screen.getByRole("button", { name: "Mobile preview of https://chickpea.co/pricing" }),
     );
-    expect(onOpenCapture).toHaveBeenCalledWith("page-pricing", "desktop");
+    const link = screen.getByRole("link", {
+      name: "Open Mobile capture of https://chickpea.co/pricing",
+    });
+    link.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    fireEvent.click(link, { ctrlKey: true });
+    expect(onOpenCapture).not.toHaveBeenCalled();
+    await user.click(link);
+    expect(onOpenCapture).toHaveBeenCalledWith("page-pricing", "mobile");
+    expect(link).toHaveAttribute(
+      "href",
+      "/pins?project=pub1&page=page-pricing&device=mobile",
+    );
   });
 });
 
 describe("the workspace opens on the overview", () => {
+  test("project-only links and archived projects stay accessible to the editor", async () => {
+    const archived = { ...secondProject(), archivedAt: 123 };
+    window.history.replaceState(null, "", "/pins?project=pub2");
+    render(<ProjectWorkspace projects={[project(), archived]} onChanged={onChanged} />);
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(screen.getByRole("button", { name: "Unarchive example.com" })).toBeInTheDocument();
+    openRail();
+    expect(within(tree()).getByText("Archived")).toBeInTheDocument();
+    expect(within(tree()).getByRole("button", { name: "example.com" })).toBeInTheDocument();
+  });
+
+  test("a device address survives a reload and back/forward navigation", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await user.click(screen.getByRole("button", { name: "Mobile preview of https://chickpea.co/" }));
+    await user.click(screen.getByRole("link", { name: "Open Mobile capture of https://chickpea.co/" }));
+    expect(window.location.search).toBe("?project=pub1&page=page-root&device=mobile");
+    act(() => {
+      window.history.pushState(null, "", "/pins?project=pub2");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    act(() => {
+      window.history.pushState(null, "", "/pins?project=pub1&page=page-root&device=mobile");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
+  });
+
+  test("a deep-linked note restores its capture and selection without exposing another project", async () => {
+    window.history.replaceState(null, "", "/pins?project=pub1&page=page-root&device=desktop&note=rd-2");
+    const { unmount } = render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-2."));
+    expect(window.location.search).toContain("capture=root-d1&note=rd-2");
+    unmount();
+    window.history.replaceState(null, "", "/pins?project=pub2&page=page-root&device=desktop&note=rd-2");
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(window.location.search).not.toContain("note=");
+  });
   test("shows the first project's cards and no canvas until a capture is opened", () => {
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
     expect(overview()).toBeInTheDocument();
-    expect(cards()).toHaveLength(6);
+    expect(cards()).toHaveLength(3);
     expect(screen.queryByRole("region", { name: "Selected capture" })).toBeNull();
     expect(document.querySelector(".react-flow")).toBeNull();
     expect(within(overview()).getByTestId("project-title")).toHaveTextContent("chickpea.co");
@@ -419,7 +493,10 @@ describe("the workspace opens on the overview", () => {
     const user = userEvent.setup();
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
     await user.click(
-      within(overview()).getByRole("button", { name: "Open Mobile capture of https://chickpea.co/" }),
+      within(overview()).getByRole("button", { name: "Mobile preview of https://chickpea.co/" }),
+    );
+    await user.click(
+      within(overview()).getByRole("link", { name: "Open Mobile capture of https://chickpea.co/" }),
     );
     expect(detail()).toBeInTheDocument();
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
@@ -430,7 +507,7 @@ describe("the workspace opens on the overview", () => {
     await user.click(within(detail()).getByRole("button", { name: "Back to overview" }));
     expect(overview()).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Selected capture" })).toBeNull();
-    expect(cards()).toHaveLength(6);
+    expect(cards()).toHaveLength(3);
   });
 
   test("the overview lists every pin in the project with page and device columns", async () => {
@@ -536,7 +613,7 @@ describe("the projects menu and the page picker (D128)", () => {
     await user.click(switches()[1]!);
     expect(overview()).toBeInTheDocument();
     expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
-    expect(cards()).toHaveLength(2);
+    expect(cards()).toHaveLength(1);
     // The project pins are re-read for the newly shown project.
     await waitFor(() =>
       expect(
@@ -638,7 +715,7 @@ describe("cross-capture pin stepping", () => {
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
-    await waitForMode(detail(), "Entire page");
+    await waitForMode(detail(), "Fit width");
     await user.click(within(detail()).getByRole("button", { name: "Previous pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-d1/asset");
     await waitForMode(detail(), "Natural size");
