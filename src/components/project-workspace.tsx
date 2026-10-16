@@ -164,6 +164,7 @@ export function ProjectWorkspace({
   onRefresh,
   liveRefreshMs,
   onLinkIssuingChange,
+  onSendOpenChange,
 }: {
   projects: WorkspaceProject[];
   onChanged: () => void;
@@ -175,6 +176,7 @@ export function ProjectWorkspace({
   onRefresh?: () => Promise<unknown>;
   liveRefreshMs?: number;
   onLinkIssuingChange?: (issuing: boolean) => void;
+  onSendOpenChange?: (publicId: string | null) => void;
 }) {
   // Which project the detail area shows (its overview, or one of its
   // captures), and which capture is open in the canvas view; null opens
@@ -183,25 +185,11 @@ export function ProjectWorkspace({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [linkIssuing, setLinkIssuing] = useState(false);
   const linkIssuingRef = useRef(false);
-  const issuingAddress = useRef<string | null>(null);
   const onIssuingChange = (pending: boolean) => {
-    issuingAddress.current = pending
-      ? `${window.location.pathname}${window.location.search}${window.location.hash}`
-      : null;
     linkIssuingRef.current = pending;
     setLinkIssuing(pending);
     onLinkIssuingChange?.(pending);
   };
-  useEffect(() => {
-    const keepProject = (event: PopStateEvent) => {
-      if (!linkIssuingRef.current || !issuingAddress.current) return;
-      // A history move must not replace the issuing project before its one-time URL appears.
-      event.stopImmediatePropagation();
-      window.history.replaceState(null, "", issuingAddress.current);
-    };
-    window.addEventListener("popstate", keepProject, true);
-    return () => window.removeEventListener("popstate", keepProject, true);
-  }, []);
   // A pin to select as soon as the plane it lives on is shown: set by a
   // step or a table row that lands on another capture, consumed by the
   // capture-change effect below so the plane switch and the selection are
@@ -1533,12 +1521,12 @@ export function ProjectWorkspace({
             disabled={linkIssuing}
           />
           <SendSheet
-            key={activeProject.publicId}
             publicId={activeProject.publicId}
             projectTitle={activeProject.title}
             markdown={projectMarkdown}
             markdownReady={projectPinsStatus === "ready"}
             onIssuingChange={onIssuingChange}
+            onOpenChange={onSendOpenChange}
           />
         </div>
 

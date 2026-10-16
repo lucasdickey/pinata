@@ -20,14 +20,17 @@ export function SendSheet({
   markdown,
   markdownReady,
   onIssuingChange,
+  onOpenChange,
 }: {
   publicId: string;
   projectTitle: string;
   markdown: () => string;
   markdownReady: boolean;
   onIssuingChange?: (issuing: boolean) => void;
+  onOpenChange?: (publicId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState({ publicId, projectTitle });
   const [choice, setChoice] = useState<Choice>("agent");
   const [copyState, setCopyState] = useState<CopyState>("idle");
   const [issuing, setIssuing] = useState(false);
@@ -46,6 +49,7 @@ export function SendSheet({
   const close = () => {
     if (issuingRef.current) return;
     setOpen(false);
+    onOpenChange?.(null);
     button.current?.focus();
   };
 
@@ -56,7 +60,7 @@ export function SendSheet({
   };
 
   const copyMarkdown = async () => {
-    if (!markdownReady) return;
+    if (!markdownReady || target.publicId !== publicId) return;
     try {
       await navigator.clipboard.writeText(markdown());
       setCopyState("copied");
@@ -64,6 +68,7 @@ export function SendSheet({
       setCopyState("failed");
     }
   };
+  const targetMarkdownReady = markdownReady && target.publicId === publicId;
 
   return (
     <div className="send-control" data-testid="send-control">
@@ -72,14 +77,16 @@ export function SendSheet({
         className="send-toggle"
         ref={button}
         aria-expanded={open}
-        aria-controls={`send-sheet-${publicId}`}
+        aria-controls={`send-sheet-${target.publicId}`}
         disabled={issuing}
         onClick={() => {
           if (open) close();
           else {
+            setTarget({ publicId, projectTitle });
             setOpen(true);
             setChoice("agent");
             setCopyState("idle");
+            onOpenChange?.(publicId);
           }
         }}
       >
@@ -89,15 +96,15 @@ export function SendSheet({
       </button>
       {open ? (
         <div
-          id={`send-sheet-${publicId}`}
+          id={`send-sheet-${target.publicId}`}
           className="send-sheet"
           role="dialog"
-          aria-label={`Send ${projectTitle}`}
+          aria-label={`Send ${target.projectTitle}`}
           aria-busy={issuing}
           onKeyDown={onKeyDown}
         >
           <div className="send-sheet-head">
-            <h3>Send {projectTitle}</h3>
+            <h3>Send {target.projectTitle}</h3>
             <button
               type="button"
               className="link-panel-close"
@@ -113,11 +120,11 @@ export function SendSheet({
               <button
                 key={id}
                 type="button"
-                id={`send-choice-${id}-${publicId}`}
+                id={`send-choice-${id}-${target.publicId}`}
                 ref={id === "agent" ? firstChoice : undefined}
                 role="tab"
                 aria-selected={choice === id}
-                aria-controls={`send-${id}-${publicId}`}
+                aria-controls={`send-${id}-${target.publicId}`}
                 tabIndex={choice === id ? 0 : -1}
                 disabled={issuing}
                 onClick={() => {
@@ -134,7 +141,7 @@ export function SendSheet({
                         choices.length
                     ]!;
                   setChoice(next.id);
-                  document.getElementById(`send-choice-${next.id}-${publicId}`)?.focus();
+                  document.getElementById(`send-choice-${next.id}-${target.publicId}`)?.focus();
                 }}
               >
                 {label}
@@ -143,56 +150,56 @@ export function SendSheet({
           </div>
           {issuing ? <p role="status">Making the link… Keep Send open until it appears.</p> : null}
           <div
-            id={`send-agent-${publicId}`}
+            id={`send-agent-${target.publicId}`}
             className="send-sheet-section"
             role="tabpanel"
-            aria-labelledby={`send-choice-agent-${publicId}`}
+            aria-labelledby={`send-choice-agent-${target.publicId}`}
             hidden={choice !== "agent"}
           >
             {choice === "agent" ? (
               <AgentLinkControl
-                publicId={publicId}
-                projectTitle={projectTitle}
+                publicId={target.publicId}
+                projectTitle={target.projectTitle}
                 onClose={close}
                 onIssuingChange={reportIssuingChange}
               />
             ) : null}
           </div>
           <div
-            id={`send-person-${publicId}`}
+            id={`send-person-${target.publicId}`}
             className="send-sheet-section"
             role="tabpanel"
-            aria-labelledby={`send-choice-person-${publicId}`}
+            aria-labelledby={`send-choice-person-${target.publicId}`}
             hidden={choice !== "person"}
           >
             {choice === "person" ? (
               <FounderShareControl
-                publicId={publicId}
-                projectTitle={projectTitle}
+                publicId={target.publicId}
+                projectTitle={target.projectTitle}
                 onClose={close}
                 onIssuingChange={reportIssuingChange}
               />
             ) : null}
           </div>
           <div
-            id={`send-markdown-${publicId}`}
+            id={`send-markdown-${target.publicId}`}
             className="send-sheet-section send-markdown"
             role="tabpanel"
-            aria-labelledby={`send-choice-markdown-${publicId}`}
+            aria-labelledby={`send-choice-markdown-${target.publicId}`}
             hidden={choice !== "markdown"}
           >
             <p>Copy every note in this project, including replies, as Markdown. No link is made.</p>
             <button
               type="button"
               className="button-primary"
-              disabled={!markdownReady}
+              disabled={!targetMarkdownReady}
               onClick={() => void copyMarkdown()}
             >
               <CanvasIcon name="copy" size={15} />
               Copy project Markdown
             </button>
             <p role="status">
-              {!markdownReady
+              {!targetMarkdownReady
                 ? "Project notes are not available yet."
                 : copyState === "copied"
                   ? "Project Markdown copied."

@@ -10,7 +10,7 @@
 // own behavior is covered by test/new-project-page.test.tsx.
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CAPTURE_POLL_INITIAL_INTERVAL_MS } from "../src/lib/boundaries";
 import { EditorHome } from "../src/components/editor-home";
@@ -207,5 +207,101 @@ describe("editor project-entry states", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/could not be loaded/i);
     expect(screen.getByRole("link", { name: "New project" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+  });
+
+  test("a failed capture poll keeps a pending Send mounted and unlocks after POST failure", async () => {
+    let finishIssue!: (response: Response) => void;
+    const pendingIssue = new Promise<Response>((resolve) => {
+      finishIssue = resolve;
+    });
+    let reads = 0;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/projects") {
+        reads += 1;
+        return reads === 1
+          ? Promise.resolve(Response.json({ projects: [projectWith("capturing")] }))
+          : Promise.reject(new Error("poll failed"));
+      }
+      if (url === "/api/projects/pub1/agent-link") {
+        return init?.method === "POST"
+          ? pendingIssue
+          : Promise.resolve(Response.json({ link: { state: "none", version: 0 } }));
+      }
+      if (url.endsWith("/annotations")) {
+        return Promise.resolve(Response.json({ annotations: [] }));
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    render(<EditorHome />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
+    await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
+    expect(reads).toBe(2);
+    const dialog = screen.getByRole("dialog", { name: "Send Chickpea review" });
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Making the link");
+    await act(async () => {
+      finishIssue(Response.json({ error: "unavailable" }, { status: 503 }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("could not be created");
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+  });
+
+  test("successful capture polling updates other projects without losing the open Send target", async () => {
+    let finishIssue!: (response: Response) => void;
+    const pendingIssue = new Promise<Response>((resolve) => {
+      finishIssue = resolve;
+    });
+    let reads = 0;
+    const replacement = {
+      ...projectWith("ready"),
+      projectId: "p2",
+      publicId: "pub2",
+      title: "Another review",
+    };
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/projects") {
+        reads += 1;
+        return Promise.resolve(
+          Response.json({ projects: reads === 1 ? [projectWith("capturing")] : [replacement] }),
+        );
+      }
+      if (url === "/api/projects/pub1/agent-link") {
+        return init?.method === "POST"
+          ? pendingIssue
+          : Promise.resolve(Response.json({ link: { state: "none", version: 0 } }));
+      }
+      if (url.endsWith("/annotations")) {
+        return Promise.resolve(Response.json({ annotations: [] }));
+      }
+      return Promise.reject(new Error(`unexpected fetch: ${url}`));
+    });
+    render(<EditorHome />);
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await flush();
+    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+    await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
+    expect(reads).toBe(2);
+    expect(screen.getByTestId("project-title")).toHaveTextContent("Another review");
+    expect(screen.getByRole("dialog", { name: "Send Chickpea review" })).toBeInTheDocument();
+    await act(async () => {
+      finishIssue(
+        Response.json({ link: { state: "active", version: 1 }, path: "/a/issued-once" }),
+      );
+    });
+    expect(screen.getByLabelText(/Agent link \(shown once/)).toHaveValue(
+      `${window.location.origin}/a/issued-once`,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+    await flush();
+    expect(reads).toBe(3);
+    expect(screen.getByTestId("project-title")).toHaveTextContent("Another review");
+    expect(screen.queryByLabelText(/Agent link \(shown once/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(screen.getByRole("dialog", { name: "Send Another review" })).toBeInTheDocument();
   });
 });

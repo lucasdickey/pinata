@@ -273,23 +273,57 @@ describe("project navigation during Send issuance", () => {
     await finish();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
   });
-
-  test("a history project change is rejected while the issue response is pending", async () => {
-    const previousUrl = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState(null, "", "/pins?project=pub1");
-    try {
-      const user = userEvent.setup();
-      render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
-      await issue(user);
-      window.history.pushState(null, "", "/pins?project=pub2");
-      act(() => window.dispatchEvent(new PopStateEvent("popstate")));
-      expect(window.location.search).toBe("?project=pub1");
-      expect(screen.getByTestId("project-title")).toHaveTextContent("chickpea.co");
-      await finish();
-    } finally {
-      window.history.replaceState(null, "", previousUrl);
-    }
+  test("an issuing sheet stays with its original project across a workspace update", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />,
+    );
+    await issue(user);
+    view.rerender(
+      <ProjectWorkspace projects={[secondProject(), project()]} onChanged={onChanged} />,
+    );
+    expect(screen.getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(screen.getByRole("dialog", { name: "Send chickpea.co" })).toBeInTheDocument();
+    await finish();
+    await user.click(screen.getByRole("button", { name: "Close Send" }));
+    expect(screen.queryByLabelText(/Agent link \(shown once/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(screen.getByRole("dialog", { name: "Send example.com" })).toBeInTheDocument();
   });
+
+  test.each([false, true])(
+    "Back and Forward preserve both history entries during issuance (Navigation API: %s)",
+    async (navigationSupported) => {
+      const previousUrl = `${window.location.pathname}${window.location.search}`;
+      if (navigationSupported) {
+        vi.stubGlobal("navigation", { currentEntry: { key: "current" } });
+      } else {
+        vi.stubGlobal("navigation", undefined);
+      }
+      window.history.replaceState({ entry: "first" }, "", "/pins?project=pub1");
+      window.history.pushState({ entry: "second" }, "", "/pins?project=pub2");
+      window.history.back();
+      await waitFor(() => expect(window.location.search).toBe("?project=pub1"));
+      try {
+        const user = userEvent.setup();
+        render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+        await issue(user);
+        window.history.forward();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub2"));
+        expect(window.history.state).toEqual({ entry: "second" });
+        expect(screen.getByRole("dialog", { name: "Send chickpea.co" })).toBeInTheDocument();
+        await finish();
+        window.history.back();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub1"));
+        expect(window.history.state).toEqual({ entry: "first" });
+        window.history.forward();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub2"));
+        expect(window.history.state).toEqual({ entry: "second" });
+      } finally {
+        window.history.replaceState(null, "", previousUrl);
+      }
+    },
+  );
 });
 
 afterEach(() => {

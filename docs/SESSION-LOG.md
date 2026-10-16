@@ -4211,3 +4211,45 @@ Elapsed: about 20 minutes (18:14–18:34 UTC) against no fixed timebox.
 - Node 24 `npm run validate` passed: lint, typecheck, 1,943 Vitest tests
   (44 credentialed skips), generated docs check, production build, and
   28 Playwright tests (46 credentialed skips without `.env.local`).
+
+---
+
+## 2026-10-16 — preserve browser history and the open Send result (D143)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 10 minutes (18:38–18:48 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Replaced the pending-issue history rewrite with a Send sheet that keeps its
+  issuing project identity until the user dismisses it. Back and Forward now
+  traverse the original entries without replacing their URLs or state.
+- Kept the issuing project's last ready hierarchy row during a transient
+  capture-poll failure or a successful refresh that removes that project.
+  Other projects and successful capture updates continue to refresh. Closing
+  Send re-reads the current hierarchy.
+
+### What broke
+
+- The Back/Forward regression failed before the correction because Forward
+  returned to the rewritten first-project URL; the rejected-poll regression
+  failed because the Send dialog was gone while its POST was still pending.
+- Chromium's Next.js router adds private metadata to `history.state` on
+  traversal. The browser regression now checks its own marker and URL rather
+  than expecting the framework-owned state object to contain only that marker.
+- A full-gate rerun inherited the disposable browser test's
+  `PINATA_SERVER_CAPTURE=off` flag and failed 12 unrelated capture-scheduling
+  tests. Clearing all scratch-only environment variables restored the gate.
+
+### Validation and decisions
+
+- Both Navigation-API-present and absent component paths retain their
+  history entries. A delayed browser POST preserves the original link result,
+  then Back and Forward revisit the original URLs and markers after dismissal.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,947 Vitest tests
+  (44 credentialed skips), current generated docs, production build, and
+  28 Playwright tests (47 credentialed skips without `.env.local`). The new
+  Chromium history test also passed against disposable local credentials and
+  a file database.
+- This is a correction to D143's existing one-time display contract; no new
+  product or storage decision was made.

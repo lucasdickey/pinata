@@ -32,11 +32,23 @@ type ListState =
   | { status: "loading" }
   | { status: "ready"; projects: WorkspaceProject[] }
   | { status: "failed" };
+function keepSendTarget(
+  current: ListState,
+  projects: WorkspaceProject[],
+  targetId: string | null,
+): WorkspaceProject[] {
+  if (!targetId || current.status !== "ready" || projects.some((p) => p.publicId === targetId)) {
+    return projects;
+  }
+  const target = current.projects.find((project) => project.publicId === targetId);
+  return target ? [...projects, target] : projects;
+}
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const [pending, setPending] = useState(false);
   const [linkIssuing, setLinkIssuing] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
+  const sendTarget = useRef<string | null>(null);
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
@@ -50,15 +62,22 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) {
-        setList({ status: "failed" });
+        setList((current) =>
+          sendTarget.current && current.status === "ready" ? { ...current } : { status: "failed" },
+        );
         return;
       }
       const text = await response.text();
       const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
       lastPayload.current = text;
-      setList({ status: "ready", projects: payload.projects });
+      setList((current) => ({
+        status: "ready",
+        projects: keepSendTarget(current, payload.projects, sendTarget.current),
+      }));
     } catch {
-      setList({ status: "failed" });
+      setList((current) =>
+        sendTarget.current && current.status === "ready" ? { ...current } : { status: "failed" },
+      );
     }
   }, []);
 
@@ -80,7 +99,12 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
       if (!Array.isArray(payload.projects)) return;
       lastPayload.current = text;
       setList((current) =>
-        current.status === "ready" ? { status: "ready", projects: payload.projects } : current,
+        current.status === "ready"
+          ? {
+              status: "ready",
+              projects: keepSendTarget(current, payload.projects, sendTarget.current),
+            }
+          : current,
       );
     } catch {
       // Best effort: the next tick, or the next write, reads again.
@@ -261,6 +285,10 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             onRefresh={refresh}
             liveRefreshMs={liveRefreshMs}
             onLinkIssuingChange={setLinkIssuing}
+            onSendOpenChange={(publicId) => {
+              sendTarget.current = publicId;
+              if (!publicId) void load();
+            }}
           />
         ) : null}
       </section>
