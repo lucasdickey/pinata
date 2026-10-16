@@ -178,6 +178,47 @@ describe("editor live refresh (D097)", () => {
     expect(screen.getByTestId("project-title")).toHaveTextContent("Review");
   });
 
+  test("a live refresh started before Send closes cannot restore an older project list", async () => {
+    render(<EditorHome />);
+    await act(async () => {});
+    const fetchNow = fetchMock.getMockImplementation() as (url: string) => Promise<Response>;
+    let finishRefresh!: (response: Response) => void;
+    const oldRead = new Promise<Response>((resolve) => {
+      finishRefresh = resolve;
+    });
+    let reads = 0;
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/projects") {
+        reads += 1;
+        return reads === 1
+          ? oldRead
+          : Promise.resolve(
+              Response.json({
+                projects: [
+                  {
+                    ...settledProject(),
+                    projectId: "p2",
+                    publicId: "pub2",
+                    title: "Current review",
+                  },
+                ],
+              }),
+            );
+      }
+      return fetchNow(url);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await tick(LIVE_REFRESH_INTERVAL_MS);
+    expect(reads).toBe(1);
+    fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+    await act(async () => {});
+    expect(reads).toBe(2);
+    expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+
+    await act(async () => finishRefresh(Response.json({ projects: [settledProject()] })));
+    expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+  });
+
   test("the interval is injectable", async () => {
     render(<EditorHome liveRefreshMs={5_000} />);
     await act(async () => {});

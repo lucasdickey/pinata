@@ -30,7 +30,7 @@ import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
   | { status: "loading" }
-  | { status: "ready"; projects: WorkspaceProject[] }
+  | { status: "ready"; projects: WorkspaceProject[]; payload: string }
   | { status: "failed" };
 function keepSendTarget(
   current: ListState,
@@ -49,34 +49,49 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const [linkIssuing, setLinkIssuing] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
   const sendTarget = useRef<string | null>(null);
+  // Polling and quiet refresh share one order: an older response cannot
+  // replace a newer hierarchy read, including the read after Send closes.
+  const hierarchyRequest = useRef(0);
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
   const [retrying, setRetrying] = useState(false);
 
-  // The last hierarchy answer as text, so the live refresh (D097) can tell a
-  // changed hierarchy from an identical one without a deep compare.
-  const lastPayload = useRef<string | null>(null);
-
   const load = useCallback(async () => {
+    const request = ++hierarchyRequest.current;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
+      if (request !== hierarchyRequest.current) return;
       if (!response.ok) {
         setList((current) =>
-          sendTarget.current && current.status === "ready" ? { ...current } : { status: "failed" },
+          request !== hierarchyRequest.current
+            ? current
+            : sendTarget.current && current.status === "ready"
+              ? { ...current }
+              : { status: "failed" },
         );
         return;
       }
       const text = await response.text();
       const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
-      lastPayload.current = text;
-      setList((current) => ({
-        status: "ready",
-        projects: keepSendTarget(current, payload.projects, sendTarget.current),
-      }));
-    } catch {
+      if (request !== hierarchyRequest.current) return;
       setList((current) =>
-        sendTarget.current && current.status === "ready" ? { ...current } : { status: "failed" },
+        request === hierarchyRequest.current
+          ? {
+              status: "ready",
+              projects: keepSendTarget(current, payload.projects, sendTarget.current),
+              payload: text,
+            }
+          : current,
+      );
+    } catch {
+      if (request !== hierarchyRequest.current) return;
+      setList((current) =>
+        request !== hierarchyRequest.current
+          ? current
+          : sendTarget.current && current.status === "ready"
+            ? { ...current }
+            : { status: "failed" },
       );
     }
   }, []);
@@ -90,19 +105,22 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   // must never swap the workspace for the failure state — and an answer
   // identical to the last one is dropped, so a quiet tick re-renders nothing.
   const refresh = useCallback(async () => {
+    const request = ++hierarchyRequest.current;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) return;
       const text = await response.text();
-      if (text === lastPayload.current) return;
       const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
       if (!Array.isArray(payload.projects)) return;
-      lastPayload.current = text;
+      if (request !== hierarchyRequest.current) return;
       setList((current) =>
-        current.status === "ready"
+        request === hierarchyRequest.current &&
+        current.status === "ready" &&
+        text !== current.payload
           ? {
               status: "ready",
               projects: keepSendTarget(current, payload.projects, sendTarget.current),
+              payload: text,
             }
           : current,
       );

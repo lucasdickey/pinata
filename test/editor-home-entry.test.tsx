@@ -304,4 +304,68 @@ describe("editor project-entry states", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(screen.getByRole("dialog", { name: "Send Another review" })).toBeInTheDocument();
   });
+
+  test.each(["success", "failure"] as const)(
+    "a delayed pre-close poll %s cannot replace the post-close hierarchy",
+    async (outcome) => {
+      let finishPoll!: (response: Response) => void;
+      let failPoll!: (error: Error) => void;
+      const pendingPoll = new Promise<Response>((resolve, reject) => {
+        finishPoll = resolve;
+        failPoll = reject;
+      });
+      const replacement = {
+        ...projectWith("ready"),
+        projectId: "p2",
+        publicId: "pub2",
+        title: "Current review",
+      };
+      let reads = 0;
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === "/api/projects") {
+          reads += 1;
+          if (reads === 2) return pendingPoll;
+          return Promise.resolve(
+            Response.json({ projects: reads === 1 ? [projectWith("capturing")] : [replacement] }),
+          );
+        }
+        if (url === "/api/projects/pub1/agent-link") {
+          return Promise.resolve(
+            init?.method === "POST"
+              ? Response.json({ link: { state: "active", version: 1 }, path: "/a/once" })
+              : Response.json({ link: { state: "none", version: 0 } }),
+          );
+        }
+        if (url.endsWith("/annotations")) {
+          return Promise.resolve(Response.json({ annotations: [] }));
+        }
+        return Promise.reject(new Error(`unexpected fetch: ${url}`));
+      });
+      render(<EditorHome />);
+      await flush();
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      await flush();
+      fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+      await flush();
+      expect(screen.getByLabelText(/Agent link \(shown once/)).toBeInTheDocument();
+      await tick(CAPTURE_POLL_INITIAL_INTERVAL_MS);
+      expect(reads).toBe(2);
+      fireEvent.click(screen.getByRole("button", { name: "Close Send" }));
+      await flush();
+      expect(reads).toBe(3);
+      expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+
+      await act(async () => {
+        if (outcome === "success") {
+          finishPoll(Response.json({ projects: [projectWith("capturing")] }));
+        } else {
+          failPoll(new Error("old poll failed"));
+        }
+      });
+      expect(screen.getByTestId("project-title")).toHaveTextContent("Current review");
+      expect(screen.queryByRole("alert")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      expect(screen.getByRole("dialog", { name: "Send Current review" })).toBeInTheDocument();
+    },
+  );
 });
