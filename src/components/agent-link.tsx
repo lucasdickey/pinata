@@ -1,7 +1,6 @@
 "use client";
 
-// The editor's per-project "Agent link" control (D121), beside "Share with
-// founder" in the project header and built the same way.
+// The editor's per-project agent link (D121), shown inside Send.
 //
 // The agent link is a secret URL that serves a read-only Markdown brief of
 // the project's open marks, with links to each screenshot, so a coding agent
@@ -31,11 +30,13 @@ type StatusState =
 export function AgentLinkControl({
   publicId,
   projectTitle,
+  onClose,
 }: {
   publicId: string;
   projectTitle: string;
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(onClose));
   const [state, setState] = useState<StatusState>({ status: "idle" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,7 +175,6 @@ export function AgentLinkControl({
         : link.state === "active"
           ? `Version ${link.version} is live. Rotate to replace it, or revoke to turn it off.`
           : "The link is off. Create a new one to hand the brief to an agent again."
-  // The short form beside the toggle, always visible (D075, D122).
   const chipState =
     link === null
       ? state.status === "failed"
@@ -186,8 +186,11 @@ export function AgentLinkControl({
           ? `Active · v${link.version}`
           : "Revoked";
   const close = () => {
-    if (open) toggle();
-    toggleButton.current?.focus();
+    if (onClose) onClose();
+    else {
+      if (open) toggle();
+      toggleButton.current?.focus();
+    }
   };
   const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Escape") return;
@@ -197,27 +200,29 @@ export function AgentLinkControl({
 
   return (
     <div className="link-control" data-testid="agent-link" data-open={open}>
-      <div className="link-chip" data-state={link?.state ?? state.status}>
-        <button
-          type="button"
-          className="link-chip-toggle"
-          ref={toggleButton}
-          aria-expanded={open}
-          aria-controls={`agent-link-${publicId}`}
-          onClick={toggle}
-        >
-          <CanvasIcon name="agent" size={16} />
-          Agent link
-          <CanvasIcon name="caret-down" size={14} />
-        </button>
-        <span
-          className="link-chip-state"
-          data-testid="agent-link-state"
-          data-state={link?.state ?? state.status}
-        >
-          {chipState}
-        </span>
-      </div>
+      {!onClose ? (
+        <div className="link-chip" data-state={link?.state ?? state.status}>
+          <button
+            type="button"
+            className="link-chip-toggle"
+            ref={toggleButton}
+            aria-expanded={open}
+            aria-controls={`agent-link-${publicId}`}
+            onClick={toggle}
+          >
+            <CanvasIcon name="agent" size={16} />
+            Agent link
+            <CanvasIcon name="caret-down" size={14} />
+          </button>
+          <span
+            className="link-chip-state"
+            data-testid="agent-link-state"
+            data-state={link?.state ?? state.status}
+          >
+            {chipState}
+          </span>
+        </div>
+      ) : null}
       {open ? (
         <div
           id={`agent-link-${publicId}`}
@@ -228,9 +233,11 @@ export function AgentLinkControl({
         >
           <div className="link-panel-head">
             <p className="link-panel-title">Agent link</p>
-            <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
-              <CanvasIcon name="close" size={16} />
-            </button>
+            {!onClose ? (
+              <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
+                <CanvasIcon name="close" size={16} />
+              </button>
+            ) : null}
           </div>
           {state.status === "loading" ? <p className="link-panel-lede">Checking link…</p> : null}
           {state.status === "failed" ? (

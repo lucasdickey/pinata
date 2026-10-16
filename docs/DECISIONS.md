@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
-| Agent proposed, human approved | 25 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138 |
+| Agent proposed, human approved | 27 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144 |
 | Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **142** | |
+| **Total** | **144** | |
 
 ## Key decisions
 
@@ -182,7 +182,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D119](#d119--a-halftone-wash-in-the-piata-orange-on-the-public-landing) | design | A halftone wash in the piñata orange on the public landing | Human directed | accepted |
 | [D120](#d120--hover-a-mark-to-read-it-and-see-the-element-it-points-at) | design | Hover a mark to read it, and see the element it points at | Human directed | accepted |
 | [D121](#d121--an-agent-link-a-secret-read-only-brief-of-the-open-marks) | build | An agent link: a secret, read-only brief of the open marks | Human directed | accepted |
-| [D122](#d122--the-projects-link-controls-as-pills-with-anchored-cards) | design | The project's link controls as pills with anchored cards | Human directed | accepted |
+| [D122](#d122--the-projects-link-controls-as-pills-with-anchored-cards) | design | The project's link controls as pills with anchored cards | Human directed | superseded |
 | [D123](#d123--the-landing-pages-sign-in-as-one-dialog) | design | The landing page's sign-in as one dialog | Human directed | accepted |
 | [D124](#d124--signing-in-again-without-losing-work) | build | Signing in again without losing work | Human directed | accepted |
 | [D125](#d125--a-box-or-circle-can-be-attached-to-several-elements) | build | A box or circle can be attached to several elements | Human directed | accepted |
@@ -203,6 +203,8 @@ The product and architecture decisions to read first. The full index follows.
 | [D140](#d140--the-demo-video-opens-the-landing-under-the-hero-filmed-from-the-real-product-scene-by-scene) | design | The demo video opens the landing under the hero, filmed from the real product scene by scene | Human directed | accepted |
 | [D141](#d141--a-scratch-pinata-can-keep-its-screenshots-on-local-disk) | build | A scratch Pinata can keep its screenshots on local disk | Agent decided alone | accepted |
 | [D142](#d142--keep-seed-data-in-the-repository-and-replay-it-into-a-scratch-pinata-through-the-api) | build | Keep seed data in the repository and replay it into a scratch Pinata through the API | Human directed | accepted |
+| [D143](#d143--offer-agent-person-and-markdown-handoff-from-one-send-sheet) | design | Offer agent, person, and Markdown handoff from one Send sheet | Agent proposed, human approved | accepted |
+| [D144](#d144--use-draft-pull-requests-for-the-approved-editor-overhaul-only) | build | Use draft pull requests for the approved editor overhaul only | Agent proposed, human approved | accepted |
 
 ---
 
@@ -4912,7 +4914,8 @@ Human instruction:
 
 ## D122 — The project's link controls as pills with anchored cards
 
-*2026-10-05 · phase: design · origin: **Human directed** · status: **accepted***
+*2026-10-05 · phase: design · origin: **Human directed** · status: **superseded***
+*Superseded by D143.*
 
 **Problem**
 
@@ -5772,4 +5775,90 @@ Human instruction:
 
 ---
 
-<sub>Generated from 142 record(s) as of 2026-10-15 · source `19fb63a30b5f`</sub>
+## D143 — Offer agent, person, and Markdown handoff from one Send sheet
+
+*2026-10-16 · phase: design · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D122.*
+
+**Problem**
+
+Two separate header pills hid the whole-project Markdown export in the pin table. Combining them risked suggesting a previously issued secret could be copied again, contrary to the capability contract.
+
+**Decision**
+
+Replace the two header entries with one Send button and one sheet with Coding agent, Person review, and Markdown choices. The first two use their existing independent capability endpoints, retain explicit confirmation before rotating or revoking an active link, and show a new URL only at issue time. Switching choices or closing the sheet forgets a new URL; reopening reads status but cannot recover the token. Markdown copies the existing complete project export after notes load and does not issue a capability. The agent brief and its screenshot links are unchanged.
+
+**Alternatives considered**
+
+- *Keep separate header pills and the Markdown action only in the pin table* — The approved Send flow asks for one entry with three choices.
+- *Store or re-fetch the live token so Send can copy the same URL later* — The owner explicitly kept the digest-only, one-time token posture of D018 and D097.
+
+**Rationale**
+
+The review artifact proposed consolidation and the owner approved it only under today's token rules. Reusing existing capability operations keeps the old URL invalidation and independent agent/person semantics while changing only the editor presentation.
+
+**Consequences**
+
+- D122's two-pill header shape is superseded; its one-time link fields and confirmation behavior remain in the shared sheet.
+- A user who leaves a link choice or closes Send must rotate an active link, after confirmation, to get a new URL; the old URL then stops working.
+- The project export is available from the header even when no capture is selected, but it waits for the project notes read.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Rec 4 (modify, security hold): combining Agent / founder / Markdown into one sheet is a product call. Re-copying a live agent token is rejected unless Lucas reverses D018/D097.
+
+Human approved:
+
+> Combined Send sheet (rec 4): yes, under today's token rules. One Send button opens one sheet with three choices: agent, person, and Markdown. A link is shown only when it is made. To get it again, Send makes a fresh one and the old one stops working. Tokens stay digest-only (D018, D097), and a live link is never re-copied.
+
+**Artifacts**
+
+- `src/components/send-sheet.tsx` — The three choices and project Markdown handoff.
+- [Owner approval of the scoped Send behavior.](https://github.com/lucasdickey/pinata/issues/34#issuecomment-6204593850)
+
+---
+
+## D144 — Use draft pull requests for the approved editor overhaul only
+
+*2026-10-16 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+D010 usually commits directly to main, but the approved editor overhaul has independent changes to the camera, Send, navigation, and overview. Combining them before review risks destabilizing the working demo and obscures the decision trail.
+
+**Decision**
+
+For this editor overhaul, work on separate branches and deliver draft pull requests for human review. Keep Node 24 npm run validate as the gate before committing. Do not change D010 as the default rule for other work.
+
+**Alternatives considered**
+
+- *Commit every overhaul slice directly to main* — This approved exception keeps independently reviewable changes off the demo's default branch until a human merges them.
+
+**Rationale**
+
+The factory proposed a narrow exception, and the owner approved draft PRs for this overhaul. It is not a reversal of the general direct-to-main rule.
+
+**Consequences**
+
+- The Send slice is delivered as a draft PR; no agent merges it.
+- Parallel branches may each allocate the next decision ID, so later integrations must renumber and regenerate generated docs after an earlier branch lands.
+
+**Provenance evidence**
+
+Agent asked:
+
+> May this overhaul use separate branches and draft PRs as an exception to the repository's direct-to-main rule?
+
+Human approved:
+
+> Yes, use draft PRs for this overhaul
+
+**Artifacts**
+
+- [Approved editor-overhaul scope.](https://github.com/lucasdickey/pinata/issues/34)
+
+---
+
+<sub>Generated from 144 record(s) as of 2026-10-16 · source `af9b85903634`</sub>

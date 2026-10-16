@@ -1,14 +1,11 @@
 "use client";
 
-// The editor's per-project "Share with founder" control (REQUIREMENTS 7).
+// The editor's per-project founder link (REQUIREMENTS 7), shown inside Send.
 //
-// It sits in the selected project's header (D075) and reads the capability
-// status once on mount so the current state — no link, active with its
-// version, or revoked — is visible next to the toggle without opening the
-// panel. Open, the panel offers Create or Rotate plus Revoke. Issuing shows
-// the complete link exactly once — the server persists only a digest and
-// can never show the token again — with the token in the URL fragment so it
-// never reaches a server log or referrer.
+// It reads capability status once on mount. The panel offers Create or
+// Rotate plus Revoke. Issuing shows the complete link exactly once — the
+// server persists only a digest and cannot show the token again — with the
+// token in the URL fragment so it never reaches a server log or referrer.
 //
 // Rotate and Revoke each end the link the founder already has, so each asks
 // once, inline, before doing it (D097): the button becomes a sentence that
@@ -39,11 +36,13 @@ export function composeFounderLink(origin: string, path: string, token: string):
 export function FounderShareControl({
   publicId,
   projectTitle,
+  onClose,
 }: {
   publicId: string;
   projectTitle: string;
+  onClose?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(onClose));
   const [state, setState] = useState<StatusState>({ status: "idle" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,8 +97,6 @@ export function FounderShareControl({
     }
   }, [publicId]);
 
-  // The status is read once on mount so the inline state is always shown;
-  // opening the panel re-reads only when that first read failed.
   useEffect(() => {
     void load();
   }, [load]);
@@ -188,7 +185,6 @@ export function FounderShareControl({
         : share.state === "active"
           ? `Version ${share.version} is live. Rotate to replace it, or revoke to turn it off.`
           : "The link is off, and nobody can open the review. Create a new one to share again."
-  // The short form beside the toggle, always visible (D075, D122).
   const chipState =
     share === null
       ? state.status === "failed"
@@ -200,8 +196,11 @@ export function FounderShareControl({
           ? `Active · v${share.version}`
           : "Revoked";
   const close = () => {
-    if (open) toggle();
-    toggleButton.current?.focus();
+    if (onClose) onClose();
+    else {
+      if (open) toggle();
+      toggleButton.current?.focus();
+    }
   };
   const onPanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "Escape") return;
@@ -211,27 +210,29 @@ export function FounderShareControl({
 
   return (
     <div className="link-control" data-testid="founder-share" data-open={open}>
-      <div className="link-chip" data-state={share?.state ?? state.status}>
-        <button
-          type="button"
-          className="link-chip-toggle"
-          ref={toggleButton}
-          aria-expanded={open}
-          aria-controls={`founder-share-${publicId}`}
-          onClick={toggle}
-        >
-          <CanvasIcon name="link" size={16} />
-          Share with founder
-          <CanvasIcon name="caret-down" size={14} />
-        </button>
-        <span
-          className="link-chip-state"
-          data-testid="founder-share-state"
-          data-state={share?.state ?? state.status}
-        >
-          {chipState}
-        </span>
-      </div>
+      {!onClose ? (
+        <div className="link-chip" data-state={share?.state ?? state.status}>
+          <button
+            type="button"
+            className="link-chip-toggle"
+            ref={toggleButton}
+            aria-expanded={open}
+            aria-controls={`founder-share-${publicId}`}
+            onClick={toggle}
+          >
+            <CanvasIcon name="link" size={16} />
+            Share with founder
+            <CanvasIcon name="caret-down" size={14} />
+          </button>
+          <span
+            className="link-chip-state"
+            data-testid="founder-share-state"
+            data-state={share?.state ?? state.status}
+          >
+            {chipState}
+          </span>
+        </div>
+      ) : null}
       {open ? (
         <div
           id={`founder-share-${publicId}`}
@@ -242,9 +243,11 @@ export function FounderShareControl({
         >
           <div className="link-panel-head">
             <p className="link-panel-title">Founder link</p>
-            <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
-              <CanvasIcon name="close" size={16} />
-            </button>
+            {!onClose ? (
+              <button type="button" className="link-panel-close" aria-label="Close" onClick={close}>
+                <CanvasIcon name="close" size={16} />
+              </button>
+            ) : null}
           </div>
           {state.status === "loading" ? <p className="link-panel-lede">Checking link…</p> : null}
           {state.status === "failed" ? (

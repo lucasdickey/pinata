@@ -4064,3 +4064,68 @@ Elapsed: about two hours against no fixed timebox.
 - D141 (agent-autonomous): screenshots on local disk for scratch runs.
 - D142 (owner-directed): the seed data and its staged replay.
 - Gate: see the pull request for the run.
+
+---
+
+## 2026-10-16 — one Send sheet under existing capability rules (D143–D144)
+
+Harness: Warp Factory implementation agent, isolated `factory/combined-send-sheet`
+branch. Elapsed: about 27 minutes (17:30–17:57 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Reused the editor's independent agent and founder link controls inside one
+  header sheet with Coding agent, Person review, and Markdown choices. Each
+  control keeps its own CSRF-protected issue, rotation confirmation, and
+  one-time URL display. Leaving a choice or closing Send unmounts its control
+  and forgets an issued URL.
+- Put the existing whole-project Markdown formatter behind the third choice;
+  copying waits for project notes to load and makes no link. Kept the pin
+  table's capture and project export actions unchanged.
+- Updated the Share and Hand off demo scene selectors to open Send, so a later
+  refilm can use the current UI. The existing binary footage was not changed.
+- Exercised the sheet on the repository's scratch Chickpea seed in Linux
+  Chromium. The seeded founder link showed an active version but no recoverable
+  URL; its rotation confirmation could be cancelled. Markdown copy reported
+  success; Escape returned focus to Send. At 390px the choices wrapped without
+  horizontal clipping. No agent link was issued during visual capture.
+
+### What broke
+
+- Two first-pass component assertions were too broad: one matcher did not
+  compare the textarea value correctly, and one matched both mounted but
+  hidden link panels. Narrowed each assertion to its field or visible panel.
+- The first full gate found an old live-refresh assertion expecting a founder
+  status request on header mount. The Person choice now reads that status when
+  selected, so the assertion tests the selected-choice read and confirms
+  background ticks do not re-read it.
+- The next two gate runs stopped before browser tests: Chromium and then its
+  Debian runtime libraries were missing from the sandbox. Installed the
+  pinned Playwright browser and its declared system dependencies.
+- Self-review found the old scene selectors still targeting the removed
+  buttons. Repaired the selectors and recorded the stale footage in
+  `docs/NEXT.md` instead of silently leaving the refilm workflow broken.
+- Self-review also caught that an issued URL could reappear after switching
+  away from its Send choice and back. The inactive choice now unmounts, so
+  only making a fresh link can show a URL after leaving it. The next gate
+  caught a test still assuming opening the default Agent choice reads the
+  Person status; corrected it to select Person first.
+- A browser tab that had survived the scratch server rebuild still held the
+  earlier client bundle and appeared to preserve inactive controls. Reloading
+  loaded the new bundle; a disposable rotated link then disappeared on tab
+  switch and stayed unavailable after closing and reopening Send.
+- The last gate's browser phase could not claim port 3100 while the disposable
+  seed server was still running. Stopped that server and reran the full gate
+  successfully.
+
+### Validation and decisions
+
+- D143 records the approved three-way handoff and supersedes D122's separate
+  header pills without changing D018/D097 token storage or the screenshot
+  routes. D144 records the owner's narrow draft-PR exception to D010.
+- Node 24 `npm run validate` completed: lint and typecheck green; 1,934 Vitest
+  tests passed (44 skipped); generated docs current; production build green;
+  28 Playwright tests passed (46 credentialed skips with no `.env.local`).
+- The disposable seed proved the rendered editor interaction, not the
+  credentialed provider routes against a deployment; their real-provider
+  checks remain gated in this sandbox.

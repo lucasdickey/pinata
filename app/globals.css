@@ -3278,18 +3278,91 @@ pre code {
   overflow: auto;
 }
 
-/* ---- founder sharing and threads (REQUIREMENTS 6 and 7) ---- */
+/* ---- Send and threads (REQUIREMENTS 6 and 7) ---- */
 
-/* The project's two link controls (D122): a pill per link — the toggle
-   with its icon and caret, then a status dot and a short state — side by
-   side under the title. Each opens a card anchored under its pill; on a
-   narrow screen the card drops into the flow at full width instead. */
-.project-links {
+.send-control {
   flex-basis: 100%;
+  position: relative;
+}
+
+.send-toggle {
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+}
+
+.send-toggle[aria-expanded="true"] {
+  border-color: var(--ink);
+}
+
+.send-sheet {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 40;
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 32px -8px color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+.send-sheet-head,
+.send-choices {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
+}
+
+.send-sheet-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.send-choices {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: var(--hairline) solid var(--line);
+}
+
+.send-choices button {
+  font-size: 0.85rem;
+}
+
+.send-choices button[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.send-sheet-section[hidden] {
+  display: none;
+}
+
+.send-sheet .link-panel {
+  position: static;
+  width: 100%;
+  padding: 0.75rem 0 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.send-markdown {
+  padding-top: 0.75rem;
+}
+
+.send-markdown p {
+  margin: 0 0 0.75rem;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+
+.send-markdown button {
+  gap: 0.4rem;
 }
 
 .link-control {
@@ -3560,6 +3633,12 @@ pre code {
 }
 
 @media (max-width: 48rem) {
+  .send-sheet {
+    position: static;
+    width: 100%;
+    margin-top: 0.5rem;
+    box-shadow: none;
+  }
   .link-control[data-open="true"] {
     flex-basis: 100%;
   }

@@ -3,11 +3,11 @@
 // capturing, a visible tab still re-reads the hierarchy and the shown
 // project's pins every LIVE_REFRESH_INTERVAL_MS so a founder's reply shows up
 // without a reload; a hidden tab reads nothing; a failed background read
-// never replaces the workspace with the failure state; and the share
-// control's status read stays the single read it was (D075, D089).
+// never replaces the workspace with the failure state; choosing Person review
+// reads capability status once, never on a background refresh.
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { EditorHome } from "../src/components/editor-home";
 import type { WorkspaceProject } from "../src/components/project-workspace";
@@ -102,6 +102,11 @@ beforeEach(() => {
         Response.json({ share: { state: "none", version: 0, revokedAt: null } }),
       );
     }
+    if (/\/agent-link$/.test(url)) {
+      return Promise.resolve(
+        Response.json({ link: { state: "none", version: 0, revokedAt: null } }),
+      );
+    }
     if (/\/annotations$/.test(url)) return Promise.resolve(Response.json({ annotations: [] }));
     if (url === "/api/projects") {
       return Promise.resolve(
@@ -140,7 +145,12 @@ describe("editor live refresh (D097)", () => {
     await tick(LIVE_REFRESH_INTERVAL_MS);
     expect(hierarchyReads()).toBe(3);
     expect(screen.getByTestId("project-feedback")).toHaveTextContent("1 unread reply");
-    // The share control still reads its status once (D075, D089).
+    expect(shareReads()).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Person review" }));
+    await act(async () => {});
+    expect(shareReads()).toBe(1);
+    await tick(LIVE_REFRESH_INTERVAL_MS);
     expect(shareReads()).toBe(1);
   });
 

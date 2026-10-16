@@ -77,8 +77,7 @@ import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
 import { ArchiveProjectControl } from "./archive-project";
-import { AgentLinkControl } from "./agent-link";
-import { FounderShareControl } from "./founder-share";
+import { SendSheet } from "./send-sheet";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
 import { AddPagesCard } from "./add-pages";
@@ -1480,9 +1479,6 @@ export function ProjectWorkspace({
         className="workspace-detail"
         aria-label={active ? "Selected capture" : "Project overview"}
       >
-        {/* The selected project's header (D075): its title, the feedback
-            counts for the editor, and the share control that used to sit
-            inside the collapsed rail entry. */}
         <div className="project-header" data-testid="project-header">
           {/* The project's heading (D128): the projects menu is a plain
               switcher now, so the name is a heading here, once. */}
@@ -1500,20 +1496,13 @@ export function ProjectWorkspace({
             projectTitle={activeProject.title}
             onArchived={onChanged}
           />
-          {/* The project's two links (D121, D122): side by side as pills,
-              each opening its own panel. */}
-          <div className="project-links">
-            <FounderShareControl
-              key={activeProject.publicId}
-              publicId={activeProject.publicId}
-              projectTitle={activeProject.title}
-            />
-            <AgentLinkControl
-              key={`agent-${activeProject.publicId}`}
-              publicId={activeProject.publicId}
-              projectTitle={activeProject.title}
-            />
-          </div>
+          <SendSheet
+            key={activeProject.publicId}
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+            markdown={projectMarkdown}
+            markdownReady={projectPinsStatus === "ready"}
+          />
         </div>
 
         {/* Project-level capture progress and retry (D076). */}

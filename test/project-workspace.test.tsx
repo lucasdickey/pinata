@@ -1664,7 +1664,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(within(detail()).getByTestId("project-feedback")).toHaveTextContent(summary);
     });
 
-    test("the share control lives in the project header with its state visible, not in the rail", async () => {
+    test("Send lives in the project header and reads link state when opened, not in the rail", async () => {
+      const user = userEvent.setup();
       fetchMock.mockImplementation((url: unknown) => {
         const target = String(url);
         if (target.endsWith("/share")) {
@@ -1683,11 +1684,12 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       tree();
       expect(screen.getAllByRole("heading", { name: "chickpea.co" })).toHaveLength(1);
       expect(within(header).getByRole("heading", { name: "chickpea.co" })).toBeInTheDocument();
-      expect(within(header).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
-      expect(within(tree()).queryByRole("button", { name: "Share with founder" })).toBeNull();
-      expect(await within(header).findByTestId("founder-share-state")).toHaveTextContent(
-        "Active · v2",
-      );
+      expect(within(header).getByRole("button", { name: "Send" })).toBeInTheDocument();
+      expect(within(tree()).queryByRole("button", { name: "Send" })).toBeNull();
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/share"))).toHaveLength(0);
+      await user.click(within(header).getByRole("button", { name: "Send" }));
+      await user.click(screen.getByRole("tab", { name: "Person review" }));
+      expect(await screen.findByText("Version 2 is live. Rotate to replace it, or revoke to turn it off.")).toBeInTheDocument();
       expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/share"))).toHaveLength(1);
     });
 

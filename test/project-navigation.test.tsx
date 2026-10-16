@@ -294,9 +294,8 @@ describe("the workspace opens on the overview", () => {
     expect(cards()).toHaveLength(6);
     expect(screen.queryByRole("region", { name: "Selected capture" })).toBeNull();
     expect(document.querySelector(".react-flow")).toBeNull();
-    // The project header and its share control sit above the overview.
     expect(within(overview()).getByTestId("project-title")).toHaveTextContent("chickpea.co");
-    expect(within(overview()).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
+    expect(within(overview()).getByRole("button", { name: "Send" })).toBeInTheDocument();
   });
 
   test("a card opens its capture in the canvas view, and Back to overview returns", async () => {
@@ -561,6 +560,22 @@ describe("cross-capture pin stepping", () => {
     expect(within(detail()).getByRole("button", { name: "Next pin" })).toBeDisabled();
     expect(within(detail()).getByRole("button", { name: "Previous pin" })).toBeDisabled();
   });
+});
+
+test("the Send Markdown choice copies the whole project from the overview", async () => {
+  const user = userEvent.setup();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+  await waitFor(() => expect(within(overview()).getAllByRole("row")).toHaveLength(5));
+  await user.click(within(overview()).getByRole("button", { name: "Send" }));
+  await user.click(screen.getByRole("tab", { name: "Markdown" }));
+  await user.click(screen.getByRole("button", { name: "Copy project Markdown" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+  const markdown = writeText.mock.calls[0]![0] as string;
+  expect(markdown).toContain("# Pinata pins — chickpea.co");
+  expect(markdown).toContain("## https://chickpea.co/pricing — Desktop");
+  expect(markdown).toContain("Note rd-2.");
 });
 
 describe("the table scope toggle", () => {

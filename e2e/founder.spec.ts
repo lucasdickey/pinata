@@ -273,25 +273,20 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   expect(first.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
   const firstLink = `http://127.0.0.1:3100${first.path}#${first.token}`;
 
-  // The share control sits in the selected project's header (D075), not in
-  // the rail, and shows the link state without being opened. The status was
-  // read when the header mounted, so reload the workspace to see the link
-  // issued above.
   await page.reload();
   await openPlane(page, target!);
   const projectHeader = page.getByTestId("project-header");
   await expect(projectHeader.getByTestId("project-title")).toHaveText(target!.projectTitle!);
-  await expect(projectHeader.getByTestId("founder-share-state")).toHaveText(
-    `Active · v${first.version}`,
-  );
   await expect(
     page.getByRole("navigation", { name: "Projects" }).getByRole("button", {
-      name: "Share with founder",
+      name: "Send",
     }),
   ).toHaveCount(0);
-  const shareToggle = projectHeader.getByRole("button", { name: "Share with founder" });
+  const shareToggle = projectHeader.getByRole("button", { name: "Send" });
   await shareToggle.click();
+  await projectHeader.getByRole("tab", { name: "Person review" }).click();
   await expect(page.getByText(`Version ${first.version} is live.`, { exact: false })).toBeVisible();
+  await expect(projectHeader.getByLabel("Founder link (shown once — copy it now)")).toHaveCount(0);
   await shareToggle.click();
 
   // A fresh browser context: no editor cookie, only the link.
