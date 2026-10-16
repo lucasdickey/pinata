@@ -31,10 +31,12 @@ export function AgentLinkControl({
   publicId,
   projectTitle,
   onClose,
+  onIssuingChange,
 }: {
   publicId: string;
   projectTitle: string;
   onClose?: () => void;
+  onIssuingChange?: (issuing: boolean) => void;
 }) {
   const [open, setOpen] = useState(Boolean(onClose));
   const [state, setState] = useState<StatusState>({ status: "idle" });
@@ -109,6 +111,7 @@ export function AgentLinkControl({
     if (busy) return;
     setConfirming(null);
     setBusy(true);
+    onIssuingChange?.(true);
     setError(null);
     setCopied(null);
     try {
@@ -127,6 +130,7 @@ export function AgentLinkControl({
       setError("The agent link could not be created. Try again.");
     } finally {
       setBusy(false);
+      onIssuingChange?.(false);
     }
   };
 

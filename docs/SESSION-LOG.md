@@ -4129,3 +4129,43 @@ branch. Elapsed: about 27 minutes (17:30–17:57 UTC) against no fixed timebox.
 - The disposable seed proved the rendered editor interaction, not the
   credentialed provider routes against a deployment; their real-provider
   checks remain gated in this sandbox.
+
+---
+
+## 2026-10-16 — keep one-time links visible through pending issuance (D143)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 9 minutes (18:03–18:12 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Reproduced a successful agent or person link POST resolving after a Send
+  choice switch or close: the issuing control unmounted before it could show
+  its one-time URL. Four delayed-response tests failed before the fix.
+- While a link issue or rotation is pending, Send now disables its tabs,
+  toggle, and close button. Escape and arrow-key handlers also refuse to
+  leave the issuing choice. The lock ends after either success or failure.
+  No token persistence or server capability behavior changed.
+- On the scratch Chickpea seed, created an agent link with its field and prompt
+  visually masked during capture. Switching away and back removed the fresh
+  URL. Cancelling rotation preserved version 1; confirming rotation showed
+  version 2 once; closing and reopening removed that URL too. Opening the
+  copied version 1 link after rotation showed "Not found." outside the
+  recording. The seeded person link stayed at version 1.
+
+### What broke
+
+- The first regression run found all four unmount paths. One later assertion
+  expected the Person choice to remain selected after closing, but Send
+  intentionally resets to Coding agent; corrected the assertion.
+- TypeScript rejected an untyped saved fetch mock implementation. Narrowed
+  it to the request handler signature. A failed-POST test also guards
+  against leaving Send locked after a network error.
+
+### Validation and decisions
+
+- D143's one-time display contract now covers pending issue responses. This
+  is a correction to its implementation, not a new product decision.
+- Node 24 `npm run validate` passed, including lint, typecheck, 1,939 Vitest
+  tests (44 skipped), current generated docs, production build, and 28
+  Playwright tests (46 credentialed skips without `.env.local`).

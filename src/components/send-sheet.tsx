@@ -28,13 +28,20 @@ export function SendSheet({
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<Choice>("agent");
   const [copyState, setCopyState] = useState<CopyState>("idle");
+  const [issuing, setIssuing] = useState(false);
+  const issuingRef = useRef(false);
   const button = useRef<HTMLButtonElement>(null);
   const firstChoice = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (open) firstChoice.current?.focus();
   }, [open]);
+  const onIssuingChange = (pending: boolean) => {
+    issuingRef.current = pending;
+    setIssuing(pending);
+  };
 
   const close = () => {
+    if (issuingRef.current) return;
     setOpen(false);
     button.current?.focus();
   };
@@ -63,6 +70,7 @@ export function SendSheet({
         ref={button}
         aria-expanded={open}
         aria-controls={`send-sheet-${publicId}`}
+        disabled={issuing}
         onClick={() => {
           if (open) close();
           else {
@@ -82,6 +90,7 @@ export function SendSheet({
           className="send-sheet"
           role="dialog"
           aria-label={`Send ${projectTitle}`}
+          aria-busy={issuing}
           onKeyDown={onKeyDown}
         >
           <div className="send-sheet-head">
@@ -90,6 +99,7 @@ export function SendSheet({
               type="button"
               className="link-panel-close"
               aria-label="Close Send"
+              disabled={issuing}
               onClick={close}
             >
               <CanvasIcon name="close" size={16} />
@@ -106,10 +116,14 @@ export function SendSheet({
                 aria-selected={choice === id}
                 aria-controls={`send-${id}-${publicId}`}
                 tabIndex={choice === id ? 0 : -1}
-                onClick={() => setChoice(id)}
+                disabled={issuing}
+                onClick={() => {
+                  if (!issuingRef.current) setChoice(id);
+                }}
                 onKeyDown={(event) => {
                   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                   event.preventDefault();
+                  if (issuingRef.current) return;
                   const index = choices.findIndex((item) => item.id === id);
                   const next =
                     choices[
@@ -124,6 +138,7 @@ export function SendSheet({
               </button>
             ))}
           </div>
+          {issuing ? <p role="status">Making the link… Keep Send open until it appears.</p> : null}
           <div
             id={`send-agent-${publicId}`}
             className="send-sheet-section"
@@ -132,7 +147,12 @@ export function SendSheet({
             hidden={choice !== "agent"}
           >
             {choice === "agent" ? (
-              <AgentLinkControl publicId={publicId} projectTitle={projectTitle} onClose={close} />
+              <AgentLinkControl
+                publicId={publicId}
+                projectTitle={projectTitle}
+                onClose={close}
+                onIssuingChange={onIssuingChange}
+              />
             ) : null}
           </div>
           <div
@@ -143,7 +163,12 @@ export function SendSheet({
             hidden={choice !== "person"}
           >
             {choice === "person" ? (
-              <FounderShareControl publicId={publicId} projectTitle={projectTitle} onClose={close} />
+              <FounderShareControl
+                publicId={publicId}
+                projectTitle={projectTitle}
+                onClose={close}
+                onIssuingChange={onIssuingChange}
+              />
             ) : null}
           </div>
           <div

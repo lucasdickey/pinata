@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { SendSheet } from "../src/components/send-sheet";
@@ -167,4 +167,118 @@ test("Markdown waits for project notes rather than copying an incomplete export"
   await user.click(screen.getByRole("tab", { name: "Markdown" }));
   expect(screen.getByRole("button", { name: "Copy project Markdown" })).toBeDisabled();
   expect(screen.getByRole("status")).toHaveTextContent("Project notes are not available yet.");
+});
+
+for (const kind of ["agent", "person"] as const) {
+  for (const exit of ["switch", "close"] as const) {
+    test(`${kind} issue response remains visible when ${exit} is attempted while pending`, async () => {
+      const user = userEvent.setup();
+      const endpoint = `/api/projects/pub-1/${kind === "agent" ? "agent-link" : "share"}`;
+      const fetchNow = fetchMock.getMockImplementation() as (
+        url: unknown,
+        init?: RequestInit,
+      ) => Promise<Response>;
+      let finishIssue!: (response: Response) => void;
+      const pending = new Promise<Response>((resolve) => {
+        finishIssue = resolve;
+      });
+      fetchMock.mockImplementation((url: unknown, init?: RequestInit) =>
+        String(url) === endpoint && init?.method === "POST"
+          ? pending
+          : fetchNow(url, init),
+      );
+      renderSheet();
+      const send = screen.getByRole("button", { name: "Send" });
+      await user.click(send);
+      const sheet = screen.getByRole("dialog", { name: "Send chickpea.co" });
+      if (kind === "person") await user.click(within(sheet).getByRole("tab", { name: "Person review" }));
+      await user.click(await within(sheet).findByRole("button", { name: "Create link" }));
+      expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+
+      const otherTab = within(sheet).getByRole("tab", {
+        name: kind === "agent" ? "Person review" : "Coding agent",
+      });
+      expect(send).toBeDisabled();
+      expect(otherTab).toBeDisabled();
+      expect(within(sheet).getByRole("button", { name: "Close Send" })).toBeDisabled();
+      expect(within(sheet).getByRole("status")).toHaveTextContent("Keep Send open");
+      if (exit === "switch") {
+        await user.click(otherTab);
+        fireEvent.keyDown(
+          within(sheet).getByRole("tab", { name: kind === "agent" ? "Coding agent" : "Person review" }),
+          { key: "ArrowRight" },
+        );
+      } else {
+        await user.click(within(sheet).getByRole("button", { name: "Close Send" }));
+        await user.click(send);
+        await user.keyboard("{Escape}");
+      }
+      expect(sheet).toBeInTheDocument();
+      expect(within(sheet).getByRole("tab", { name: kind === "agent" ? "Coding agent" : "Person review" }))
+        .toHaveAttribute("aria-selected", "true");
+      expect(within(sheet).queryByLabelText(/link \(shown once/)).toBeNull();
+
+      await act(async () => {
+        if (kind === "agent") {
+          agentVersion = 1;
+          finishIssue(json({ link: { state: "active", version: 1 }, path: "/a/agent-1" }, 201));
+        } else {
+          personVersion = 1;
+          finishIssue(
+            json({ share: { state: "active", version: 1 }, path: "/f/pub-1", token: "person-1" }, 201),
+          );
+        }
+      });
+      expect(await within(sheet).findByLabelText(/link \(shown once/)).toHaveValue(
+        `${window.location.origin}${kind === "agent" ? "/a/agent-1" : "/f/pub-1#person-1"}`,
+      );
+      expect(send).toBeEnabled();
+      expect(otherTab).toBeEnabled();
+      expect(within(sheet).getByRole("button", { name: "Close Send" })).toBeEnabled();
+
+      if (exit === "switch") {
+        await user.click(otherTab);
+        await user.click(within(sheet).getByRole("tab", {
+          name: kind === "agent" ? "Coding agent" : "Person review",
+        }));
+      } else {
+        await user.click(within(sheet).getByRole("button", { name: "Close Send" }));
+        await user.click(send);
+        if (kind === "person") {
+          await user.click(screen.getByRole("tab", { name: "Person review" }));
+        }
+      }
+      expect(await screen.findByText(/Version 1 is live/)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/link \(shown once/)).toBeNull();
+    });
+  }
+}
+
+test("failed issuance unlocks Send without showing a link", async () => {
+  const user = userEvent.setup();
+  const fetchNow = fetchMock.getMockImplementation() as (
+    url: unknown,
+    init?: RequestInit,
+  ) => Promise<Response>;
+  let failIssue!: (reason: Error) => void;
+  const pending = new Promise<Response>((_, reject) => {
+    failIssue = reject;
+  });
+  fetchMock.mockImplementation((url: unknown, init?: RequestInit) =>
+    String(url) === "/api/projects/pub-1/agent-link" && init?.method === "POST"
+      ? pending
+      : fetchNow(url, init),
+  );
+  renderSheet();
+  const send = screen.getByRole("button", { name: "Send" });
+  await user.click(send);
+  const sheet = screen.getByRole("dialog", { name: "Send chickpea.co" });
+  await user.click(await within(sheet).findByRole("button", { name: "Create link" }));
+  expect(send).toBeDisabled();
+  await act(async () => failIssue(new Error("Network unavailable")));
+  expect(within(sheet).getByRole("alert")).toHaveTextContent("could not be created");
+  expect(within(sheet).queryByLabelText(/link \(shown once/)).toBeNull();
+  expect(send).toBeEnabled();
+  await user.click(within(sheet).getByRole("button", { name: "Close Send" }));
+  expect(sheet).not.toBeInTheDocument();
 });
