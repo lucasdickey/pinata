@@ -318,7 +318,6 @@ export async function listProjectHierarchies(
   return hydrate(db, projectRows, now, viewer);
 }
 
-/** Archived projects remain editor-readable without joining the active list. */
 export async function listArchivedProjectHierarchies(
   db: Database,
   now: number,

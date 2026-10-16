@@ -1,7 +1,6 @@
 "use client";
 
 // Archive and Unarchive keep pages, pins, threads, and capability links intact.
-// Archive asks for confirmation; Unarchive restores the project to the active list.
 
 import { useEffect, useRef, useState } from "react";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
@@ -138,10 +137,19 @@ export function UnarchiveProjectControl({
 
   return (
     <div className="archive-project">
-      <button type="button" aria-label={`Unarchive ${projectTitle}`} disabled={pending} onClick={() => void unarchive()}>
+      <button
+        type="button"
+        aria-label={`Unarchive ${projectTitle}`}
+        disabled={pending}
+        onClick={() => void unarchive()}
+      >
         {pending ? "Unarchiving…" : "Unarchive"}
       </button>
-      {error ? <p role="alert" className="archive-project-error">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="archive-project-error">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

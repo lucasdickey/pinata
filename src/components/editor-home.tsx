@@ -53,9 +53,16 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         return;
       }
       const text = await response.text();
-      const payload = JSON.parse(text) as { projects: WorkspaceProject[]; archivedProjects?: WorkspaceProject[] };
+      const payload = JSON.parse(text) as {
+        projects: WorkspaceProject[];
+        archivedProjects?: WorkspaceProject[];
+      };
       lastPayload.current = text;
-      setList({ status: "ready", projects: payload.projects, archivedProjects: payload.archivedProjects ?? [] });
+      setList({
+        status: "ready",
+        projects: payload.projects,
+        archivedProjects: payload.archivedProjects ?? [],
+      });
     } catch {
       setList({ status: "failed" });
     }
@@ -79,7 +86,13 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
       if (!Array.isArray(payload.projects)) return;
       lastPayload.current = text;
       setList((current) =>
-        current.status === "ready" ? { status: "ready", projects: payload.projects, archivedProjects: payload.archivedProjects ?? [] } : current,
+        current.status === "ready"
+          ? {
+              status: "ready",
+              projects: payload.projects,
+              archivedProjects: payload.archivedProjects ?? [],
+            }
+          : current,
       );
     } catch {
       // Best effort: the next tick, or the next write, reads again.

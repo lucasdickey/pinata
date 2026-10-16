@@ -344,17 +344,20 @@ export function ProjectWorkspace({
     if (address?.page && (!page || !device)) {
       window.history.replaceState(null, "", projectEditorUrl({ project: project.publicId }));
     } else if (address?.capture && !captureId && page && device) {
-      window.history.replaceState(null, "", projectEditorUrl({
-        project: project.publicId,
-        page: page.id,
-        device: device.variant as "desktop" | "mobile",
-        ...(address.note ? { note: address.note } : {}),
-      }));
+      window.history.replaceState(
+        null,
+        "",
+        projectEditorUrl({
+          project: project.publicId,
+          page: page.id,
+          device: device.variant as "desktop" | "mobile",
+          ...(address.note ? { note: address.note } : {}),
+        }),
+      );
     }
     setSelection(page && device ? { pageId: page.id, variant: device.variant, captureId } : null);
-    pendingPin.current = address?.note && captureId
-      ? { captureId, pinId: address.note }
-      : null;
+    pendingPin.current =
+      address?.note && captureId ? { captureId, pinId: address.note } : null;
     setSelectedPinId(null);
     setAddressRevision((revision) => revision + 1);
   }, []);
@@ -401,7 +404,12 @@ export function ProjectWorkspace({
       setFocusCanvasFor(null);
       setSelectedProjectId(projectId);
       setSelection({ pageId, variant, captureId });
-      navigate({ project: project.publicId, page: pageId, device: variant, ...(captureId ? { capture: captureId } : {}) });
+      navigate({
+        project: project.publicId,
+        page: pageId,
+        device: variant,
+        ...(captureId ? { capture: captureId } : {}),
+      });
     },
     [navigate],
   );
@@ -435,7 +443,13 @@ export function ProjectWorkspace({
     setFocusCanvasFor(viaKeyboard ? pin.captureId : null);
     setSelection({ pageId: pin.pageId, variant: pin.variant, captureId: pin.captureId });
     if (pin.variant === "desktop" || pin.variant === "mobile") {
-      navigate({ project: activePublicId, page: pin.pageId, device: pin.variant, capture: pin.captureId, note: pin.id });
+      navigate({
+        project: activePublicId,
+        page: pin.pageId,
+        device: pin.variant,
+        capture: pin.captureId,
+        note: pin.id,
+      });
     }
   }, [activePublicId, navigate]);
 
@@ -1226,13 +1240,34 @@ export function ProjectWorkspace({
     if (!address?.note || address.project !== activePublicId || projectPinsStatus !== "ready") return;
     const target = orderedPins.find((pin) => pin.id === address.note);
     if (!target || target.pageId !== address.page || target.variant !== address.device) {
-      navigate({ project: activePublicId, ...(address.page && address.device ? { page: address.page, device: address.device, ...(address.capture ? { capture: address.capture } : {}) } : {}) }, true);
+      navigate(
+        {
+          project: activePublicId,
+          ...(address.page && address.device
+            ? {
+                page: address.page,
+                device: address.device,
+                ...(address.capture ? { capture: address.capture } : {}),
+              }
+            : {}),
+        },
+        true,
+      );
       return;
     }
     if (target.captureId !== selectedCaptureId) {
       pendingPin.current = { captureId: target.captureId, pinId: target.id };
       setSelection({ pageId: target.pageId, variant: target.variant, captureId: target.captureId });
-      navigate({ project: activePublicId, page: target.pageId, device: target.variant as "desktop" | "mobile", capture: target.captureId, note: target.id }, true);
+      navigate(
+        {
+          project: activePublicId,
+          page: target.pageId,
+          device: target.variant as "desktop" | "mobile",
+          capture: target.captureId,
+          note: target.id,
+        },
+        true,
+      );
       return;
     }
     if (address.capture !== target.captureId) {
@@ -1240,7 +1275,16 @@ export function ProjectWorkspace({
     }
     if (pinsState?.captureId === target.captureId && pinsState.status === "ready") {
       if (pinsState.pins.some((pin) => pin.id === target.id)) setSelectedPinId(target.id);
-      else navigate({ project: activePublicId, page: target.pageId, device: target.variant as "desktop" | "mobile", capture: target.captureId }, true);
+      else
+        navigate(
+          {
+            project: activePublicId,
+            page: target.pageId,
+            device: target.variant as "desktop" | "mobile",
+            capture: target.captureId,
+          },
+          true,
+        );
     }
   }, [activePublicId, addressRevision, navigate, orderedPins, pinsState, projectPinsStatus, selectedCaptureId]);
 
@@ -1252,7 +1296,9 @@ export function ProjectWorkspace({
       project: activePublicId,
       page: active.page.id,
       device: active.device.variant,
-      ...(selectedCaptureId && (annotationId || selection?.captureId) ? { capture: selectedCaptureId } : {}),
+      ...(selectedCaptureId && (annotationId || selection?.captureId)
+        ? { capture: selectedCaptureId }
+        : {}),
       ...(annotationId ? { note: annotationId } : {}),
     });
   }, [active, activePins, activePublicId, navigate, selectedCaptureId, selection]);
@@ -1557,9 +1603,20 @@ export function ProjectWorkspace({
               <p className="tree-summary-label">Archived</p>
               <ul className="project-switcher">
                 {projects.filter((project) => project.archivedAt).map((project) => (
-                  <li key={project.projectId} className="project-row" data-current={activeProject.projectId === project.projectId ? "true" : undefined}>
-                    <button type="button" className="project-switch" aria-current={activeProject.projectId === project.projectId ? "true" : undefined}
-                      onClick={() => { showOverview(project.projectId); closeRail(); }}>
+                  <li
+                    key={project.projectId}
+                    className="project-row"
+                    data-current={activeProject.projectId === project.projectId ? "true" : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="project-switch"
+                      aria-current={activeProject.projectId === project.projectId ? "true" : undefined}
+                      onClick={() => {
+                        showOverview(project.projectId);
+                        closeRail();
+                      }}
+                    >
                       <span className="project-switch-name">{project.title}</span>
                     </button>
                   </li>
@@ -1587,7 +1644,12 @@ export function ProjectWorkspace({
             {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
           </p>
           {activeProject.archivedAt ? (
-            <UnarchiveProjectControl key={`unarchive-${activeProject.publicId}`} publicId={activeProject.publicId} projectTitle={activeProject.title} onUnarchived={onChanged} />
+            <UnarchiveProjectControl
+              key={`unarchive-${activeProject.publicId}`}
+              publicId={activeProject.publicId}
+              projectTitle={activeProject.title}
+              onUnarchived={onChanged}
+            />
           ) : (
             <ArchiveProjectControl
               key={`archive-${activeProject.publicId}`}

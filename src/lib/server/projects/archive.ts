@@ -51,7 +51,9 @@ export async function unarchiveProject(db: Database, publicId: string, now: numb
     .where(eq(schema.projects.publicId, publicId))
     .limit(1);
   const project = rows[0];
-  if (!project || project.deletedAt !== null) return { ok: false as const, error: "not-found" as const };
+  if (!project || project.deletedAt !== null) {
+    return { ok: false as const, error: "not-found" as const };
+  }
   if (project.archivedAt === null) return { ok: true as const };
   await db
     .update(schema.projects)
