@@ -8,7 +8,7 @@
 // anywhere in this path — and every level has a deterministic order with an
 // explicit tie-breaker so two reads can never disagree.
 
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { FeedbackCounts } from "../../annotations";
 import {
   EDITOR_VIEWER,
@@ -42,6 +42,7 @@ export interface HierarchyCounts {
 export interface ProjectHierarchy {
   projectId: string;
   publicId: string;
+  archivedAt: number | null;
   title: string;
   rootUrl: string;
   createdAt: number;
@@ -270,6 +271,7 @@ async function hydrate(
     return {
       projectId: project.id,
       publicId: project.publicId,
+      archivedAt: project.archivedAt,
       title: project.title,
       rootUrl: project.rootUrl,
       createdAt: project.createdAt,
@@ -314,6 +316,19 @@ export async function listProjectHierarchies(
     .where(and(isNull(schema.projects.deletedAt), isNull(schema.projects.archivedAt)))
     .orderBy(desc(schema.projects.createdAt), asc(schema.projects.id));
   return hydrate(db, projectRows, now, viewer);
+}
+
+/** Archived projects remain editor-readable without joining the active list. */
+export async function listArchivedProjectHierarchies(
+  db: Database,
+  now: number,
+): Promise<ProjectHierarchy[]> {
+  const projectRows = await db
+    .select()
+    .from(schema.projects)
+    .where(and(isNull(schema.projects.deletedAt), isNotNull(schema.projects.archivedAt)))
+    .orderBy(desc(schema.projects.archivedAt), asc(schema.projects.id));
+  return hydrate(db, projectRows, now, EDITOR_VIEWER);
 }
 
 /**

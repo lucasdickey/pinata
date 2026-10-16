@@ -126,6 +126,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   // The annotations list and the draft's nearby-context candidates are
   // per-plane reads every selection makes; the default plane has no pins

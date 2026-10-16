@@ -23,8 +23,9 @@ import {
   exchangeFounderToken,
   issueFounderCapability,
 } from "../../src/lib/server/founder/capability";
-import { archiveProject } from "../../src/lib/server/projects/archive";
+import { archiveProject, unarchiveProject } from "../../src/lib/server/projects/archive";
 import {
+  listArchivedProjectHierarchies,
   listProjectHierarchies,
   readProjectHierarchy,
 } from "../../src/lib/server/projects/hierarchy";
@@ -72,6 +73,18 @@ beforeEach(async () => {
       deletedAt: T0 + 2,
     },
   ]);
+});
+
+describe("unarchiveProject", () => {
+  test("restores an archive, preserves other fields, and is idempotent", async () => {
+    await archiveProject(testDb.db, "pub-a", T0 + 10);
+    const before = await projectRow("proj-a");
+    expect(await unarchiveProject(testDb.db, "pub-a", T0 + 20)).toEqual({ ok: true });
+    expect(await projectRow("proj-a")).toEqual({ ...before, archivedAt: null, updatedAt: T0 + 20 });
+    expect(await unarchiveProject(testDb.db, "pub-a", T0 + 30)).toEqual({ ok: true });
+    expect((await projectRow("proj-a")).updatedAt).toBe(T0 + 20);
+    expect(await unarchiveProject(testDb.db, "pub-gone", T0)).toEqual({ ok: false, error: "not-found" });
+  });
 });
 
 afterEach(() => {
@@ -141,11 +154,38 @@ describe("archiveProject", () => {
   });
 });
 
+describe("DELETE /api/projects/[publicId]/archive", () => {
+  test("the editor restores a project to the active list", async () => {
+    await archiveProject(testDb.db, "pub-a", T0 - 1);
+    const response = await archiveDELETE(archiveRequest("pub-a", { method: "DELETE" }), context("pub-a"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ unarchived: { publicId: "pub-a" } });
+    const listed = await projectsGET(new Request(`${ORIGIN}/api/projects`, {
+      headers: { cookie: `${EDITOR_SESSION_COOKIE}=${session.token}` },
+    }));
+    const payload = await listed.json();
+    expect(payload.projects.map((p: { publicId: string }) => p.publicId)).toEqual(["pub-b", "pub-a"]);
+    expect(payload.archivedProjects).toEqual([]);
+  });
+
+  test("unauthorized, forged and deleted requests restore nothing", async () => {
+    await archiveProject(testDb.db, "pub-a", T0 - 1);
+    for (const options of [{ cookie: null }, { csrf: null }, { origin: "https://evil.example" }, { origin: null }]) {
+      const response = await archiveDELETE(archiveRequest("pub-a", { ...options, method: "DELETE" }), context("pub-a"));
+      expect(response.status).toBeGreaterThanOrEqual(401);
+      expect((await projectRow("proj-a")).archivedAt).toBe(T0 - 1);
+    }
+    expect((await archiveDELETE(archiveRequest("pub-gone", { method: "DELETE" }), context("pub-gone"))).status).toBe(404);
+  });
+});
+
 describe("what an archive hides and what it leaves alone", () => {
   test("the project list leaves archived projects out", async () => {
     await archiveProject(testDb.db, "pub-a", T0 + 10);
     const listed = await listProjectHierarchies(testDb.db, T0 + 10);
     expect(listed.map((p) => p.publicId)).toEqual(["pub-b"]);
+    expect((await listArchivedProjectHierarchies(testDb.db, T0 + 10)).map((p) => p.publicId)).toEqual(["pub-a"]);
   });
 
   test("an archived project still reads by its public locator", async () => {
@@ -202,8 +242,7 @@ describe("POST /api/projects/[publicId]/archive", () => {
     expect((await archivePOST(archiveRequest("pub-gone"), context("pub-gone"))).status).toBe(404);
   });
 
-  test("other methods are not allowed (unarchive is deferred, D109)", async () => {
+  test("other methods are not allowed", async () => {
     expect((await archiveGET()).status).toBe(405);
-    expect((await archiveDELETE()).status).toBe(405);
   });
 });

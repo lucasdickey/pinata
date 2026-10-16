@@ -4872,7 +4872,7 @@
       "phase": "build",
       "title": "Defer a way to unarchive a project",
       "origin": "user-deferred",
-      "status": "pending",
+      "status": "superseded",
       "problem": "Archiving (D108) takes a project out of the list. Without a way back, an archive made by mistake can only be undone in the database.",
       "decision": "Postponed by the owner in the same request that asked for archiving. The data is shaped for it: unarchiving is clearing projects.archived_at, and DELETE on /api/projects/[publicId]/archive is the natural route for it (it answers 405 until then). The interface needs a place to list archived projects to choose from.",
       "alternatives": [
@@ -4891,7 +4891,7 @@
       },
       "artifacts": [],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D143"
     },
     {
       "id": "D110",
@@ -6631,6 +6631,55 @@
         }
       ],
       "supersedes": null,
+      "superseded_by": null
+    },
+    {
+      "id": "D143",
+      "date": "2026-10-15",
+      "phase": "build",
+      "title": "Give editor project, page, device, and note durable addresses and restore archived projects",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Workspace navigation lived only in React state, so a reload or shared editor address lost its page, device, and note. Archiving hid a project without an editor control to bring it back (D109).",
+      "decision": "Keep the editor-only /pins route and its existing ?project= public-ID links. Extend its query with stable page ID, desktop or mobile device, optional capture version, and note ID. Browser history follows workspace navigation; a note resolves only against the authorized project's pins. GET /api/projects keeps active projects separate from archivedProjects for the editor, and DELETE /api/projects/[publicId]/archive restores an archive behind the same session, origin, and CSRF boundary as Archive. Archived pages, captures, pins, threads, and capability links are unchanged.",
+      "alternatives": [
+        {
+          "option": "Use transient card positions or in-memory selection as the address",
+          "why_not": "Positions change when pages are added or captures retried, and in-memory state is lost on reload."
+        },
+        {
+          "option": "Expose archived projects in the active list",
+          "why_not": "It reverses the reason archiving was added: keeping finished work out of the active list."
+        }
+      ],
+      "rationale": "The owner accepted the artifact's combined recommendation. Query parameters extend the existing /pins?project= link without new route authorization rules or a migration. The editor can find archived projects in a separate section and restore them without changing the founder's access.",
+      "consequences": [
+        "Page and note links are editor-only; anonymous visitors are redirected by /pins before any hierarchy is read.",
+        "The active project list and stale-capture recovery still exclude archived projects; the editor gets a separate archived list for restoration.",
+        "D109's deferral is answered. Further branches based on D142 must reconcile decision IDs before merge."
+      ],
+      "transcript": {
+        "proposal": "Unarchive with addresses that last (rec 8, D109)?",
+        "approval": "Unarchive with addresses that last (rec 8, D109): yes."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/editor-url.ts",
+          "caption": "Stable editor address contract."
+        },
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "Address and browser history navigation."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/archive.ts",
+          "caption": "Idempotent restoration."
+        }
+      ],
+      "supersedes": "D109",
       "superseded_by": null
     }
   ]

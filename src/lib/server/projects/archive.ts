@@ -1,9 +1,7 @@
 // Archiving a project (D108).
 //
-// An archive takes a project out of the editor's project list and changes
-// nothing else: its pages, captures, pins, threads, and founder link stay as
-// they were (D110), so undoing it later (D109, deferred) is a matter of
-// clearing one column. It is not a delete — deletedAt stays the tombstone.
+// An archive takes a project out of the editor's active list without touching
+// its pages, captures, pins, threads, or founder link. It is not a delete.
 
 import { eq } from "drizzle-orm";
 import { schema, type Database } from "../db/client";
@@ -39,4 +37,25 @@ export async function archiveProject(
     .set({ archivedAt: now, updatedAt: now })
     .where(eq(schema.projects.id, project.id));
   return { ok: true, archivedAt: now };
+}
+
+/** Restore a project without touching its pages, captures, pins, or links. */
+export async function unarchiveProject(db: Database, publicId: string, now: number) {
+  const rows = await db
+    .select({
+      id: schema.projects.id,
+      deletedAt: schema.projects.deletedAt,
+      archivedAt: schema.projects.archivedAt,
+    })
+    .from(schema.projects)
+    .where(eq(schema.projects.publicId, publicId))
+    .limit(1);
+  const project = rows[0];
+  if (!project || project.deletedAt !== null) return { ok: false as const, error: "not-found" as const };
+  if (project.archivedAt === null) return { ok: true as const };
+  await db
+    .update(schema.projects)
+    .set({ archivedAt: null, updatedAt: now })
+    .where(eq(schema.projects.id, project.id));
+  return { ok: true as const };
 }

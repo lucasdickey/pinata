@@ -32,6 +32,7 @@ import {
 } from "../../../src/lib/server/http";
 import { createProjectAtomically } from "../../../src/lib/server/projects/create";
 import {
+  listArchivedProjectHierarchies,
   listProjectHierarchies,
   staleLatestCaptureIds,
 } from "../../../src/lib/server/projects/hierarchy";
@@ -132,8 +133,9 @@ export async function GET(request: Request): Promise<Response> {
       );
       if (recovered.created > 0) projects = await listProjectHierarchies(db, Date.now());
     }
+    const archivedProjects = await listArchivedProjectHierarchies(db, Date.now());
     return withRenewal(
-      Response.json({ projects }),
+      Response.json({ projects, archivedProjects }),
       auth.renewal,
       isSecureRequest(request),
     );

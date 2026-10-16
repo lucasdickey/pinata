@@ -4064,3 +4064,37 @@ Elapsed: about two hours against no fixed timebox.
 - D141 (agent-autonomous): screenshots on local disk for scratch runs.
 - D142 (owner-directed): the seed data and its staged replay.
 - Gate: see the pull request for the run.
+
+---
+
+## 2026-10-16 — durable editor addresses and Unarchive (D143)
+
+Harness: Warp Factory implementation agent in an isolated branch. Elapsed:
+about 20 minutes against no fixed timebox.
+
+### What was attempted
+
+- Extended the existing editor-only `/pins?project=` address with stable
+  page, device, capture-version, and note identities. Browser history now
+  follows navigation and restores a note after the authorized pin read.
+- Added a separate archived-project section and an editor-only Unarchive
+  action. Active projects remain separate; restoring clears only the archive
+  timestamp and keeps pages, captures, pins, threads, and links unchanged.
+- Recorded the owner's approval of recommendation 8 as D143 and closed the
+  earlier D109 deferral. The draft-PR exception is tracked in a parallel
+  branch, not duplicated here; decision IDs require reconciliation on merge.
+
+### What broke
+
+- The first validation attempt lacked Chromium; the next had no Debian
+  browser libraries. Installed both and reran the full gate.
+- Workspace component tests shared jsdom browser history between cases.
+  Reset the URL before each case and added deep-link/history assertions.
+
+### Validation
+
+- The URL helper's first `npm run validate` passed under Node 24: lint,
+  typecheck, 1,932 Vitest tests passed (44 skipped), docs:check, build,
+  and 28 Playwright tests passed (46 credentialed skips).
+- The complete D143 implementation was checked with focused API, component,
+  and navigation tests and the same full gate before delivery.

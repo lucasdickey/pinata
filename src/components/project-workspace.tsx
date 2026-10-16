@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CAPTURE_OUTCOMES } from "../lib/boundaries";
 import { EDITOR_CSRF_HEADER } from "../lib/auth-constants";
 import { readCsrfProof } from "../lib/csrf";
+import { parseEditorAddress, projectEditorUrl, type EditorAddress } from "../lib/editor-url";
 import type {
   AnnotationView,
   FeedbackCounts,
@@ -76,7 +77,7 @@ import { CaptureProgress, type ProjectProgress } from "./capture-progress";
 import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
-import { ArchiveProjectControl } from "./archive-project";
+import { ArchiveProjectControl, UnarchiveProjectControl } from "./archive-project";
 import { AgentLinkControl } from "./agent-link";
 import { FounderShareControl } from "./founder-share";
 import type { DraftCandidates } from "./pin-composer";
@@ -120,6 +121,7 @@ export interface WorkspacePage {
 export interface WorkspaceProject {
   projectId: string;
   publicId: string;
+  archivedAt?: number | null;
   title: string;
   rootUrl: string;
   pages: WorkspacePage[];
@@ -320,22 +322,50 @@ export function ProjectWorkspace({
   // server has accepted or conflicted, so a double click cannot schedule two.
   const retryKeys = useRef(new Map<string, string>());
 
-  // A link to /pins?project=<publicId> opens that project (D131: the
-  // Chrome extension links to the project it just sent a capture to). Read
-  // once, on the first list that has the project in it.
-  const linkedProject = useRef<string | null | undefined>(undefined);
-  useEffect(() => {
-    if (linkedProject.current === undefined) {
-      linkedProject.current = new URLSearchParams(window.location.search).get("project");
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const [addressRevision, setAddressRevision] = useState(0);
+  const applyAddress = useCallback(() => {
+    const address = parseEditorAddress(window.location.search);
+    const project = projectsRef.current.find((item) => item.publicId === address?.project);
+    if (!project) {
+      setSelectedProjectId(null);
+      setSelection(null);
+      setSelectedPinId(null);
+      if (address) window.history.replaceState(null, "", "/pins");
+      return;
     }
-    const publicId = linkedProject.current;
-    if (!publicId) return;
-    const match = projects.find((project) => project.publicId === publicId);
-    if (!match) return;
-    linkedProject.current = null;
-    setSelectedProjectId(match.projectId);
-    setSelection(null);
-  }, [projects]);
+    setSelectedProjectId(project.projectId);
+    const page = project.pages.find((item) => item.id === address?.page);
+    const device = page?.devices.find((item) => item.variant === address?.device);
+    const captureId = device?.attempts.some((attempt) => attempt.id === address?.capture)
+      ? address!.capture!
+      : null;
+    if (address?.page && (!page || !device)) {
+      window.history.replaceState(null, "", projectEditorUrl({ project: project.publicId }));
+    } else if (address?.capture && !captureId && page && device) {
+      window.history.replaceState(null, "", projectEditorUrl({
+        project: project.publicId,
+        page: page.id,
+        device: device.variant as "desktop" | "mobile",
+        ...(address.note ? { note: address.note } : {}),
+      }));
+    }
+    setSelection(page && device ? { pageId: page.id, variant: device.variant, captureId } : null);
+    pendingPin.current = address?.note && captureId
+      ? { captureId, pinId: address.note }
+      : null;
+    setSelectedPinId(null);
+    setAddressRevision((revision) => revision + 1);
+  }, []);
+  const initializedAddress = useRef(false);
+  useEffect(() => {
+    if (initializedAddress.current) return;
+    initializedAddress.current = true;
+    applyAddress();
+    window.addEventListener("popstate", applyAddress);
+    return () => window.removeEventListener("popstate", applyAddress);
+  }, [applyAddress]);
 
   // The project the detail area shows: the chosen one, or the first when
   // nothing has been chosen yet or the chosen project has gone.
@@ -343,6 +373,12 @@ export function ProjectWorkspace({
     () => projects.find((project) => project.projectId === selectedProjectId) ?? projects[0],
     [projects, selectedProjectId],
   );
+  const activePublicId = activeProject?.publicId ?? "";
+  const navigate = useCallback((address: EditorAddress, replace = false) => {
+    const url = projectEditorUrl(address);
+    if (`${window.location.pathname}${window.location.search}` === url) return;
+    window.history[replace ? "replaceState" : "pushState"](null, "", url);
+  }, []);
 
   // The open capture, or null for the overview. A selection whose page is
   // not in the shown project (the list changed underneath it) is treated as
@@ -359,21 +395,27 @@ export function ProjectWorkspace({
   /** Show one capture in the canvas view. */
   const openCapture = useCallback(
     (projectId: string, pageId: string, variant: string, captureId: string | null = null) => {
+      const project = projectsRef.current.find((item) => item.projectId === projectId);
+      if (!project || (variant !== "desktop" && variant !== "mobile")) return;
       pendingPin.current = null;
       setFocusCanvasFor(null);
       setSelectedProjectId(projectId);
       setSelection({ pageId, variant, captureId });
+      navigate({ project: project.publicId, page: pageId, device: variant, ...(captureId ? { capture: captureId } : {}) });
     },
-    [],
+    [navigate],
   );
 
   /** Show a project's overview (the default view of a project). */
   const showOverview = useCallback((projectId: string) => {
+    const project = projectsRef.current.find((item) => item.projectId === projectId);
+    if (!project) return;
     pendingPin.current = null;
     setFocusCanvasFor(null);
     setSelectedProjectId(projectId);
     setSelection(null);
-  }, []);
+    navigate({ project: project.publicId });
+  }, [navigate]);
 
   /** Open a page on its preferred device: Desktop, or Mobile when Desktop is not usable. */
   const openPage = useCallback(
@@ -392,7 +434,10 @@ export function ProjectWorkspace({
     pendingPin.current = { captureId: pin.captureId, pinId: pin.id };
     setFocusCanvasFor(viaKeyboard ? pin.captureId : null);
     setSelection({ pageId: pin.pageId, variant: pin.variant, captureId: pin.captureId });
-  }, []);
+    if (pin.variant === "desktop" || pin.variant === "mobile") {
+      navigate({ project: activePublicId, page: pin.pageId, device: pin.variant, capture: pin.captureId, note: pin.id });
+    }
+  }, [activePublicId, navigate]);
 
   // ---- end navigation --------------------------------------------------------
 
@@ -518,7 +563,6 @@ export function ProjectWorkspace({
   // One read per selected project, guarded like the per-capture load so a
   // late answer for a previous project can never fill the current one's
   // table or stepping order. Mutations below re-read it after they land.
-  const activePublicId = activeProject.publicId;
   const activePublicIdRef = useRef(activePublicId);
   activePublicIdRef.current = activePublicId;
   const projectPinsRequestRef = useRef<string | null>(null);
@@ -1177,19 +1221,54 @@ export function ProjectWorkspace({
   );
   const projectPinsStatus =
     projectPins && projectPins.publicId === activePublicId ? projectPins.status : null;
+  useEffect(() => {
+    const address = parseEditorAddress(window.location.search);
+    if (!address?.note || address.project !== activePublicId || projectPinsStatus !== "ready") return;
+    const target = orderedPins.find((pin) => pin.id === address.note);
+    if (!target || target.pageId !== address.page || target.variant !== address.device) {
+      navigate({ project: activePublicId, ...(address.page && address.device ? { page: address.page, device: address.device, ...(address.capture ? { capture: address.capture } : {}) } : {}) }, true);
+      return;
+    }
+    if (target.captureId !== selectedCaptureId) {
+      pendingPin.current = { captureId: target.captureId, pinId: target.id };
+      setSelection({ pageId: target.pageId, variant: target.variant, captureId: target.captureId });
+      navigate({ project: activePublicId, page: target.pageId, device: target.variant as "desktop" | "mobile", capture: target.captureId, note: target.id }, true);
+      return;
+    }
+    if (address.capture !== target.captureId) {
+      navigate({ project: activePublicId, page: target.pageId, device: target.variant as "desktop" | "mobile", capture: target.captureId, note: target.id }, true);
+    }
+    if (pinsState?.captureId === target.captureId && pinsState.status === "ready") {
+      if (pinsState.pins.some((pin) => pin.id === target.id)) setSelectedPinId(target.id);
+      else navigate({ project: activePublicId, page: target.pageId, device: target.variant as "desktop" | "mobile", capture: target.captureId }, true);
+    }
+  }, [activePublicId, addressRevision, navigate, orderedPins, pinsState, projectPinsStatus, selectedCaptureId]);
+
+  const selectPin = useCallback((annotationId: string | null) => {
+    if (!active || (annotationId && !activePins.some((pin) => pin.id === annotationId))) return;
+    setSelectedPinId(annotationId);
+    if (active.device.variant !== "desktop" && active.device.variant !== "mobile") return;
+    navigate({
+      project: activePublicId,
+      page: active.page.id,
+      device: active.device.variant,
+      ...(selectedCaptureId && (annotationId || selection?.captureId) ? { capture: selectedCaptureId } : {}),
+      ...(annotationId ? { note: annotationId } : {}),
+    });
+  }, [active, activePins, activePublicId, navigate, selectedCaptureId, selection]);
 
   /** Select a pin wherever it lives, switching plane when it is elsewhere. */
   const selectPinAnywhere = useCallback(
     (annotationId: string | null) => {
       if (annotationId === null) {
-        setSelectedPinId(null);
+        selectPin(null);
         return;
       }
       const target = orderedPins.find((pin) => pin.id === annotationId);
       if (target && target.captureId !== selectedCaptureId) goToPin(target, false);
-      else setSelectedPinId(annotationId);
+      else if (target) selectPin(annotationId);
     },
-    [orderedPins, selectedCaptureId, goToPin],
+    [orderedPins, selectedCaptureId, goToPin, selectPin],
   );
 
   /** One step through the project's pins; the canvas keeps its own camera per plane. */
@@ -1202,10 +1281,10 @@ export function ProjectWorkspace({
         direction,
       );
       if (!target) return;
-      if (target.captureId === selectedCaptureId) setSelectedPinId(target.id);
+      if (target.captureId === selectedCaptureId) selectPin(target.id);
       else goToPin(target, viaKeyboard);
     },
-    [orderedPins, planes, selectedCaptureId, selectedPinId, goToPin],
+    [orderedPins, planes, selectedCaptureId, selectedPinId, goToPin, selectPin],
   );
   const stepPinByKey = useCallback((direction: 1 | -1) => stepPin(direction, true), [stepPin]);
   const selectedStepIndex = selectedPinId
@@ -1416,7 +1495,7 @@ export function ProjectWorkspace({
             <span aria-hidden="true">+</span> New project
           </Link>
           <ul className="project-switcher">
-            {projects.map((project) => {
+            {projects.filter((project) => !project.archivedAt).map((project) => {
               const current = activeProject.projectId === project.projectId;
               const feedback = projectFeedback(project, seenAdjust);
               const badge = feedbackBadge(feedback);
@@ -1473,6 +1552,21 @@ export function ProjectWorkspace({
               );
             })}
           </ul>
+          {projects.some((project) => project.archivedAt) ? (
+            <>
+              <p className="tree-summary-label">Archived</p>
+              <ul className="project-switcher">
+                {projects.filter((project) => project.archivedAt).map((project) => (
+                  <li key={project.projectId} className="project-row" data-current={activeProject.projectId === project.projectId ? "true" : undefined}>
+                    <button type="button" className="project-switch" aria-current={activeProject.projectId === project.projectId ? "true" : undefined}
+                      onClick={() => { showOverview(project.projectId); closeRail(); }}>
+                      <span className="project-switch-name">{project.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </nav>
       </div>
 
@@ -1492,14 +1586,16 @@ export function ProjectWorkspace({
           <p className="project-feedback" data-testid="project-feedback">
             {feedbackSummary(projectFeedback(activeProject, seenAdjust))}
           </p>
-          {/* Archive (D108, D110): leaves the project list; nothing else
-              about the project changes. */}
-          <ArchiveProjectControl
-            key={`archive-${activeProject.publicId}`}
-            publicId={activeProject.publicId}
-            projectTitle={activeProject.title}
-            onArchived={onChanged}
-          />
+          {activeProject.archivedAt ? (
+            <UnarchiveProjectControl key={`unarchive-${activeProject.publicId}`} publicId={activeProject.publicId} projectTitle={activeProject.title} onUnarchived={onChanged} />
+          ) : (
+            <ArchiveProjectControl
+              key={`archive-${activeProject.publicId}`}
+              publicId={activeProject.publicId}
+              projectTitle={activeProject.title}
+              onArchived={onChanged}
+            />
+          )}
           {/* The project's two links (D121, D122): side by side as pills,
               each opening its own panel. */}
           <div className="project-links">
@@ -1659,7 +1755,7 @@ export function ProjectWorkspace({
                   details={activePins}
                   previewRect={previewRect}
                   selectedPinId={selectedPinId}
-                  onSelectPin={setSelectedPinId}
+                  onSelectPin={selectPin}
                   onMovePin={(annotationId, tip) =>
                     void movePin(annotationId, { kind: "pin", tip })
                   }
@@ -1757,7 +1853,7 @@ export function ProjectWorkspace({
                 }
                 pins={activePins}
                 selectedPinId={selectedPinId}
-                onSelectPin={setSelectedPinId}
+                onSelectPin={selectPin}
                 moveError={moveError}
                 editing={editing}
                 editBody={editBody}
