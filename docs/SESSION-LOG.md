@@ -4067,7 +4067,81 @@ Elapsed: about two hours against no fixed timebox.
 
 ---
 
-## 2026-10-16 — fit-width initial camera (D143)
+## 2026-10-16 — durable editor addresses and Unarchive (D143)
+
+Harness: Warp Factory implementation agent in an isolated branch. Elapsed:
+about 20 minutes against no fixed timebox.
+
+### What was attempted
+
+- Extended the existing editor-only `/pins?project=` address with stable
+  page, device, capture-version, and note identities. Browser history now
+  follows navigation and restores a note after the authorized pin read.
+- Added a separate archived-project section and an editor-only Unarchive
+  action. Active projects remain separate; restoring clears only the archive
+  timestamp and keeps pages, captures, pins, threads, and links unchanged.
+- Recorded the owner's approval of recommendation 8 as D143 and closed the
+  earlier D109 deferral. The draft-PR exception is tracked in a parallel
+  branch, not duplicated here; decision IDs require reconciliation on merge.
+
+### What broke
+
+- The first validation attempt lacked Chromium; the next had no Debian
+  browser libraries. Installed both and reran the full gate.
+- Workspace component tests shared jsdom browser history between cases.
+  Reset the URL before each case and added deep-link/history assertions.
+
+### Validation
+
+- The URL helper's first `npm run validate` passed under Node 24: lint,
+  typecheck, 1,932 Vitest tests passed (44 skipped), docs:check, build,
+  and 28 Playwright tests passed (46 credentialed skips).
+- The complete D143 implementation was checked with focused API, component,
+  and navigation tests and the same full gate before delivery.
+
+---
+
+## 2026-10-16 — one page card with a device preview (D144)
+
+Harness: Warp Factory implementation agent on an isolated branch, stacked
+over the durable-address work. Elapsed: about 15 minutes against no fixed
+timebox.
+
+### What was attempted
+
+- Replaced duplicate Desktop and Mobile overview cards with one card per
+  page. Its toggle changes the authorized capture preview and editor link;
+  its counts cover both devices.
+- Kept ordinary opens in the workspace navigation path and left modified
+  clicks on the link for browser-native navigation. Added component
+  coverage for status, counts, preview choice, and the durable target.
+
+### What broke
+
+- The first full gate exposed an older dispatch test that still expected
+  four capture-card states for two pages; its page-card expectation is now
+  two. The focused suite passed after the update.
+- This sandbox had no Chromium executable or Debian browser libraries.
+  Installed the same Playwright prerequisite used by CI. An earlier failed
+  seed left a scratch server on port 3100; stopping that server let the
+  isolated seed sign in and show its real Desktop and Mobile screenshots.
+
+### Validation and decision
+
+- D144 (agent proposed, owner approved): one overview card per page, with
+  Desktop and Mobile as the card's preview toggle, superseding the D077
+  per-capture card layout while retaining its other navigation features.
+- Verified the real seeded overview in Chromium at desktop and narrow
+  widths: switching devices changed the screenshot, and the matching
+  capture's durable address survived reload. The overview button returned
+  to the project-only address without horizontal overflow.
+- The integrated D143+D144 tree passed `npm run validate` under Node 24:
+  lint, typecheck, 1,939 Vitest tests passed (44 skipped), docs:check,
+  build, and 28 Chromium e2e tests passed (46 credentialed skips).
+
+---
+
+## 2026-10-16 — fit-width initial camera (D145)
 
 Harness: Warp Factory implementation agent in a sandbox, isolated branch.
 Elapsed: about 20 minutes against no fixed timebox.
@@ -4105,5 +4179,5 @@ Elapsed: about 20 minutes against no fixed timebox.
   top visible; Entire page showed all four corners at 40%; Natural size was
   100%. Mobile opened at Fit width (100%), and Desktop restored its own
   selected mode when switching back.
-- D143 records the agent-proposed, owner-approved default and preserves
+- D145 records the agent-proposed, owner-approved default and preserves
   the surviving camera constraints from D055.

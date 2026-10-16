@@ -2398,7 +2398,7 @@ window.PINATA = {
         }
       ],
       "supersedes": null,
-      "superseded_by": "D143"
+      "superseded_by": "D145"
     },
     {
       "id": "D056",
@@ -3449,7 +3449,7 @@ window.PINATA = {
       "phase": "build",
       "title": "A project overview: capture grid with counts, device toggle per page, cross-capture next and previous pin, and project-scoped pin table and export",
       "origin": "agent-proposed-user-approved",
-      "status": "accepted",
+      "status": "superseded",
       "problem": "Everything about pins was scoped to one capture: the list, the table, the Markdown export, the selection. A Chickpea project is four pages times two devices, so reviewing it meant visiting eight planes with no view of where the notes were or what was left to read.",
       "decision": "The workspace opens on a project overview: one card per capture, in page order, Desktop then Mobile, showing a thumbnail, the page URL, capture state, and pin, open, and unread counts from D075; a card opens its capture in the canvas. Within a page, Desktop and Mobile become a toggle above the canvas instead of two rail entries, and the rail lists projects and pages only. Next pin and Previous pin controls (and J/K per D074) step through every pin in the project in page, device, number order, switching capture as needed and remembering each plane's camera. The pin table and 'Copy all as Markdown' move to project scope with page and device columns; the per-capture view filters the same table.",
       "alternatives": [
@@ -3476,7 +3476,7 @@ window.PINATA = {
       },
       "artifacts": [],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D144"
     },
     {
       "id": "D078",
@@ -4875,7 +4875,7 @@ window.PINATA = {
       "phase": "build",
       "title": "Defer a way to unarchive a project",
       "origin": "user-deferred",
-      "status": "pending",
+      "status": "superseded",
       "problem": "Archiving (D108) takes a project out of the list. Without a way back, an archive made by mistake can only be undone in the database.",
       "decision": "Postponed by the owner in the same request that asked for archiving. The data is shaped for it: unarchiving is clearing projects.archived_at, and DELETE on /api/projects/[publicId]/archive is the natural route for it (it answers 405 until then). The interface needs a place to list archived projects to choose from.",
       "alternatives": [
@@ -4894,7 +4894,7 @@ window.PINATA = {
       },
       "artifacts": [],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D143"
     },
     {
       "id": "D110",
@@ -6638,6 +6638,95 @@ window.PINATA = {
     },
     {
       "id": "D143",
+      "date": "2026-10-15",
+      "phase": "build",
+      "title": "Give editor project, page, device, and note durable addresses and restore archived projects",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Workspace navigation lived only in React state, so a reload or shared editor address lost its page, device, and note. Archiving hid a project without an editor control to bring it back (D109).",
+      "decision": "Keep the editor-only /pins route and its existing ?project= public-ID links. Extend its query with stable page ID, desktop or mobile device, optional capture version, and note ID. Browser history follows workspace navigation; a note resolves only against the authorized project's pins. GET /api/projects keeps active projects separate from archivedProjects for the editor, and DELETE /api/projects/[publicId]/archive restores an archive behind the same session, origin, and CSRF boundary as Archive. Archived pages, captures, pins, threads, and capability links are unchanged.",
+      "alternatives": [
+        {
+          "option": "Use transient card positions or in-memory selection as the address",
+          "why_not": "Positions change when pages are added or captures retried, and in-memory state is lost on reload."
+        },
+        {
+          "option": "Expose archived projects in the active list",
+          "why_not": "It reverses the reason archiving was added: keeping finished work out of the active list."
+        }
+      ],
+      "rationale": "The owner accepted the artifact's combined recommendation. Query parameters extend the existing /pins?project= link without new route authorization rules or a migration. The editor can find archived projects in a separate section and restore them without changing the founder's access.",
+      "consequences": [
+        "Page and note links are editor-only; anonymous visitors are redirected by /pins before any hierarchy is read.",
+        "The active project list and stale-capture recovery still exclude archived projects; the editor gets a separate archived list for restoration.",
+        "D109's deferral is answered. Further branches based on D142 must reconcile decision IDs before merge."
+      ],
+      "transcript": {
+        "proposal": "Unarchive with addresses that last (rec 8, D109)?",
+        "approval": "Unarchive with addresses that last (rec 8, D109): yes."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/lib/editor-url.ts",
+          "caption": "Stable editor address contract."
+        },
+        {
+          "type": "file",
+          "path": "src/components/project-workspace.tsx",
+          "caption": "Address and browser history navigation."
+        },
+        {
+          "type": "file",
+          "path": "src/lib/server/projects/archive.ts",
+          "caption": "Idempotent restoration."
+        }
+      ],
+      "supersedes": "D109",
+      "superseded_by": null
+    },
+    {
+      "id": "D144",
+      "date": "2026-10-16",
+      "phase": "build",
+      "title": "Show one overview card per page with a Desktop and Mobile preview toggle",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "D077 showed a separate overview card for each Desktop and Mobile capture. Reviewing a multi-page project meant scanning duplicated page addresses and twice as many cards as pages.",
+      "decision": "Show one overview card for each submitted page in page order. A Desktop and Mobile toggle changes that card's authorized thumbnail, capture state, and stable editor link without leaving the overview. The card's feedback line sums the selected captures of both devices, including local seen adjustments. Opening the selected preview navigates to its page and device; a modified click can open the same durable address in another tab. The canvas device toggle, independent capture versions, project-wide pin stepping and table, and per-capture Markdown remain as before.",
+      "alternatives": [
+        {
+          "option": "Keep two capture cards and only shorten their labels",
+          "why_not": "Two cards still repeat the page address and make the overview twice as long."
+        }
+      ],
+      "rationale": "The agent raised page cards as an alternative to D077, and the owner approved. The existing page-level feedback helper and D143 editor address contract support a page card without changing capture storage or authorizing a new image route. D077's per-capture card layout is superseded; its remaining canvas and project-wide navigation choices continue.",
+      "consequences": [
+        "A page with a failed Desktop capture opens on Mobile when Mobile is usable, while both states remain visible in the card's device toggle.",
+        "The page count represents both selected device captures, not only the device whose thumbnail is visible.",
+        "Each preview's open link carries project public ID, page ID, and device; ordinary clicks use the workspace's history navigation, and native modified clicks keep the href."
+      ],
+      "transcript": {
+        "proposal": "Page cards vs D077 per-device cards?",
+        "approval": "One card per page (rec 6): yes. This replaces the per-device cards of D077. Desktop and Mobile become a toggle."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/project-overview.tsx",
+          "caption": "One page card, device preview, page counts, and editor address."
+        },
+        {
+          "type": "file",
+          "path": "test/project-navigation.test.tsx",
+          "caption": "Overview and navigation behavior."
+        }
+      ],
+      "supersedes": "D077",
+      "superseded_by": null
+    },
+    {
+      "id": "D145",
       "date": "2026-10-16",
       "phase": "build",
       "title": "Open new captures at fit width",
@@ -6687,5 +6776,5 @@ window.PINATA = {
     }
   ],
   "as_of": "2026-10-16",
-  "source_hash": "519928b892dd"
+  "source_hash": "dde641988054"
 };

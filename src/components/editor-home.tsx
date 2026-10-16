@@ -30,7 +30,7 @@ import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
   | { status: "loading" }
-  | { status: "ready"; projects: WorkspaceProject[] }
+  | { status: "ready"; projects: WorkspaceProject[]; archivedProjects: WorkspaceProject[] }
   | { status: "failed" };
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
@@ -53,9 +53,16 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         return;
       }
       const text = await response.text();
-      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      const payload = JSON.parse(text) as {
+        projects: WorkspaceProject[];
+        archivedProjects?: WorkspaceProject[];
+      };
       lastPayload.current = text;
-      setList({ status: "ready", projects: payload.projects });
+      setList({
+        status: "ready",
+        projects: payload.projects,
+        archivedProjects: payload.archivedProjects ?? [],
+      });
     } catch {
       setList({ status: "failed" });
     }
@@ -75,11 +82,17 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
       if (!response.ok) return;
       const text = await response.text();
       if (text === lastPayload.current) return;
-      const payload = JSON.parse(text) as { projects: WorkspaceProject[] };
+      const payload = JSON.parse(text) as { projects: WorkspaceProject[]; archivedProjects?: WorkspaceProject[] };
       if (!Array.isArray(payload.projects)) return;
       lastPayload.current = text;
       setList((current) =>
-        current.status === "ready" ? { status: "ready", projects: payload.projects } : current,
+        current.status === "ready"
+          ? {
+              status: "ready",
+              projects: payload.projects,
+              archivedProjects: payload.archivedProjects ?? [],
+            }
+          : current,
       );
     } catch {
       // Best effort: the next tick, or the next write, reads again.
@@ -240,15 +253,15 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             <Link href="/pins/new">New project</Link>
           </div>
         ) : null}
-        {list.status === "ready" && list.projects.length === 0 ? (
+        {list.status === "ready" && list.projects.length + list.archivedProjects.length === 0 ? (
           <p className="list-empty">
             No projects yet. <Link href="/pins/new">Create your first project</Link> to
             capture a page.
           </p>
         ) : null}
-        {list.status === "ready" && list.projects.length > 0 ? (
+        {list.status === "ready" && list.projects.length + list.archivedProjects.length > 0 ? (
           <ProjectWorkspace
-            projects={list.projects}
+            projects={[...list.projects, ...list.archivedProjects]}
             onChanged={() => void load()}
             onRefresh={refresh}
             liveRefreshMs={liveRefreshMs}

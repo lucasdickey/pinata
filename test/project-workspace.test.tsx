@@ -126,6 +126,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   // The annotations list and the draft's nearby-context candidates are
   // per-plane reads every selection makes; the default plane has no pins
@@ -234,10 +235,11 @@ describe("hierarchy", () => {
 describe("partial status", () => {
   test("a failed device is labelled while its successful siblings stay ready", () => {
     render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
-    // The overview names every capture's state (D077).
-    const labels = screen.getAllByTestId("overview-meta").map((node) => node.textContent);
-    expect(labels.filter((label) => label?.includes("Ready"))).toHaveLength(3);
-    expect(labels.filter((label) => label?.includes("Failed"))).toHaveLength(1);
+    const cards = screen.getAllByTestId("overview-card");
+    expect(cards).toHaveLength(2);
+    expect(within(cards[1]!).getByRole("button", {
+      name: "Mobile preview of https://chickpea.co/pricing",
+    })).toHaveTextContent("Failed");
     // So does the device toggle once the page is open.
     openPageFromMenu("https://chickpea.co/pricing");
     expect(deviceButton("Desktop capture of https://chickpea.co/pricing")).toHaveTextContent("Ready");
