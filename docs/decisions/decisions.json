@@ -5524,7 +5524,7 @@
       "phase": "design",
       "title": "The project's link controls as pills with anchored cards",
       "origin": "user-directed",
-      "status": "accepted",
+      "status": "superseded",
       "problem": "\"Share with founder\" and \"Agent link\" each took a full row of plain buttons with their state in loose text, and opening one pushed a wide box of stacked labels, fields, and same-weight buttons into the page. The owner called it very clunky.",
       "decision": "Both controls are now pills on one row under the project title: an icon, the name, and a caret, joined to a status dot and a short state (Off, Active · v4, Revoked). Opening one shows a card anchored under its pill, with a title and a close button, one line saying what the link is for or what state it is in, the new link in a field with its copy button attached, the agent prompt in a box whose footer holds the one emphasized button (Copy prompt), and Rotate and Revoke as quiet actions at the bottom, Revoke in the accent. Confirming a revoke turns the step into a tinted box with a solid red button. Escape or the close button closes the card and returns focus to the pill. On a phone, the card drops into the page at full width instead of floating.",
       "alternatives": [
@@ -5583,7 +5583,7 @@
         }
       ],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D146"
     },
     {
       "id": "D123",
@@ -6769,6 +6769,84 @@
         }
       ],
       "supersedes": "D055",
+      "superseded_by": null
+    },
+    {
+      "id": "D146",
+      "date": "2026-10-16",
+      "phase": "design",
+      "title": "Offer agent, person, and Markdown handoff from one Send sheet",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Two separate header pills hid the whole-project Markdown export in the pin table. Combining them risked suggesting a previously issued secret could be copied again, contrary to the capability contract.",
+      "decision": "Replace the two header entries with one Send button and one sheet with Coding agent, Person review, and Markdown choices. The first two use their existing independent capability endpoints, retain explicit confirmation before rotating or revoking an active link, and show a new URL only at issue time. Switching choices or closing the sheet forgets a new URL; reopening reads status but cannot recover the token. Markdown copies the existing complete project export after notes load and does not issue a capability. The agent brief and its screenshot links are unchanged.",
+      "alternatives": [
+        {
+          "option": "Keep separate header pills and the Markdown action only in the pin table",
+          "why_not": "The approved Send flow asks for one entry with three choices."
+        },
+        {
+          "option": "Store or re-fetch the live token so Send can copy the same URL later",
+          "why_not": "The owner explicitly kept the digest-only, one-time token posture of D018 and D097."
+        }
+      ],
+      "rationale": "The review artifact proposed consolidation and the owner approved it only under today's token rules. Reusing existing capability operations keeps the old URL invalidation and independent agent/person semantics while changing only the editor presentation.",
+      "consequences": [
+        "D122's two-pill header shape is superseded; its one-time link fields and confirmation behavior remain in the shared sheet.",
+        "A user who leaves a link choice or closes Send must rotate an active link, after confirmation, to get a new URL; the old URL then stops working.",
+        "The project export is available from the header even when no capture is selected, but it waits for the project notes read."
+      ],
+      "transcript": {
+        "proposal": "Rec 4 (modify, security hold): combining Agent / founder / Markdown into one sheet is a product call. Re-copying a live agent token is rejected unless Lucas reverses D018/D097.",
+        "approval": "Combined Send sheet (rec 4): yes, under today's token rules. One Send button opens one sheet with three choices: agent, person, and Markdown. A link is shown only when it is made. To get it again, Send makes a fresh one and the old one stops working. Tokens stay digest-only (D018, D097), and a live link is never re-copied."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/send-sheet.tsx",
+          "caption": "The three choices and project Markdown handoff."
+        },
+        {
+          "type": "link",
+          "url": "https://github.com/lucasdickey/pinata/issues/34#issuecomment-6204593850",
+          "caption": "Owner approval of the scoped Send behavior."
+        }
+      ],
+      "supersedes": "D122",
+      "superseded_by": null
+    },
+    {
+      "id": "D147",
+      "date": "2026-10-16",
+      "phase": "build",
+      "title": "Use draft pull requests for the approved editor overhaul only",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "D010 usually commits directly to main, but the approved editor overhaul has independent changes to the camera, Send, navigation, and overview. Combining them before review risks destabilizing the working demo and obscures the decision trail.",
+      "decision": "For this editor overhaul, work on separate branches and deliver draft pull requests for human review. Keep Node 24 npm run validate as the gate before committing. Do not change D010 as the default rule for other work.",
+      "alternatives": [
+        {
+          "option": "Commit every overhaul slice directly to main",
+          "why_not": "This approved exception keeps independently reviewable changes off the demo's default branch until a human merges them."
+        }
+      ],
+      "rationale": "The factory proposed a narrow exception, and the owner approved draft PRs for this overhaul. It is not a reversal of the general direct-to-main rule.",
+      "consequences": [
+        "The Send slice is delivered as a draft PR; no agent merges it.",
+        "Parallel branches may each allocate the next decision ID, so later integrations must renumber and regenerate generated docs after an earlier branch lands."
+      ],
+      "transcript": {
+        "proposal": "May this overhaul use separate branches and draft PRs as an exception to the repository's direct-to-main rule?",
+        "approval": "Yes, use draft PRs for this overhaul"
+      },
+      "artifacts": [
+        {
+          "type": "link",
+          "url": "https://github.com/lucasdickey/pinata/issues/34",
+          "caption": "Approved editor-overhaul scope."
+        }
+      ],
+      "supersedes": null,
       "superseded_by": null
     }
   ]

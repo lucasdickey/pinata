@@ -93,6 +93,10 @@ _Honest list. Things a reviewer would find if they looked for five minutes._
   changed since, but not stylesheet changes, and dates in the shots (a
   reply's time) are the filming day's, so scenes filmed on different days
   can disagree by a date.
+- The Share and Hand off scenes still show the old two-button header after
+  D143. Their filming selectors now use Send, but the existing `public/demo/`
+  footage was not refilmed in this branch. Refilm `share,agent` together in
+  both themes before presenting the landing demo as the current Send UI.
 - The dark theme (`D104`) leaves two things light on purpose: the landing
   example's captured page and real screenshots, which depict someone
   else's light site, and the brand mark's white tile. The walkthrough video
