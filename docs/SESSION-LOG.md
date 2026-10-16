@@ -4138,3 +4138,46 @@ timebox.
 - The integrated D143+D144 tree passed `npm run validate` under Node 24:
   lint, typecheck, 1,939 Vitest tests passed (44 skipped), docs:check,
   build, and 28 Chromium e2e tests passed (46 credentialed skips).
+
+---
+
+## 2026-10-16 — fit-width initial camera (D145)
+
+Harness: Warp Factory implementation agent in a sandbox, isolated branch.
+Elapsed: about 20 minutes against no fixed timebox.
+
+### What was attempted
+
+- Changed the new-capture camera default to Fit width with a 100% cap, so a
+  narrower Mobile capture remains centered at its natural size. Kept the three
+  named modes, the per-capture session camera, gesture follow, and the
+  natural-size view. Updated the first-open and reload camera assertions.
+- Superseded D055 for its initial default only. The owner approved this
+  slice of recommendation 1; the proposed single slim bar remains undecided.
+- Started a scratch Pinata from the repository seed and opened its captured
+  pricing page on Desktop and Mobile in Chromium.
+
+### What broke
+
+- The seven updated camera assertions failed against the old Entire page
+  default before the change. Two more tests exposed width-fit's prior 346%
+  Mobile and 8x tiny-capture upscaling before the cap.
+- The first full gate could not launch Chromium: the sandbox lacked the
+  Playwright browser and Debian libraries. Installed both and reran the gate.
+- A later gate attempt found the scratch UI server still on port 3100; the
+  server was stopped before final validation.
+- An existing Chromium tab still reported Mobile at 346% after the rebuild
+  and logged network errors while the scratch server changed. A fresh
+  incognito session against the rebuilt server showed Fit width at 100%.
+
+### Validation and decisions
+
+- `npm run validate` passed under Node 24: lint, typecheck, 1,930 Vitest
+  tests passed (44 skipped), docs:check, build, and 28 Playwright tests
+  passed (46 credentialed skips).
+- In the seeded browser, Desktop opened at Fit width (94%) with the page's
+  top visible; Entire page showed all four corners at 40%; Natural size was
+  100%. Mobile opened at Fit width (100%), and Desktop restored its own
+  selected mode when switching back.
+- D145 records the agent-proposed, owner-approved default and preserves
+  the surviving camera constraints from D055.

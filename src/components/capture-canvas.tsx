@@ -65,7 +65,7 @@
 // cancels.
 //
 // Camera state is local UI state only. The three named modes — entire
-// capture (the initial contain view), fit width, and natural size — come
+// capture, fit width (the initial view), and natural size — come
 // from the pure math in src/lib/canvas/camera.ts, and pan/zoom gestures
 // never issue annotation writes or touch browser history. Domain records
 // stay canonical: nothing here reads or persists raw React Flow state.
@@ -208,7 +208,7 @@ export const MARK_TOOLS = [
 
 export type MarkTool = (typeof MARK_TOOLS)[number]["id"];
 
-/** The named camera modes; "entire" is the initial view of every capture. */
+/** The named camera modes; "width" is the initial view of every capture. */
 export const CAMERA_MODES = [
   { id: "entire", label: "Entire page" },
   { id: "width", label: "Fit width" },
@@ -1261,7 +1261,7 @@ function CaptureCanvasInner({
     handleGestureId,
   ]);
 
-  const [mode, setMode] = useState<CameraMode>("entire");
+  const [mode, setMode] = useState<CameraMode>("width");
   const modeRef = useRef(mode);
   modeRef.current = mode;
   // While true, the active named mode re-applies when the stage resizes.
@@ -1306,7 +1306,7 @@ function CaptureCanvasInner({
   );
 
   // Initial camera and resize tracking: onInit restores this plane's
-  // remembered camera when one exists, otherwise applies the entire-capture
+  // remembered camera when one exists, otherwise applies the fit-width
   // view as soon as the pane can accept it. The observer re-applies the
   // active mode on later resizes until the user takes the camera over with
   // a gesture.

@@ -61,8 +61,8 @@ function usable(viewport: PlaneSize): PlaneSize {
 }
 
 /**
- * Entire-capture view (the initial camera): the whole document is contained
- * in the viewport, centered, with the mode margin. Overview of a long page
+ * Entire-capture view: the whole document is contained in the viewport,
+ * centered, with the mode margin. Overview of a long page
  * is exactly this mode — all four corners are visible at once.
  */
 export function containCamera(viewport: PlaneSize, doc: PlaneSize): CanvasCamera {
@@ -78,14 +78,14 @@ export function containCamera(viewport: PlaneSize, doc: PlaneSize): CanvasCamera
 }
 
 /**
- * Fit-width view: the document fills the viewport horizontally and its top
- * edge sits at the top margin, so a long page reads downward from the top.
+ * Fit-width view: the document fits horizontally without enlarging beyond
+ * natural size; its top edge sits at the top margin for reading downward.
  */
 export function widthFitCamera(viewport: PlaneSize, doc: PlaneSize): CanvasCamera {
   requirePositiveFinite(viewport, "viewport");
   requirePositiveFinite(doc, "document");
   const area = usable(viewport);
-  const zoom = clampCanvasZoom(area.width / doc.width);
+  const zoom = Math.min(1, clampCanvasZoom(area.width / doc.width));
   return {
     x: (viewport.width - doc.width * zoom) / 2,
     y: CANVAS_PADDING_PX,

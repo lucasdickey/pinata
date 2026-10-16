@@ -1,8 +1,8 @@
 // Pure camera math for the capture canvas (VAL-CANVAS-002): the three named
-// modes — entire capture (the initial contain view), fit width, and natural
-// size — plus the flow/screen inverse transforms used to measure rendered
-// anchors. These functions are the independent oracle for the browser
-// measurements; nothing here reads the DOM or React Flow state.
+// modes — entire capture, fit width, and natural size — plus the flow/screen
+// inverse transforms used to measure rendered anchors. These functions
+// are the independent oracle for browser measurements; nothing here reads
+// the DOM or React Flow state.
 
 import { describe, expect, test } from "vitest";
 import {
@@ -36,7 +36,7 @@ function cornersVisible(camera: CanvasCamera, doc: { width: number; height: numb
   }
 }
 
-describe("containCamera (the initial entire-capture view)", () => {
+describe("containCamera", () => {
   test("a tall desktop capture fits entirely, centered, with margin", () => {
     const viewport = { width: 1280, height: 720 };
     const doc = { width: 1440, height: 8966 };
@@ -94,19 +94,18 @@ describe("widthFitCamera", () => {
     expect(flowToScreen({ x: doc.width, y: 0 }, camera).x).toBeLessThanOrEqual(viewport.width);
   });
 
-  test("a narrow mobile capture zooms in and centers", () => {
+  test("a narrow mobile capture stays at natural size and centers instead of enlarging", () => {
     const viewport = { width: 1280, height: 720 };
     const doc = { width: 390, height: 13_091 };
     const camera = widthFitCamera(viewport, doc);
-    expect(camera.zoom).toBeCloseTo((viewport.width - 2 * CANVAS_PADDING_PX) / 390, 10);
+    expect(camera.zoom).toBe(1);
     const topLeft = flowToScreen({ x: 0, y: 0 }, camera);
     expect(topLeft.x).toBeCloseTo((viewport.width - doc.width * camera.zoom) / 2, 10);
     expect(topLeft.y).toBe(CANVAS_PADDING_PX);
   });
-
-  test("a very narrow document clamps at the maximum zoom", () => {
+  test("a very narrow document does not exceed natural size", () => {
     const camera = widthFitCamera({ width: 1280, height: 720 }, { width: 64, height: 8966 });
-    expect(camera.zoom).toBe(CANVAS_MAX_ZOOM);
+    expect(camera.zoom).toBe(1);
   });
 });
 
@@ -183,7 +182,7 @@ describe("flow/screen inverse transforms", () => {
     }
   });
 
-  test("the initial contain camera inverse-maps the viewport center into the document", () => {
+  test("the contain camera inverse-maps the viewport center into the document", () => {
     const viewport = { width: 1280, height: 720 };
     const doc = { width: 1440, height: 8966 };
     const camera = containCamera(viewport, doc);
