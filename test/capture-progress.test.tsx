@@ -113,6 +113,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   fetchMock = vi.fn((url: unknown) => {
     const target = String(url);
