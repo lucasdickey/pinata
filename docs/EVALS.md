@@ -165,8 +165,9 @@ closing statement:
   should be presented such that the entire page is in view. see screenshot."
 - **Outcome** fixed mid-session (capture-stage-fit-view-and-hints, commit
   `0a27d77`): fit-to-view is the default with a labeled natural-size toggle;
-  the contract's VAL-CANVAS-002 now carries this as a user-directed
-  requirement.
+  D055 carried this checkpoint's entire-in-view default into VAL-CANVAS-002.
+  D143 later changed the initial camera to Fit width; Entire page remains
+  an explicit mode.
 
 ### M1-LIVE-3 — the pin-drop mechanism must be discoverable from the page
 
