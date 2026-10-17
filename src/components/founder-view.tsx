@@ -36,7 +36,6 @@ import {
   arrowsOf,
   circlesOf,
   elementText,
-  markKindNoun,
   markTitle,
   pinsOf,
   rectanglesOf,
@@ -54,7 +53,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { CaptureCanvas, type CaptureCameraState } from "./capture-canvas";
 import { variantLabel } from "./capture-panel";
 import type { AttemptView, WorkspaceProject } from "./project-workspace";
-import { PinBadge, PinRowContent, pinRowName } from "./pin-row";
+import { PinBadge, PinRowContent, elementContextLabel, pinRowName } from "./pin-row";
 import { ThreadView, type ReplySendState, type ThreadStatus } from "./thread-view";
 
 type Phase =
@@ -137,7 +136,9 @@ function pageNotesLabel(project: WorkspaceProject, page: WorkspaceProject["pages
   const counts = pageFeedback(project, page);
   if (counts.pins === 0) return null;
   const notes = plural(counts.pins, "note", "notes");
-  return counts.unreadReplies > 0 ? `${notes} · ${counts.unreadReplies} new` : notes;
+  return counts.unreadReplies > 0
+    ? `${notes} · ${counts.unreadReplies} new ${counts.unreadReplies === 1 ? "reply" : "replies"}`
+    : notes;
 }
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -596,14 +597,14 @@ export function FounderView({
     <main className="founder-shell" data-testid="founder-view">
       <header className="founder-header">
         <ThemeToggle className="founder-theme-toggle" />
-        <p className="founder-badge">Viewing as founder</p>
+        <p className="founder-badge">Notes from Lucas</p>
         <h1>{project.title}</h1>
         <p className="founder-root">{project.rootUrl}</p>
         <p className="founder-summary" data-testid="founder-summary">
           {arrivalSummary(project)}
         </p>
         <p className="workspace-hint">
-          Click a mark, or its entry in the list, to read the note and reply.
+          Choose a note in the list or on the screenshot to read it and reply.
         </p>
       </header>
 
@@ -667,16 +668,16 @@ export function FounderView({
                   its status, and an unread marker (D117); its name is still
                   the mark's name (D078). Choosing an entry selects the mark
                   everywhere and brings it into view. */}
-              <section className="founder-pins" aria-label="Pins on this capture">
-                <h3 className="visually-hidden">Pins on this capture</h3>
+              <section className="founder-pins" aria-label="Notes on this screenshot">
+                <h3 className="visually-hidden">Notes on this screenshot</h3>
                 {pinsState?.status === "loading" ? (
-                  <p className="panel-note">Loading pins…</p>
+                  <p className="panel-note">Loading notes…</p>
                 ) : null}
                 {pinsState?.status === "failed" ? (
-                  <p className="panel-note">Pins could not be loaded. Reload to try again.</p>
+                  <p className="panel-note">Notes could not be loaded. Reload to try again.</p>
                 ) : null}
                 {pinsState?.status === "ready" && activePins.length === 0 ? (
-                  <p className="panel-note">No pins on this capture yet.</p>
+                  <p className="panel-note">No notes on this screenshot yet.</p>
                 ) : null}
                 {activePins.length > 0 ? (
                   <ol className="founder-pin-list" data-testid="founder-pin-list">
@@ -722,7 +723,7 @@ export function FounderView({
                 />
                 <aside
                   className="workspace-panel"
-                  aria-label="Selected pin and replies"
+                  aria-label="Selected note and replies"
                   data-testid="founder-panel"
                 >
                   <h4>Selection</h4>
@@ -742,7 +743,7 @@ export function FounderView({
                       </p>
                       {elementText(selectedPin.elementSnapshot) ? (
                         <p className="panel-snapshot" data-testid="panel-element">
-                          Points at: “{elementText(selectedPin.elementSnapshot)}”
+                          Points at {elementContextLabel(selectedPin.elementSnapshot)}
                         </p>
                       ) : null}
                       <p
@@ -768,8 +769,8 @@ export function FounderView({
                           {statusState === "saving"
                             ? "Saving…"
                             : selectedPin.status === "resolved"
-                              ? `Reopen ${markKindNoun(selectedPin.kind)}`
-                              : `Resolve ${markKindNoun(selectedPin.kind)}`}
+                              ? "Reopen note"
+                              : "Resolve note"}
                         </button>
                       </p>
                       {statusState === "failed" ? (

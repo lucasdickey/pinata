@@ -157,7 +157,7 @@ import {
 import {
   markCenter,
   markExtent,
-  markKindNoun,
+  markKindLabel,
   marksEqual,
   type DraftMark,
 } from "../lib/canvas/marks";
@@ -790,7 +790,7 @@ function CanvasPopover({
       ref={ref}
       className={className}
       role={hidden ? undefined : role}
-      aria-label={hidden ? undefined : (label ?? `New ${markKindNoun(draft.kind)}`)}
+      aria-label={hidden ? undefined : (label ?? `New note · ${markKindLabel(draft.kind)}`)}
       aria-hidden={hidden ? "true" : undefined}
       data-testid={testId}
       data-side={placed.side}

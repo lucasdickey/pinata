@@ -4493,3 +4493,90 @@ Elapsed: about 14 minutes (03:33–03:47 UTC) against no fixed timebox.
   28 Playwright tests (47 credentialed skips without `.env.local`).
 - Desktop, 390px, and 320px rendered browser states were inspected;
   the narrow-card halo is verified again after the CSS change.
+
+---
+
+## 2026-10-17 — read written feedback as notes (D149)
+
+Harness: Warp Factory implementation on `factory/overhaul-note-language`.
+Elapsed: about 21 minutes (03:32–03:53 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Read recommendation 9 and its Words and colour table in the linked review
+  artifact. Changed the editor panel, draft composer, and founder reading view
+  to say Note for written feedback and to name Pin, Box, Circle, or Arrow only
+  when the shape matters. Attached controls use readable text and plain types
+  instead of capture tags; thread entries show one plain author name.
+- Left persisted annotations, API fields, agent export, one-time share links,
+  and the screenshot/manifest integrity boundary alone. The note panel still
+  keeps coordinates, version, size, and image hash in its closed Details
+  disclosure. The separate all-pins table and wider layout are later slices.
+- Updated affected component and browser selectors, added focused context
+  coverage, updated the brand voice rule, and regenerated both decision views.
+
+### What broke
+
+- The first full gate found a thread-time assertion for the old lowercase
+  founder label. Updated it to expect the new reading label.
+- Chromium was absent from the sandbox; after installing the pinned binary,
+  the runtime still lacked Linux libraries. Installed its Playwright OS
+  prerequisites and reran the full gate.
+- The first disposable seed command exited before the UI session used it.
+  A persistent scratch server then served the seeded editor and founder
+  views for visual verification. No scratch data was committed.
+
+- Merging the parallel current-copy branch conflicted in decision data,
+  generated views, and this append-only log. Kept both session records,
+  assigned the note decision D149, and regenerated the decision views.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,970 Vitest tests
+  (44 skipped without credentials), current generated docs, production build,
+  and 28 Playwright tests (47 credentialed skips).
+- Browser verification on the disposable seeded editor and founder views
+  showed Notes in the panel, Pin/Box/Circle/Arrow on shapes, plain button/link
+  context, closed technical Details, and no duplicated founder role in
+  replies. The older all-pins table still shows its technical columns; this
+  bounded pass did not redesign it.
+- D149 records the approved note terminology after integrating the
+  current-copy branch and its D148 decision.
+- The integrated Node 24 `npm run validate` passed with 1,971 Vitest tests
+  (44 credentialed skips), current generated docs, a production build, and
+  28 Playwright tests (47 credentialed skips).
+
+---
+
+## 2026-10-17 — align saved-note context and draft dialog names (D149 follow-up)
+
+Harness: Warp Factory review revision on `factory/overhaul-note-language`.
+Elapsed: about 11 minutes (03:54–04:05 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Failing component assertions reproduced two copy gaps: a selected saved note
+  without an attached element said "No element selected", and a Box draft's
+  dialog name said "New box" while its title said "New note · Box".
+- Changed the saved-note message to "No element attached" and made all four
+  draft dialog names use "New note" plus their shape. Updated component and
+  browser selectors without changing persisted data or draft behavior.
+- Opened the disposable seeded editor in Chromium and recorded the mixed
+  Pin, Circle, Arrow, and Box list with non-Pin selections and a Box draft.
+  The earlier founder-view proof remains applicable.
+
+### What broke
+
+- The browser login helper echoed a disposable editor password in internal
+  tool output. Stopped the scratch server so the generated credential is no
+  longer active; no shared credentials or product data were involved.
+- All four seeded notes had attached elements, so the saved no-element text
+  is verified by the component test on the persisted-note rendering path.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,971 Vitest tests
+  (44 credentialed skips), current generated docs, production build, and
+  28 Playwright tests (47 credentialed skips).
+- D149's note vocabulary remains unchanged; these are corrections to its
+  reading surface, not a new product decision.

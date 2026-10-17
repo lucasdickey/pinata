@@ -197,7 +197,7 @@ test("a drag pans and a click places exactly one draft at the clicked natural pi
   expect(Math.abs(measured.y - aim.natural.y)).toBeLessThanOrEqual(1);
   const composer = page.getByTestId("pin-composer");
   await expect(composer).toBeVisible();
-  await expect(composer.getByLabel("Comment")).toBeFocused();
+  await expect(composer.getByLabel("Note")).toBeFocused();
   // Screen-fixed and on screen: the popover box lies inside the window and
   // outside the transformed plane.
   const composerBox = await composer.boundingBox();

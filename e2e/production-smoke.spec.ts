@@ -77,7 +77,7 @@ async function waitPinsLoaded(page: Page): Promise<void> {
     const panel = page.getByTestId("capture-panel");
     await expect(
       panel
-        .getByText("No pins yet.")
+        .getByText("No notes yet.")
         .or(panel.locator(".pin-list > li > .pin-row"))
         .or(panel.getByTestId("pin-resolved"))
         .first(),
@@ -181,8 +181,8 @@ test("editor signs in on production and a dense-cell pin with a comment survives
   await page.locator(`.panel-candidate[data-element-id="${cell.elementId}"] input`).click();
   await expect(page.getByTestId("draft-choice")).toHaveAttribute("data-element-id", cell.elementId);
   const body = `Production UI smoke: dense cell ${cell.label} reads cramped at a glance.`;
-  await page.getByLabel("Comment").fill(body);
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByLabel("Note").fill(body);
+  await page.getByRole("button", { name: "Save note" }).click();
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
 
   const pins = await listPins(page, target.captureId);
@@ -253,8 +253,8 @@ test("a Mobile home pin with an explicit No-element choice stays on its own plan
   await page.getByRole("button", { name: "No element" }).click();
   await expect(page.getByTestId("draft-choice")).toHaveText("No element");
   const body = "Production UI smoke: mobile header pin, deliberately element-free.";
-  await page.getByLabel("Comment").fill(body);
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByLabel("Note").fill(body);
+  await page.getByRole("button", { name: "Save note" }).click();
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
 
   const mobilePins = await listPins(page, mobile.captureId);

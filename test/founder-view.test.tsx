@@ -283,7 +283,7 @@ describe("capability exchange", () => {
     const exchangeIndex = calls.findIndex((call) => call.url.endsWith("/session"));
     const projectIndex = calls.findIndex((call) => call.url.endsWith("/api/founder/pub-1"));
     expect(exchangeIndex).toBeLessThan(projectIndex);
-    expect(screen.getByText("Viewing as founder")).toBeInTheDocument();
+    expect(screen.getByText("Notes from Lucas")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "chickpea.co" })).toBeInTheDocument();
   });
 
@@ -341,10 +341,9 @@ describe("read/reply-only surface", () => {
     // No editing affordance anywhere: not a tool, not a button, not a form.
     for (const name of [
       "Draw a box",
-      "Save pin",
-      "Save box",
-      "Edit comment",
-      "Delete pin",
+      "Save note",
+      "Edit note",
+      "Delete note",
       "Confirm delete",
       /^Retry/,
       "Share with founder",
@@ -356,8 +355,8 @@ describe("read/reply-only surface", () => {
     }
     expect(screen.queryByRole("group", { name: "Canvas tools" })).toBeNull();
     expect(screen.queryByRole("radio")).toBeNull();
-    expect(screen.queryByLabelText("Comment")).toBeNull();
-    expect(screen.queryByLabelText("Edit comment")).toBeNull();
+    expect(screen.queryByLabelText("Note")).toBeNull();
+    expect(screen.queryByLabelText("Edit note")).toBeNull();
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
     expect(screen.getByRole("region", { name: /Screenshot of/ })).toHaveAttribute(
       "data-read-only",
@@ -383,6 +382,8 @@ describe("read/reply-only surface", () => {
       "founder",
       "Lucas",
     ]);
+    expect(items[1]!.querySelector(".thread-meta")).toHaveTextContent(/^Founder/);
+    expect(items[1]!.querySelector(".thread-meta")).not.toHaveTextContent("(founder)");
     expect(items[1]).toHaveTextContent("Good catch, will trim it.");
     expect(items[2]).toHaveTextContent("Thanks!");
     expect(within(panel).getByLabelText("Reply as founder")).toBeInTheDocument();
@@ -450,7 +451,7 @@ describe("pin list and lifecycle (D075)", () => {
     expect(items).toHaveLength(2);
     // Each name is still the mark's short name with its state (D078).
     expect(items[0]).toHaveAccessibleName(
-      "Pin 1 · “The hero headline duplicates the nav wordmark.” · Replied · 1 new",
+      "Pin 1 · “The hero headline duplicates the nav wordmark.” · Replied · 1 new reply",
     );
     expect(items[1]).toHaveAccessibleName(/^Pin 2 · “This paragraph runs on far longer/);
     // What shows is in parts (D117): badge, the whole comment (any clamp is
@@ -470,7 +471,7 @@ describe("pin list and lifecycle (D075)", () => {
     const panel = screen.getByTestId("founder-panel");
     expect(panel).toHaveTextContent("Pin 2");
     expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Resolved");
-    expect(within(panel).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Reopen note" })).toBeInTheDocument();
     // Still no editing control anywhere.
     expect(screen.queryByRole("button", { name: /edit|delete|move|place/i })).toBeNull();
   });
@@ -499,7 +500,7 @@ describe("pin list and lifecycle (D075)", () => {
     );
   });
 
-  test("Resolve pin posts to the resolve route with the founder proof; the thread records it and the list follows", async () => {
+  test("Resolve note posts to the resolve route with the founder proof; the thread records it and the list follows", async () => {
     const user = userEvent.setup();
     await renderReady();
     const list = await screen.findByTestId("founder-pin-list");
@@ -508,7 +509,7 @@ describe("pin list and lifecycle (D075)", () => {
     await within(panel).findByTestId("thread");
     expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Replied");
 
-    await user.click(within(panel).getByRole("button", { name: "Resolve pin" }));
+    await user.click(within(panel).getByRole("button", { name: "Resolve note" }));
     await waitFor(() =>
       expect(within(panel).getByTestId("panel-status")).toHaveTextContent("Status: Resolved"),
     );
@@ -517,9 +518,9 @@ describe("pin list and lifecycle (D075)", () => {
     expect(post.url).toBe("/api/captures/root-d1/annotations/ann-1/resolve");
     expect(post.headers[EDITOR_CSRF_HEADER]).toBe("founder-proof-sentinel");
     expect(post.body).toBeNull();
-    expect(within(panel).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Reopen note" })).toBeInTheDocument();
     const thread = within(panel).getByTestId("thread");
-    expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by founder");
+    expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by Founder");
     // The system line is not a message entry.
     expect(thread.querySelectorAll(".thread-entry")).toHaveLength(3);
     expect(within(list).getAllByRole("button")[0]).toHaveTextContent("Resolved");
@@ -564,7 +565,7 @@ describe("rectangles for the founder (D079)", () => {
     // The founder never sees the box's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
-    expect(within(panel).getByRole("button", { name: "Resolve box" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Resolve note" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
 });
@@ -606,7 +607,7 @@ describe("circles for the founder (D082)", () => {
     // The founder never sees the circle's coordinates (D078).
     expect(within(panel).queryByTestId("panel-position")).toBeNull();
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
-    expect(within(panel).getByRole("button", { name: "Resolve circle" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Resolve note" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
 });
@@ -647,7 +648,7 @@ describe("arrows for the founder (D083)", () => {
     expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^5Arrow 5$/);
     // The founder never sees the arrow's coordinates (D078).
     expect(textWithoutTimes(panel)).not.toMatch(/\d+, \d+/);
-    expect(within(panel).getByRole("button", { name: "Resolve arrow" })).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Resolve note" })).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /edit|delete|move/i })).toBeNull();
   });
 });
@@ -693,7 +694,7 @@ describe("reading-first founder view (D078)", () => {
     // (D117), and the comment opens the thread.
     expect(within(panel).getByTestId("panel-mark-name")).toHaveTextContent(/^9Pin 9$/);
     expect(within(panel).getByTestId("panel-element")).toHaveTextContent(
-      "Points at: “Starter plan”",
+      "Points at “Starter plan”",
     );
     // The whole view: no coordinates, no hash, no version or state facts,
     // no element internals, and no long instructions. ("Natural size" the
@@ -721,7 +722,7 @@ describe("reading-first founder view (D078)", () => {
     const hint = document.querySelector(".workspace-hint")!;
     expect(hint.tagName.toLowerCase()).toBe("p");
     expect(hint).toHaveTextContent(
-      "Click a mark, or its entry in the list, to read the note and reply.",
+      "Choose a note in the list or on the screenshot to read it and reply.",
     );
   });
 
@@ -820,8 +821,11 @@ describe("arrival, live refresh, and reply status (D097)", () => {
     );
     const counts = screen.getAllByTestId("founder-page-count");
     expect(counts).toHaveLength(1);
-    expect(counts[0]).toHaveTextContent("3 notes · 1 new");
-    expect(counts[0]).toHaveAttribute("aria-label", "https://chickpea.co/pricing: 3 notes · 1 new");
+    expect(counts[0]).toHaveTextContent("3 notes · 1 new reply");
+    expect(counts[0]).toHaveAttribute(
+      "aria-label",
+      "https://chickpea.co/pricing: 3 notes · 1 new reply",
+    );
     // Not the root page, which has nothing on it.
     await screen.findByRole("img", {
       name: "Screenshot of https://chickpea.co/pricing (Desktop, version 1)",

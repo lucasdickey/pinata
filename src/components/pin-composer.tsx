@@ -5,8 +5,7 @@
 // popover beside the draft instead of in the side panel — the canvas renders
 // it outside the transformed React Flow plane, positions it from the draft's
 // projected screen point, and re-positions it on every pan and zoom (see
-// DraftComposerPopover in capture-canvas.tsx). The copy names the kind
-// ("Save pin" / "Save box" / "Save circle"); everything else is shared.
+// DraftComposerPopover in capture-canvas.tsx).
 //
 // The nearby-element decision stays explicit in the data (VAL-PIN-003,
 // D061): the client still sends one candidate id or null and the server
@@ -24,7 +23,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
 import { MAX_ALSO_ELEMENTS, type PinElementSnapshot } from "../lib/annotations";
-import { markKindNoun, type MarkKind } from "../lib/canvas/marks";
+import { markKindLabel, type MarkKind } from "../lib/canvas/marks";
+import { elementContextLabel } from "./pin-row";
 
 /** The draft's nearby-candidate fetch state. */
 export interface DraftCandidates {
@@ -78,22 +78,12 @@ export interface PinComposerProps {
   placement?: number;
 }
 
-/** Human label for one candidate or snapshot: kind, tag, and a snippet. */
 export function snapshotLabel(element: PinElementSnapshot): string {
-  const snippet = (element.text || element.accessibleName || element.tag || element.kind).slice(
-    0,
-    80,
-  );
-  return `${element.kind} <${element.tag || "element"}> — “${snippet}”`;
+  return elementContextLabel(element, 80);
 }
 
-/** The shorter form the chip shows: the snippet first, then the kind. */
 export function chipLabel(element: PinElementSnapshot): string {
-  const snippet = (element.text || element.accessibleName || element.tag || element.kind).slice(
-    0,
-    60,
-  );
-  return `“${snippet}” (${element.kind})`;
+  return elementContextLabel(element, 60);
 }
 
 export function PinComposer({
@@ -115,7 +105,7 @@ export function PinComposer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
-  const noun = markKindNoun(draftKind);
+  const shape = markKindLabel(draftKind);
 
   // The comment is what the editor came to write: focus it as soon as the
   // draft appears, and again whenever it is re-placed or moved (D096) —
@@ -172,10 +162,10 @@ export function PinComposer({
   return (
     <div className="pin-composer-body" onKeyDown={onRootKeyDown}>
       <p className="pin-composer-title">
-        New {noun} <span className="panel-note">— not saved yet</span>
+        New note · {shape} <span className="panel-note">— not saved yet</span>
       </p>
       <label className="panel-field">
-        Comment
+        Note
         <textarea
           ref={textareaRef}
           value={draftBody}
@@ -198,7 +188,7 @@ export function PinComposer({
         data-candidates-state={status}
       >
         <p className="pin-composer-attach">
-          <span className="pin-composer-attach-label">Attached to</span>
+          <span className="pin-composer-attach-label">Points at</span>
           <span
             className="pin-composer-chip"
             data-testid="draft-choice"
@@ -302,7 +292,7 @@ export function PinComposer({
       </div>
       <p className="panel-actions">
         <button type="button" className="button-primary" onClick={onSaveDraft} disabled={saveDisabled}>
-          {saveState === "saving" ? "Saving…" : `Save ${noun}`}
+          {saveState === "saving" ? "Saving…" : "Save note"}
         </button>
         <button type="button" onClick={onCancelDraft} disabled={saveState === "saving"}>
           Cancel
@@ -310,7 +300,7 @@ export function PinComposer({
       </p>
       {saveState === "failed" ? (
         <p role="alert" className="capture-error">
-          That {noun} could not be saved. Your draft and comment are still here — try again.
+          That note could not be saved. Your draft is still here — try again.
         </p>
       ) : null}
     </div>

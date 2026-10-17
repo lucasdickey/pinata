@@ -125,7 +125,7 @@ async function waitPinsLoaded(page: Page): Promise<void> {
     const panel = page.getByTestId("capture-panel");
     await expect(
       panel
-        .getByText("No pins yet.")
+        .getByText("No notes yet.")
         .or(panel.locator(".pin-list > li > .pin-row"))
         .or(panel.getByTestId("pin-resolved"))
         .first(),
@@ -224,11 +224,11 @@ async function placeAndSave(
     /ready|failed/,
     { timeout: 15_000 },
   );
-  await page.getByLabel("Comment").fill(body);
+  await page.getByLabel("Note").fill(body);
   // The top-ranked nearby element is pre-selected (D074); these specs
   // annotate background, so No element is the honest choice.
   await page.getByRole("button", { name: "No element" }).click();
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   await expect(page.locator(PIN_NODE)).toHaveCount(expectedPinCount);
   await expect(page.locator(".react-flow__node-draftPin")).toHaveCount(0);
 }
@@ -334,7 +334,7 @@ test("a saved corner pin holds its natural pixel across reload and plane switche
     const mobilePins = await listPins(page, mobile.captureId);
     await expect(page.locator(PIN_NODE)).toHaveCount(mobilePins.length);
     if (mobilePins.length === 0) {
-      await expect(page.getByTestId("capture-panel")).toContainText("No pins yet.");
+      await expect(page.getByTestId("capture-panel")).toContainText("No notes yet.");
     }
     // And back: the desktop plane's pins return unmutated and unremapped.
     await openPlane(page, target);
@@ -616,9 +616,9 @@ test("the Draw a box toggle arms one drag; the box shares the pin numbering and 
     /ready|failed/,
     { timeout: 15_000 },
   );
-  await page.getByLabel("Comment").fill("e2e: toggle box (shared numbering)");
+  await page.getByLabel("Note").fill("e2e: toggle box (shared numbering)");
   await page.getByRole("button", { name: "No element" }).click();
-  await page.getByRole("button", { name: "Save box" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   await expect(page.locator(".react-flow__node-draftRectangle")).toHaveCount(0);
   const box = await awaitNewPin(page, target.captureId, before);
   expect(box.kind).toBe("rectangle");
