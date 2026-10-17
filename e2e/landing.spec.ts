@@ -88,8 +88,9 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(cta).toBeFocused();
-  // The brief value proposition.
-  await expect(page.getByText(/pin plain, directional notes/i)).toBeVisible();
+  await expect(page.getByText("Mark up a page. Hand it off.")).toBeVisible();
+  await expect(page.getByText(/coding agent or a friend/i)).toBeVisible();
+  await expect(page.getByText(/Pinata does not make the edits/i)).toBeVisible();
 
   // D140: the demo video, filmed in the product, comes straight after the
   // hero and plays with motion allowed; its chapter buttons jump to a part.
@@ -214,6 +215,11 @@ test("anonymous landing: brand, sign-in call, static example, sign-in path, no a
     const copy = await page.locator(".invitation-copy").boundingBox();
     const signIn = await page.locator(".invitation-sign-in").boundingBox();
     expect(signIn!.y).toBeGreaterThanOrEqual(copy!.y + copy!.height);
+    if (width === 320) {
+      const body = await page.locator(".invitation-copy > p:last-of-type").boundingBox();
+      const glow = await page.locator(".landing-halftone--card .landing-halftone-glow").boundingBox();
+      expect(glow!.y).toBeGreaterThanOrEqual(body!.y + body!.height);
+    }
   }
 
   await page.setViewportSize({ width: 1440, height: 1000 });

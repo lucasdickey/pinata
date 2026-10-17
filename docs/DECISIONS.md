@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
-| Agent proposed, human approved | 30 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144, D145, D146, D147 |
+| Agent proposed, human approved | 31 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144, D145, D146, D147, D148 |
 | Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **147** | |
+| **Total** | **148** | |
 
 ## Key decisions
 
@@ -208,6 +208,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D145](#d145--open-new-captures-at-fit-width) | build | Open new captures at fit width | Agent proposed, human approved | accepted |
 | [D146](#d146--offer-agent-person-and-markdown-handoff-from-one-send-sheet) | design | Offer agent, person, and Markdown handoff from one Send sheet | Agent proposed, human approved | accepted |
 | [D147](#d147--use-draft-pull-requests-for-the-approved-editor-overhaul-only) | build | Use draft pull requests for the approved editor overhaul only | Agent proposed, human approved | accepted |
+| [D148](#d148--describe-current-agent-and-person-handoffs-without-promising-a-fix-check) | build | Describe current agent and person handoffs without promising a fix check | Agent proposed, human approved | accepted |
 
 ---
 
@@ -6003,4 +6004,50 @@ Human approved:
 
 ---
 
-<sub>Generated from 147 record(s) as of 2026-10-16 · source `55e5904d1ef7`</sub>
+## D148 — Describe current agent and person handoffs without promising a fix check
+
+*2026-10-17 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+The landing, New project, and walkthrough still presented the first version's person-only share path. The product now offers a coding-agent brief and a Markdown export as separate handoffs.
+
+**Decision**
+
+Lead the landing with marking up a public page and handing feedback to a coding agent or friend. Remove the repeated marketing hero from New project, leaving the form as its main heading. Update walkthrough copy and the demo's closing card to name current handoffs. Do not promise in-app editing or checking a fix; keep one-time capability display and public URL capture boundaries explicit. Retain D140's responsive invitation-card layout and move only its decorative halo away from copy below 368px.
+
+**Alternatives considered**
+
+- *Promise that the agent can edit and check the fix in Pinata* — The agent reads a brief outside the app, and the cross-capture fix-checking path has not been built.
+- *Rebuild the phone invitation card* — D140 already stacks the card at the phone breakpoint and tests its geometry at 390px and 320px; only the halo overlapped copy at 320px.
+
+**Rationale**
+
+The review proposed truthful current-product copy and the owner approved all recommendations while asking for independent slices to start. This first pass changes only copy, page hierarchy, and phone decoration; it does not change the capability model, capture permissions, or agent behavior.
+
+**Consequences**
+
+- The public pitch names distinct coding-agent and person review outcomes; New project starts with its own form rather than another landing pitch.
+- At narrow phone widths the decorative dots stay near the mascot, clear of invitation copy.
+- The walkthrough and demo closing card reflect the current handoff path, but filmed product screenshots must be refreshed separately when the Send scenes can be re-filmed.
+- Future copy may promise checking a fix only after that functionality is implemented and validated.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Recommendation 12: rewrite the landing, New project, and walkthrough pitch around marking up a page and handing feedback to an agent or friend; remove the redundant New project pitch and review the mobile invitation card.
+
+Human approved:
+
+> Yes, spec the high-risk parts; start independent slices now
+
+**Artifacts**
+
+- `src/components/landing.tsx` — The public product pitch and handoff steps.
+- `remotion/walkthrough/slides.ts` — The transcript and chapter handoff copy.
+- [Umbrella request and owner approval for independent slices.](https://github.com/lucasdickey/pinata/issues/34)
+
+---
+
+<sub>Generated from 148 record(s) as of 2026-10-17 · source `cefaf01dd938`</sub>

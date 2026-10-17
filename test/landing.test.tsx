@@ -38,8 +38,11 @@ describe("anonymous landing", () => {
     // The mark opens the page, ahead of the heading.
     const heading = screen.getByRole("heading", { level: 1, name: "Pinata" });
     expect(logo.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // A brief value proposition.
-    expect(screen.getByText(/pin plain, directional notes/i)).toBeInTheDocument();
+    expect(screen.getByText("Mark up a page. Hand it off.")).toBeInTheDocument();
+    expect(screen.getByText(/coding agent or a friend/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pinata does not make the edits/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Hand it to an agent or friend" })).toBeInTheDocument();
+    expect(screen.getByText(/Links appear only when you create them/i)).toBeInTheDocument();
     // D103: creating a project lives behind sign-in, so the public page has
     // no address field and no capture action at all.
     expect(screen.queryByLabelText("Root URL")).toBeNull();
