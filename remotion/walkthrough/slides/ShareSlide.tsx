@@ -29,7 +29,7 @@ export function ShareSlide({ index }: SlideProps) {
   return (
     <SlideShell index={index}>
       <Kicker>Step 4 of 4 · Share and reply</Kicker>
-      <Headline size={64}>Share one link. Get the reply in place.</Headline>
+      <Headline size={64}>Send a review link. Get replies in place.</Headline>
       <Reveal delay={6}>
         <div
           style={{
@@ -65,8 +65,8 @@ export function ShareSlide({ index }: SlideProps) {
           time; the old link dies.
         </Callout>
         <Callout delay={136} width={480}>
-          The founder view is <strong>read, reply, and resolve only</strong>. On a phone the
-          notes come first.
+          The friend can <strong>read, reply, and resolve</strong>. Send also offers a separate
+          read-only coding-agent brief or project Markdown.
         </Callout>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, marginTop: 26 }}>

@@ -6851,8 +6851,58 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D148",
+      "date": "2026-10-17",
+      "phase": "build",
+      "title": "Describe current agent and person handoffs without promising a fix check",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "The landing, New project, and walkthrough still presented the first version's person-only share path. The product now offers a coding-agent brief and a Markdown export as separate handoffs.",
+      "decision": "Lead the landing with marking up a public page and handing feedback to a coding agent or friend. Remove the repeated marketing hero from New project, leaving the form as its main heading. Update walkthrough copy and the demo's closing card to name current handoffs. Do not promise in-app editing or checking a fix; keep one-time capability display and public URL capture boundaries explicit. Retain D140's responsive invitation-card layout and move only its decorative halo away from copy below 368px.",
+      "alternatives": [
+        {
+          "option": "Promise that the agent can edit and check the fix in Pinata",
+          "why_not": "The agent reads a brief outside the app, and the cross-capture fix-checking path has not been built."
+        },
+        {
+          "option": "Rebuild the phone invitation card",
+          "why_not": "D140 already stacks the card at the phone breakpoint and tests its geometry at 390px and 320px; only the halo overlapped copy at 320px."
+        }
+      ],
+      "rationale": "The review proposed truthful current-product copy and the owner approved all recommendations while asking for independent slices to start. This first pass changes only copy, page hierarchy, and phone decoration; it does not change the capability model, capture permissions, or agent behavior.",
+      "consequences": [
+        "The public pitch names distinct coding-agent and person review outcomes; New project starts with its own form rather than another landing pitch.",
+        "At narrow phone widths the decorative dots stay near the mascot, clear of invitation copy.",
+        "The walkthrough and demo closing card reflect the current handoff path, but filmed product screenshots must be refreshed separately when the Send scenes can be re-filmed.",
+        "Future copy may promise checking a fix only after that functionality is implemented and validated."
+      ],
+      "transcript": {
+        "proposal": "Recommendation 12: rewrite the landing, New project, and walkthrough pitch around marking up a page and handing feedback to an agent or friend; remove the redundant New project pitch and review the mobile invitation card.",
+        "approval": "Yes, spec the high-risk parts; start independent slices now"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/landing.tsx",
+          "caption": "The public product pitch and handoff steps."
+        },
+        {
+          "type": "file",
+          "path": "remotion/walkthrough/slides.ts",
+          "caption": "The transcript and chapter handoff copy."
+        },
+        {
+          "type": "link",
+          "url": "https://github.com/lucasdickey/pinata/issues/34",
+          "caption": "Umbrella request and owner approval for independent slices."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-16",
-  "source_hash": "55e5904d1ef7"
+  "as_of": "2026-10-17",
+  "source_hash": "cefaf01dd938"
 };
