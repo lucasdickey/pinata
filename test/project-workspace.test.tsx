@@ -623,7 +623,7 @@ describe("screen-fixed selection and metadata panel", () => {
 
     // No mode to enter first: the click itself is the intent (D074).
     clickImage();
-    const composer = await within(detail()).findByRole("dialog", { name: "New pin" });
+    const composer = await within(detail()).findByRole("dialog", { name: "New note · Pin" });
     // Screen-fixed beside the badge: outside the transformed plane and
     // outside the side panel, with the comment ready to type into.
     expect(composer.closest(".react-flow")).toBeNull();
@@ -638,19 +638,19 @@ describe("screen-fixed selection and metadata panel", () => {
     // Escape in the composer cancels only the transient draft.
     fireEvent.keyDown(within(composer).getByLabelText("Note"), { key: "Escape" });
     await waitFor(() =>
-      expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
+      expect(within(detail()).queryByRole("dialog", { name: "New note · Pin" })).toBeNull(),
     );
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
 
     // A draft on one plane never leaks into another: drop again, switch to
     // Mobile, and the composer and canvas show nothing.
     clickImage();
-    await within(detail()).findByRole("dialog", { name: "New pin" });
+    await within(detail()).findByRole("dialog", { name: "New note · Pin" });
     await user.click(
       deviceButton("Mobile capture of https://chickpea.co/"),
     );
     await waitFor(() =>
-      expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
+      expect(within(detail()).queryByRole("dialog", { name: "New note · Pin" })).toBeNull(),
     );
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
     // No row is open: nothing is selected (D128).
@@ -931,12 +931,12 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const image = document.querySelector(".capture-frame-image")!;
     fireEvent.pointerDown(image, { clientX: 400, clientY: 300, isPrimary: true });
     fireEvent.pointerUp(image, { clientX: 400, clientY: 300, isPrimary: true });
-    await within(detail()).findByRole("dialog", { name: "New pin" });
+    await within(detail()).findByRole("dialog", { name: "New note · Pin" });
   }
 
-  const composer = () => within(detail()).getByRole("dialog", { name: "New pin" });
+  const composer = () => within(detail()).getByRole("dialog", { name: "New note · Pin" });
   const noComposer = () =>
-    waitFor(() => expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull());
+    waitFor(() => expect(within(detail()).queryByRole("dialog", { name: "New note · Pin" })).toBeNull());
 
   /** Wait for the nearby-candidate read to settle (ready or failed). */
   async function settleCandidates() {
@@ -1334,7 +1334,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await settleAnnotations();
     const region = within(detail()).getByRole("region", { name: /^Screenshot of/ });
     fireEvent.keyDown(region, { key: "n" });
-    await within(detail()).findByRole("dialog", { name: "New pin" });
+    await within(detail()).findByRole("dialog", { name: "New note · Pin" });
     expect(document.querySelectorAll(".react-flow__node-draftPin")).toHaveLength(1);
     // The nearby-candidate read runs for it exactly as for a click.
     await settleCandidates();
@@ -1465,7 +1465,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const panel = within(detail()).getByTestId("panel-pin");
     expect(panel).toHaveTextContent("Pin 1");
     expect(panel).toHaveTextContent("The hero headline duplicates the nav wordmark.");
-    expect(within(panel).getByTestId("panel-snapshot")).toHaveTextContent("No element selected");
+    expect(within(panel).getByTestId("panel-snapshot")).toHaveTextContent("No element attached");
     expect(document.querySelector('[data-selected="true"]')).not.toBeNull();
 
     // Selecting again clears back to the empty state.
@@ -1845,7 +1845,7 @@ describe("rectangle drafts (D079)", () => {
     fireEvent.pointerMove(image, { clientX: 460, clientY: 360, isPrimary: true, shiftKey: true });
     fireEvent.pointerUp(image, { clientX: 460, clientY: 360, isPrimary: true, shiftKey: true });
 
-    const dialog = await within(detail()).findByRole("dialog", { name: "New box" });
+    const dialog = await within(detail()).findByRole("dialog", { name: "New note · Box" });
     // The candidates were asked for by overlap: one query, carrying the box.
     await waitFor(() => expect(contextUrls).toHaveLength(1));
     expect(contextUrls[0]).toMatch(/\/api\/captures\/root-d1\/context\?x=[\d.]+&y=[\d.]+&width=[\d.]+&height=[\d.]+$/);
@@ -2042,7 +2042,7 @@ describe("circle drafts (D082)", () => {
     fireEvent.pointerMove(image, { clientX: 460, clientY: 380, isPrimary: true });
     fireEvent.pointerUp(image, { clientX: 460, clientY: 380, isPrimary: true });
 
-    const dialog = await within(detail()).findByRole("dialog", { name: "New circle" });
+    const dialog = await within(detail()).findByRole("dialog", { name: "New note · Circle" });
     // The candidates were asked for by overlap with the bounding square.
     await waitFor(() => expect(contextUrls).toHaveLength(1));
     expect(contextUrls[0]).toMatch(
@@ -2147,7 +2147,7 @@ describe("arrow drafts (D083)", () => {
     fireEvent.pointerMove(image, { clientX: 500, clientY: 420, isPrimary: true });
     fireEvent.pointerUp(image, { clientX: 500, clientY: 420, isPrimary: true });
 
-    const dialog = await within(detail()).findByRole("dialog", { name: "New arrow" });
+    const dialog = await within(detail()).findByRole("dialog", { name: "New note · Arrow" });
     // The caller chose the ranking by kind (D083): an arrow asks for the
     // point ranking, from its head, so the query carries no size at all.
     await waitFor(() => expect(contextUrls).toHaveLength(1));

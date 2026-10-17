@@ -4545,3 +4545,38 @@ Elapsed: about 21 minutes (03:32–03:53 UTC) against no fixed timebox.
 - The integrated Node 24 `npm run validate` passed with 1,971 Vitest tests
   (44 credentialed skips), current generated docs, a production build, and
   28 Playwright tests (47 credentialed skips).
+
+---
+
+## 2026-10-17 — align saved-note context and draft dialog names (D149 follow-up)
+
+Harness: Warp Factory review revision on `factory/overhaul-note-language`.
+Elapsed: about 11 minutes (03:54–04:05 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Failing component assertions reproduced two copy gaps: a selected saved note
+  without an attached element said "No element selected", and a Box draft's
+  dialog name said "New box" while its title said "New note · Box".
+- Changed the saved-note message to "No element attached" and made all four
+  draft dialog names use "New note" plus their shape. Updated component and
+  browser selectors without changing persisted data or draft behavior.
+- Opened the disposable seeded editor in Chromium and recorded the mixed
+  Pin, Circle, Arrow, and Box list with non-Pin selections and a Box draft.
+  The earlier founder-view proof remains applicable.
+
+### What broke
+
+- The browser login helper echoed a disposable editor password in internal
+  tool output. Stopped the scratch server so the generated credential is no
+  longer active; no shared credentials or product data were involved.
+- All four seeded notes had attached elements, so the saved no-element text
+  is verified by the component test on the persisted-note rendering path.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,971 Vitest tests
+  (44 credentialed skips), current generated docs, production build, and
+  28 Playwright tests (47 credentialed skips).
+- D149's note vocabulary remains unchanged; these are corrections to its
+  reading surface, not a new product decision.

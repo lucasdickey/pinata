@@ -87,7 +87,7 @@ function pinNodes(): HTMLElement[] {
 }
 
 function composer(): HTMLElement | null {
-  return within(stage()).queryByRole("dialog", { name: "New pin" });
+  return within(stage()).queryByRole("dialog", { name: "New note · Pin" });
 }
 
 /** A click: press and release at one screen point. */
@@ -895,7 +895,8 @@ describe("rectangles (D079)", () => {
     expect(onDraftSettled).toHaveBeenLastCalledWith(draft);
 
     // The same composer, labelled for a box, anchored inside the window.
-    const dialog = within(stage()).getByRole("dialog", { name: "New box" });
+    const dialog = within(stage()).getByRole("dialog", { name: "New note · Box" });
+    expect(dialog).toHaveTextContent("New note · Box — not saved yet");
     expect(dialog).toHaveAttribute("data-draft-kind", "rectangle");
     expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Note")).toHaveFocus();
@@ -1377,7 +1378,7 @@ describe("circles (D082)", () => {
     expect(node.style.width).toBe(node.style.height);
     expect(node.querySelector("ellipse")).not.toBeNull();
     // The same composer, labelled for a circle.
-    const dialog = within(stage()).getByRole("dialog", { name: "New circle" });
+    const dialog = within(stage()).getByRole("dialog", { name: "New note · Circle" });
     expect(dialog).toHaveAttribute("data-draft-kind", "circle");
     expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
   });
@@ -1413,7 +1414,7 @@ describe("circles (D082)", () => {
     const user = userEvent.setup();
     render(<CaptureCanvas {...props} composer={composerProps()} />);
     tap(frameImage(), 400, 300);
-    const dialog = within(stage()).getByRole("dialog", { name: "New pin" });
+    const dialog = within(stage()).getByRole("dialog", { name: "New note · Pin" });
     await user.type(within(dialog).getByLabelText("Note"), "back of the card");
     expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
     expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "false");
@@ -1636,7 +1637,7 @@ describe("arrows (D083)", () => {
     expect(tool("Draw an arrow")).toHaveAttribute("aria-pressed", "false");
 
     // The same composer, labelled for an arrow.
-    const dialog = within(stage()).getByRole("dialog", { name: "New arrow" });
+    const dialog = within(stage()).getByRole("dialog", { name: "New note · Arrow" });
     expect(dialog).toHaveAttribute("data-draft-kind", "arrow");
     expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
   });

@@ -192,7 +192,7 @@ export function CapturePanel({
       <p className="panel-snapshot" data-testid="panel-snapshot">
         {pin.elementSnapshot
           ? `Points at ${elementContextLabel(pin.elementSnapshot)}`
-          : "No element selected"}
+          : "No element attached"}
       </p>
       {(pin.alsoElements ?? []).map((also) => (
         <p key={also.id} className="panel-snapshot panel-snapshot-also">

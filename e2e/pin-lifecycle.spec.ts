@@ -644,7 +644,7 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
   const composer = page.getByTestId("pin-composer");
   await expect(composer).toBeVisible();
   await expect(composer).toHaveAttribute("data-draft-kind", "rectangle");
-  await expect(page.getByRole("dialog", { name: "New box" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "New note · Box" })).toBeVisible();
   const composerBox = (await composer.boundingBox())!;
   const frameBox = (await page.locator(".capture-canvas").boundingBox())!;
   expect(composerBox.x).toBeGreaterThanOrEqual(frameBox.x - 1);
@@ -824,7 +824,7 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   const composer = page.getByTestId("pin-composer");
   await expect(composer).toBeVisible();
   await expect(composer).toHaveAttribute("data-draft-kind", "circle");
-  await expect(page.getByRole("dialog", { name: "New circle" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "New note · Circle" })).toBeVisible();
 
   await page.getByLabel("Note").fill("e2e: circle lifecycle");
   await waitContextSettled(page);
@@ -981,7 +981,7 @@ test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and 
 
   const composer = page.getByTestId("pin-composer");
   await expect(composer).toHaveAttribute("data-draft-kind", "arrow");
-  await expect(page.getByRole("dialog", { name: "New arrow" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "New note · Arrow" })).toBeVisible();
   // An arrow's candidates are the point ranking, taken from its head.
   await expect(page.getByText("Nearby elements, closest first")).toHaveCount(0);
 
