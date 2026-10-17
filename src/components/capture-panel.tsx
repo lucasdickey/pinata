@@ -21,14 +21,12 @@
 
 import { useEffect, useState } from "react";
 import { FEEDBACK_BODY_MAX_CHARS } from "../lib/boundaries";
-import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
-import type { NaturalPoint } from "../lib/canvas/camera";
-import { markKindNoun, markPosition, markTitle } from "../lib/canvas/marks";
+import type { AnnotationView } from "../lib/annotations";
+import { markPosition, markTitle } from "../lib/canvas/marks";
 import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
 import type { AttemptView } from "./project-workspace";
 import { CanvasIcon } from "./canvas-icons";
-import { PinBadge, PinRowContent, pinRowName } from "./pin-row";
-import { snapshotLabel } from "./pin-composer";
+import { PinBadge, PinRowContent, elementContextLabel, pinRowName } from "./pin-row";
 import { ThreadView, type ThreadViewProps } from "./thread-view";
 
 export const VARIANT_LABELS: Record<string, string> = { desktop: "Desktop", mobile: "Mobile" };
@@ -139,7 +137,6 @@ export function CapturePanel({
   thread?: ThreadViewProps;
 }) {
   const selectedPin = pins.find((pin) => pin.id === selectedPinId) ?? null;
-  const noun = selectedPin ? markKindNoun(selectedPin.kind) : "pin";
   // Collapsing only hides the panel (D112): it stays mounted, so the
   // workspace's writes, seen-marking, and live refresh carry on behind it.
   const [collapsed, setCollapsed] = useState(false);
@@ -173,11 +170,15 @@ export function CapturePanel({
           resolves an open or replied pin or reopens a resolved one. */}
       <p className="panel-status" data-testid="panel-status" data-status={pin.status}>
         Status: {PIN_STATUS_LABELS[pin.status] ?? pin.status}
-        {pin.unreadReplies > 0 ? <span className="pin-unread"> · {pin.unreadReplies} new</span> : null}
+        {pin.unreadReplies > 0 ? (
+          <span className="pin-unread">
+            {" "}· {pin.unreadReplies} new {pin.unreadReplies === 1 ? "reply" : "replies"}
+          </span>
+        ) : null}
       </p>
       {editing ? (
         <label className="panel-field">
-          Edit comment
+          Edit note
           <textarea
             value={editBody}
             onChange={(event) => onEditBodyChange(event.target.value)}
@@ -190,12 +191,12 @@ export function CapturePanel({
       )}
       <p className="panel-snapshot" data-testid="panel-snapshot">
         {pin.elementSnapshot
-          ? `Element: ${snapshotLabel(pin.elementSnapshot)}`
-          : "Element: No element"}
+          ? `Points at ${elementContextLabel(pin.elementSnapshot)}`
+          : "No element selected"}
       </p>
       {(pin.alsoElements ?? []).map((also) => (
         <p key={also.id} className="panel-snapshot panel-snapshot-also">
-          Also: {snapshotLabel(also)}
+          Also points at {elementContextLabel(also)}
         </p>
       ))}
       {editing ? (
@@ -221,7 +222,7 @@ export function CapturePanel({
       ) : confirmingDelete ? (
         <>
           <p className="panel-note">
-            Delete {markTitle(pin)}? Its number is retired and never reused.
+            Delete the note on {markTitle(pin)}? Its number is retired and never reused.
           </p>
           <p className="panel-actions">
             <button
@@ -235,7 +236,7 @@ export function CapturePanel({
             </button>
             <button
               type="button"
-              aria-label={`Keep ${noun}`}
+              aria-label="Keep note"
               onClick={onCancelDelete}
               disabled={deleteState === "deleting"}
             >
@@ -256,8 +257,8 @@ export function CapturePanel({
                 statusState === "saving"
                   ? undefined
                   : pin.status === "resolved"
-                    ? `Reopen ${noun}`
-                    : `Resolve ${noun}`
+                    ? "Reopen note"
+                    : "Resolve note"
               }
               disabled={statusState === "saving"}
               onClick={() => onSetPinStatus(pin.status === "resolved" ? "reopen" : "resolve")}
@@ -269,10 +270,10 @@ export function CapturePanel({
                   : "Resolve"}
             </button>
           ) : null}
-          <button type="button" aria-label="Edit comment" onClick={onStartEdit}>
+          <button type="button" aria-label="Edit note" onClick={onStartEdit}>
             Edit
           </button>
-          <button type="button" aria-label={`Delete ${noun}`} onClick={onRequestDelete}>
+          <button type="button" aria-label="Delete note" onClick={onRequestDelete}>
             Delete
           </button>
         </p>
@@ -289,12 +290,12 @@ export function CapturePanel({
       ) : null}
       {deleteState === "failed" ? (
         <p role="alert" className="capture-error">
-          That {noun} could not be deleted. Try again.
+          That note could not be deleted. Try again.
         </p>
       ) : null}
       {editState === "conflict" || deleteState === "conflict" ? (
         <p role="alert" className="capture-error">
-          This {noun} changed in another session. The latest version is now shown.
+          This note changed in another session. The latest version is now shown.
         </p>
       ) : null}
       {/* The replies only: the comment is shown once, above (D128). A long
@@ -343,7 +344,7 @@ export function CapturePanel({
   return (
     <aside
       className="workspace-panel"
-      aria-label="Selection and capture details"
+      aria-label="Notes and capture details"
       data-testid="capture-panel"
       data-collapsed={collapsed ? "true" : undefined}
     >
@@ -375,7 +376,7 @@ export function CapturePanel({
       <div className="panel-body" id="capture-panel-body" hidden={collapsed}>
         <div className="panel-heading">
           <h4>
-            {ready ? "Pins" : "Capture"}
+            {ready ? "Notes" : "Capture"}
             {ready && pins.length > 0 ? <span className="panel-count">{pins.length}</span> : null}
           </h4>
           {/* The plain way out of a selection (D116); Escape does the same. */}
@@ -399,25 +400,25 @@ export function CapturePanel({
 
         {ready ? (
           <>
-            {pinsStatus === "loading" ? <p className="panel-note">Loading pins…</p> : null}
+            {pinsStatus === "loading" ? <p className="panel-note">Loading notes…</p> : null}
             {pinsStatus === "failed" ? (
               <p className="panel-note">
-                Pins could not be loaded. Switch to another capture and back to retry.
+                Notes could not be loaded. Switch to another capture and back to retry.
               </p>
             ) : null}
             {pinsStatus === "ready" && pins.length === 0 ? (
-              <p className="panel-note">No pins yet. Click or tap the page to drop the first one.</p>
+              <p className="panel-note">No notes yet. Click or tap the page to place the first pin.</p>
             ) : null}
             {/* One accordion (D128): every mark is a row, and the selected
                 one opens in place, so the list never moves out from under
                 the pointer and nothing is shown twice. */}
             {openPins.length > 0 ? (
-              <ol className="pin-list pin-accordion" aria-label="Saved pins">
+              <ol className="pin-list pin-accordion" aria-label="Notes on this screenshot">
                 {openPins.map(row)}
               </ol>
             ) : null}
             {pinsStatus === "ready" && pins.length > 0 && openPins.length === 0 ? (
-              <p className="panel-note">Every pin here is resolved.</p>
+              <p className="panel-note">All notes here are resolved.</p>
             ) : null}
             {/* Resolved marks sink into one closed group (D128): the open
                 ones are the work. It opens on its own when the selected
@@ -429,8 +430,10 @@ export function CapturePanel({
                 open={resolvedOpen}
                 onToggle={(event) => setResolvedOpen(event.currentTarget.open)}
               >
-                <summary>{resolvedPins.length} resolved</summary>
-                <ol className="pin-list pin-accordion" aria-label="Resolved pins">
+                <summary>
+                  {resolvedPins.length} resolved {resolvedPins.length === 1 ? "note" : "notes"}
+                </summary>
+                <ol className="pin-list pin-accordion" aria-label="Resolved notes">
                   {resolvedPins.map(row)}
                 </ol>
               </details>

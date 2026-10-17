@@ -6848,6 +6848,55 @@
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D148",
+      "date": "2026-10-17",
+      "phase": "build",
+      "title": "Call written feedback a note and name its shape separately",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "Editor and founder surfaces use pin, mark, comment, and annotation for the written item, while Pin is also one of four shapes. Technical element tags obscure what a note points at.",
+      "decision": "In the editor's note panel and composer and in the founder's read view, call the written item a note. Keep Pin, Box, Circle, and Arrow for its visual shape. Describe attached elements with their visible words and a plain control type. Keep coordinates, capture version, and image hash in the optional Details disclosure and preserve exact agent-export and API data.",
+      "alternatives": [
+        {
+          "option": "Rename the persisted annotation model and all user-facing surfaces at once",
+          "why_not": "This first pass changes reading and writing copy without bundling the separate list, composer, capture model, or layout redesign."
+        },
+        {
+          "option": "Use Pin for both the note and its shape",
+          "why_not": "A box or arrow can carry a note; Pin as a generic word makes mixed-shape counts and controls misleading."
+        }
+      ],
+      "rationale": "The review artifact proposed this vocabulary and the owner approved all 13 recommendations, then asked independent slices to start. The note-facing first pass does not change storage, export fidelity, capability links, or capture identity.",
+      "consequences": [
+        "The selected note and composer use Note for content and lifecycle actions; a shape remains identified by Pin, Box, Circle, or Arrow.",
+        "The founder reads one author label in a thread, and selected element context omits DOM tags and internal kind names.",
+        "The existing optional Details disclosure and agent brief retain the exact technical context needed for diagnostics and agent handoff."
+      ],
+      "transcript": {
+        "proposal": "“Note” for what you write; Pin, Box, Circle and Arrow for its shape.",
+        "approval": "Yes, pursue all 13 recommendations"
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-panel.tsx",
+          "caption": "Selected-note vocabulary and optional capture facts."
+        },
+        {
+          "type": "file",
+          "path": "src/components/founder-view.tsx",
+          "caption": "Founder note list and plain selected-note context."
+        },
+        {
+          "type": "link",
+          "url": "https://github.com/lucasdickey/pinata/issues/34",
+          "caption": "Owner approval of the editor-overhaul recommendations."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null
     }
   ]
 }

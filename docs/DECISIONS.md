@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
-| Agent proposed, human approved | 30 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144, D145, D146, D147 |
+| Agent proposed, human approved | 31 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144, D145, D146, D147, D148 |
 | Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **147** | |
+| **Total** | **148** | |
 
 ## Key decisions
 
@@ -208,6 +208,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D145](#d145--open-new-captures-at-fit-width) | build | Open new captures at fit width | Agent proposed, human approved | accepted |
 | [D146](#d146--offer-agent-person-and-markdown-handoff-from-one-send-sheet) | design | Offer agent, person, and Markdown handoff from one Send sheet | Agent proposed, human approved | accepted |
 | [D147](#d147--use-draft-pull-requests-for-the-approved-editor-overhaul-only) | build | Use draft pull requests for the approved editor overhaul only | Agent proposed, human approved | accepted |
+| [D148](#d148--call-written-feedback-a-note-and-name-its-shape-separately) | build | Call written feedback a note and name its shape separately | Agent proposed, human approved | accepted |
 
 ---
 
@@ -6003,4 +6004,49 @@ Human approved:
 
 ---
 
-<sub>Generated from 147 record(s) as of 2026-10-16 · source `55e5904d1ef7`</sub>
+## D148 — Call written feedback a note and name its shape separately
+
+*2026-10-17 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+
+**Problem**
+
+Editor and founder surfaces use pin, mark, comment, and annotation for the written item, while Pin is also one of four shapes. Technical element tags obscure what a note points at.
+
+**Decision**
+
+In the editor's note panel and composer and in the founder's read view, call the written item a note. Keep Pin, Box, Circle, and Arrow for its visual shape. Describe attached elements with their visible words and a plain control type. Keep coordinates, capture version, and image hash in the optional Details disclosure and preserve exact agent-export and API data.
+
+**Alternatives considered**
+
+- *Rename the persisted annotation model and all user-facing surfaces at once* — This first pass changes reading and writing copy without bundling the separate list, composer, capture model, or layout redesign.
+- *Use Pin for both the note and its shape* — A box or arrow can carry a note; Pin as a generic word makes mixed-shape counts and controls misleading.
+
+**Rationale**
+
+The review artifact proposed this vocabulary and the owner approved all 13 recommendations, then asked independent slices to start. The note-facing first pass does not change storage, export fidelity, capability links, or capture identity.
+
+**Consequences**
+
+- The selected note and composer use Note for content and lifecycle actions; a shape remains identified by Pin, Box, Circle, or Arrow.
+- The founder reads one author label in a thread, and selected element context omits DOM tags and internal kind names.
+- The existing optional Details disclosure and agent brief retain the exact technical context needed for diagnostics and agent handoff.
+
+**Provenance evidence**
+
+Agent asked:
+
+> “Note” for what you write; Pin, Box, Circle and Arrow for its shape.
+
+Human approved:
+
+> Yes, pursue all 13 recommendations
+
+**Artifacts**
+
+- `src/components/capture-panel.tsx` — Selected-note vocabulary and optional capture facts.
+- `src/components/founder-view.tsx` — Founder note list and plain selected-note context.
+- [Owner approval of the editor-overhaul recommendations.](https://github.com/lucasdickey/pinata/issues/34)
+
+---
+
+<sub>Generated from 148 record(s) as of 2026-10-17 · source `aac70a5f74ae`</sub>

@@ -55,12 +55,33 @@ const context = () => document.querySelector('[data-testid="draft-context"]')!;
 const chip = () => document.querySelector('[data-testid="draft-choice"]')!;
 const candidateRow = (id: string) =>
   document.querySelector(`.panel-candidate[data-element-id="${id}"]`)!;
-const comment = () => screen.getByLabelText("Comment") as HTMLTextAreaElement;
+const comment = () => screen.getByLabelText("Note") as HTMLTextAreaElement;
 
 describe("opening", () => {
   test("focuses the comment field as soon as it mounts", () => {
     render(<PinComposer {...props()} />);
     expect(document.activeElement).toBe(comment());
+  });
+
+  test("a button candidate reads as a button, not a capture tag or control type", async () => {
+    const user = userEvent.setup();
+    const button = candidate("action", {
+      kind: "control",
+      tag: "button",
+      text: "Install on Cloudflare",
+    });
+    render(
+      <PinComposer
+        {...props({
+          draftChoice: button.id,
+          draftCandidates: { status: "ready", items: [button] },
+        })}
+      />,
+    );
+    expect(chip()).toHaveTextContent("“Install on Cloudflare” button");
+    expect(chip()).not.toHaveTextContent(/control|<button>/);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    expect(screen.getByRole("radio", { name: "“Install on Cloudflare” button" })).toBeChecked();
   });
 
   test("takes focus back whenever the draft is re-placed or moved (D096)", () => {
@@ -96,7 +117,7 @@ describe("the pre-selected choice", () => {
     render(<PinComposer {...props()} />);
     expect(chip()).toHaveAttribute("data-element-id", "cell-1");
     expect(chip()).toHaveTextContent("cell copy cell-1");
-    expect(chip()).toHaveTextContent("table-cell");
+    expect(chip()).not.toHaveTextContent(/table-cell|<td>|body:0/);
     // The ranked list stays folded until asked for.
     expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.getByRole("button", { name: "Change" })).toHaveAttribute(
@@ -286,7 +307,7 @@ describe("keyboard", () => {
     );
     fireEvent.keyDown(comment(), { key: "Enter" });
     expect(onSaveDraft).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Save pin" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeDisabled();
   });
 
   test("Escape cancels from the textarea and from any control inside", async () => {
@@ -315,11 +336,11 @@ describe("keyboard", () => {
 describe("Save and Cancel", () => {
   test("Save is enabled only with a non-blank comment and a settled choice", () => {
     const { rerender } = render(<PinComposer {...props()} />);
-    expect(screen.getByRole("button", { name: "Save pin" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
     rerender(<PinComposer {...props({ draftBody: "" })} />);
-    expect(screen.getByRole("button", { name: "Save pin" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeDisabled();
     rerender(<PinComposer {...props({ draftChoice: null })} />);
-    expect(screen.getByRole("button", { name: "Save pin" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
     rerender(<PinComposer {...props({ saveState: "saving" })} />);
     expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
@@ -359,12 +380,11 @@ describe("hostile captured content", () => {
 });
 
 describe("the box draft (D079)", () => {
-  test("names the kind in the title, the save button, and the candidate legend", async () => {
+  test("names a box shape beside the note and keeps the candidate legend", async () => {
     const user = userEvent.setup();
     render(<PinComposer {...props({ draftKind: "rectangle" })} />);
-    expect(screen.getByText(/^New box/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save box" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Save pin" })).toBeNull();
+    expect(screen.getByText(/^New note · Box/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "Change" }));
     expect(screen.getByText("Nearby elements, most overlap first")).toBeInTheDocument();
     // The chip, the choice controls, and the keyboard contract are shared.
@@ -375,9 +395,8 @@ describe("the box draft (D079)", () => {
   test("a circle draft names the circle in the title and the save button (D082)", async () => {
     const user = userEvent.setup();
     render(<PinComposer {...props({ draftKind: "circle" })} />);
-    expect(screen.getByText(/^New circle/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save circle" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Save pin" })).toBeNull();
+    expect(screen.getByText(/^New note · Circle/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
     // A circle is a region, so its candidates are ranked by overlap too.
     await user.click(screen.getByRole("button", { name: "Change" }));
     expect(screen.getByText("Nearby elements, most overlap first")).toBeInTheDocument();
@@ -386,8 +405,8 @@ describe("the box draft (D079)", () => {
   test("an arrow draft names the arrow, and its candidates are ranked by point (D083)", async () => {
     const user = userEvent.setup();
     render(<PinComposer {...props({ draftKind: "arrow" })} />);
-    expect(screen.getByText(/^New arrow/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save arrow" })).toBeEnabled();
+    expect(screen.getByText(/^New note · Arrow/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
     // The head is a point, so the candidates read the way a pin's do.
     await user.click(screen.getByRole("button", { name: "Change" }));
     expect(screen.getByText("Nearby elements, closest first")).toBeInTheDocument();
@@ -395,8 +414,8 @@ describe("the box draft (D079)", () => {
 
   test("defaults to a pin when no kind is given", () => {
     render(<PinComposer {...props()} />);
-    expect(screen.getByText(/^New pin/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save pin" })).toBeInTheDocument();
+    expect(screen.getByText(/^New note · Pin/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save note" })).toBeInTheDocument();
   });
 });
 

@@ -4452,3 +4452,48 @@ Elapsed: about 5 minutes (19:15–19:20 UTC) against no fixed timebox.
   tests (47 credentialed skips without `.env.local`).
 - This is a correction to D146's existing Send-dismissal behavior. No new
   product or storage decision was made.
+
+---
+
+## 2026-10-17 — read written feedback as notes (D148)
+
+Harness: Warp Factory implementation on `factory/overhaul-note-language`.
+Elapsed: about 13 minutes (03:32–03:45 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Read recommendation 9 and its Words and colour table in the linked review
+  artifact. Changed the editor panel, draft composer, and founder reading view
+  to say Note for written feedback and to name Pin, Box, Circle, or Arrow only
+  when the shape matters. Attached controls use readable text and plain types
+  instead of capture tags; thread entries show one plain author name.
+- Left persisted annotations, API fields, agent export, one-time share links,
+  and the screenshot/manifest integrity boundary alone. The note panel still
+  keeps coordinates, version, size, and image hash in its closed Details
+  disclosure. The separate all-pins table and wider layout are later slices.
+- Updated affected component and browser selectors, added focused context
+  coverage, updated the brand voice rule, and regenerated both decision views.
+
+### What broke
+
+- The first full gate found a thread-time assertion for the old lowercase
+  founder label. Updated it to expect the new reading label.
+- Chromium was absent from the sandbox; after installing the pinned binary,
+  the runtime still lacked Linux libraries. Installed its Playwright OS
+  prerequisites and reran the full gate.
+- The first disposable seed command exited before the UI session used it.
+  A persistent scratch server then served the seeded editor and founder
+  views for visual verification. No scratch data was committed.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,970 Vitest tests
+  (44 skipped without credentials), current generated docs, production build,
+  and 28 Playwright tests (47 credentialed skips).
+- Browser verification on the disposable seeded editor and founder views
+  showed Notes in the panel, Pin/Box/Circle/Arrow on shapes, plain button/link
+  context, closed technical Details, and no duplicated founder role in
+  replies. The older all-pins table still shows its technical columns; this
+  bounded pass did not redesign it.
+- D148 records the approved note terminology provisionally; the integration
+  branch will renumber it if another parallel decision lands first.

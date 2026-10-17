@@ -134,7 +134,7 @@ async function waitPinsLoaded(page: Page): Promise<void> {
     const panel = page.getByTestId("capture-panel");
     await expect(
       panel
-        .getByText("No pins yet.")
+        .getByText("No notes yet.")
         .or(panel.locator(".pin-list > li > .pin-row"))
         .or(panel.getByTestId("pin-resolved"))
         .first(),
@@ -270,14 +270,14 @@ test("the context decision is pre-selected and explicit on the wire; the server-
 
   await placeDraft(page, aim);
   // The composer opens beside the draft with the comment focused.
-  await expect(page.getByLabel("Comment")).toBeFocused();
-  await page.getByLabel("Comment").fill("e2e: lifecycle decision and snapshot");
+  await expect(page.getByLabel("Note")).toBeFocused();
+  await page.getByLabel("Note").fill("e2e: lifecycle decision and snapshot");
 
   // Once the nearby-candidate read settles the decision is already made:
   // the first ranked candidate when the manifest offers one near the aim,
   // otherwise the explicit No element. Save needs nothing more (D074).
   await waitContextSettled(page);
-  const saveButton = page.getByRole("button", { name: "Save pin" });
+  const saveButton = page.getByRole("button", { name: "Save note" });
   await expect(saveButton).toBeEnabled();
   const preselected = await page.getByTestId("draft-choice").getAttribute("data-element-id");
 
@@ -344,11 +344,11 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   const aim = await aimBottomBand(page, target);
 
   await placeDraft(page, aim);
-  await page.getByLabel("Comment").fill("e2e: lifecycle move-edit-delete");
+  await page.getByLabel("Note").fill("e2e: lifecycle move-edit-delete");
   await waitContextSettled(page);
   await chooseNoElement(page);
   // The keyboard path: Enter in the comment saves (D074).
-  await page.getByLabel("Comment").press("Enter");
+  await page.getByLabel("Note").press("Enter");
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
   const snapshotAtCreate = saved.elementSnapshot;
@@ -380,8 +380,8 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   // Edit the comment through the panel: one PATCH, revision bumps again,
   // snapshot stays byte-identical.
   await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${number} · `) }).click();
-  await page.getByRole("button", { name: "Edit comment" }).click();
-  await page.getByLabel("Edit comment").fill("e2e: lifecycle move-edit-delete (edited)");
+  await page.getByRole("button", { name: "Edit note" }).click();
+  await page.getByLabel("Edit note").fill("e2e: lifecycle move-edit-delete (edited)");
   await page.getByRole("button", { name: "Save edit" }).click();
   await expect
     .poll(
@@ -397,7 +397,7 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   await expect(page.getByTestId("panel-pin")).toContainText("(edited)");
 
   // Delete is a two-step revisioned write; the pin leaves the plane.
-  await page.getByRole("button", { name: "Delete pin" }).click();
+  await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect
     .poll(
@@ -420,10 +420,10 @@ test("move, edit, and delete are revisioned mutations; the number is retired and
   const beforeProbe = await listPins(page, target.captureId);
   const aim2 = await aimBottomBand(page, target);
   await placeDraft(page, aim2);
-  await page.getByLabel("Comment").fill("e2e: lifecycle number-retirement probe");
+  await page.getByLabel("Note").fill("e2e: lifecycle number-retirement probe");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   const probe = await awaitNewPin(page, target.captureId, beforeProbe);
   expect(probe.number).toBe(number + 1);
   expect((await listPins(page, target.captureId)).some((pin) => pin.number === number)).toBe(
@@ -455,10 +455,10 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
   const aim = await aimBottomBand(page, target);
 
   await placeDraft(page, aim);
-  await page.getByLabel("Comment").fill("e2e: stale conflict victim");
+  await page.getByLabel("Note").fill("e2e: stale conflict victim");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
 
@@ -473,13 +473,13 @@ test("a stale write conflicts and the UI settles on the authoritative revision (
   // This UI still holds the stale revision: its edit conflicts, the editor
   // closes, and the panel shows the authoritative body instead of ours.
   await page.getByTestId("capture-panel").getByRole("button", { name: new RegExp(`^Pin ${number} · `) }).click();
-  await page.getByRole("button", { name: "Edit comment" }).click();
-  await page.getByLabel("Edit comment").fill("e2e: the losing edit");
+  await page.getByRole("button", { name: "Edit note" }).click();
+  await page.getByLabel("Edit note").fill("e2e: the losing edit");
   await page.getByRole("button", { name: "Save edit" }).click();
   await expect(page.getByTestId("panel-pin").getByRole("alert")).toContainText(
     /changed in another session/i,
   );
-  await expect(page.getByLabel("Edit comment")).toHaveCount(0);
+  await expect(page.getByLabel("Edit note")).toHaveCount(0);
   await expect(page.getByTestId("panel-pin")).toContainText("another session wrote first");
   const authoritative = (await listPins(page, target.captureId)).find(
     (pin) => pin.number === number,
@@ -538,10 +538,10 @@ test("a session that lost authority cannot move the pin and the record is untouc
   const aim = await aimBottomBand(page, target);
 
   await placeDraft(page, aim);
-  await page.getByLabel("Comment").fill("e2e: lost-authority probe");
+  await page.getByLabel("Note").fill("e2e: lost-authority probe");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
 
@@ -654,10 +654,10 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
   if (side === "right") expect(composerBox.x).toBeGreaterThanOrEqual(corner.x - 1);
   else expect(composerBox.x + composerBox.width).toBeLessThanOrEqual(corner.x + 1);
 
-  await page.getByLabel("Comment").fill("e2e: box lifecycle");
+  await page.getByLabel("Note").fill("e2e: box lifecycle");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByLabel("Comment").press("Enter");
+  await page.getByLabel("Note").press("Enter");
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
   expect(saved.kind).toBe("rectangle");
@@ -758,7 +758,7 @@ test("a box is drawn by Shift-drag, saved from the same composer, resized and mo
   await details.locator("summary").click();
   await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "rectangle");
   await expect(page.getByTestId("panel-position")).toContainText("×");
-  await page.getByRole("button", { name: "Delete box" }).click();
+  await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect
     .poll(
@@ -826,10 +826,10 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   await expect(composer).toHaveAttribute("data-draft-kind", "circle");
   await expect(page.getByRole("dialog", { name: "New circle" })).toBeVisible();
 
-  await page.getByLabel("Comment").fill("e2e: circle lifecycle");
+  await page.getByLabel("Note").fill("e2e: circle lifecycle");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByLabel("Comment").press("Enter");
+  await page.getByLabel("Note").press("Enter");
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
   expect(saved.kind).toBe("circle");
@@ -922,7 +922,7 @@ test("a circle is drawn by the armed Circle tool, stays square, resizes and move
   await details.locator("summary").click();
   await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "circle");
   await expect(page.getByTestId("panel-position")).toContainText("wide");
-  await page.getByRole("button", { name: "Delete circle" }).click();
+  await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect
     .poll(
@@ -985,10 +985,10 @@ test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and 
   // An arrow's candidates are the point ranking, taken from its head.
   await expect(page.getByText("Nearby elements, closest first")).toHaveCount(0);
 
-  await page.getByLabel("Comment").fill("e2e: arrow lifecycle");
+  await page.getByLabel("Note").fill("e2e: arrow lifecycle");
   await waitContextSettled(page);
   await chooseNoElement(page);
-  await page.getByLabel("Comment").press("Enter");
+  await page.getByLabel("Note").press("Enter");
   const saved = await awaitNewPin(page, target.captureId, before);
   const number = saved.number;
   expect(saved.kind).toBe("arrow");
@@ -1114,7 +1114,7 @@ test("an arrow is drawn tail to head by the armed Arrow tool, its endpoints and 
   await details.locator("summary").click();
   await expect(page.getByTestId("panel-position")).toHaveAttribute("data-kind", "arrow");
   await expect(page.getByTestId("panel-position")).toContainText("→");
-  await page.getByRole("button", { name: "Delete arrow" }).click();
+  await page.getByRole("button", { name: "Delete note" }).click();
   await page.getByRole("button", { name: "Confirm delete" }).click();
   await expect
     .poll(

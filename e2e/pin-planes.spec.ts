@@ -177,13 +177,13 @@ async function writePin(
     "data-candidates-state",
     /ready|failed/,
   );
-  await page.getByLabel("Comment").fill(body);
+  await page.getByLabel("Note").fill(body);
   const preselected = await page.getByTestId("draft-choice").getAttribute("data-element-id");
   const choseElement = withElement && preselected !== null;
   if (!choseElement) {
     await page.getByRole("button", { name: "No element" }).click();
   }
-  await page.getByRole("button", { name: "Save pin" }).click();
+  await page.getByRole("button", { name: "Save note" }).click();
   const beforeIds = new Set(before.map((pin) => pin.id));
   await expect
     .poll(

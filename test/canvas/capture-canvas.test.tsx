@@ -275,8 +275,8 @@ describe("the composer popover", () => {
     expect(dialog!.closest(".react-flow")).toBeNull();
     expect(dialog!.closest(".capture-canvas")).toBeNull();
     expect(dialog!.getAttribute("data-testid")).toBe("pin-composer");
-    expect(within(dialog!).getByLabelText("Comment")).toHaveFocus();
-    expect(within(dialog!).getByRole("button", { name: "Save pin" })).toBeInTheDocument();
+    expect(within(dialog!).getByLabelText("Note")).toHaveFocus();
+    expect(within(dialog!).getByRole("button", { name: "Save note" })).toBeInTheDocument();
     expect(within(dialog!).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
@@ -309,7 +309,7 @@ describe("the composer popover", () => {
     const onCancelDraft = vi.fn();
     render(<CaptureCanvas {...props} composer={composerProps({ onCancelDraft })} />);
     tap(frameImage(), 400, 300);
-    fireEvent.keyDown(within(composer()!).getByLabelText("Comment"), { key: "Escape" });
+    fireEvent.keyDown(within(composer()!).getByLabelText("Note"), { key: "Escape" });
     expect(onCancelDraft).toHaveBeenCalledTimes(1);
     // The canvas itself did not clear the draft: the workspace answers the
     // cancel with the reset signal, exactly like a Cancel click.
@@ -322,7 +322,7 @@ describe("the composer popover", () => {
     // A real click on the pane focuses the region (tabIndex 0) on press.
     region().focus();
     tap(frameImage(), 410, 450);
-    expect(within(composer()!).getByLabelText("Comment")).toHaveFocus();
+    expect(within(composer()!).getByLabelText("Note")).toHaveFocus();
   });
 
   test("focus returns to the canvas region when the draft closes", async () => {
@@ -330,7 +330,7 @@ describe("the composer popover", () => {
       <CaptureCanvas {...props} composer={composerProps()} draftResetSignal={0} />,
     );
     tap(frameImage(), 400, 300);
-    expect(within(composer()!).getByLabelText("Comment")).toHaveFocus();
+    expect(within(composer()!).getByLabelText("Note")).toHaveFocus();
     rerender(<CaptureCanvas {...props} composer={composerProps()} draftResetSignal={1} />);
     await waitFor(() => expect(composer()).toBeNull());
     expect(region()).toHaveFocus();
@@ -522,7 +522,7 @@ describe("keyboard shortcuts on the canvas region", () => {
     );
     tap(frameImage(), 400, 300);
     expect(onDraftSettled).toHaveBeenCalledTimes(1);
-    const comment = within(composer()!).getByLabelText("Comment");
+    const comment = within(composer()!).getByLabelText("Note");
     fireEvent.keyDown(comment, { key: "j" });
     fireEvent.keyDown(comment, { key: "n" });
     expect(onSelectPin).not.toHaveBeenCalled();
@@ -897,8 +897,8 @@ describe("rectangles (D079)", () => {
     // The same composer, labelled for a box, anchored inside the window.
     const dialog = within(stage()).getByRole("dialog", { name: "New box" });
     expect(dialog).toHaveAttribute("data-draft-kind", "rectangle");
-    expect(within(dialog).getByRole("button", { name: "Save box" })).toBeInTheDocument();
-    expect(within(dialog).getByLabelText("Comment")).toHaveFocus();
+    expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Note")).toHaveFocus();
     const left = Number.parseFloat(dialog.style.left);
     const top = Number.parseFloat(dialog.style.top);
     expect(left).toBeGreaterThanOrEqual(0);
@@ -1379,7 +1379,7 @@ describe("circles (D082)", () => {
     // The same composer, labelled for a circle.
     const dialog = within(stage()).getByRole("dialog", { name: "New circle" });
     expect(dialog).toHaveAttribute("data-draft-kind", "circle");
-    expect(within(dialog).getByRole("button", { name: "Save circle" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
   });
 
   test("a drag below the minimum draws nothing, and still spends the armed tool", async () => {
@@ -1414,7 +1414,7 @@ describe("circles (D082)", () => {
     render(<CaptureCanvas {...props} composer={composerProps()} />);
     tap(frameImage(), 400, 300);
     const dialog = within(stage()).getByRole("dialog", { name: "New pin" });
-    await user.type(within(dialog).getByLabelText("Comment"), "back of the card");
+    await user.type(within(dialog).getByLabelText("Note"), "back of the card");
     expect(tool("Draw a circle")).toHaveAttribute("aria-pressed", "false");
     expect(tool("Draw a box")).toHaveAttribute("aria-pressed", "false");
   });
@@ -1638,7 +1638,7 @@ describe("arrows (D083)", () => {
     // The same composer, labelled for an arrow.
     const dialog = within(stage()).getByRole("dialog", { name: "New arrow" });
     expect(dialog).toHaveAttribute("data-draft-kind", "arrow");
-    expect(within(dialog).getByRole("button", { name: "Save arrow" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save note" })).toBeInTheDocument();
   });
 
   test("a drag drawn backwards keeps its direction: the release is still the head", async () => {

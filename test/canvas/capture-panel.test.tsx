@@ -77,7 +77,7 @@ function panelProps(overrides: Record<string, unknown> = {}) {
 describe("no draft surface in the panel", () => {
   test("renders no comment editor, candidate radios, or draft context marker", () => {
     render(<CapturePanel {...panelProps()} />);
-    expect(screen.queryByLabelText("Comment")).toBeNull();
+    expect(screen.queryByLabelText("Note")).toBeNull();
     expect(screen.queryByRole("radio")).toBeNull();
     expect(document.querySelector('[data-testid="draft-context"]')).toBeNull();
     // Nothing is selected, so no row is open (D128).
@@ -86,7 +86,7 @@ describe("no draft surface in the panel", () => {
 
   test("the empty-list note names the one gesture, with no mode to switch to", () => {
     render(<CapturePanel {...panelProps()} />);
-    const note = screen.getByText(/No pins yet/);
+    const note = screen.getByText(/No notes yet/);
     expect(note).toHaveTextContent(/click or tap the page/i);
     expect(note.textContent?.toLowerCase()).not.toContain("place pin");
   });
@@ -111,6 +111,41 @@ describe("hostile captured content", () => {
     const snapshot = document.querySelector('[data-testid="panel-snapshot"]')!;
     expect(snapshot.textContent).toContain('<form action="https://evil.invalid">x</form>');
     expect(snapshot.querySelector("form")).toBeNull();
+  });
+
+  test("a selected note describes its button in plain words and leaves technical facts in Details", () => {
+    const button = candidate("action", {
+      kind: "control",
+      tag: "button",
+      text: "Install on Cloudflare",
+    });
+    const box = {
+      id: "box-2",
+      captureId: "cap-1",
+      kind: "rectangle" as const,
+      number: 2,
+      rect: { x: 100, y: 200, width: 300, height: 100 },
+      body: "Make this easier to find.",
+      elementSnapshot: button,
+      revision: 1,
+      status: "open" as const,
+      unreadReplies: 0,
+      createdAt: 1,
+    };
+    render(<CapturePanel {...panelProps({ pins: [box], selectedPinId: box.id })} />);
+    const panel = screen.getByTestId("capture-panel");
+    expect(within(panel).getByRole("heading", { name: /^Notes/ })).toBeInTheDocument();
+    expect(within(panel).getByTestId("panel-snapshot")).toHaveTextContent(
+      "Points at “Install on Cloudflare” button",
+    );
+    expect(within(panel).getByRole("button", { name: /Box 2 ·/ })).toHaveAccessibleName(
+      "Box 2 · “Make this easier to find.” · Install on Cloudflare",
+    );
+    expect(panel.querySelector(".panel-snapshot")).not.toHaveTextContent(/<button>|control|body:0/);
+    const details = within(panel).getByTestId("panel-details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details).toHaveTextContent("Image hash");
+    expect(details).toHaveTextContent("100, 200 · 300 × 100 px");
   });
 });
 
@@ -154,15 +189,14 @@ describe("rectangles in the panel (D079)", () => {
     const position = within(screen.getByTestId("panel-details")).getByTestId("panel-position");
     expect(position).toHaveAttribute("data-kind", "rectangle");
     expect(position).toHaveTextContent("100, 201 · 300 × 151 px");
-    expect(screen.getByRole("button", { name: "Delete box" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete pin" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Delete note" })).toBeInTheDocument();
     // How to move it is the canvas help's job now (D128), not the panel's.
     expect(screen.queryByText(/Drag the/)).toBeNull();
   });
 
   test("the list names both kinds in number order by comment, never by position", () => {
     render(<CapturePanel {...panelProps({ pins: [pin, box] })} />);
-    const list = screen.getByRole("list", { name: "Saved pins" });
+    const list = screen.getByRole("list", { name: "Notes on this screenshot" });
     const buttons = within(list).getAllByRole("button");
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Pin 1 · “the comment”",
@@ -175,11 +209,11 @@ describe("rectangles in the panel (D079)", () => {
     const answered = { ...box, unreadReplies: 2 };
     render(<CapturePanel {...panelProps({ pins: [resolved, answered] })} />);
     // A resolved mark sits in the closed "1 resolved" group (D128).
-    const [first] = within(screen.getByRole("list", { name: "Resolved pins", hidden: true })).getAllByRole(
+    const [first] = within(screen.getByRole("list", { name: "Resolved notes", hidden: true })).getAllByRole(
       "button",
       { hidden: true },
     );
-    const [second] = within(screen.getByRole("list", { name: "Saved pins" })).getAllByRole("button");
+    const [second] = within(screen.getByRole("list", { name: "Notes on this screenshot" })).getAllByRole("button");
     // The badge carries the number the canvas shows; the comment is the
     // main line, whole (the clamp is CSS), and the element sits under it.
     expect(first!.querySelector(".pin-row-badge")).toHaveTextContent("1");
@@ -189,8 +223,8 @@ describe("rectangles in the panel (D079)", () => {
     expect(first).toHaveAccessibleName("Pin 1 · “the comment” · Resolved");
     expect(second!.querySelector(".pin-row-badge")).toHaveAttribute("data-kind", "rectangle");
     expect(second!.querySelector(".pin-row-element")).toHaveTextContent(/^Box · /);
-    expect(second!.querySelector(".pin-row-meta")).toHaveTextContent("2 new");
-    expect(second).toHaveAccessibleName("Box 4 · “This whole card needs more air.” · 2 new");
+    expect(second!.querySelector(".pin-row-meta")).toHaveTextContent("2 new replies");
+    expect(second).toHaveAccessibleName("Box 4 · “This whole card needs more air.” · 2 new replies");
   });
 
   test("a selected pin is named the same way", () => {
@@ -199,7 +233,7 @@ describe("rectangles in the panel (D079)", () => {
     expect(within(screen.getByTestId("panel-details")).getByTestId("panel-position")).toHaveTextContent(
       "10, 10 px",
     );
-    expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete note" })).toBeInTheDocument();
   });
 
   test("a selected circle is named Circle, keeps its center and width behind Details, and has circle controls", () => {
@@ -225,8 +259,7 @@ describe("rectangles in the panel (D079)", () => {
     const position = within(details).getByTestId("panel-position");
     expect(position).toHaveAttribute("data-kind", "circle");
     expect(position).toHaveTextContent("251, 351 · 300 wide px");
-    expect(screen.getByRole("button", { name: "Delete circle" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete box" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Delete note" })).toBeInTheDocument();
     // How to move it is the canvas help's job now (D128), not the panel's.
     expect(screen.queryByText(/Drag the/)).toBeNull();
   });
@@ -254,7 +287,7 @@ describe("rectangles in the panel (D079)", () => {
     const position = within(details).getByTestId("panel-position");
     expect(position).toHaveAttribute("data-kind", "arrow");
     expect(position).toHaveTextContent("100, 201 → 400, 601 px");
-    expect(screen.getByRole("button", { name: "Delete arrow" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete note" })).toBeInTheDocument();
     // How to move it is the canvas help's job now (D128), not the panel's.
     expect(screen.queryByText(/Drag the/)).toBeNull();
   });
@@ -355,13 +388,13 @@ describe("collapsing the panel (D112)", () => {
     expect(panel()).toHaveAttribute("data-collapsed", "true");
     // Hidden, not removed: the list is still in the document.
     expect(body()).not.toBeVisible();
-    expect(body().querySelector('[aria-label="Saved pins"]')).not.toBeNull();
-    expect(screen.queryByRole("list", { name: "Saved pins" })).toBeNull();
+    expect(body().querySelector('[aria-label="Notes on this screenshot"]')).not.toBeNull();
+    expect(screen.queryByRole("list", { name: "Notes on this screenshot" })).toBeNull();
     const show = screen.getByRole("button", { name: "Show details panel" });
     expect(show).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(show);
     expect(panel()).not.toHaveAttribute("data-collapsed");
-    expect(screen.getByRole("list", { name: "Saved pins" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Notes on this screenshot" })).toBeInTheDocument();
   });
 
   test("the choice is remembered in this browser and read back after mount", async () => {
@@ -431,10 +464,10 @@ describe("letting go of a selection (D116)", () => {
         {...panelProps({ pins: [saved], selectedPinId: "ann-3", onSetPinStatus: vi.fn() })}
       />,
     );
-    const resolve = screen.getByRole("button", { name: "Resolve pin" });
+    const resolve = screen.getByRole("button", { name: "Resolve note" });
     expect(resolve).toHaveTextContent(/^Resolve$/);
-    expect(screen.getByRole("button", { name: "Edit comment" })).toHaveTextContent(/^Edit$/);
-    expect(screen.getByRole("button", { name: "Delete pin" })).toHaveTextContent(/^Delete$/);
+    expect(screen.getByRole("button", { name: "Edit note" })).toHaveTextContent(/^Edit$/);
+    expect(screen.getByRole("button", { name: "Delete note" })).toHaveTextContent(/^Delete$/);
   });
 });
 
@@ -454,7 +487,7 @@ describe("the pin accordion (D128)", () => {
 
   test("the selected row opens in place, shows its comment once, and the others stay rows", () => {
     render(<CapturePanel {...panelProps({ pins: marks, selectedPinId: "a1" })} />);
-    const list = screen.getByRole("list", { name: "Saved pins" });
+    const list = screen.getByRole("list", { name: "Notes on this screenshot" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(2);
     // The open body sits inside the first item, before the second row.
@@ -482,6 +515,6 @@ describe("the pin accordion (D128)", () => {
     render(
       <CapturePanel {...panelProps({ pins: marks, selectedPinId: "a2", confirmingDelete: true })} />,
     );
-    expect(within(screen.getByTestId("panel-pin")).getByText(/Delete Pin 2\? Its number is retired/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("panel-pin")).getByText(/Delete the note on Pin 2\? Its number is retired/)).toBeInTheDocument();
   });
 });

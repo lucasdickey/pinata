@@ -312,21 +312,16 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   expect(founderCookies.find((c) => c.name === "pinata_editor_session")).toBeUndefined();
 
   // Read/reply-only: no editing control exists in the DOM.
-  await expect(founder.getByText("Viewing as founder")).toBeVisible();
+  await expect(founder.getByText("Notes from Lucas")).toBeVisible();
   await founder
     .getByRole("button", { name: `Desktop capture of ${target!.pageUrl}`, exact: true })
     .click();
   await expect(founder.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
   for (const name of [
-    "Edit comment",
-    "Delete pin",
-    "Delete box",
-    "Save pin",
-    "Save box",
-    "Delete circle",
-    "Save circle",
-    "Delete arrow",
-    "Save arrow",
+    "Edit note",
+    "Delete note",
+    "Confirm delete",
+    "Save note",
     "Draw a box",
     "Draw a circle",
     "Draw an arrow",
@@ -347,7 +342,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   // element (D078) with its status; the fixture pin's entry opens it. The
   // one sentence of guidance replaced the old instruction paragraph.
   await expect(founder.locator(".workspace-hint")).toHaveText(
-    "Click a mark, or its entry in the list, to read the note and reply.",
+    "Choose a note in the list or on the screenshot to read it and reply.",
   );
   const founderPinList = founder.getByTestId("founder-pin-list");
   await expect(founderPinList).toBeVisible();
@@ -407,10 +402,10 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
 
   // The founder resolves the pin (D075): the status changes, the thread
   // records a server-written status line, and the list entry follows.
-  await founderPanel.getByRole("button", { name: "Resolve pin" }).click();
+  await founderPanel.getByRole("button", { name: "Resolve note" }).click();
   await expect(founderPanel.getByTestId("panel-status")).toHaveText("Status: Resolved");
-  await expect(founderPanel.locator(".thread-status").last()).toContainText("Resolved by founder");
-  await expect(founderPanel.getByRole("button", { name: "Reopen pin" })).toBeVisible();
+  await expect(founderPanel.locator(".thread-status").last()).toContainText("Resolved by Founder");
+  await expect(founderPanel.getByRole("button", { name: "Reopen note" })).toBeVisible();
   await expect(fixtureEntry).toContainText("Resolved");
 
   // The editor sees the founder's reply under the pin and follows up.
@@ -422,7 +417,7 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   );
   // The editor sees the founder's resolve as status and as a thread line.
   await expect(editorPanel.getByTestId("panel-status")).toHaveText("Status: Resolved");
-  await expect(editorPanel.locator(".thread-status").last()).toContainText("Resolved by founder");
+  await expect(editorPanel.locator(".thread-status").last()).toContainText("Resolved by Founder");
   const editorFollowUp = `editor follow-up ${runTag}`;
   // The reply box sits behind a Reply button in the open pin (D128).
   await editorPanel.getByRole("button", { name: "Reply" }).click();
@@ -433,10 +428,10 @@ test("founder link opens a read/reply-only view; founder and editor interleave; 
   );
   // The editor reopens it: the founder has replied, so the pin is "replied",
   // and the change is one more immutable status line.
-  await editorPanel.getByRole("button", { name: "Reopen pin" }).click();
+  await editorPanel.getByRole("button", { name: "Reopen note" }).click();
   await expect(editorPanel.getByTestId("panel-status")).toHaveText("Status: Replied");
-  await expect(editorPanel.locator(".thread-status").last()).toContainText("Reopened by editor");
-  await expect(editorPanel.getByRole("button", { name: "Resolve pin" })).toBeVisible();
+  await expect(editorPanel.locator(".thread-status").last()).toContainText("Reopened by Lucas");
+  await expect(editorPanel.getByRole("button", { name: "Resolve note" })).toBeVisible();
 
   // The durable thread carries both, in order, with server labels.
   const entries = await listThread(page, target!.captureId, pin.id);

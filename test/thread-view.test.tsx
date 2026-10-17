@@ -86,6 +86,6 @@ describe("ThreadView times", () => {
       expect(time.textContent).toBe(formatThreadTime(EVENING));
       expect(time.textContent).not.toContain("UTC");
     }
-    expect(within(thread).getByText(/Resolved by founder/)).toBeInTheDocument();
+    expect(within(thread).getByText(/Resolved by Founder/)).toBeInTheDocument();
   });
 });

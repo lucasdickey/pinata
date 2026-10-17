@@ -113,7 +113,7 @@ export function ThreadView({
     requestAnimationFrame(() => replyField.current?.focus());
   };
   return (
-    <section className="thread" aria-label="Comment thread" data-testid="thread">
+    <section className="thread" aria-label="Note thread" data-testid="thread">
       <ol
         className="thread-entries"
         aria-label="Thread entries"
@@ -125,7 +125,7 @@ export function ThreadView({
         {showOriginal ? (
           <li className="thread-entry" data-author="Lucas">
             <p className="thread-meta">
-              <strong>Lucas</strong> <span className="thread-role">(editor)</span>
+              <strong>Lucas</strong>
             </p>
             <p className="thread-body">{originalBody}</p>
           </li>
@@ -136,14 +136,17 @@ export function ThreadView({
             // immutable chronology, written by the server, never a message.
             <li key={entry.id} className="thread-status" data-kind="status">
               <p className="thread-meta">
-                {entry.body} <EntryTime createdAt={entry.createdAt} />
+                {entry.body.replace(
+                  entry.actorRole === "editor" ? / by editor$/ : / by founder$/,
+                  entry.actorRole === "editor" ? " by Lucas" : " by Founder",
+                )}{" "}
+                <EntryTime createdAt={entry.createdAt} />
               </p>
             </li>
           ) : (
             <li key={entry.id} className="thread-entry" data-author={entry.authorLabel}>
               <p className="thread-meta">
-                <strong>{entry.authorLabel}</strong>{" "}
-                <span className="thread-role">({entry.actorRole})</span>{" "}
+                <strong>{entry.authorLabel === "founder" ? "Founder" : entry.authorLabel}</strong>{" "}
                 <EntryTime createdAt={entry.createdAt} />
               </p>
               <p className="thread-body">{entry.body}</p>

@@ -5,9 +5,9 @@
 // The row's accessible name stays the mark's short name (D078) plus its
 // state, which is what assistive tech and the tests address.
 
-import type { AnnotationView } from "../lib/annotations";
-import { elementText, markKindLabel, markLabel, markTitle } from "../lib/canvas/marks";
-import { PIN_STATUS_LABELS } from "../lib/feedback-counts";
+import type { AnnotationView, PinElementSnapshot } from "../lib/annotations";
+import { markKindLabel, markLabel, markTitle } from "../lib/canvas/marks";
+import { PIN_STATUS_LABELS, pinExcerpt } from "../lib/feedback-counts";
 
 /**
  * Which state a row shows: "notable" (the editor) names only a resolved
@@ -21,8 +21,25 @@ export function pinRowName(pin: AnnotationView, status: PinRowStatus): string {
   const label = PIN_STATUS_LABELS[pin.status] ?? pin.status;
   if (status === "always") name += ` · ${label}`;
   else if (pin.status === "resolved") name += " · Resolved";
-  if (pin.unreadReplies > 0) name += ` · ${pin.unreadReplies} new`;
+  if (pin.unreadReplies > 0) {
+    name += ` · ${pin.unreadReplies} new ${pin.unreadReplies === 1 ? "reply" : "replies"}`;
+  }
   return name;
+}
+
+export function elementContextLabel(element: PinElementSnapshot | null, max = Infinity): string {
+  if (!element) return "No element";
+  const text = element.text.trim() || element.accessibleName.trim();
+  const tag = element.tag.toLowerCase();
+  const kind =
+    tag === "button"
+      ? "button"
+      : tag === "a"
+        ? "link"
+        : tag === "input"
+          ? "field"
+          : "";
+  return [text ? `“${pinExcerpt(text, max)}”` : "", kind].filter(Boolean).join(" ") || "Element";
 }
 
 /** The number badge a mark carries, as on the canvas. */
@@ -41,7 +58,6 @@ export function PinBadge({ pin }: { pin: Pick<AnnotationView, "kind" | "number" 
 
 /** The visible parts of a row; the button around it carries the name. */
 export function PinRowContent({ pin, status }: { pin: AnnotationView; status: PinRowStatus }) {
-  const element = elementText(pin.elementSnapshot);
   const showStatus = status === "always" || pin.status === "resolved";
   return (
     <>
@@ -52,7 +68,7 @@ export function PinRowContent({ pin, status }: { pin: AnnotationView; status: Pi
         </span>
         <span className="pin-row-element">
           {pin.kind === "pin" ? "" : `${markKindLabel(pin.kind)} · `}
-          {element ?? "No element"}
+          {pin.elementSnapshot ? `Points at ${elementContextLabel(pin.elementSnapshot)}` : "No element"}
         </span>
       </span>
       {showStatus || pin.unreadReplies > 0 ? (
@@ -61,7 +77,9 @@ export function PinRowContent({ pin, status }: { pin: AnnotationView; status: Pi
             <span className="pin-status">{PIN_STATUS_LABELS[pin.status] ?? pin.status}</span>
           ) : null}
           {pin.unreadReplies > 0 ? (
-            <span className="pin-unread">{pin.unreadReplies} new</span>
+            <span className="pin-unread">
+              {pin.unreadReplies} new {pin.unreadReplies === 1 ? "reply" : "replies"}
+            </span>
           ) : null}
         </span>
       ) : null}

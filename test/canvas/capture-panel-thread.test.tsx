@@ -92,8 +92,8 @@ describe("CapturePanel thread section", () => {
     expect(screen.queryByTestId("thread")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Thread" })).toBeNull();
     // The editor's own controls are untouched.
-    expect(screen.getByRole("button", { name: "Edit comment" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete pin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit note" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete note" })).toBeInTheDocument();
   });
 
   test("renders the original comment, entries in order with server labels, and the follow-up composer", async () => {
@@ -127,7 +127,8 @@ describe("CapturePanel thread section", () => {
       "Tighten the pricing table.",
     );
     expect(items[0]).toHaveAttribute("data-author", "founder");
-    expect(items[0]).toHaveTextContent("founder");
+    expect(items[0]).toHaveTextContent("Founder");
+    expect(items[0]).not.toHaveTextContent("(founder)");
     expect(items[0]).toHaveTextContent("On it.");
     expect(items[1]).toHaveAttribute("data-author", "Lucas");
     // Hostile text is inert.

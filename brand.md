@@ -44,10 +44,17 @@ tightening this", not for making the edit; the founder owns the edits
 - "Capture the page." "Pin it where it happens." "Send one link."
 - "Give your feedback a place to land."
 
-Speak the user's language, not the system's (D078): a pin is named by its
-comment and the element it points at, and internals sit behind a disclosure.
+Speak the user's language, not the system's (D078): a note is identified by
+what it says and the element it points at, and internals sit behind a disclosure.
 Sections on the landing open with a short plain line (the eyebrow), then a
 large light heading, then the content.
+
+In note-facing copy, call what a person writes a **note**. Use **Pin**,
+**Box**, **Circle**, and **Arrow** only for its shape. Name the element it
+points at in plain words; keep selectors, coordinates, and hashes out of
+the default reading view. They remain available to the agent and in
+optional technical details (D148). This first pass covers the composer,
+the selected-note panel, and the founder's reading view.
 
 ---
 
@@ -429,4 +436,4 @@ not), D047 (accent to AA), D066 (the mark as the landing's logo), D078
 (speak the user's language), D102 (direction from paper.design), D104 (dark
 theme), D107 (illustration set), D113 (panel rhythm), D118 (Geist
 interaction patterns), D119 (halftone wash), D127 (sentence case and
-"Pinata"), D136 (this file), D140 (the demo video).
+"Pinata"), D136 (this file), D140 (the demo video), D148 (note wording).

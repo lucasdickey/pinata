@@ -629,14 +629,14 @@ describe("screen-fixed selection and metadata panel", () => {
     expect(composer.closest(".react-flow")).toBeNull();
     expect(composer.closest(".capture-canvas")).toBeNull();
     expect(panel().contains(composer)).toBe(false);
-    expect(within(composer).getByLabelText("Comment")).toHaveFocus();
+    expect(within(composer).getByLabelText("Note")).toHaveFocus();
     // The side panel keeps its own job and never shows the draft.
     // No row is open: nothing is selected (D128).
     expect(within(panel()).queryByTestId("panel-pin")).toBeNull();
     expect(panel().querySelector(".pin-badge")).toBeNull();
 
     // Escape in the composer cancels only the transient draft.
-    fireEvent.keyDown(within(composer).getByLabelText("Comment"), { key: "Escape" });
+    fireEvent.keyDown(within(composer).getByLabelText("Note"), { key: "Escape" });
     await waitFor(() =>
       expect(within(detail()).queryByRole("dialog", { name: "New pin" })).toBeNull(),
     );
@@ -1087,7 +1087,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       await settleAnnotations();
       await within(sidePanel()).findByRole("button", { name: /Pin 1/ });
       await placeDraft();
-      await user.type(within(composer()).getByLabelText("Comment"), "Not saved yet");
+      await user.type(within(composer()).getByLabelText("Note"), "Not saved yet");
       const pinReads = reads(/\/api\/captures\/root-d1\/annotations$/);
       await act(async () => {
         window.dispatchEvent(new Event("focus"));
@@ -1095,7 +1095,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       await waitFor(() =>
         expect(reads(/\/api\/captures\/root-d1\/annotations$/)).toBe(pinReads + 1),
       );
-      expect(within(composer()).getByLabelText("Comment")).toHaveValue("Not saved yet");
+      expect(within(composer()).getByLabelText("Note")).toHaveValue("Not saved yet");
       // A quiet read: the list never flashed back to a loading state.
       expect(within(detail()).queryByText(/Loading pins/)).toBeNull();
     });
@@ -1136,7 +1136,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await settleAnnotations();
 
     await placeDraft();
-    const comment = within(composer()).getByLabelText("Comment");
+    const comment = within(composer()).getByLabelText("Note");
     await user.type(comment, "Hero copy is placeholder text.");
     // The plane offers no nearby element, so the settled default is the
     // explicit No element; nothing else stands between typing and Save.
@@ -1145,8 +1145,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(within(composer()).getByTestId("draft-choice")).not.toHaveAttribute(
       "data-element-id",
     );
-    expect(within(composer()).getByRole("button", { name: "Save pin" })).toBeEnabled();
-    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    expect(within(composer()).getByRole("button", { name: "Save note" })).toBeEnabled();
+    await user.click(within(composer()).getByRole("button", { name: "Save note" }));
 
     // Exactly one create, addressed to the selected capture, carrying the
     // tip, the comment, the explicit null decision, and the draft's key.
@@ -1160,7 +1160,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
 
     // The draft resolved and the saved pin renders in the list and canvas.
     await noComposer();
-    const list = within(detail()).getByRole("list", { name: "Saved pins" });
+    const list = within(detail()).getByRole("list", { name: "Notes on this screenshot" });
     expect(within(list).getAllByRole("button")).toHaveLength(1);
     expect(within(list).getByRole("button", { name: /Pin 1/ })).toBeInTheDocument();
     await waitFor(() =>
@@ -1184,8 +1184,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(chip).toHaveAttribute("data-element-id", "cell-1");
     expect(chip).toHaveTextContent(/Starter plan/);
     expect(within(composer()).queryByRole("radio")).toBeNull();
-    await user.type(within(composer()).getByLabelText("Comment"), "This cell, specifically.");
-    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    await user.type(within(composer()).getByLabelText("Note"), "This cell, specifically.");
+    await user.click(within(composer()).getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     // Only the capture-local id crosses the wire — never a metadata object.
@@ -1208,8 +1208,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     expect(sidePanel()).toHaveAttribute("data-collapsed", "true");
     await placeDraft();
     await settleCandidates();
-    await user.type(within(composer()).getByLabelText("Comment"), "Saved behind the strip.");
-    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    await user.type(within(composer()).getByLabelText("Note"), "Saved behind the strip.");
+    await user.click(within(composer()).getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.method).toBe("POST");
@@ -1266,8 +1266,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     );
     await chooseNoElement(user);
     expect(within(composer()).getByTestId("draft-choice")).toHaveTextContent("No element");
-    await user.type(within(composer()).getByLabelText("Comment"), "Background, not the cell.");
-    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    await user.type(within(composer()).getByLabelText("Note"), "Background, not the cell.");
+    await user.click(within(composer()).getByRole("button", { name: "Save note" }));
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.body.elementId).toBeNull();
   });
@@ -1280,14 +1280,14 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await settleAnnotations();
     await placeDraft();
 
-    const save = within(composer()).getByRole("button", { name: "Save pin" });
+    const save = within(composer()).getByRole("button", { name: "Save note" });
     expect(save).toBeDisabled();
     await settleCandidates();
     // The default is settled; the comment is still blank.
     expect(save).toBeDisabled();
-    await user.type(within(composer()).getByLabelText("Comment"), "   ");
+    await user.type(within(composer()).getByLabelText("Note"), "   ");
     expect(save).toBeDisabled();
-    await user.type(within(composer()).getByLabelText("Comment"), "real feedback");
+    await user.type(within(composer()).getByLabelText("Note"), "real feedback");
     expect(save).toBeEnabled();
   });
 
@@ -1300,7 +1300,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     await placeDraft();
     await settleCandidates();
 
-    const comment = within(composer()).getByLabelText("Comment");
+    const comment = within(composer()).getByLabelText("Note");
     expect(comment).toHaveFocus();
     await user.type(comment, "line one{Shift>}{Enter}{/Shift}line two");
     expect(comment).toHaveValue("line one\nline two");
@@ -1320,7 +1320,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
     await settleAnnotations();
     await placeDraft();
-    await user.type(within(composer()).getByLabelText("Comment"), "never saved");
+    await user.type(within(composer()).getByLabelText("Note"), "never saved");
     await user.keyboard("{Escape}");
     await noComposer();
     expect(document.querySelector(".react-flow__node-draftPin")).toBeNull();
@@ -1408,7 +1408,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
     await settleAnnotations();
     await placeDraft();
-    await user.type(within(composer()).getByLabelText("Comment"), "never saved");
+    await user.type(within(composer()).getByLabelText("Note"), "never saved");
     await settleCandidates();
 
     await user.click(within(composer()).getByRole("button", { name: "Cancel" }));
@@ -1433,19 +1433,19 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     openHome();
     await settleAnnotations();
     await placeDraft();
-    await user.type(within(composer()).getByLabelText("Comment"), "keep me");
+    await user.type(within(composer()).getByLabelText("Note"), "keep me");
     await settleCandidates();
 
-    await user.click(within(composer()).getByRole("button", { name: "Save pin" }));
+    await user.click(within(composer()).getByRole("button", { name: "Save note" }));
     await waitFor(() =>
       expect(within(composer()).getByRole("alert")).toHaveTextContent(/could not be saved/i),
     );
     // Recoverable: the draft, the comment, the decision, and the draft node
     // all survive — a retry replays the same intent.
-    expect(within(composer()).getByLabelText("Comment")).toHaveValue("keep me");
+    expect(within(composer()).getByLabelText("Note")).toHaveValue("keep me");
     expect(within(composer()).getByTestId("draft-choice")).toHaveTextContent("No element");
     expect(document.querySelector(".react-flow__node-draftPin")).not.toBeNull();
-    expect(within(detail()).queryByRole("list", { name: "Saved pins" })).toBeNull();
+    expect(within(detail()).queryByRole("list", { name: "Notes on this screenshot" })).toBeNull();
   });
 
   test("the pins list opens a saved pin's comment and the badge marks the selection", async () => {
@@ -1465,7 +1465,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     const panel = within(detail()).getByTestId("panel-pin");
     expect(panel).toHaveTextContent("Pin 1");
     expect(panel).toHaveTextContent("The hero headline duplicates the nav wordmark.");
-    expect(within(panel).getByTestId("panel-snapshot")).toHaveTextContent("Element: No element");
+    expect(within(panel).getByTestId("panel-snapshot")).toHaveTextContent("No element selected");
     expect(document.querySelector('[data-selected="true"]')).not.toBeNull();
 
     // Selecting again clears back to the empty state.
@@ -1533,7 +1533,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       pending.get("/api/captures/root-m1/annotations")!(json({ annotations: [] }));
     });
     await waitFor(() =>
-      expect(within(sidePanel()).getByText(/No pins yet/)).toBeInTheDocument(),
+      expect(within(sidePanel()).getByText(/No notes yet/)).toBeInTheDocument(),
     );
     expect(within(sidePanel()).queryByRole("button", { name: /Pin 1/ })).toBeNull();
   });
@@ -1548,8 +1548,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     );
     await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
 
-    await user.click(within(detail()).getByRole("button", { name: "Edit comment" }));
-    const editor = within(detail()).getByLabelText("Edit comment");
+    await user.click(within(detail()).getByRole("button", { name: "Edit note" }));
+    const editor = within(detail()).getByLabelText("Edit note");
     await user.clear(editor);
     await user.type(editor, "A sharper note about the hero.");
     await user.click(within(detail()).getByRole("button", { name: "Save edit" }));
@@ -1580,8 +1580,8 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     // The server-side truth moves first (another session's write).
     pins[0] = { ...pins[0]!, body: "Another session rewrote this.", revision: 2 };
     await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
-    await user.click(within(detail()).getByRole("button", { name: "Edit comment" }));
-    await user.type(within(detail()).getByLabelText("Edit comment"), " stale text");
+    await user.click(within(detail()).getByRole("button", { name: "Edit note" }));
+    await user.type(within(detail()).getByLabelText("Edit note"), " stale text");
     await user.click(within(detail()).getByRole("button", { name: "Save edit" }));
 
     await waitFor(() =>
@@ -1595,7 +1595,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
         "Another session rewrote this.",
       ),
     );
-    expect(within(detail()).queryByRole("textbox", { name: "Edit comment" })).toBeNull();
+    expect(within(detail()).queryByRole("textbox", { name: "Edit note" })).toBeNull();
   });
 
   test("deleting a saved pin is a two-step revisioned DELETE and the pin leaves the list", async () => {
@@ -1608,11 +1608,10 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
     );
     await user.click(within(sidePanel()).getByRole("button", { name: /Pin 1/ }));
 
-    // Step one arms the confirm; Keep pin backs out without a write.
-    await user.click(within(detail()).getByRole("button", { name: "Delete pin" }));
-    await user.click(within(detail()).getByRole("button", { name: "Keep pin" }));
+    await user.click(within(detail()).getByRole("button", { name: "Delete note" }));
+    await user.click(within(detail()).getByRole("button", { name: "Keep note" }));
     expect(writes).toHaveLength(0);
-    await user.click(within(detail()).getByRole("button", { name: "Delete pin" }));
+    await user.click(within(detail()).getByRole("button", { name: "Delete note" }));
     await user.click(within(detail()).getByRole("button", { name: "Confirm delete" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
@@ -1713,7 +1712,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Replied");
     });
 
-    test("Resolve pin posts to the resolve route, shows the new status and the thread's system line, and re-reads the hierarchy", async () => {
+    test("Resolve note posts to the resolve route, shows the new status and the thread's system line, and re-reads the hierarchy", async () => {
       const user = userEvent.setup();
       const { feedback, writes } = stubAnnotations([savedPin]);
       render(<ProjectWorkspace projects={[withFeedback()]} onChanged={onChanged} />);
@@ -1721,7 +1720,7 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       await user.click(await within(sidePanel()).findByRole("button", { name: /Pin 1/ }));
       expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Open");
 
-      await user.click(within(detail()).getByRole("button", { name: "Resolve pin" }));
+      await user.click(within(detail()).getByRole("button", { name: "Resolve note" }));
       await waitFor(() => expect(feedback.some((call) => call.action === "resolve")).toBe(true));
       expect(feedback.find((call) => call.action === "resolve")!.url).toBe(
         "/api/captures/root-d1/annotations/ann-saved-1/resolve",
@@ -1729,9 +1728,9 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       await waitFor(() =>
         expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Resolved"),
       );
-      expect(within(detail()).getByRole("button", { name: "Reopen pin" })).toBeInTheDocument();
+      expect(within(detail()).getByRole("button", { name: "Reopen note" })).toBeInTheDocument();
       const thread = within(detail()).getByTestId("thread");
-      expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by editor");
+      expect(thread.querySelector(".thread-status")).toHaveTextContent("Resolved by Lucas");
       // A status line is not a message: no author, no message styling. The
       // comment itself is shown once above the thread (D128), so the thread
       // holds no Lucas message here.
@@ -1744,11 +1743,11 @@ describe("pin placement and persistence (VAL-PIN-001, VAL-PIN-003, VAL-CANVAS-00
       expect(writes).toHaveLength(0);
       expect(onChanged).toHaveBeenCalledTimes(1);
 
-      await user.click(within(detail()).getByRole("button", { name: "Reopen pin" }));
+      await user.click(within(detail()).getByRole("button", { name: "Reopen note" }));
       await waitFor(() =>
         expect(within(detail()).getByTestId("panel-status")).toHaveTextContent("Status: Open"),
       );
-      expect(within(detail()).getByRole("button", { name: "Resolve pin" })).toBeInTheDocument();
+      expect(within(detail()).getByRole("button", { name: "Resolve note" })).toBeInTheDocument();
     });
   });
 });
@@ -1855,8 +1854,8 @@ describe("rectangle drafts (D079)", () => {
         within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
       ).toMatch(/^(ready|failed)$/),
     );
-    await user.type(within(dialog).getByLabelText("Comment"), "This whole card needs more air.");
-    await user.click(within(dialog).getByRole("button", { name: "Save box" }));
+    await user.type(within(dialog).getByLabelText("Note"), "This whole card needs more air.");
+    await user.click(within(dialog).getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
@@ -1873,7 +1872,7 @@ describe("rectangle drafts (D079)", () => {
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-rectangle")).toHaveLength(1),
     );
-    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    const list = within(sidePanel()).getByRole("list", { name: "Notes on this screenshot" });
     expect(
       within(list).getByRole("button", { name: /^Box 1 · “This whole card needs more air.”/ }),
     ).toBeInTheDocument();
@@ -1946,7 +1945,7 @@ describe("geometry writes (D096)", () => {
     openHome();
     await settleAnnotations();
     // Handles belong to the selected mark: select the box from the list.
-    const list = await within(sidePanel()).findByRole("list", { name: "Saved pins" });
+    const list = await within(sidePanel()).findByRole("list", { name: "Notes on this screenshot" });
     fireEvent.click(within(list).getByRole("button", { name: /^Box 1/ }));
     const handle = () =>
       document.querySelector(
@@ -2054,8 +2053,8 @@ describe("circle drafts (D082)", () => {
         within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
       ).toMatch(/^(ready|failed)$/),
     );
-    await user.type(within(dialog).getByLabelText("Comment"), "Draw the eye to this badge.");
-    await user.click(within(dialog).getByRole("button", { name: "Save circle" }));
+    await user.type(within(dialog).getByLabelText("Note"), "Draw the eye to this badge.");
+    await user.click(within(dialog).getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
@@ -2072,7 +2071,7 @@ describe("circle drafts (D082)", () => {
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-circle")).toHaveLength(1),
     );
-    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    const list = within(sidePanel()).getByRole("list", { name: "Notes on this screenshot" });
     expect(
       within(list).getByRole("button", { name: /^Circle 1 · “Draw the eye to this badge.”/ }),
     ).toBeInTheDocument();
@@ -2159,8 +2158,8 @@ describe("arrow drafts (D083)", () => {
         within(dialog).getByTestId("draft-context").getAttribute("data-candidates-state"),
       ).toMatch(/^(ready|failed)$/),
     );
-    await user.type(within(dialog).getByLabelText("Comment"), "Move this up into the header.");
-    await user.click(within(dialog).getByRole("button", { name: "Save arrow" }));
+    await user.type(within(dialog).getByLabelText("Note"), "Move this up into the header.");
+    await user.click(within(dialog).getByRole("button", { name: "Save note" }));
 
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes[0]!.url).toBe("/api/captures/root-d1/annotations");
@@ -2181,7 +2180,7 @@ describe("arrow drafts (D083)", () => {
     await waitFor(() =>
       expect(document.querySelectorAll(".react-flow__node-arrow")).toHaveLength(1),
     );
-    const list = within(sidePanel()).getByRole("list", { name: "Saved pins" });
+    const list = within(sidePanel()).getByRole("list", { name: "Notes on this screenshot" });
     expect(
       within(list).getByRole("button", { name: /^Arrow 1 · “Move this up into the header.”/ }),
     ).toBeInTheDocument();
