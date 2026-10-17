@@ -45,6 +45,8 @@ test("the walkthrough mounts, lists every chapter, and jumps between them", asyn
   }
   await expect(chapters.nth(0)).toHaveAttribute("aria-current", "step");
   await expect(page.getByRole("heading", { level: 2, name: SLIDES[0]!.title })).toBeVisible();
+  await chapters.nth(6).click();
+  await expect(page.getByText(SLIDES[6]!.notes)).toBeVisible();
 
   await chapters.nth(4).click();
   await expect(chapters.nth(4)).toHaveAttribute("aria-current", "step");

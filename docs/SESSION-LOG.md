@@ -4455,10 +4455,51 @@ Elapsed: about 5 minutes (19:15–19:20 UTC) against no fixed timebox.
 
 ---
 
-## 2026-10-17 — read written feedback as notes (D148)
+## 2026-10-17 — state the current handoff without promising a fix check (D148)
+
+Harness: Warp Factory independent copy branch, based on the combined Send tip.
+Elapsed: about 14 minutes (03:33–03:47 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Replaced the founder-only landing pitch with a public-page markup pitch that
+  distinguishes the coding-agent brief, person review link, and project
+  Markdown. Removed the marketing hero above New project so the form is the
+  page's heading. Updated the walkthrough transcript, its on-screen handoff
+  text, and the landing demo's closing card.
+- Checked D140's phone invitation-card CSS and its existing 390px and 320px
+  end-to-end geometry tests. The card stacks its copy, mascot, and sign-in
+  action; a 320px browser check found its decorative dots on the body copy,
+  so the narrow-only halo position was moved below the text.
+
+### What broke
+
+- The public artifact URL exposed only its title to the page fetch. The
+  assigned recommendation and the product's current Send flow supplied the
+  scoped copy requirements instead.
+- The filmed Share and Hand off scenes still show the older header. Refilming
+  those screens needs a configured local product run and is tracked in
+  `docs/NEXT.md`; copy alone does not make the historic footage current.
+- The first gate could not launch Chromium until its pinned browser and
+  Debian runtime packages were installed in this sandbox.
+
+### Validation and decisions
+
+- D148 records the owner-approved copy direction without treating approval as
+  authorization to implement cross-capture fix checking, in-app agent edits,
+  private URL capture, or recoverable capability tokens.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,969 Vitest tests
+  (44 credentialed skips), generated docs check, production build, and
+  28 Playwright tests (47 credentialed skips without `.env.local`).
+- Desktop, 390px, and 320px rendered browser states were inspected;
+  the narrow-card halo is verified again after the CSS change.
+
+---
+
+## 2026-10-17 — read written feedback as notes (D149)
 
 Harness: Warp Factory implementation on `factory/overhaul-note-language`.
-Elapsed: about 13 minutes (03:32–03:45 UTC) against no fixed timebox.
+Elapsed: about 21 minutes (03:32–03:53 UTC) against no fixed timebox.
 
 ### What was attempted
 
@@ -4485,6 +4526,10 @@ Elapsed: about 13 minutes (03:32–03:45 UTC) against no fixed timebox.
   A persistent scratch server then served the seeded editor and founder
   views for visual verification. No scratch data was committed.
 
+- Merging the parallel current-copy branch conflicted in decision data,
+  generated views, and this append-only log. Kept both session records,
+  assigned the note decision D149, and regenerated the decision views.
+
 ### Validation and decisions
 
 - Node 24 `npm run validate` passed: lint, typecheck, 1,970 Vitest tests
@@ -4495,5 +4540,8 @@ Elapsed: about 13 minutes (03:32–03:45 UTC) against no fixed timebox.
   context, closed technical Details, and no duplicated founder role in
   replies. The older all-pins table still shows its technical columns; this
   bounded pass did not redesign it.
-- D148 records the approved note terminology provisionally; the integration
-  branch will renumber it if another parallel decision lands first.
+- D149 records the approved note terminology after integrating the
+  current-copy branch and its D148 decision.
+- The integrated Node 24 `npm run validate` passed with 1,971 Vitest tests
+  (44 credentialed skips), current generated docs, a production build, and
+  28 Playwright tests (47 credentialed skips).

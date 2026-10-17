@@ -44,7 +44,7 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
     title: "pin + annotate + at ya",
     durationInFrames: seconds(8),
     notes:
-      "Pinata is a lightweight workspace for giving directional feedback on a friend's public website. You pin a note to the exact spot on a page, share one link, and the founder replies in place. The name is a portmanteau: pin, annotation, at ya.",
+      "Capture a public page and pin directional feedback to the spot. Send a structured brief to a coding agent, a review link to a friend, or project notes as Markdown. The agent works outside Pinata; a friend can reply in place. The name is a portmanteau: pin, annotation, at ya.",
   },
   {
     id: "problem",
@@ -57,10 +57,10 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
   {
     id: "people",
     chapter: "Who it's for",
-    title: "Two people, one link",
+    title: "Give context to a person or agent",
     durationInFrames: seconds(10),
     notes:
-      "There are two roles. The editor, Lucas, captures pages, places numbered pins, and writes directional comments after a single password prompt. The founder is a friend who receives an unguessable link, reads the annotations in place, and replies. No account, no signup. The first real recipient is the founder of chickpea.co, which is also the canonical test target.",
+      "The editor captures pages, places numbered marks, and writes directional feedback. A friend can open a person review link without an account, read the notes in place, and reply. A coding agent can open a separate, read-only brief with screenshot links, or the editor can copy the project's Markdown. Pinata does not edit the page or the agent's code.",
   },
   {
     id: "project",
@@ -84,15 +84,15 @@ export const SLIDES: readonly WalkthroughSlide[] = Object.freeze([
     title: "Pin notes to the exact pixel",
     durationInFrames: seconds(12),
     notes:
-      "Each capture opens on a pan-and-zoom canvas at the screenshot's own size. A click drops a numbered pin; a Shift-drag, or the Box tool, draws a numbered box around a region, and the Circle and Arrow tools draw the rest. Every mark is stored in screenshot pixels, so panning, zooming, and resizing never move a target, and each is named by what they say and what they point at, such as Pin 1, the comment, and the Annual toggle. Desktop and mobile captures each keep their own marks. When placing a mark, nearby captured elements are offered as context, and the editor picks one, or none.",
+      "Each capture opens on a pan-and-zoom canvas fitted to the screenshot's width, without enlarging past its natural size. A click drops a numbered pin; a Shift-drag, or the Box tool, draws a numbered box around a region, and the Circle and Arrow tools draw the rest. Every mark is stored in screenshot pixels, so panning, zooming, and resizing never move a target, and each is named by what they say and what they point at, such as Pin 1, the comment, and the Annual toggle. Desktop and mobile captures each keep their own marks. When placing a mark, nearby captured elements are offered as context, and the editor picks one, or none.",
   },
   {
     id: "share",
     chapter: "4 · Share and reply",
-    title: "Share one link. Get the reply in place.",
+    title: "Send a review link. Get replies in place.",
     durationInFrames: seconds(11),
     notes:
-      "A persistent, revocable link opens the project in a read-and-reply-only founder view: on a phone the list of notes comes first, and tapping one brings the screenshot to it. The link's secret travels only in the URL fragment, and the database stores only its SHA-256 digest. Threads are append-only and chronological: the founder replies, the editor follows up, and nobody, including the founder, can edit or delete a founder reply. Either side can mark a note resolved, or reopen it, and the thread records who did so.",
+      "Send offers separate choices: a coding-agent link to a read-only brief with screenshots, a person review link, or a copy of project notes as Markdown. The two links are independent, persistent, and revocable; each URL appears only when created, not again when Send is reopened. A person opens the project without an account and can reply to and resolve notes in place. On a phone the note list comes first. The link's secret travels only in its URL fragment; the database stores only its SHA-256 digest. Replies remain append-only and chronological.",
   },
   {
     id: "guardrails",

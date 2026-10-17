@@ -33,6 +33,16 @@ function token(name: string): string {
 }
 
 describe("the walkthrough slide table", () => {
+  test("describes separate agent and person handoffs without promising edits", () => {
+    const title = SLIDES.find((slide) => slide.id === "title")!;
+    const people = SLIDES.find((slide) => slide.id === "people")!;
+    const share = SLIDES.find((slide) => slide.id === "share")!;
+    expect(title.notes).toMatch(/coding agent.*friend/);
+    expect(people.notes).toMatch(/read-only brief with screenshot links/);
+    expect(people.notes).toMatch(/does not edit/);
+    expect(share.notes).toMatch(/each URL appears only when created/);
+    expect(share.notes).toMatch(/SHA-256 digest/);
+  });
   test("has exactly ten slides, in the declared id order, each with copy", () => {
     expect(SLIDES).toHaveLength(10);
     expect(SLIDES.map((s) => s.id)).toEqual([...SLIDE_IDS]);

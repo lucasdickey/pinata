@@ -257,7 +257,7 @@ export function ProjectCreateForm(props: {
 
   return (
     <section aria-labelledby="project-create-heading" className="project-create">
-      <h2 id="project-create-heading">New project</h2>
+      <h1 id="project-create-heading">New project</h1>
       <form onSubmit={onSubmit} noValidate>
         <p className="field">
           <label htmlFor="project-title">Project name (optional)</label>

@@ -15,7 +15,7 @@ export function PeopleSlide({ index }: SlideProps) {
   return (
     <SlideShell index={index}>
       <Kicker>Who it&rsquo;s for</Kicker>
-      <Headline>Two people, one link</Headline>
+      <Headline>Give context to a person or agent</Headline>
       <div
         style={{
           display: "grid",
@@ -43,7 +43,7 @@ export function PeopleSlide({ index }: SlideProps) {
           </Card>
         </Reveal>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-          <Arrow width={240} delay={70} label="one unguessable link" />
+          <Arrow width={240} delay={70} label="person review link" />
           <Reveal delay={100} from="down" distance={12}>
             <div style={{ fontSize: 20, color: THEME.inkSoft, textAlign: "center" }}>
               persistent, revocable
@@ -82,8 +82,8 @@ export function PeopleSlide({ index }: SlideProps) {
       </div>
       <Reveal delay={130}>
         <Body size={28} soft style={{ marginTop: 30 }}>
-          First real recipient: the founder of <strong>chickpea.co</strong>, which is also the
-          canonical test target (root, /pricing, /about, /privacy).
+          A separate read-only brief gives a coding agent notes and screenshot links.
+          The agent works outside Pinata; neither path edits the page here.
         </Body>
       </Reveal>
     </SlideShell>

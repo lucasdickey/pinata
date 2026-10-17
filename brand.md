@@ -41,8 +41,11 @@ tightening this", not for making the edit; the founder owns the edits
 (README, D012). Write the way the landing does:
 
 - "A two-minute comment should take two minutes."
-- "Capture the page." "Pin it where it happens." "Send one link."
+- "Capture the page." "Pin it where it happens."
 - "Give your feedback a place to land."
+- "Mark up a page. Hand it off." Name the coding-agent brief and person review
+  link as different handoffs; the product does not make edits. Do not suggest
+  a live link can be copied again after Send closes (D148).
 
 Speak the user's language, not the system's (D078): a note is identified by
 what it says and the element it points at, and internals sit behind a disclosure.
@@ -53,7 +56,7 @@ In note-facing copy, call what a person writes a **note**. Use **Pin**,
 **Box**, **Circle**, and **Arrow** only for its shape. Name the element it
 points at in plain words; keep selectors, coordinates, and hashes out of
 the default reading view. They remain available to the agent and in
-optional technical details (D148). This first pass covers the composer,
+optional technical details (D149). This first pass covers the composer,
 the selected-note panel, and the founder's reading view.
 
 ---
