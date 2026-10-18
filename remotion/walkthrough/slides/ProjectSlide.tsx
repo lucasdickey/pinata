@@ -80,7 +80,7 @@ export function ProjectSlide({ index }: SlideProps) {
                 transform: `scale(${1 - 0.08 * Math.sin(press * Math.PI)})`,
               }}
             >
-              Start capturing
+              Create project
             </div>
           </Card>
         </Reveal>

@@ -511,6 +511,16 @@ pre code {
     width: 100%;
   }
 }
+@media (max-width: 23rem) {
+  .landing-halftone--card {
+    --halftone-at: 50% 58%;
+    --halftone-reach: 62% 16%;
+  }
+  .landing-halftone--card .landing-halftone-glow {
+    top: 47%;
+    bottom: 25%;
+  }
+}
 
 .landing-invitation > :not(.landing-halftone) {
   position: relative;
@@ -635,15 +645,7 @@ pre code {
   }
 }
 
-/* The hero (VAL-LANDING-001): the mark, the name, and the statement above
-   whichever capture form the visitor's role gets. On the anonymous landing
-   the mark rides in the top bar, still ahead of the form in the document. */
 .landing-hero {
-  max-width: var(--max);
-  margin: 0 auto 2.5rem;
-}
-
-.home-main--landing .landing-hero {
   max-width: var(--wide);
   margin: 0 0 clamp(2.5rem, 6vw, 4rem);
 }
@@ -727,23 +729,6 @@ pre code {
 
 .button-link:active {
   transform: scale(0.97);
-}
-
-/* Inside the app (/pins/new) the hero is a heading for a working page, not
-   a poster: same two tones, a working size. */
-.home-main:not(.home-main--landing) .landing-hero h1,
-.home-main:not(.home-main--landing) .landing-statement {
-  font-size: clamp(1.9rem, 4vw, 2.5rem);
-  line-height: 1.08;
-}
-
-.home-main:not(.home-main--landing) .landing-statement {
-  max-width: none;
-}
-
-.home-main:not(.home-main--landing) .landing-prop {
-  margin: 1rem 0 1.75rem;
-  font-size: 1rem;
 }
 
 /* A section on the landing: a plain short line, then a large light
@@ -4618,8 +4603,9 @@ pre code {
   margin: 0.5rem 0;
 }
 
-/* The New project page: the capture-file start below the form, in the
-   form's own column. */
+.new-project-main {
+  max-width: var(--max);
+}
 .new-project-upload {
   margin: 0 0 1.5rem;
 }

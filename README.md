@@ -2,10 +2,11 @@
 
 **pin** + **anno**tation + at **ya**
 
-A lightweight workspace for giving directional feedback on friends' public
-websites — pin a note to the exact spot on the page, share a link, get the
-founder's reply. Built with Factory Droid and Claude Code; which tool did what
-is recorded in [`docs/SESSION-LOG.md`](docs/SESSION-LOG.md).
+A lightweight workspace for marking up a public page and handing directional
+feedback to a coding agent or a friend. An agent reads a structured brief;
+a friend reads and replies in place. Pinata does not edit the page. Built with
+Factory Droid and Claude Code; which tool did what is recorded in
+[`docs/SESSION-LOG.md`](docs/SESSION-LOG.md).
 
 ## The problem
 
@@ -27,6 +28,8 @@ edits; Pinata just makes "try tightening this" unambiguous.
   annotations in place, and replies. No account, no signup. The first real
   recipient is the founder of [chickpea.co](https://chickpea.co/), which is
   also the canonical test target.
+- **The coding agent** — reads a separate, read-only brief with screenshot
+  links. It works outside Pinata; Pinata does not edit the page or the code.
 
 ## How it works
 
@@ -39,21 +42,22 @@ edits; Pinata just makes "try tightening this" unambiguous.
    session it extracts a small, sanitized manifest of visible DOM elements
    (tag, role, short text, position) — never HTML source, cookies, or form
    values.
-3. **Annotate.** Each capture opens in a pan/zoom canvas (React Flow) rendered
-   at the screenshot's own size. A click drops a numbered pin; a Shift-drag
-   (or the Box tool, B) draws a numbered box around a region; the Circle
-   tool (C) circles one, and the Arrow tool (A) says "move this there".
+3. **Annotate.** Each capture opens in a pan/zoom canvas (React Flow) fitted
+   to width, never enlarged beyond its natural size. A click drops a numbered
+   pin; a Shift-drag (or the Box tool, B) draws a numbered box around a region.
+   The Circle tool (C) circles one, and the Arrow tool (A) says "move this there".
    Every mark is stored in screenshot pixels, so it stays glued to its
    target at any zoom, and is named by what it says and what it points at
    ("Pin 3 · “Annual toggle reads the same in both states” · Annual (save
    20%)"). When placing a mark, nearby captured elements are offered as
    context.
-4. **Share and reply.** A persistent, revocable link opens the project in a
-   read/reply-only founder view. Threads are append-only and chronological:
-   the founder replies, the editor follows up, and nobody — including the
-   founder — can edit or delete a founder reply. Either side can mark a
-   note resolved, and reopen it later; each change is recorded in the
-   thread.
+4. **Send.** Choose a coding-agent brief with screenshot links, a person
+   review link, or project Markdown. The two links are independent, persistent
+   and revocable. Each secret URL is shown only when it is created; the database
+   keeps its digest, not a recoverable token. A person opens a read/reply-only
+   view. Threads are append-only and chronological: the person replies, the
+   editor follows up, and nobody can edit or delete a person's reply. Either
+   side can resolve or reopen a note; each change is recorded in the thread.
 
 Screens Pinata cannot visit — behind a sign-in, on a staging host, or on
 your own machine — come in through the **Pinata Chrome extension**

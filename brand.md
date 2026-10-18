@@ -41,8 +41,11 @@ tightening this", not for making the edit; the founder owns the edits
 (README, D012). Write the way the landing does:
 
 - "A two-minute comment should take two minutes."
-- "Capture the page." "Pin it where it happens." "Send one link."
+- "Capture the page." "Pin it where it happens."
 - "Give your feedback a place to land."
+- "Mark up a page. Hand it off." Name the coding-agent brief and person review
+  link as different handoffs; the product does not make edits. Do not suggest
+  a live link can be copied again after Send closes (D148).
 
 Speak the user's language, not the system's (D078): a pin is named by its
 comment and the element it points at, and internals sit behind a disclosure.

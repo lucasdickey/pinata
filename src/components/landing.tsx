@@ -1,14 +1,5 @@
-// The branded landing page composition (VAL-LANDING-001/002, D066). The same
-// hero — the pinata mark, the name, and a brief value proposition — opens
-// the public landing and /pins/new. Only /pins/new, behind sign-in, carries
-// the project form: the public landing asks a visitor to sign in instead of
-// taking an address first (D103), then shows the static example; every
-// sign-in call opens one shared dialog (D123). Kept free of server-only APIs so the same components
-// render under React Testing Library in jsdom.
-
 import Link from "next/link";
 import Image from "next/image";
-import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { DemoVideo } from "./demo-video";
 import { ExampleCapture } from "./example-capture";
@@ -16,37 +7,23 @@ import { PinataLogo } from "./pinata-logo";
 import { SignInButton, SignInProvider } from "./sign-in-dialog";
 import { ThemeToggle } from "./theme-toggle";
 
-/**
- * The hero: the name and the statement above whichever capture form the
- * visitor's role gets. The name and the statement share one size in two
- * tones, the name in ink and the promise in gray (D102). Where the page has
- * no top bar (/pins/new) the mark opens the hero; on the anonymous landing
- * it rides in the top bar instead (VAL-LANDING-001).
- */
-export function LandingHero({
-  children,
-  showMark = true,
-}: {
-  children: ReactNode;
-  showMark?: boolean;
-}) {
+function LandingHero() {
   return (
     <header className="landing-hero">
-      {showMark ? <PinataLogo /> : null}
       <p className="landing-eyebrow">
         <strong>Pin</strong> + <strong>annotate</strong> + at{" "}
         <strong>ya</strong>
       </p>
       <h1>Pinata</h1>
       <p className="landing-statement">
-        Feedback pinned to the exact pixel, sent in one link
+        Mark up a page. Hand it off.
       </p>
       <p className="landing-prop">
-        Drop in a public page address and Pinata captures it — then pin plain,
-        directional notes to the exact pixel and share one link with the
-        founder. No source edits, no crawling, no runtime AI.
+        Capture a public page, pin feedback to the spot, then send it to a
+        coding agent or a friend. An agent reads a structured brief; a friend
+        can reply on the page. Pinata does not make the edits.
       </p>
-      {children}
+      <LandingCta />
     </header>
   );
 }
@@ -173,10 +150,10 @@ function HowItWorks() {
           <p className="process-number" aria-hidden="true">
             03 / Share
           </p>
-          <h3>Send one link</h3>
+          <h3>Hand it to an agent or friend</h3>
           <p>
-            The founder opens it without an account, reads each note in place,
-            and replies. You see the reply without reloading.
+            Choose a coding-agent brief, a person review link, or project
+            Markdown. Links appear only when you create them.
           </p>
         </li>
       </ul>
@@ -260,9 +237,7 @@ export function AnonymousLanding() {
         </div>
         <SiteBar />
         <div className="illustrated-hero">
-          <LandingHero showMark={false}>
-            <LandingCta />
-          </LandingHero>
+          <LandingHero />
           <div className="hero-art" aria-hidden="true">
             <Image
               src="/illustrations/hero.png"

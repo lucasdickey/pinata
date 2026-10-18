@@ -56,8 +56,7 @@ export function TitleSlide({ index }: SlideProps) {
         </div>
         <Reveal delay={82}>
           <Body size={36} soft style={{ marginTop: 28, maxWidth: 1100 }}>
-            Directional feedback on a friend&rsquo;s public website, pinned to the exact spot
-            on the page, answered in place.
+            Mark up a public page. Send the feedback to a coding agent or a friend.
           </Body>
         </Reveal>
       </div>

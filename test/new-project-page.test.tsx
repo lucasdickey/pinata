@@ -34,6 +34,8 @@ describe("the new-project route", () => {
   test("renders the form and a route back to the workspace", async () => {
     render(<NewProjectPage />);
     await flush();
+    expect(screen.getByRole("heading", { level: 1, name: "New project" })).toBeInTheDocument();
+    expect(screen.queryByText("Mark up a page. Hand it off.")).toBeNull();
     expect(screen.getByLabelText("Root URL")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create project" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to pins" })).toHaveAttribute(

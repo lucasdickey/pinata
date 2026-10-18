@@ -438,8 +438,8 @@ function EndCard({ since, frames, theme }: { since: number; frames: number; them
       </svg>
       <div style={{ textAlign: "center", fontSize: 64, fontWeight: 360, letterSpacing: "-0.025em", lineHeight: 1.08 }}>
         <div style={{ color: token(theme, "ink") }}>Pinata</div>
-        <div style={{ color: token(theme, "soft") }}>Feedback pinned to the exact pixel,</div>
-        <div style={{ color: token(theme, "soft") }}>sent in one link</div>
+        <div style={{ color: token(theme, "soft") }}>Mark up a page.</div>
+        <div style={{ color: token(theme, "soft") }}>Hand it to an agent or friend.</div>
       </div>
     </AbsoluteFill>
   );
