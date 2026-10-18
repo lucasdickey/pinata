@@ -210,6 +210,123 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
 });
 
+describe("project navigation during Send issuance", () => {
+  let finishIssue: (response: Response) => void;
+
+  beforeEach(() => {
+    const fetchNow = fetchMock.getMockImplementation() as (
+      url: unknown,
+      init?: RequestInit,
+    ) => Promise<Response>;
+    const pending = new Promise<Response>((resolve) => {
+      finishIssue = resolve;
+    });
+    fetchMock.mockImplementation((url: unknown, init?: RequestInit) => {
+      if (String(url) === "/api/projects/pub1/agent-link") {
+        if (init?.method === "POST") return pending;
+        return Promise.resolve(json({ link: { state: "none", version: 0 } }));
+      }
+      return fetchNow(url, init);
+    });
+  });
+
+  const issue = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(await screen.findByRole("button", { name: "Create link" }));
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  };
+
+  const finish = async () => {
+    await act(async () => {
+      finishIssue(json({ link: { state: "active", version: 1 }, path: "/a/agent-1" }, 201));
+    });
+    expect(await screen.findByLabelText(/Agent link \(shown once/)).toHaveValue(
+      `${window.location.origin}/a/agent-1`,
+    );
+  };
+
+  test("a project switch cannot discard a pending one-time response", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await issue(user);
+    const rail = tree();
+    const second = within(rail).getByRole("button", { name: "example.com" });
+    const newProject = within(rail).getByRole("link", { name: "New project" });
+    expect(second).toBeDisabled();
+    expect(newProject).toHaveAttribute("aria-disabled", "true");
+    expect(fireEvent.click(newProject)).toBe(false);
+    await user.click(second);
+    expect(screen.getByTestId("project-title")).toHaveTextContent("chickpea.co");
+    await finish();
+    await user.click(second);
+    expect(screen.getByTestId("project-title")).toHaveTextContent("example.com");
+  });
+
+  test("an open archive confirmation cannot remove an issuing project", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await user.click(screen.getByRole("button", { name: "Archive chickpea.co" }));
+    await issue(user);
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/archive"))).toHaveLength(0);
+    await finish();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+  });
+  test("an issuing sheet stays with its original project across a workspace update", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />,
+    );
+    await issue(user);
+    view.rerender(
+      <ProjectWorkspace projects={[secondProject(), project()]} onChanged={onChanged} />,
+    );
+    expect(screen.getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(screen.getByRole("dialog", { name: "Send chickpea.co" })).toBeInTheDocument();
+    await finish();
+    await user.click(screen.getByRole("button", { name: "Close Send" }));
+    expect(screen.queryByLabelText(/Agent link \(shown once/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Send" }));
+    expect(screen.getByRole("dialog", { name: "Send example.com" })).toBeInTheDocument();
+  });
+
+  test.each([false, true])(
+    "Back and Forward preserve both history entries during issuance (Navigation API: %s)",
+    async (navigationSupported) => {
+      const previousUrl = `${window.location.pathname}${window.location.search}`;
+      if (navigationSupported) {
+        vi.stubGlobal("navigation", { currentEntry: { key: "current" } });
+      } else {
+        vi.stubGlobal("navigation", undefined);
+      }
+      window.history.replaceState({ entry: "first" }, "", "/pins?project=pub1");
+      window.history.pushState({ entry: "second" }, "", "/pins?project=pub2");
+      window.history.back();
+      await waitFor(() => expect(window.location.search).toBe("?project=pub1"));
+      try {
+        const user = userEvent.setup();
+        render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+        await issue(user);
+        window.history.forward();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub2"));
+        expect(window.history.state).toEqual({ entry: "second" });
+        expect(screen.getByRole("dialog", { name: "Send chickpea.co" })).toBeInTheDocument();
+        await finish();
+        window.history.back();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub1"));
+        expect(window.history.state).toEqual({ entry: "first" });
+        window.history.forward();
+        await waitFor(() => expect(window.location.search).toBe("?project=pub2"));
+        expect(window.history.state).toEqual({ entry: "second" });
+      } finally {
+        window.history.replaceState(null, "", previousUrl);
+      }
+    },
+  );
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -368,9 +485,8 @@ describe("the workspace opens on the overview", () => {
     expect(cards()).toHaveLength(3);
     expect(screen.queryByRole("region", { name: "Selected capture" })).toBeNull();
     expect(document.querySelector(".react-flow")).toBeNull();
-    // The project header and its share control sit above the overview.
     expect(within(overview()).getByTestId("project-title")).toHaveTextContent("chickpea.co");
-    expect(within(overview()).getByRole("button", { name: "Share with founder" })).toBeInTheDocument();
+    expect(within(overview()).getByRole("button", { name: "Send" })).toBeInTheDocument();
   });
 
   test("a card opens its capture in the canvas view, and Back to overview returns", async () => {
@@ -638,6 +754,22 @@ describe("cross-capture pin stepping", () => {
     expect(within(detail()).getByRole("button", { name: "Next pin" })).toBeDisabled();
     expect(within(detail()).getByRole("button", { name: "Previous pin" })).toBeDisabled();
   });
+});
+
+test("the Send Markdown choice copies the whole project from the overview", async () => {
+  const user = userEvent.setup();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  render(<ProjectWorkspace projects={[project()]} onChanged={onChanged} />);
+  await waitFor(() => expect(within(overview()).getAllByRole("row")).toHaveLength(5));
+  await user.click(within(overview()).getByRole("button", { name: "Send" }));
+  await user.click(screen.getByRole("tab", { name: "Markdown" }));
+  await user.click(screen.getByRole("button", { name: "Copy project Markdown" }));
+  await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+  const markdown = writeText.mock.calls[0]![0] as string;
+  expect(markdown).toContain("# Pinata pins — chickpea.co");
+  expect(markdown).toContain("## https://chickpea.co/pricing — Desktop");
+  expect(markdown).toContain("Note rd-2.");
 });
 
 describe("the table scope toggle", () => {

@@ -4181,3 +4181,274 @@ Elapsed: about 20 minutes against no fixed timebox.
   selected mode when switching back.
 - D145 records the agent-proposed, owner-approved default and preserves
   the surviving camera constraints from D055.
+
+---
+
+## 2026-10-16 — one Send sheet under existing capability rules (D146–D147)
+
+Harness: Warp Factory implementation agent, isolated `factory/combined-send-sheet`
+branch. Elapsed: about 27 minutes (17:30–17:57 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Reused the editor's independent agent and founder link controls inside one
+  header sheet with Coding agent, Person review, and Markdown choices. Each
+  control keeps its own CSRF-protected issue, rotation confirmation, and
+  one-time URL display. Leaving a choice or closing Send unmounts its control
+  and forgets an issued URL.
+- Put the existing whole-project Markdown formatter behind the third choice;
+  copying waits for project notes to load and makes no link. Kept the pin
+  table's capture and project export actions unchanged.
+- Updated the Share and Hand off demo scene selectors to open Send, so a later
+  refilm can use the current UI. The existing binary footage was not changed.
+- Exercised the sheet on the repository's scratch Chickpea seed in Linux
+  Chromium. The seeded founder link showed an active version but no recoverable
+  URL; its rotation confirmation could be cancelled. Markdown copy reported
+  success; Escape returned focus to Send. At 390px the choices wrapped without
+  horizontal clipping. No agent link was issued during visual capture.
+
+### What broke
+
+- Two first-pass component assertions were too broad: one matcher did not
+  compare the textarea value correctly, and one matched both mounted but
+  hidden link panels. Narrowed each assertion to its field or visible panel.
+- The first full gate found an old live-refresh assertion expecting a founder
+  status request on header mount. The Person choice now reads that status when
+  selected, so the assertion tests the selected-choice read and confirms
+  background ticks do not re-read it.
+- The next two gate runs stopped before browser tests: Chromium and then its
+  Debian runtime libraries were missing from the sandbox. Installed the
+  pinned Playwright browser and its declared system dependencies.
+- Self-review found the old scene selectors still targeting the removed
+  buttons. Repaired the selectors and recorded the stale footage in
+  `docs/NEXT.md` instead of silently leaving the refilm workflow broken.
+- Self-review also caught that an issued URL could reappear after switching
+  away from its Send choice and back. The inactive choice now unmounts, so
+  only making a fresh link can show a URL after leaving it. The next gate
+  caught a test still assuming opening the default Agent choice reads the
+  Person status; corrected it to select Person first.
+- A browser tab that had survived the scratch server rebuild still held the
+  earlier client bundle and appeared to preserve inactive controls. Reloading
+  loaded the new bundle; a disposable rotated link then disappeared on tab
+  switch and stayed unavailable after closing and reopening Send.
+- The last gate's browser phase could not claim port 3100 while the disposable
+  seed server was still running. Stopped that server and reran the full gate
+  successfully.
+
+### Validation and decisions
+
+- D146 records the approved three-way handoff and supersedes D122's separate
+  header pills without changing D018/D097 token storage or the screenshot
+  routes. D147 records the owner's narrow draft-PR exception to D010.
+- Node 24 `npm run validate` completed: lint and typecheck green; 1,934 Vitest
+  tests passed (44 skipped); generated docs current; production build green;
+  28 Playwright tests passed (46 credentialed skips with no `.env.local`).
+- The disposable seed proved the rendered editor interaction, not the
+  credentialed provider routes against a deployment; their real-provider
+  checks remain gated in this sandbox.
+
+---
+
+## 2026-10-16 — keep one-time links visible through pending issuance (D146)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 9 minutes (18:03–18:12 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Reproduced a successful agent or person link POST resolving after a Send
+  choice switch or close: the issuing control unmounted before it could show
+  its one-time URL. Four delayed-response tests failed before the fix.
+- While a link issue or rotation is pending, Send now disables its tabs,
+  toggle, and close button. Escape and arrow-key handlers also refuse to
+  leave the issuing choice. The lock ends after either success or failure.
+  No token persistence or server capability behavior changed.
+- On the scratch Chickpea seed, created an agent link with its field and prompt
+  visually masked during capture. Switching away and back removed the fresh
+  URL. Cancelling rotation preserved version 1; confirming rotation showed
+  version 2 once; closing and reopening removed that URL too. Opening the
+  copied version 1 link after rotation showed "Not found." outside the
+  recording. The seeded person link stayed at version 1.
+
+### What broke
+
+- The first regression run found all four unmount paths. One later assertion
+  expected the Person choice to remain selected after closing, but Send
+  intentionally resets to Coding agent; corrected the assertion.
+- TypeScript rejected an untyped saved fetch mock implementation. Narrowed
+  it to the request handler signature. A failed-POST test also guards
+  against leaving Send locked after a network error.
+
+### Validation and decisions
+
+- D146's one-time display contract now covers pending issue responses. This
+  is a correction to its implementation, not a new product decision.
+- Node 24 `npm run validate` passed, including lint, typecheck, 1,939 Vitest
+  tests (44 skipped), current generated docs, production build, and 28
+  Playwright tests (46 credentialed skips without `.env.local`).
+
+---
+
+## 2026-10-16 — keep the issuing project mounted across navigation (D146)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 20 minutes (18:14–18:34 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Lifted Send's pending-issue state into the workspace. A second project's
+  switch button and the selected project's Archive action are disabled until
+  the issue or rotation response is handled. The editor's New project, home,
+  sign-out, and documentation exits also cannot leave during that interval.
+- Captured the current editor address when issuance starts. A Back/Forward
+  event while it is pending restores that address and stops the later route
+  handler from switching projects. Ordinary navigation works again after the
+  response, while the one-time field remains available to copy.
+
+### What broke
+
+- A two-project delayed-POST test, an open Archive confirmation, and a
+  simulated history transition all failed before the fix. Those tests now
+  verify that the issuing project remains visible and its URL appears once.
+  An editor-shell test guards other in-app exits.
+- A retained browser tab showed the old client bundle after the scratch
+  server rebuild. In a fresh incognito Chromium profile with a throttled
+  request, Send announced its pending state, Archive and Sign out were
+  disabled, and the project drawer's New project link was unavailable.
+  The new one-time field appeared after the response, with its contents
+  visually masked during capture.
+- A GUI login helper echoed the disposable seed password in its tool output,
+  not in media or repository files. Stopped the scratch server and confirmed
+  it removed the generated password file and database, invalidating it.
+
+### Validation and decisions
+
+- This enforces D146's existing one-time display rule at the workspace
+  boundary. No new product choice or token-storage decision was made.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,943 Vitest tests
+  (44 credentialed skips), generated docs check, production build, and
+  28 Playwright tests (46 credentialed skips without `.env.local`).
+
+---
+
+## 2026-10-16 — preserve browser history and the open Send result (D146)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 10 minutes (18:38–18:48 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Replaced the pending-issue history rewrite with a Send sheet that keeps its
+  issuing project identity until the user dismisses it. Back and Forward now
+  traverse the original entries without replacing their URLs or state.
+- Kept the issuing project's last ready hierarchy row during a transient
+  capture-poll failure or a successful refresh that removes that project.
+  Other projects and successful capture updates continue to refresh. Closing
+  Send re-reads the current hierarchy.
+
+### What broke
+
+- The Back/Forward regression failed before the correction because Forward
+  returned to the rewritten first-project URL; the rejected-poll regression
+  failed because the Send dialog was gone while its POST was still pending.
+- Chromium's Next.js router adds private metadata to `history.state` on
+  traversal. The browser regression now checks its own marker and URL rather
+  than expecting the framework-owned state object to contain only that marker.
+- A full-gate rerun inherited the disposable browser test's
+  `PINATA_SERVER_CAPTURE=off` flag and failed 12 unrelated capture-scheduling
+  tests. Clearing all scratch-only environment variables restored the gate.
+
+### Validation and decisions
+
+- Both Navigation-API-present and absent component paths retain their
+  history entries. A delayed browser POST preserves the original link result,
+  then Back and Forward revisit the original URLs and markers after dismissal.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,947 Vitest tests
+  (44 credentialed skips), current generated docs, production build, and
+  28 Playwright tests (47 credentialed skips without `.env.local`). The new
+  Chromium history test also passed against disposable local credentials and
+  a file database.
+- This is a correction to D146's existing one-time display contract; no new
+  product or storage decision was made.
+
+---
+
+## 2026-10-16 — reconcile ordered reads, URL navigation, and Send (D143–D147)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 21 minutes (18:48–19:09 UTC) against no fixed timebox.
+
+### What was attempted
+
+- A delayed hierarchy read that began before Send dismissal could settle
+  after the dismissal read and restore a stale project or failure state.
+  Added shared request generations for the initial load and live refresh;
+  only the latest applicable response may update the list or its comparison
+  payload. Kept the issuing project in its original active or archived group
+  while Send is open.
+- Integrated the reviewed editor-address, page-card, and Fit-width work.
+  Retained URL `popstate` navigation, archived-project restoration, and the
+  unkeyed Send sheet. Renumbered Send as D146 and the limited draft-PR
+  exception as D147 after the parent decisions D143–D145; regenerated the
+  decision artifacts.
+- Reworked the delayed-POST browser test to create the two project URLs by
+  choosing them in the editor. Traversed Back and Forward while Send was
+  pending and after it resolved, then dismissed it on the second project.
+
+### What broke
+
+- Two delayed-read regressions first failed: stale success restored a removed
+  project, and stale failure displaced the workspace. The shared generation
+  stopped both; a live-refresh regression still passed.
+- The first docs regeneration rejected D122 because its successor pointer
+  changed to D146 without changing its status to superseded. Corrected that
+  record and regenerated all 147 decisions. TypeScript caught a removed
+  navigation guard ref still used by the New project exit; retained the ref
+  only for exits that can unmount a pending Send.
+
+### Validation and decisions
+
+- The merged app built under Node 24. The credentialed delayed-POST Chromium
+  test passed against disposable local credentials and a file database;
+  original URLs, state markers, active project headings, and the one-time
+  result survived real Back/Forward traversal.
+- Node 24 `npm run validate` passed: lint, typecheck, 1,961 Vitest tests
+  (44 skips), generated docs check, production build, and 28 Playwright
+  tests (47 credentialed skips without `.env.local`).
+- D143–D145 remain the reviewed parent decisions. D146 and D147 retain the
+  owner's approved Send and draft-PR choices; no new product decision arose
+  from this correction or integration.
+
+---
+
+## 2026-10-16 — failed quiet reads cannot cancel Send dismissal (D146)
+
+Harness: Warp Factory implementation revision on `factory/combined-send-sheet`.
+Elapsed: about 5 minutes (19:15–19:20 UTC) against no fixed timebox.
+
+### What was attempted
+
+- Delayed the hierarchy reload after closing Send, then rejected a newer
+  live-refresh request. The earlier reload succeeded but was discarded because
+  the failed quiet request had already advanced the shared generation. The
+  regression failed before the correction: the old project stayed selected.
+- Separated read starts from accepted results. A newer explicit reload
+  supersedes older work on success or failure. A successful quiet read
+  supersedes older work; a rejected, non-OK, or malformed quiet read does not.
+- Tested the inverse order and overlapping refreshes, including the existing
+  pre-close read against both successful and failed post-close reloads.
+
+### What broke
+
+- The first delayed test reproduced the stale heading after the quiet read
+  failed. The corrected order let the pending reload reconcile the project.
+  The full matrix also preserved failure state when an older capture poll
+  settled after a failed post-close reload.
+
+### Validation and decisions
+
+- Node 24 `npm run validate` passed: lint, typecheck, 1,968 Vitest tests
+  (44 skips), generated docs check, production build, and 28 Playwright
+  tests (47 credentialed skips without `.env.local`).
+- This is a correction to D146's existing Send-dismissal behavior. No new
+  product or storage decision was made.

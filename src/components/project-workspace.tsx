@@ -78,8 +78,7 @@ import type { ContextRect } from "../lib/canvas/flow-model";
 import { CapturePanel, STATE_LABELS, variantLabel } from "./capture-panel";
 import { DeviceToggle } from "./device-toggle";
 import { ArchiveProjectControl, UnarchiveProjectControl } from "./archive-project";
-import { AgentLinkControl } from "./agent-link";
-import { FounderShareControl } from "./founder-share";
+import { SendSheet } from "./send-sheet";
 import type { DraftCandidates } from "./pin-composer";
 import { PinTable, type PinTableRow, type PinTableScope } from "./pin-table";
 import { AddPagesCard } from "./add-pages";
@@ -166,6 +165,8 @@ export function ProjectWorkspace({
   onChanged,
   onRefresh,
   liveRefreshMs,
+  onLinkIssuingChange,
+  onSendOpenChange,
 }: {
   projects: WorkspaceProject[];
   onChanged: () => void;
@@ -176,12 +177,21 @@ export function ProjectWorkspace({
    */
   onRefresh?: () => Promise<unknown>;
   liveRefreshMs?: number;
+  onLinkIssuingChange?: (issuing: boolean) => void;
+  onSendOpenChange?: (publicId: string | null) => void;
 }) {
   // Which project the detail area shows (its overview, or one of its
   // captures), and which capture is open in the canvas view; null opens
   // the overview (D077). The first project's overview is the default.
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [linkIssuing, setLinkIssuing] = useState(false);
+  const linkIssuingRef = useRef(false);
+  const onIssuingChange = (pending: boolean) => {
+    linkIssuingRef.current = pending;
+    setLinkIssuing(pending);
+    onLinkIssuingChange?.(pending);
+  };
   // A pin to select as soon as the plane it lives on is shown: set by a
   // step or a table row that lands on another capture, consumed by the
   // capture-change effect below so the plane switch and the selection are
@@ -1537,7 +1547,14 @@ export function ProjectWorkspace({
           </div>
           {/* Starting a project lives with the projects (D126), not in the
               top bar. */}
-          <Link href="/pins/new" className="rail-new-project">
+          <Link
+            href="/pins/new"
+            className="rail-new-project"
+            aria-disabled={linkIssuing}
+            onClick={(event) => {
+              if (linkIssuingRef.current) event.preventDefault();
+            }}
+          >
             <span aria-hidden="true">+</span> New project
           </Link>
           <ul className="project-switcher">
@@ -1559,7 +1576,9 @@ export function ProjectWorkspace({
                     type="button"
                     className="project-switch"
                     aria-current={current ? "true" : undefined}
+                    disabled={linkIssuing}
                     onClick={() => {
+                      if (linkIssuingRef.current) return;
                       showOverview(project.projectId);
                       closeRail();
                     }}
@@ -1631,9 +1650,6 @@ export function ProjectWorkspace({
         className="workspace-detail"
         aria-label={active ? "Selected capture" : "Project overview"}
       >
-        {/* The selected project's header (D075): its title, the feedback
-            counts for the editor, and the share control that used to sit
-            inside the collapsed rail entry. */}
         <div className="project-header" data-testid="project-header">
           {/* The project's heading (D128): the projects menu is a plain
               switcher now, so the name is a heading here, once. */}
@@ -1656,22 +1672,17 @@ export function ProjectWorkspace({
               publicId={activeProject.publicId}
               projectTitle={activeProject.title}
               onArchived={onChanged}
+              disabled={linkIssuing}
             />
           )}
-          {/* The project's two links (D121, D122): side by side as pills,
-              each opening its own panel. */}
-          <div className="project-links">
-            <FounderShareControl
-              key={activeProject.publicId}
-              publicId={activeProject.publicId}
-              projectTitle={activeProject.title}
-            />
-            <AgentLinkControl
-              key={`agent-${activeProject.publicId}`}
-              publicId={activeProject.publicId}
-              projectTitle={activeProject.title}
-            />
-          </div>
+          <SendSheet
+            publicId={activeProject.publicId}
+            projectTitle={activeProject.title}
+            markdown={projectMarkdown}
+            markdownReady={projectPinsStatus === "ready"}
+            onIssuingChange={onIssuingChange}
+            onOpenChange={onSendOpenChange}
+          />
         </div>
 
         {/* Project-level capture progress and retry (D076). */}

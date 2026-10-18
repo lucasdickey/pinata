@@ -319,6 +319,7 @@ export const SCENES = [
     from: "marked",
     sources: [
       "src/components/project-workspace.tsx",
+      "src/components/send-sheet.tsx",
       "src/components/founder-share.tsx",
       "src/components/capture-canvas.tsx",
       "src/components/pin-row.tsx",
@@ -327,9 +328,10 @@ export const SCENES = [
       const { page } = director;
       await signIn(director);
       await openCanvas(director);
-      const pill = page.getByRole("button", { name: "Share with founder" });
+      const pill = page.getByRole("button", { name: "Send" });
       await director.shoot("share-canvas", { capture: true, targets: { pill } });
       await pill.click();
+      await page.getByRole("tab", { name: "Person review" }).click();
       const create = page.getByRole("button", { name: "Create link" });
       await create.waitFor();
       await rest(page);
@@ -449,6 +451,7 @@ export const SCENES = [
     from: "replied",
     sources: [
       "src/components/project-workspace.tsx",
+      "src/components/send-sheet.tsx",
       "src/components/agent-link.tsx",
       "src/lib/agent-link.ts",
       "src/lib/agent-brief.ts",
@@ -457,7 +460,7 @@ export const SCENES = [
       const { page } = director;
       await signIn(director);
       await openCanvas(director);
-      const pill = page.getByRole("button", { name: "Agent link" });
+      const pill = page.getByRole("button", { name: "Send" });
       await director.shoot("agent-canvas", { capture: true, targets: { pill } });
       await pill.click();
       const create = page.getByRole("button", { name: "Create link" });

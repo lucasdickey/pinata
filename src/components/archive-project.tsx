@@ -10,10 +10,12 @@ export function ArchiveProjectControl({
   publicId,
   projectTitle,
   onArchived,
+  disabled = false,
 }: {
   publicId: string;
   projectTitle: string;
   onArchived: () => void;
+  disabled?: boolean;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -31,6 +33,7 @@ export function ArchiveProjectControl({
   }, [confirming]);
 
   const ask = () => {
+    if (disabled) return;
     setError(null);
     focusAfter.current = "confirm";
     setConfirming(true);
@@ -41,7 +44,7 @@ export function ArchiveProjectControl({
   };
 
   const archive = async () => {
-    if (pending) return;
+    if (pending || disabled) return;
     setPending(true);
     setError(null);
     try {
@@ -75,7 +78,7 @@ export function ArchiveProjectControl({
             type="button"
             className="archive-project-confirm-button"
             onClick={() => void archive()}
-            disabled={pending}
+            disabled={pending || disabled}
           >
             {pending ? "Archiving…" : "Confirm"}
           </button>
@@ -89,6 +92,7 @@ export function ArchiveProjectControl({
           type="button"
           aria-label={`Archive ${projectTitle}`}
           onClick={ask}
+          disabled={disabled}
         >
           Archive
         </button>

@@ -30,26 +30,63 @@ import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
 type ListState =
   | { status: "loading" }
-  | { status: "ready"; projects: WorkspaceProject[]; archivedProjects: WorkspaceProject[] }
+  | {
+      status: "ready";
+      projects: WorkspaceProject[];
+      archivedProjects: WorkspaceProject[];
+      payload: string;
+    }
   | { status: "failed" };
+function keepSendTarget(
+  current: ListState,
+  projects: WorkspaceProject[],
+  archivedProjects: WorkspaceProject[],
+  targetId: string | null,
+): { projects: WorkspaceProject[]; archivedProjects: WorkspaceProject[] } {
+  if (
+    !targetId ||
+    current.status !== "ready" ||
+    [...projects, ...archivedProjects].some((project) => project.publicId === targetId)
+  ) {
+    return { projects, archivedProjects };
+  }
+  const active = current.projects.find((project) => project.publicId === targetId);
+  if (active) return { projects: [...projects, active], archivedProjects };
+  const archived = current.archivedProjects.find((project) => project.publicId === targetId);
+  return {
+    projects,
+    archivedProjects: archived ? [...archivedProjects, archived] : archivedProjects,
+  };
+}
 
 export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   const [pending, setPending] = useState(false);
+  const [linkIssuing, setLinkIssuing] = useState(false);
   const [list, setList] = useState<ListState>({ status: "loading" });
+  const sendTarget = useRef<string | null>(null);
+  // Only an applicable response advances the order. A failed quiet read
+  // cannot cancel the explicit hierarchy reload after Send closes.
+  const hierarchyRequest = useRef({ started: 0, load: 0, accepted: 0 });
   // Single-flight guard for the failure-state retry: while one retry read is
   // in flight there is no way to start a second, so a transient failure can
   // never multiply reads.
   const [retrying, setRetrying] = useState(false);
 
-  // The last hierarchy answer as text, so the live refresh (D097) can tell a
-  // changed hierarchy from an identical one without a deep compare.
-  const lastPayload = useRef<string | null>(null);
-
   const load = useCallback(async () => {
+    const request = ++hierarchyRequest.current.started;
+    hierarchyRequest.current.load = request;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
       if (!response.ok) {
-        setList({ status: "failed" });
+        hierarchyRequest.current.accepted = request;
+        setList((current) =>
+          request !== hierarchyRequest.current.load || request !== hierarchyRequest.current.accepted
+            ? current
+            : sendTarget.current && current.status === "ready"
+              ? { ...current }
+              : { status: "failed" },
+        );
         return;
       }
       const text = await response.text();
@@ -57,14 +94,32 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
         projects: WorkspaceProject[];
         archivedProjects?: WorkspaceProject[];
       };
-      lastPayload.current = text;
-      setList({
-        status: "ready",
-        projects: payload.projects,
-        archivedProjects: payload.archivedProjects ?? [],
-      });
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
+      setList((current) =>
+        request === hierarchyRequest.current.load && request === hierarchyRequest.current.accepted
+          ? {
+              status: "ready",
+              ...keepSendTarget(
+                current,
+                payload.projects,
+                payload.archivedProjects ?? [],
+                sendTarget.current,
+              ),
+              payload: text,
+            }
+          : current,
+      );
     } catch {
-      setList({ status: "failed" });
+      if (request !== hierarchyRequest.current.load || request < hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
+      setList((current) =>
+        request !== hierarchyRequest.current.load || request !== hierarchyRequest.current.accepted
+          ? current
+          : sendTarget.current && current.status === "ready"
+            ? { ...current }
+            : { status: "failed" },
+      );
     }
   }, []);
 
@@ -77,20 +132,29 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   // must never swap the workspace for the failure state — and an answer
   // identical to the last one is dropped, so a quiet tick re-renders nothing.
   const refresh = useCallback(async () => {
+    const request = ++hierarchyRequest.current.started;
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
       if (!response.ok) return;
       const text = await response.text();
-      if (text === lastPayload.current) return;
       const payload = JSON.parse(text) as { projects: WorkspaceProject[]; archivedProjects?: WorkspaceProject[] };
       if (!Array.isArray(payload.projects)) return;
-      lastPayload.current = text;
+      if (request <= hierarchyRequest.current.load || request <= hierarchyRequest.current.accepted) return;
+      hierarchyRequest.current.accepted = request;
       setList((current) =>
-        current.status === "ready"
+        request === hierarchyRequest.current.accepted &&
+        request > hierarchyRequest.current.load &&
+        current.status === "ready" &&
+        text !== current.payload
           ? {
               status: "ready",
-              projects: payload.projects,
-              archivedProjects: payload.archivedProjects ?? [],
+              ...keepSendTarget(
+                current,
+                payload.projects,
+                payload.archivedProjects ?? [],
+                sendTarget.current,
+              ),
+              payload: text,
             }
           : current,
       );
@@ -188,7 +252,7 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
   }, [list, load]);
 
   async function logout() {
-    if (pending) return;
+    if (pending || linkIssuing) return;
     setPending(true);
     try {
       await fetch("/api/auth/logout", {
@@ -221,13 +285,20 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
           sign out. "New project" lives in the projects menu (D126). Everything else on this screen belongs
           to the workspace. */}
       <header className="pins-header">
-        <Link href="/" className="wordmark">
+        <Link
+          href="/"
+          className="wordmark"
+          aria-disabled={linkIssuing}
+          onClick={(event) => {
+            if (linkIssuing) event.preventDefault();
+          }}
+        >
           pinata
         </Link>
         <p className="pins-identity">Signed in as Lucas (editor).</p>
         <nav className="pins-actions" aria-label="Editor actions">
           <ThemeToggle />
-          <button type="button" onClick={logout} disabled={pending}>
+          <button type="button" onClick={logout} disabled={pending || linkIssuing}>
             {pending ? "Signing out…" : "Sign out"}
           </button>
         </nav>
@@ -265,13 +336,18 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
             onChanged={() => void load()}
             onRefresh={refresh}
             liveRefreshMs={liveRefreshMs}
+            onLinkIssuingChange={setLinkIssuing}
+            onSendOpenChange={(publicId) => {
+              sendTarget.current = publicId;
+              if (!publicId) void load();
+            }}
           />
         ) : null}
       </section>
 
       {/* Documentation lives in a thin fixed footer (D105), so the
           workspace above keeps the whole window for the canvas. */}
-      <footer className="app-footer">
+      <footer className="app-footer" inert={linkIssuing}>
         <LandingLinks />
       </footer>
     </main>
