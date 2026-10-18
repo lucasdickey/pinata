@@ -9,9 +9,9 @@
 // the selected version of that one capture. A failing device never removes a
 // sibling that succeeded: the sibling stays listed, usable, and in order.
 //
-// The detail area opens on a project overview (D077): one card per capture
-// with its thumbnail, state, and counts. Opening a card, or a page in the
-// rail, shows that capture in the canvas view, where Desktop and Mobile are
+// The detail area opens on a project overview: one card per page with a
+// device preview, capture state, and counts. Opening a page from the grid
+// shows that capture in the canvas view, where Desktop and Mobile are
 // a toggle above the canvas and Next/Previous pin (and J/K) step through
 // every pin in the project, switching plane as needed. The rail lists
 // projects and pages only.
@@ -2083,7 +2083,7 @@ export function ProjectWorkspace({
           </>
         ) : (
           <>
-            {/* The project overview (D077): every capture as a card, then
+            {/* The project overview: every page as a card, then
                 every pin in the project. The last two cards upload a
                 capture (D131) and add pages (D129). */}
             <ProjectOverview
