@@ -8,15 +8,15 @@
 // cleanup to leak. The dispatch route is stubbed so the editor's background
 // driver can never fire a real capture mid-measurement.
 //
-// The measurements are the contract: the initial contain camera puts the
-// entire capture in view, fit-width and natural-size are reachable named
+// The measurements are the contract: the initial fit-width camera puts the
+// top of the capture in view, entire-page and natural-size are reachable named
 // modes, wheel zoom keeps the natural pixel under the focal screen point
 // within one natural pixel, 8x is reachable and clamped, panning at 8x
 // reaches the far corner, and camera work issues zero mutation requests and
 // zero history entries.
 
 import { expect, test } from "@playwright/test";
-import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX } from "../src/lib/canvas/camera";
+import { CANVAS_MAX_ZOOM, CANVAS_PADDING_PX, clampCanvasZoom } from "../src/lib/canvas/camera";
 import {
   expectedContainZoom,
   expectEntireCaptureVisible,
@@ -82,15 +82,13 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   const urlBefore = page.url();
   const historyBefore = await page.evaluate(() => history.length);
 
-  // Initial camera: the named entire-capture mode, pressed, all corners in.
-  await expectModePressed(page, "Entire page", "true");
+  // Initial camera: the named fit-width mode, pressed, top edge visible.
+  await expectModePressed(page, "Fit width", "true");
   let pane = await visiblePane(page);
-  await waitForZoom(page, expectedContainZoom(pane, doc));
-  await expectEntireCaptureVisible(page, doc);
-
-  // Fit width: the capture fills the pane horizontally, top edge visible.
-  await (await cameraMode(page, "Fit width")).click();
-  const expectedWidthZoom = (pane.width - 2 * CANVAS_PADDING_PX) / doc.width;
+  const expectedWidthZoom = Math.min(
+    1,
+    clampCanvasZoom((pane.width - 2 * CANVAS_PADDING_PX) / doc.width),
+  );
   await waitForZoom(page, expectedWidthZoom);
   const widthCamera = await readCamera(page);
   expect(Math.abs(widthCamera.zoom - expectedWidthZoom) / expectedWidthZoom).toBeLessThan(0.02);
@@ -196,7 +194,7 @@ test("canvas camera modes, focal zoom, extents, and fixed panel", async ({ page 
   expect(consoleErrors).toEqual([]);
 });
 
-test("a hard reload restores the entire-capture initial camera", async ({ page }) => {
+test("a hard reload restores the fit-width initial camera", async ({ page }) => {
   test.skip(!gate.ready, gate.reason);
   test.setTimeout(120_000);
 
@@ -210,15 +208,20 @@ test("a hard reload restores the entire-capture initial camera", async ({ page }
   await openPlane(page, target!);
 
   // Take the camera somewhere else, then reload: the camera is local state,
-  // so the capture reopens in the entire-in-view default.
+  // so the capture reopens in the fit-width default.
   await (await cameraMode(page, "Natural size")).click();
   await waitForZoom(page, 1);
   expect((await readCamera(page)).zoom).toBe(1);
   await page.reload();
   await clickPlane(page, target!);
   await expect(page.getByRole("img", { name: `Screenshot of ${target!.pageUrl}` })).toBeVisible();
-  await expectModePressed(page, "Entire page", "true");
+  await expectModePressed(page, "Fit width", "true");
   const pane = await paneRect(page);
-  await waitForZoom(page, expectedContainZoom(pane, doc));
-  await expectEntireCaptureVisible(page, doc);
+  const zoom = Math.min(
+    1,
+    clampCanvasZoom((pane.width - 2 * CANVAS_PADDING_PX) / doc.width),
+  );
+  await waitForZoom(page, zoom);
+  const camera = await readCamera(page);
+  expect(Math.abs(toScreen({ x: 0, y: 0 }, camera).y - CANVAS_PADDING_PX)).toBeLessThanOrEqual(1);
 });

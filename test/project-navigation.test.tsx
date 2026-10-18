@@ -599,7 +599,7 @@ describe("cross-capture pin stepping", () => {
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     await user.click(within(detail()).getByRole("button", { name: "Next pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
-    await waitForMode(detail(), "Entire page");
+    await waitForMode(detail(), "Fit width");
     await user.click(within(detail()).getByRole("button", { name: "Previous pin" }));
     expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-d1/asset");
     await waitForMode(detail(), "Natural size");

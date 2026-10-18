@@ -2361,7 +2361,7 @@
       "phase": "build",
       "title": "The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes",
       "origin": "user-directed",
-      "status": "accepted",
+      "status": "superseded",
       "problem": "At the milestone-1 live checkpoint the human could not take in a tall capture (~9,000 px) without scrolling: the interim stage defaulted to a natural-size slice. The permanent React Flow canvas needed an initial camera, and a wrong default would enshrine the rejected behavior.",
       "decision": "Every capture opens with the camera contain-fitted so the entire screenshot is inside the viewport with a small padding. Width-fit and natural-size stay reachable as named pressed-state modes; any pan/zoom gesture ends the mode's resize-follow until a mode is picked again. The camera is local UI state only: never persisted, never written to browser history, and issuing zero annotation mutations.",
       "alternatives": [
@@ -2395,7 +2395,7 @@
         }
       ],
       "supersedes": null,
-      "superseded_by": null
+      "superseded_by": "D145"
     },
     {
       "id": "D056",
@@ -6720,6 +6720,55 @@
         }
       ],
       "supersedes": "D077",
+      "superseded_by": null
+    },
+    {
+      "id": "D145",
+      "date": "2026-10-16",
+      "phase": "build",
+      "title": "Open new captures at fit width",
+      "origin": "agent-proposed-user-approved",
+      "status": "accepted",
+      "problem": "D055 starts tall captures in the Entire page view, which can shrink a page to a few percent of its natural size. The review proposed a readable initial camera without changing the remaining canvas layout.",
+      "decision": "A capture with no remembered camera starts in Fit width, with the top edge visible and its width inside the stage. Fit width never enlarges beyond 100%; narrow captures center at natural size. Entire page and Natural size remain available. Returning to a capture restores its own session camera; camera gestures still end resize-follow. Camera state stays session-local, never enters browser history, and never causes annotation mutations.",
+      "alternatives": [
+        {
+          "option": "Keep Entire page as the initial camera",
+          "why_not": "The whole tall page fits, but its text opens too small to read."
+        },
+        {
+          "option": "Also replace the stacked chrome with one slim bar",
+          "why_not": "The owner left that part of the recommendation undecided."
+        }
+      ],
+      "rationale": "The agent raised Fit width as a product question and the owner approved only this camera default. The approved recommendation also caps the view at 100% so a narrow screenshot does not blur from upscaling. This reverses D055's initial mode, not its other camera controls or its local-state boundary.",
+      "consequences": [
+        "A fresh tall capture begins near the top at a readable width rather than showing all four corners at once; a narrow capture remains centered and sharp at 1x.",
+        "The Entire page button still shows all four corners; Natural size remains a 1:1 camera.",
+        "The first-visit and hard-reload camera tests now expect Fit width. Camera memory remains per capture."
+      ],
+      "transcript": {
+        "proposal": "Fit-width as the default camera",
+        "approval": "1. **Fit width as the default camera (rec 1): yes.** The rest of rec 1, the single slim bar, is still undecided."
+      },
+      "artifacts": [
+        {
+          "type": "file",
+          "path": "src/components/capture-canvas.tsx",
+          "caption": "Initial mode and saved-camera restore."
+        },
+        {
+          "type": "file",
+          "path": "e2e/canvas.spec.ts",
+          "caption": "First-open and reload camera expectations."
+        },
+        {
+          "type": "link",
+          "url": "https://github.com/lucasdickey/pinata/issues/34",
+          "caption": "Owner approval of the camera-only slice."
+        }
+      ],
+      "supersedes": "D055",
       "superseded_by": null
     }
   ]

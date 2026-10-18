@@ -16,10 +16,10 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 | Origin | Count | Decisions |
 | --- | --: | --- |
 | Human directed | 57 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D102, D103, D104, D105, D106, D108, D111, D112, D113, D114, D115, D116, D117, D119, D120, D121, D122, D123, D124, D125, D126, D127, D128, D129, D130, D132, D136, D137, D140, D142 |
-| Agent proposed, human approved | 27 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144 |
+| Agent proposed, human approved | 28 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099, D107, D110, D131, D138, D143, D144, D145 |
 | Agent decided alone | 54 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D118, D133, D134, D141 |
 | Raised and deferred | 6 | D003, D054, D094, D109, D135, D139 |
-| **Total** | **144** | |
+| **Total** | **145** | |
 
 ## Key decisions
 
@@ -115,7 +115,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D052](#d052--add-a-temporary-local-only-editor-auth-bypass-flag-pinataauthdisabled-default-off-never-in-envlocal-or-any-deployment) | build | Add a temporary local-only editor auth bypass flag (PINATA_AUTH_DISABLED), default off, never in .env.local or any deployment | Human directed | accepted |
 | [D053](#d053--correct-the-checkpoint-capture-target-the-seeded-and-demonstrated-chickpea-is-httpschickpeaco-not-chickpeavercelapp) | validate | Correct the checkpoint capture target: the seeded and demonstrated Chickpea is https://chickpea.co, not chickpea.vercel.app | Agent decided alone | accepted |
 | [D054](#d054--decide-later-whether-an-execution-time-provider-side-unsafe-redirect-should-stay-non-retryable) | validate | Decide later whether an execution-time, provider-side unsafe-redirect should stay non-retryable | Raised and deferred | superseded |
-| [D055](#d055--the-canvas-opens-every-capture-with-the-entire-page-in-view-contain-width-fit-and-natural-size-remain-named-modes) | build | The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes | Human directed | accepted |
+| [D055](#d055--the-canvas-opens-every-capture-with-the-entire-page-in-view-contain-width-fit-and-natural-size-remain-named-modes) | build | The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes | Human directed | superseded |
 | [D056](#d056--pin-geometry-lives-in-a-pure-adapter-canonical-tip-plus-zoom-aware-hit-box-annotation-children-carry-no-react-flow-parent-extent-and-the-drag-grab-offset-is-captured-once-per-gesture) | build | Pin geometry lives in a pure adapter (canonical tip plus zoom-aware hit box); annotation children carry no React Flow parent extent, and the drag grab offset is captured once per gesture | Agent decided alone | accepted |
 | [D057](#d057--capture-driver-e2e-asserts-the-server-fence-one-claiming-answer-fenced-redrives-instead-of-a-fixed-per-attempt-dispatch-count) | build | Capture-driver e2e asserts the server fence (one claiming answer, fenced redrives) instead of a fixed per-attempt dispatch count | Agent decided alone | accepted |
 | [D058](#d058--the-canvas-documents-its-own-interactions-on-the-page-pan-zoom-pin-drop-comment-save-cancel-and-opening-a-saved-pin-are-all-taught-by-persistent-on-page-instructions) | build | The canvas documents its own interactions on the page: pan, zoom, pin drop, comment, save, cancel, and opening a saved pin are all taught by persistent on-page instructions | Human directed | accepted |
@@ -205,6 +205,7 @@ The product and architecture decisions to read first. The full index follows.
 | [D142](#d142--keep-seed-data-in-the-repository-and-replay-it-into-a-scratch-pinata-through-the-api) | build | Keep seed data in the repository and replay it into a scratch Pinata through the API | Human directed | accepted |
 | [D143](#d143--give-editor-project-page-device-and-note-durable-addresses-and-restore-archived-projects) | build | Give editor project, page, device, and note durable addresses and restore archived projects | Agent proposed, human approved | accepted |
 | [D144](#d144--show-one-overview-card-per-page-with-a-desktop-and-mobile-preview-toggle) | build | Show one overview card per page with a Desktop and Mobile preview toggle | Agent proposed, human approved | accepted |
+| [D145](#d145--open-new-captures-at-fit-width) | build | Open new captures at fit width | Agent proposed, human approved | accepted |
 
 ---
 
@@ -2209,7 +2210,8 @@ Agent asked:
 
 ## D055 — The canvas opens every capture with the entire page in view (contain); width-fit and natural size remain named modes
 
-*2026-09-10 · phase: build · origin: **Human directed** · status: **accepted***
+*2026-09-10 · phase: build · origin: **Human directed** · status: **superseded***
+*Superseded by D145.*
 
 **Problem**
 
@@ -5866,4 +5868,50 @@ Human approved:
 
 ---
 
-<sub>Generated from 144 record(s) as of 2026-10-16 · source `70a40a215dfa`</sub>
+## D145 — Open new captures at fit width
+
+*2026-10-16 · phase: build · origin: **Agent proposed, human approved** · status: **accepted***
+*Supersedes D055.*
+
+**Problem**
+
+D055 starts tall captures in the Entire page view, which can shrink a page to a few percent of its natural size. The review proposed a readable initial camera without changing the remaining canvas layout.
+
+**Decision**
+
+A capture with no remembered camera starts in Fit width, with the top edge visible and its width inside the stage. Fit width never enlarges beyond 100%; narrow captures center at natural size. Entire page and Natural size remain available. Returning to a capture restores its own session camera; camera gestures still end resize-follow. Camera state stays session-local, never enters browser history, and never causes annotation mutations.
+
+**Alternatives considered**
+
+- *Keep Entire page as the initial camera* — The whole tall page fits, but its text opens too small to read.
+- *Also replace the stacked chrome with one slim bar* — The owner left that part of the recommendation undecided.
+
+**Rationale**
+
+The agent raised Fit width as a product question and the owner approved only this camera default. The approved recommendation also caps the view at 100% so a narrow screenshot does not blur from upscaling. This reverses D055's initial mode, not its other camera controls or its local-state boundary.
+
+**Consequences**
+
+- A fresh tall capture begins near the top at a readable width rather than showing all four corners at once; a narrow capture remains centered and sharp at 1x.
+- The Entire page button still shows all four corners; Natural size remains a 1:1 camera.
+- The first-visit and hard-reload camera tests now expect Fit width. Camera memory remains per capture.
+
+**Provenance evidence**
+
+Agent asked:
+
+> Fit-width as the default camera
+
+Human approved:
+
+> 1. **Fit width as the default camera (rec 1): yes.** The rest of rec 1, the single slim bar, is still undecided.
+
+**Artifacts**
+
+- `src/components/capture-canvas.tsx` — Initial mode and saved-camera restore.
+- `e2e/canvas.spec.ts` — First-open and reload camera expectations.
+- [Owner approval of the camera-only slice.](https://github.com/lucasdickey/pinata/issues/34)
+
+---
+
+<sub>Generated from 145 record(s) as of 2026-10-16 · source `dde641988054`</sub>
