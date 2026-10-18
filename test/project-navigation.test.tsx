@@ -8,7 +8,7 @@
 // the capture or widened to the whole project.
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { PinAnnotationView, ProjectPinAnnotationView } from "../src/lib/annotations";
@@ -187,6 +187,7 @@ function json(payload: unknown, status = 200): Response {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/pins");
   onChanged.mockReset();
   threadsById = {};
   fetchMock = vi.fn((url: unknown) => {
@@ -288,6 +289,45 @@ describe("ProjectOverview", () => {
 });
 
 describe("the workspace opens on the overview", () => {
+  test("project-only links and archived projects stay accessible to the editor", async () => {
+    const archived = { ...secondProject(), archivedAt: 123 };
+    window.history.replaceState(null, "", "/pins?project=pub2");
+    render(<ProjectWorkspace projects={[project(), archived]} onChanged={onChanged} />);
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(screen.getByRole("button", { name: "Unarchive example.com" })).toBeInTheDocument();
+    openRail();
+    expect(within(tree()).getByText("Archived")).toBeInTheDocument();
+    expect(within(tree()).getByRole("button", { name: "example.com" })).toBeInTheDocument();
+  });
+
+  test("a device address survives a reload and back/forward navigation", async () => {
+    const user = userEvent.setup();
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await user.click(screen.getByRole("button", { name: "Open Mobile capture of https://chickpea.co/" }));
+    expect(window.location.search).toBe("?project=pub1&page=page-root&device=mobile");
+    act(() => {
+      window.history.pushState(null, "", "/pins?project=pub2");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    act(() => {
+      window.history.pushState(null, "", "/pins?project=pub1&page=page-root&device=mobile");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(canvasImage()).toHaveAttribute("src", "/api/captures/root-m1/asset");
+  });
+
+  test("a deep-linked note restores its capture and selection without exposing another project", async () => {
+    window.history.replaceState(null, "", "/pins?project=pub1&page=page-root&device=desktop&note=rd-2");
+    const { unmount } = render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    await waitFor(() => expect(panelPin()).toHaveTextContent("Note rd-2."));
+    expect(window.location.search).toContain("capture=root-d1&note=rd-2");
+    unmount();
+    window.history.replaceState(null, "", "/pins?project=pub2&page=page-root&device=desktop&note=rd-2");
+    render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
+    expect(within(overview()).getByTestId("project-title")).toHaveTextContent("example.com");
+    expect(window.location.search).not.toContain("note=");
+  });
   test("shows the first project's cards and no canvas until a capture is opened", () => {
     render(<ProjectWorkspace projects={[project(), secondProject()]} onChanged={onChanged} />);
     expect(overview()).toBeInTheDocument();
