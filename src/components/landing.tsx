@@ -10,7 +10,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { REQUIREMENTS_NAV } from "../lib/requirements";
 import { CaptureEntryForm } from "./capture-entry-form";
-import { ExampleCapture } from "./example-capture";
+import { ExampleCapture, ExampleShowcase } from "./example-capture";
 import { LoginForm } from "./login-form";
 import { PinataLogo } from "./pinata-logo";
 
@@ -59,20 +59,50 @@ export function LandingLinks() {
   );
 }
 
-/** The anonymous landing: hero + parked-entry form, static example, sign-in. */
+/**
+ * The anonymous landing (D149). A top bar carries the two audiences' routes
+ * (the project docs for a reviewer, sign-in for the editor), so neither
+ * waits at the bottom of the page. The hero is two columns: the pitch with
+ * the mark directly above the capture entry on the left, the product itself
+ * on the right. What a pin carries follows, then sign-in and the walkthrough
+ * side by side.
+ */
 export function AnonymousLanding() {
   return (
-    <main className="home-main">
-      <LandingHero>
-        <CaptureEntryForm />
-      </LandingHero>
-      <ExampleCapture />
-      <LoginForm />
-      <LandingLinks />
-      <p className="home-walkthrough">
-        New here? <Link href="/walkthrough">Watch the ten-chapter walkthrough</Link> of what
-        Pinata is and how it works.
-      </p>
-    </main>
+    <>
+      <header className="site-header">
+        <div className="site-header-inner">
+          <Link href="/" className="wordmark">
+            pinata
+          </Link>
+          <LandingLinks />
+          <p className="site-header-actions">
+            <Link href="/walkthrough">Walkthrough</Link>
+            <a href="#editor-login" className="button-link">
+              Sign in
+            </a>
+          </p>
+        </div>
+      </header>
+      <main className="home-main home-landing">
+        <div className="landing-top">
+          <LandingHero>
+            <CaptureEntryForm />
+          </LandingHero>
+          <ExampleShowcase />
+        </div>
+        <ExampleCapture />
+        <div className="landing-bottom">
+          <LoginForm />
+          <div className="landing-card home-walkthrough">
+            <h2>New here?</h2>
+            <p>
+              <Link href="/walkthrough">Watch the ten-chapter walkthrough</Link> of what Pinata
+              is and how it works.
+            </p>
+          </div>
+        </div>
+      </main>
+    </>
   );
 }

@@ -4505,8 +4505,145 @@ window.PINATA = {
       "artifacts": [],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D148",
+      "date": "2026-09-25",
+      "phase": "build",
+      "title": "Restyle the app in Notion's design language, keeping the logo's colors",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The app's styling had grown one component at a time. Buttons and text inputs had no base styles and rendered as browser defaults, borders mixed a flat --line color with ad-hoc color-mix values, radii ranged from 4px to 12px with no scale, and the type stack was ui-rounded. The owner asked for a design overhaul modelled on notion.com, using the colors the pinata logo already establishes.",
+      "decision": "Download notion.com's production CSS, pull out its design tokens (the \"tatami\" system: an Inter-first sans stack; a bold heading ramp with negative tracking, 42px/-1.5px and 54px/-2px at the top; 16px/1.5 body; 10%-alpha borders; 4/6/8/12px radii; layered low-opacity shadows at three levels; filled primary buttons and white hairline secondary buttons; 7x10px input padding), and re-implement them in app/globals.css against Pinata's existing color tokens. The color tokens keep their names and values (--bg, --surface, --ink, --ink-soft, --accent, --accent-soft, --brand-ink, --brand-spark, --line, --code-bg) and one is added, --accent-strong, for the hover state of filled buttons. The new structural tokens are --line-soft, --line-strong, --hover, --press, --font-sans, --font-mono, --radius-*, and --shadow-1..3. Base styles now cover button (secondary chip), button[type=submit] (primary, filled in brand red), inputs, textareas, selects, labels, fieldsets, and headings. Every existing selector is kept, so the components, tests, and e2e specs need no changes. The work is on the design/notion-overhaul branch at the owner's request.",
+      "alternatives": [
+        {
+          "option": "Copy Notion's stylesheets into the repo verbatim",
+          "why_not": "Notion's CSS is ~1.6 MB of hashed module classes (tatami-*, CSS-module chunk names) that match none of Pinata's markup, so it would style nothing. It also references Notion's licensed fonts (NotionInter, Lyon Text, iA Writer Mono), and the files are Notion's own work. The design system carries over; the files do not."
+        },
+        {
+          "option": "Load Inter through next/font/google",
+          "why_not": "The build would depend on network access to Google Fonts, and the dependency surface would grow for a font that Notion's own fallback stack reaches through system fonts anyway. The stack starts with Inter when it is installed and falls back to -apple-system/Segoe UI, the same order Notion uses."
+        },
+        {
+          "option": "Adopt Notion's neutral grays and blue accent",
+          "why_not": "The owner asked to keep the color scheme shown in the logo. The cream, red, brown, and spark-orange tokens are also AA-locked by test/visual-tokens.test.ts and pinned by the brand-mark and walkthrough tests."
+        }
+      ],
+      "rationale": "Borrowing a design system's structure (scale, rhythm, radii, elevation, control anatomy) while keeping a brand's colors is how a restyle stays recognisable. Keeping every color token and every selector unchanged meant the accessibility contract (D047, D054) and the canvas tests that assert border-color: var(--accent) on pressed buttons still hold without edits. The largest visible gain came from giving buttons and inputs real styles for the first time.",
+      "consequences": [
+        "Global button styles apply to every <button>. The Remotion player's own controls are reset with `.walkthrough-stage button { all: revert; }` so they look the same as before the change.",
+        "The pin table and the requirements tables use horizontal hairlines, Notion's database look, instead of full cell grids.",
+        "remotion/walkthrough/theme.ts still uses the old ui-rounded font stack. The rendered walkthrough video was left unchanged for this pass.",
+        "The editor workspace (/pins) and the founder view were restyled through shared selectors but checked only through the automated suite. Both need a signed-in session to screenshot."
+      ],
+      "transcript": {
+        "request": "i want to do a design overhaul. review https://www.notion.com/ and pull and apply the stylesheets to Pinata but with the current color scheme as represented by the logo — then: work on this in a new branch, btw"
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D148-landing-before.png",
+          "caption": "Landing before: browser-default buttons and inputs, ui-rounded type."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D148-landing-after.png",
+          "caption": "Landing after: Notion-style hero, cards, filled primary buttons, logo palette."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D148-decisions-after.png",
+          "caption": "Requirements hub after: pill nav, tight heading ramp, elevated cards."
+        },
+        {
+          "type": "file",
+          "path": "app/globals.css",
+          "caption": "Token layer and base controls."
+        },
+        {
+          "type": "link",
+          "url": "https://www.notion.com/",
+          "caption": "Source of the design language."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "key": true
+    },
+    {
+      "id": "D149",
+      "date": "2026-09-25",
+      "phase": "build",
+      "title": "Replace the single-column layouts with a split landing hero, a Notion-style editor rail and toolbars, and a sidebar hub with an On this page rail",
+      "origin": "agent-autonomous",
+      "status": "accepted",
+      "problem": "After D148 every surface was still one narrow column. The landing was a 46rem stack almost 2,000px tall. Its product visual was below the fold, and the example panel ran twice the height of the screenshot beside it, leaving a dead zone. The docs a reviewer needs and the editor's sign-in were both buried at the bottom. In the editor, the rail was drawn as bordered chips, the canvas controls were about ten loose buttons over two rows, the canvas was framed twice, and the main action (New project) was an underlined link. /pins/new centered every label and fieldset. In the hub, long documents had no in-page navigation.",
+      "decision": "Landing: a sticky top bar holds the wordmark, the Project documentation nav (moved from the footer), Walkthrough, and a Sign in button. The hero is two columns: the logo directly above the pitch and the capture entry on the left (VAL-LANDING-001 holds), and on the right the example capture with the selected pin's thread as a callout over its lower edge. ExampleCapture is split into ExampleShowcase (shot and thread) and the details band (DOM context and the pin list as two equal cards). Sign-in and the walkthrough close the page side by side. Editor: the rail is a sticky sidebar of flat rows with a filled current row; New project is a primary button; the camera, mark-tool, device, and pin-table scope controls are segmented groups sharing one row above an unframed, dot-grid canvas; and the project title is a real page title. /pins/new keeps its form left-aligned. Hub: at 64rem and wider the header becomes a sticky left sidebar. From 80rem, Markdown documents with three or more sections get a sticky On this page rail built from the renderer's existing heading ids, and below that width the same list sits above the text. Every existing selector, test hook, and accessible name is kept.",
+      "alternatives": [
+        {
+          "option": "Put the capture form in the hero's right column, opposite the pitch",
+          "why_not": "VAL-LANDING-001 requires the mark directly above the capture entry. Splitting pitch and form across columns would separate them."
+        },
+        {
+          "option": "Keep the whole static example, panel included, beside the hero",
+          "why_not": "The panel is about three times the screenshot's height, so the hero would inherit the dead zone the redesign is meant to remove."
+        },
+        {
+          "option": "Narrow the editor rail to 15-18rem",
+          "why_not": "Tried first. test/canvas/canvas-layout.test.ts pins the track at minmax(16rem, 22rem). The flat rows and smaller type recovered the space without changing it."
+        },
+        {
+          "option": "Keep the landing top bar sticky on phones",
+          "why_not": "At 390px it wraps to three rows and takes about 100px of a small screen, so below 48rem it scrolls away with the page."
+        }
+      ],
+      "rationale": "The owner asked for a critique and fixes and delegated the calls explicitly (\"i trust you\"). This record is agent-autonomous because the owner approved the direction, not these specific choices. Each change targets a problem named in the critique. The constraints that decided the shape were the landing requirement (mark above entry), the static-example contract (no controls in .landing-example, no client runtime), and the existing layout and accessibility tests. All of them pass unchanged.",
+      "consequences": [
+        "The landing's documentation nav now lives in the top bar; the requirements e2e still finds it by its accessible name, Project documentation.",
+        "The example thread's pin heading is now an h2 inside the hero showcase. The details section's heading changed to \"Every pin knows what it points at\".",
+        "MarkdownArticle renders an On this page nav. The hub now has two navigation landmarks, each with a distinct label.",
+        "The editor canvas toolbar is now segmented groups. Pressed modes keep border-color: var(--accent), as test/canvas/canvas-layout.test.ts requires."
+      ],
+      "transcript": {
+        "request": "change from a single column layout to something more thoughtful. please think harder. put on your design crit hat. review. and hten fix what you idenitfy you. i trust you."
+      },
+      "artifacts": [
+        {
+          "type": "screenshot",
+          "path": "screenshots/D149-landing.png",
+          "caption": "Landing: top bar, split hero with product showcase, details band, sign-in and walkthrough side by side."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D149-editor.png",
+          "caption": "Editor: sidebar rail, segmented toolbars, dot-grid canvas."
+        },
+        {
+          "type": "screenshot",
+          "path": "screenshots/D149-hub.png",
+          "caption": "Hub: sticky sidebar nav and On this page rail."
+        },
+        {
+          "type": "file",
+          "path": "src/components/landing.tsx",
+          "caption": "Landing composition."
+        },
+        {
+          "type": "file",
+          "path": "src/components/example-capture.tsx",
+          "caption": "ExampleShowcase and the details band."
+        },
+        {
+          "type": "file",
+          "path": "src/components/markdown-article.tsx",
+          "caption": "On this page rail."
+        }
+      ],
+      "supersedes": null,
+      "superseded_by": null,
+      "key": true
     }
   ],
   "as_of": "2026-09-25",
-  "source_hash": "91d9562ccc9f"
+  "source_hash": "75575d1d14cc"
 };

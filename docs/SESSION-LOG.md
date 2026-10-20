@@ -3387,3 +3387,37 @@ against real services.
 - D095–D098 (agent-proposed, user-approved as one pass): capture recovery,
   canvas input, live refresh and founder arrival, sign-in hardening.
 - D099 (agent-proposed, user-approved): runbook, custom domain, disclosure.
+
+## Session — design overhaul in Notion's language (D148)
+
+- **Asked.** Restyle Pinata after notion.com while keeping the logo's colors,
+  on a new branch (`design/notion-overhaul`).
+- **Done.** Downloaded notion.com's production CSS, extracted its tatami
+  tokens (type ramp, tracking, radii, shadows, control anatomy), and ported
+  them into `app/globals.css` on top of the unchanged color tokens. Buttons
+  and inputs now have base styles; previously they were browser defaults.
+- **What broke.** The first round of "after" screenshots matched the
+  "before" set, because the server on :3100 was a stale production build.
+  The preview moved to `next dev` on :3101. `next dev` then appended a
+  Next.js agent-rules block to `AGENTS.md` and rewrote `next-env.d.ts`;
+  both were reverted and are not part of this change.
+- **Not checked by eye.** `/pins` and the founder view need a signed-in
+  session to screenshot.
+
+## Session — layout critique and rework (D149)
+
+- **Asked.** Move away from single-column layouts: critique the design,
+  then fix what the critique finds ("i trust you").
+- **Critique.** Landing: a 46rem stack about 2,000px tall, the product
+  below the fold, the example panel three times the screenshot's height,
+  and both audiences' routes at the bottom. Editor: chip-style rail, ten
+  loose toolbar chips, a double-framed canvas, New project as a link.
+  /pins/new: every label centered. Hub: no in-page navigation.
+- **Done.** A top bar and a split hero with a product showcase on the
+  landing; a sidebar rail, segmented toolbars and a dot-grid canvas in the
+  editor; a sidebar and an On this page rail in the hub. Each change was
+  checked in screenshots at 1440px, 390px and 320px, signed in for `/pins`.
+- **What broke.** The first narrower rail failed the canvas-layout test that
+  pins its track, so the width was restored. The first showcase placed the
+  thread callout over the figure caption; the caption moved above the shot,
+  and the overlap is now a width-relative margin that stays below pin 2.

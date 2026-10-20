@@ -16,11 +16,11 @@ section 2.3 for the taxonomy and the evidence each origin requires.
 
 | Origin | Count | Decisions |
 | --- | --: | --- |
-| Human directed | 27 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101 |
+| Human directed | 28 | D001, D002, D004, D007, D011, D012, D013, D040, D041, D050, D051, D052, D055, D058, D066, D069, D070, D071, D072, D079, D081, D084, D091, D092, D093, D100, D101, D148 |
 | Agent proposed, human approved | 21 | D009, D010, D014, D015, D016, D017, D018, D019, D020, D074, D075, D076, D077, D078, D082, D083, D095, D096, D097, D098, D099 |
-| Agent decided alone | 50 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090 |
+| Agent decided alone | 51 | D005, D006, D008, D021, D022, D023, D024, D025, D026, D027, D028, D029, D030, D031, D032, D033, D034, D035, D036, D037, D038, D039, D042, D043, D044, D045, D046, D047, D048, D049, D053, D056, D057, D059, D060, D061, D062, D063, D064, D065, D067, D068, D073, D080, D085, D086, D087, D088, D089, D090, D149 |
 | Raised and deferred | 3 | D003, D054, D094 |
-| **Total** | **101** | |
+| **Total** | **103** | |
 
 ## Key decisions
 
@@ -55,6 +55,8 @@ The product and architecture decisions to read first. The full index follows.
 - [D097](#d097--both-sides-see-replies-without-reloading-addresses-are-completed-on-the-client-the-founder-arrives-oriented-and-link-rotation-asks-first) — Both sides see replies without reloading, addresses are completed on the client, the founder arrives oriented, and link rotation asks first *(Agent proposed, human approved)*
 - [D098](#d098--sign-in-hardening-reserve-each-login-attempt-before-checking-it-per-client-throttling-with-a-global-backstop-no-bypass-on-vercel-and-csrf-renewed-with-the-session) — Sign-in hardening: reserve each login attempt before checking it, per-client throttling with a global backstop, no bypass on Vercel, and CSRF renewed with the session *(Agent proposed, human approved)*
 - [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) — Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits *(Agent proposed, human approved)*
+- [D148](#d148--restyle-the-app-in-notions-design-language-keeping-the-logos-colors) — Restyle the app in Notion's design language, keeping the logo's colors *(Human directed)*
+- [D149](#d149--replace-the-single-column-layouts-with-a-split-landing-hero-a-notion-style-editor-rail-and-toolbars-and-a-sidebar-hub-with-an-on-this-page-rail) — Replace the single-column layouts with a split landing hero, a Notion-style editor rail and toolbars, and a sidebar hub with an On this page rail *(Agent decided alone)*
 
 ## Index
 
@@ -161,6 +163,8 @@ The product and architecture decisions to read first. The full index follows.
 | [D099](#d099--put-the-migrate-then-deploy-order-and-the-vercel-settings-in-the-runbook-serve-founders-from-a-custom-domain-and-disclose-the-cursor-commits) | build | Put the migrate-then-deploy order and the Vercel settings in the runbook, serve founders from a custom domain, and disclose the Cursor commits | Agent proposed, human approved | accepted |
 | [D100](#d100--serve-production-at-yourpinatadev-and-correct-what-d099-assumed-about-the-deployment) | build | Serve production at yourpinata.dev, and correct what D099 assumed about the deployment | Human directed | accepted |
 | [D101](#d101--raise-the-per-client-editor-login-failure-limit-from-5-to-10-keeping-the-global-backstop-at-100) | validate | Raise the per-client editor login failure limit from 5 to 10, keeping the global backstop at 100 | Human directed | accepted |
+| [D148](#d148--restyle-the-app-in-notions-design-language-keeping-the-logos-colors) | build | Restyle the app in Notion's design language, keeping the logo's colors | Human directed | accepted |
+| [D149](#d149--replace-the-single-column-layouts-with-a-split-landing-hero-a-notion-style-editor-rail-and-toolbars-and-a-sidebar-hub-with-an-on-this-page-rail) | build | Replace the single-column layouts with a split landing hero, a Notion-style editor rail and toolbars, and a sidebar hub with an On this page rail | Agent decided alone | accepted |
 
 ---
 
@@ -4033,4 +4037,96 @@ Human instruction:
 
 ---
 
-<sub>Generated from 101 record(s) as of 2026-09-25 · source `91d9562ccc9f`</sub>
+## D148 — Restyle the app in Notion's design language, keeping the logo's colors
+
+*2026-09-25 · phase: build · origin: **Human directed** · status: **accepted***
+
+**Problem**
+
+The app's styling had grown one component at a time. Buttons and text inputs had no base styles and rendered as browser defaults, borders mixed a flat --line color with ad-hoc color-mix values, radii ranged from 4px to 12px with no scale, and the type stack was ui-rounded. The owner asked for a design overhaul modelled on notion.com, using the colors the pinata logo already establishes.
+
+**Decision**
+
+Download notion.com's production CSS, pull out its design tokens (the "tatami" system: an Inter-first sans stack; a bold heading ramp with negative tracking, 42px/-1.5px and 54px/-2px at the top; 16px/1.5 body; 10%-alpha borders; 4/6/8/12px radii; layered low-opacity shadows at three levels; filled primary buttons and white hairline secondary buttons; 7x10px input padding), and re-implement them in app/globals.css against Pinata's existing color tokens. The color tokens keep their names and values (--bg, --surface, --ink, --ink-soft, --accent, --accent-soft, --brand-ink, --brand-spark, --line, --code-bg) and one is added, --accent-strong, for the hover state of filled buttons. The new structural tokens are --line-soft, --line-strong, --hover, --press, --font-sans, --font-mono, --radius-*, and --shadow-1..3. Base styles now cover button (secondary chip), button[type=submit] (primary, filled in brand red), inputs, textareas, selects, labels, fieldsets, and headings. Every existing selector is kept, so the components, tests, and e2e specs need no changes. The work is on the design/notion-overhaul branch at the owner's request.
+
+**Alternatives considered**
+
+- *Copy Notion's stylesheets into the repo verbatim* — Notion's CSS is ~1.6 MB of hashed module classes (tatami-*, CSS-module chunk names) that match none of Pinata's markup, so it would style nothing. It also references Notion's licensed fonts (NotionInter, Lyon Text, iA Writer Mono), and the files are Notion's own work. The design system carries over; the files do not.
+- *Load Inter through next/font/google* — The build would depend on network access to Google Fonts, and the dependency surface would grow for a font that Notion's own fallback stack reaches through system fonts anyway. The stack starts with Inter when it is installed and falls back to -apple-system/Segoe UI, the same order Notion uses.
+- *Adopt Notion's neutral grays and blue accent* — The owner asked to keep the color scheme shown in the logo. The cream, red, brown, and spark-orange tokens are also AA-locked by test/visual-tokens.test.ts and pinned by the brand-mark and walkthrough tests.
+
+**Rationale**
+
+Borrowing a design system's structure (scale, rhythm, radii, elevation, control anatomy) while keeping a brand's colors is how a restyle stays recognisable. Keeping every color token and every selector unchanged meant the accessibility contract (D047, D054) and the canvas tests that assert border-color: var(--accent) on pressed buttons still hold without edits. The largest visible gain came from giving buttons and inputs real styles for the first time.
+
+**Consequences**
+
+- Global button styles apply to every <button>. The Remotion player's own controls are reset with `.walkthrough-stage button { all: revert; }` so they look the same as before the change.
+- The pin table and the requirements tables use horizontal hairlines, Notion's database look, instead of full cell grids.
+- remotion/walkthrough/theme.ts still uses the old ui-rounded font stack. The rendered walkthrough video was left unchanged for this pass.
+- The editor workspace (/pins) and the founder view were restyled through shared selectors but checked only through the automated suite. Both need a signed-in session to screenshot.
+
+**Provenance evidence**
+
+Human instruction:
+
+> i want to do a design overhaul. review https://www.notion.com/ and pull and apply the stylesheets to Pinata but with the current color scheme as represented by the logo — then: work on this in a new branch, btw
+
+**Artifacts**
+
+- ![Landing before: browser-default buttons and inputs, ui-rounded type.](dashboard/screenshots/D148-landing-before.png) — Landing before: browser-default buttons and inputs, ui-rounded type.
+- ![Landing after: Notion-style hero, cards, filled primary buttons, logo palette.](dashboard/screenshots/D148-landing-after.png) — Landing after: Notion-style hero, cards, filled primary buttons, logo palette.
+- ![Requirements hub after: pill nav, tight heading ramp, elevated cards.](dashboard/screenshots/D148-decisions-after.png) — Requirements hub after: pill nav, tight heading ramp, elevated cards.
+- `app/globals.css` — Token layer and base controls.
+- [Source of the design language.](https://www.notion.com/)
+
+---
+
+## D149 — Replace the single-column layouts with a split landing hero, a Notion-style editor rail and toolbars, and a sidebar hub with an On this page rail
+
+*2026-09-25 · phase: build · origin: **Agent decided alone** · status: **accepted***
+
+**Problem**
+
+After D148 every surface was still one narrow column. The landing was a 46rem stack almost 2,000px tall. Its product visual was below the fold, and the example panel ran twice the height of the screenshot beside it, leaving a dead zone. The docs a reviewer needs and the editor's sign-in were both buried at the bottom. In the editor, the rail was drawn as bordered chips, the canvas controls were about ten loose buttons over two rows, the canvas was framed twice, and the main action (New project) was an underlined link. /pins/new centered every label and fieldset. In the hub, long documents had no in-page navigation.
+
+**Decision**
+
+Landing: a sticky top bar holds the wordmark, the Project documentation nav (moved from the footer), Walkthrough, and a Sign in button. The hero is two columns: the logo directly above the pitch and the capture entry on the left (VAL-LANDING-001 holds), and on the right the example capture with the selected pin's thread as a callout over its lower edge. ExampleCapture is split into ExampleShowcase (shot and thread) and the details band (DOM context and the pin list as two equal cards). Sign-in and the walkthrough close the page side by side. Editor: the rail is a sticky sidebar of flat rows with a filled current row; New project is a primary button; the camera, mark-tool, device, and pin-table scope controls are segmented groups sharing one row above an unframed, dot-grid canvas; and the project title is a real page title. /pins/new keeps its form left-aligned. Hub: at 64rem and wider the header becomes a sticky left sidebar. From 80rem, Markdown documents with three or more sections get a sticky On this page rail built from the renderer's existing heading ids, and below that width the same list sits above the text. Every existing selector, test hook, and accessible name is kept.
+
+**Alternatives considered**
+
+- *Put the capture form in the hero's right column, opposite the pitch* — VAL-LANDING-001 requires the mark directly above the capture entry. Splitting pitch and form across columns would separate them.
+- *Keep the whole static example, panel included, beside the hero* — The panel is about three times the screenshot's height, so the hero would inherit the dead zone the redesign is meant to remove.
+- *Narrow the editor rail to 15-18rem* — Tried first. test/canvas/canvas-layout.test.ts pins the track at minmax(16rem, 22rem). The flat rows and smaller type recovered the space without changing it.
+- *Keep the landing top bar sticky on phones* — At 390px it wraps to three rows and takes about 100px of a small screen, so below 48rem it scrolls away with the page.
+
+**Rationale**
+
+The owner asked for a critique and fixes and delegated the calls explicitly ("i trust you"). This record is agent-autonomous because the owner approved the direction, not these specific choices. Each change targets a problem named in the critique. The constraints that decided the shape were the landing requirement (mark above entry), the static-example contract (no controls in .landing-example, no client runtime), and the existing layout and accessibility tests. All of them pass unchanged.
+
+**Consequences**
+
+- The landing's documentation nav now lives in the top bar; the requirements e2e still finds it by its accessible name, Project documentation.
+- The example thread's pin heading is now an h2 inside the hero showcase. The details section's heading changed to "Every pin knows what it points at".
+- MarkdownArticle renders an On this page nav. The hub now has two navigation landmarks, each with a distinct label.
+- The editor canvas toolbar is now segmented groups. Pressed modes keep border-color: var(--accent), as test/canvas/canvas-layout.test.ts requires.
+
+**Provenance evidence**
+
+Human instruction:
+
+> change from a single column layout to something more thoughtful. please think harder. put on your design crit hat. review. and hten fix what you idenitfy you. i trust you.
+
+**Artifacts**
+
+- ![Landing: top bar, split hero with product showcase, details band, sign-in and walkthrough side by side.](dashboard/screenshots/D149-landing.png) — Landing: top bar, split hero with product showcase, details band, sign-in and walkthrough side by side.
+- ![Editor: sidebar rail, segmented toolbars, dot-grid canvas.](dashboard/screenshots/D149-editor.png) — Editor: sidebar rail, segmented toolbars, dot-grid canvas.
+- ![Hub: sticky sidebar nav and On this page rail.](dashboard/screenshots/D149-hub.png) — Hub: sticky sidebar nav and On this page rail.
+- `src/components/landing.tsx` — Landing composition.
+- `src/components/example-capture.tsx` — ExampleShowcase and the details band.
+- `src/components/markdown-article.tsx` — On this page rail.
+
+---
+
+<sub>Generated from 103 record(s) as of 2026-09-25 · source `75575d1d14cc`</sub>

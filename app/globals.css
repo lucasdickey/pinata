@@ -1,5 +1,10 @@
-/* Pinata global styles: warm, playful, focused. Editorial typography for the
-   requirements hub; restrained color; no motion by default. */
+/* Pinata global styles (D148): Notion's design language — its "tatami"
+   token system, re-implemented here rather than copied — dressed in the
+   pinata logo's palette: cream paper, brand red, warm brown ink, and the
+   llama's spark orange. Structure comes from Notion (an Inter-first type
+   stack, heavy headings with tight negative tracking, hairline alpha-ink
+   borders, 4–12px radii, layered barely-there shadows, filled primary
+   buttons); every color comes from the logo. No motion by default. */
 
 :root {
   --bg: #fdf6ec;
@@ -12,6 +17,9 @@
      below 4.5:1 on either pairing. Locked by test/visual-tokens.test.ts. */
   --accent: #c43448;
   --accent-soft: #f6dfd3;
+  /* Pressed/hover shade of --accent for filled buttons; darker, so the
+     surface-on-accent contrast only improves. */
+  --accent-strong: #a82a3c;
   /* Brand-mark colors (D069): the llama pin's ink black and spark orange,
      consumed only by src/lib/brand-mark.ts (the logo and the favicon). They
      are never text colors, so --accent stays the AA-checked link/heading red
@@ -21,6 +29,32 @@
   --line: #ead9c2;
   --code-bg: #f5ead9;
   --max: 46rem;
+
+  /* Notion-style structure tokens (D148). Borders and hover fills are ink
+     at low alpha, so they read as hairlines on cream and on white alike. */
+  --line-soft: color-mix(in srgb, var(--ink) 10%, transparent);
+  --line-strong: color-mix(in srgb, var(--ink) 18%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 5%, transparent);
+  --press: color-mix(in srgb, var(--ink) 10%, transparent);
+
+  --font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --shadow-1: 0 0.7px 1.5px rgb(51 38 26 / 0.02), 0 3px 9px rgb(51 38 26 / 0.04);
+  --shadow-2:
+    0 0.2px 1px rgb(51 38 26 / 0.02), 0 0.8px 3px rgb(51 38 26 / 0.03),
+    0 2px 8px rgb(51 38 26 / 0.04), 0 4px 18px rgb(51 38 26 / 0.05);
+  --shadow-3:
+    0 0.7px 3.5px rgb(51 38 26 / 0.02), 0 3px 7px rgb(51 38 26 / 0.03),
+    0 7px 14px rgb(51 38 26 / 0.04), 0 14px 28px rgb(51 38 26 / 0.05),
+    0 23px 52px rgb(51 38 26 / 0.07);
 }
 
 * {
@@ -33,16 +67,60 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family:
-    ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "lnum" 1;
   overflow-x: clip;
+}
+
+p,
+li,
+dd {
+  text-wrap: pretty;
+}
+
+/* Notion's heading ramp: bold, tight line-height, tracking tightening as
+   size grows. */
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 700;
+  line-height: 1.2;
+  text-wrap: balance;
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 2.625rem;
+  letter-spacing: -0.09375rem;
+}
+
+h2 {
+  font-size: 1.625rem;
+  letter-spacing: -0.03rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+  letter-spacing: -0.0125rem;
+}
+
+h4 {
+  font-size: 1rem;
 }
 
 a {
   color: var(--accent);
   text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.15em;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--accent-strong);
 }
 
 a:focus-visible,
@@ -55,18 +133,123 @@ select:focus-visible {
   border-radius: 4px;
 }
 
+/* ---- controls (D148) ---- */
+
+/* Secondary button: white chip, hairline border, ink text — Notion's
+   default. Selected/pressed variants keep their border-color: var(--accent)
+   rules further down. */
+button {
+  display: inline-block;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+}
+
+button:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--ink));
+}
+
+button:active {
+  background: color-mix(in srgb, var(--surface) 86%, var(--ink));
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* The Remotion player draws its own controls with inline styles; hand them
+   back the browser defaults so the chip styling above never reaches them. */
+.walkthrough-stage button {
+  all: revert;
+}
+
+/* Primary: the one submit per form, filled in the brand red. */
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+button[type="submit"]:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 0.44rem 0.625rem;
+  box-shadow: inset 0 1px 1px rgb(51 38 26 / 0.03);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--ink-soft) 75%, transparent);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+fieldset {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+legend {
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0 0.35rem;
+}
+
+summary {
+  cursor: pointer;
+}
+
 code {
+  font-family: var(--font-mono);
   background: var(--code-bg);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.1em 0.35em;
-  font-size: 0.92em;
+  font-size: 0.86em;
   overflow-wrap: anywhere;
 }
 
 pre {
+  font-family: var(--font-mono);
   background: var(--code-bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
   padding: 0.9rem 1rem;
   overflow-x: auto;
 }
@@ -86,24 +269,148 @@ pre code {
 .home-main {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 3rem 1.25rem;
+  padding: 4rem 1.25rem 5rem;
+}
+
+/* The public landing is wider than the reading measure (D149): the hero is
+   two columns and the bands below it run side by side. */
+.home-landing {
+  max-width: 72rem;
+  padding-top: 3.5rem;
+}
+
+/* Top bar (D149): the reviewer's routes (the project docs) and the
+   editor's (sign in) sit where both audiences look first. Sticky, on a
+   translucent page-colored ground so content scrolls under it. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* On phones the bar wraps to several rows; let it scroll away. */
+@media (max-width: 48rem) {
+  .site-header {
+    position: static;
+  }
+}
+
+.site-header-inner {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.7rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.75rem;
+}
+
+.site-header .home-nav {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.site-header .home-nav ul {
+  gap: 0.25rem 1.25rem;
+  font-size: 0.9375rem;
+}
+
+.site-header .home-nav a,
+.site-header-actions a:not(.button-link) {
+  color: var(--ink-soft);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.site-header .home-nav a:hover,
+.site-header-actions a:not(.button-link):hover {
+  color: var(--ink);
+}
+
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 0 0 auto;
+  font-size: 0.9375rem;
+}
+
+/* A link that looks like the primary button. */
+.button-link {
+  display: inline-block;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-1);
+}
+
+.button-link:hover {
+  background: var(--accent-strong);
+  color: var(--surface);
 }
 
 /* The branded hero (VAL-LANDING-001): the pinata mark directly above the URL
-   capture entry, one centered column, the brief value proposition between
-   wordmark and form. Stays at reading measure even when a project workspace
-   widens the shell below. */
+   capture entry, the brief value proposition between wordmark and form. On
+   /pins/new it is one centered column; on the public landing it is the left
+   half of a two-column split (D149), left-aligned, with the product beside
+   it. */
 .landing-hero {
   max-width: var(--max);
   margin: 0 auto 2rem;
   text-align: center;
 }
 
+/* Forms inside the centered hero keep their fields left-aligned. */
+.landing-hero .project-create {
+  text-align: left;
+}
+
+.landing-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3rem;
+  align-items: start;
+}
+
+.landing-top .landing-hero {
+  margin: 0;
+  text-align: left;
+}
+
+.landing-top .pinata-logo {
+  margin: 0 0 1.25rem;
+}
+
+.landing-top .landing-prop {
+  margin: 0 0 2rem;
+}
+
+@media (min-width: 64rem) {
+  .landing-top {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    gap: 4rem;
+  }
+
+  /* The showcase starts level with the headline, not the logo. */
+  .landing-top .example-showcase {
+    margin-top: 7rem;
+  }
+}
+
 .pinata-logo {
   display: block;
-  width: 4.5rem;
-  height: 4.5rem;
-  margin: 0 auto 0.5rem;
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0 auto 1rem;
+  filter: drop-shadow(0 4px 14px rgb(51 38 26 / 0.1));
 }
 
 .landing-hero h1 {
@@ -111,38 +418,100 @@ pre code {
 }
 
 .landing-tagline {
-  margin: 0 0 0.75rem;
+  margin: 0 0 1rem;
   color: var(--ink-soft);
+  font-size: 1.375rem;
+  letter-spacing: -0.01rem;
 }
 
 .landing-prop {
   max-width: 34rem;
-  margin: 0 auto 1.5rem;
+  margin: 0 auto 2.5rem;
+  font-size: 1.125rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
 }
 
-/* The capture entry form keeps its fields left-aligned inside the centered
-   hero column. */
 .capture-entry {
   text-align: left;
+  margin: 0;
 }
 
 /* ---- landing example (fully static, VAL-LANDING-002) ---- */
 
+/* The hero's product visual (D149): the capture, and the selected pin's
+   thread hanging over its lower-right edge like the canvas's own popover.
+   Pin 2 sits at 62% down, above the callout's overlap. */
+.example-showcase {
+  position: relative;
+}
+
+.example-showcase .example-figure figcaption {
+  margin: 0 0 0.6rem;
+  font-size: 0.8125rem;
+}
+
+/* The negative top margin is a percentage of the showcase's width: 17.5%
+   of the width is the bottom 28% of a 1440×900 shot, below pin 2. */
+.example-callout {
+  position: relative;
+  width: min(21rem, 100%);
+  margin: -17.5% -1rem 0 auto;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+
+.example-callout-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+@media (max-width: 40rem) {
+  .example-callout {
+    width: 100%;
+    margin: 0.75rem 0 0;
+  }
+}
+
 .landing-example {
-  max-width: 56rem;
-  margin: 2.5rem auto;
+  margin: 5rem 0 0;
+}
+
+.landing-example > .hint {
+  margin: 0 0 1.5rem;
+  max-width: 36rem;
 }
 
 .example-grid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
-  align-items: start;
+  align-items: stretch;
 }
 
-@media (max-width: 48rem) {
+/* Facts as a two-column key/value sheet, so the card stays short. */
+.example-panel .panel-facts {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.35rem 1rem;
+}
+
+.example-panel .panel-facts dd {
+  margin: 0;
+}
+
+.example-pins li + li {
+  margin-top: 0.4rem;
+}
+
+@media (min-width: 48rem) {
   .example-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -155,8 +524,9 @@ pre code {
 .example-shot {
   position: relative;
   aspect-ratio: 1440 / 900;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
   overflow: hidden;
   background: var(--surface);
 }
@@ -200,10 +570,11 @@ pre code {
 }
 
 .example-panel {
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 1rem;
+  box-shadow: var(--shadow-1);
+  padding: 1.25rem;
 }
 
 .example-panel h3 {
@@ -234,7 +605,7 @@ pre code {
 .example-thread li {
   border-left: 3px solid var(--accent);
   background: var(--bg);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   padding: 0.35rem 0.6rem;
 }
 
@@ -259,25 +630,96 @@ pre code {
 }
 
 .home-main h1 {
-  font-size: 2.6rem;
-  margin: 0 0 0.25rem;
+  font-size: 4rem;
+  line-height: 1;
+  letter-spacing: -0.15625rem;
+  margin: 0 0 0.75rem;
   color: var(--accent);
+}
+
+/* Section headings below the hero (example, sign-in). */
+.home-main h2 {
+  margin: 0 0 0.75rem;
+}
+
+/* Sign-in and the walkthrough, side by side at the foot (D149). */
+.landing-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-top: 4rem;
+  align-items: stretch;
+}
+
+@media (min-width: 48rem) {
+  .landing-bottom {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+
+.landing-card {
+  padding: 1.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.landing-card p {
+  margin: 0;
+}
+
+.landing-bottom h2 {
+  font-size: 1.375rem;
+  letter-spacing: -0.02rem;
+}
+
+/* Editor sign in: a quiet card with the field and button on one row. */
+.login-section {
+  margin: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.login-section form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.login-section input {
+  flex: 1 1 14rem;
 }
 
 /* The hub links are one row of separate destinations, not one sentence: the
    five titles used to share a single anchor, which sent every one of them to
    /reqs. */
 .home-nav {
-  margin-top: 1.5rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line-soft);
 }
 
 .home-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem 1.1rem;
+  gap: 0.4rem 1.25rem;
   list-style: none;
   margin: 0;
   padding: 0;
+  font-weight: 500;
+}
+
+.home-nav a {
+  text-decoration: none;
+}
+
+.home-nav a:hover {
+  text-decoration: underline;
 }
 
 /* Content that must stay in the accessibility tree but not on screen. */
@@ -310,7 +752,7 @@ pre code {
   align-items: baseline;
   gap: 0.5rem 1rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .pins-identity {
@@ -321,29 +763,50 @@ pre code {
 
 .pins-actions {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.75rem;
   margin-left: auto;
 }
 
+/* The editor's one primary action, styled as the primary button (D149). */
 .pins-new-link {
+  display: inline-block;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 0.9375rem;
   font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-1);
+}
+
+.pins-new-link:hover {
+  background: var(--accent-strong);
+  color: var(--surface);
 }
 
 /* ---- project entry ---- */
 
 .project-create {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-soft);
   background: var(--surface);
-  border-radius: 10px;
-  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  padding: 1.5rem 1.75rem;
   margin: 1.5rem 0;
+}
+
+.project-create h2 {
+  margin: 0 0 1rem;
+  font-size: 1.375rem;
+  letter-spacing: -0.02rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.375rem;
 }
 
 .field-error {
@@ -359,9 +822,10 @@ pre code {
 }
 
 .url-rows {
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
   margin: 1rem 0;
+  padding: 0.75rem 1rem;
 }
 
 .url-rows ol {
@@ -382,6 +846,7 @@ pre code {
 .form-actions {
   display: flex;
   gap: 0.6rem;
+  margin: 1.25rem 0 0;
 }
 
 .project-list {
@@ -408,9 +873,57 @@ pre code {
   align-items: start;
 }
 
+/* The rail reads as a Notion sidebar (D149): it holds its place while the
+   canvas scrolls, and its entries are flat rows, not chips. */
+.workspace-tree {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 0.25rem 0.75rem 0.25rem 0;
+  border-right: 1px solid var(--line-soft);
+  font-size: 0.9375rem;
+}
+
+.workspace-tree button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  box-shadow: none;
+  padding: 0.2rem 0.5rem;
+}
+
+.workspace-tree button:hover {
+  background: var(--hover);
+}
+
+.workspace-tree .tree-pages > li {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.workspace-tree .tree-pages .feedback-badge {
+  flex: none;
+}
+
 @media (max-width: 48rem) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-tree {
+    position: static;
+    max-height: none;
+    padding-right: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
   }
 }
 
@@ -436,26 +949,41 @@ pre code {
 .tree-root > summary,
 .tree-project > summary {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  padding: 0.35rem 0;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius);
   font-weight: 600;
 }
 
+.tree-root > summary:hover,
+.tree-project > summary:hover {
+  background: var(--hover);
+}
+
 .tree-root > summary {
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
 }
 
 .tree-project {
-  border-left: 2px solid var(--line);
-  padding-left: 0.6rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.125rem;
+}
+
+.tree-project > summary {
+  font-size: 0.9375rem;
 }
 
 .tree-project[open] {
-  border-left-color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+
+.tree-project .project-counts {
+  margin: 0.1rem 0 0.1rem 0.5rem;
 }
 
 .tree-summary-label {
@@ -465,11 +993,13 @@ pre code {
 .tree-count {
   margin-left: auto;
   color: var(--ink-soft);
-  font-size: 0.8rem;
-  font-weight: 400;
-  background: var(--accent-soft);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--press);
   border-radius: 999px;
-  padding: 0 0.5rem;
+  padding: 0 0.45rem;
 }
 
 .workspace-tree .page-url {
@@ -485,10 +1015,15 @@ pre code {
   margin: 0.25rem 0 0.75rem;
 }
 
-.workspace-tree button[aria-current="true"],
 .capture-versions button[aria-current="true"] {
   border-color: var(--accent);
   font-weight: 700;
+}
+
+/* The rail's current row: filled, like Notion's selected page. */
+.workspace-tree button[aria-current="true"] {
+  background: var(--accent-soft);
+  font-weight: 600;
 }
 
 .project-counts,
@@ -544,10 +1079,11 @@ pre code {
   min-width: 0;
   position: sticky;
   top: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  padding: 1rem;
+  box-shadow: var(--shadow-1);
+  padding: 1rem 1.125rem;
 }
 
 .workspace-panel h4 {
@@ -570,8 +1106,8 @@ pre code {
   gap: 0.35rem;
 }
 .panel-field textarea {
-  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   font: inherit;
   padding: 0.5rem 0.6rem;
   resize: vertical;
@@ -651,7 +1187,7 @@ pre code {
 /* The internals behind one native disclosure (D078). */
 .panel-details {
   margin-top: 0.75rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-soft);
   padding-top: 0.5rem;
   font-size: 0.9rem;
 }
@@ -686,7 +1222,7 @@ pre code {
 
 .pin-table {
   margin-top: 1.5rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-soft);
   padding-top: 1rem;
 }
 
@@ -722,14 +1258,23 @@ pre code {
 
 .pin-table th,
 .pin-table td {
-  border: 1px solid var(--line);
-  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0.5rem 0.65rem;
   text-align: left;
   vertical-align: top;
 }
 
 .pin-table thead th {
-  background: var(--code-bg);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-bottom-color: var(--line-strong);
+}
+
+.pin-table tbody tr:hover > * {
+  background: var(--hover);
 }
 
 /* The row header is the mark's name (D078): it can run to the comment
@@ -792,8 +1337,8 @@ pre code {
 }
 
 .capture-stage {
-  border: 2px dashed var(--line);
-  border-radius: 0.5rem;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   min-height: 8rem;
   display: flex;
@@ -803,29 +1348,84 @@ pre code {
 }
 
 /* The ready state is a pan/zoom canvas, not a scroll region: the dashed
-   placeholder styling gives way to a solid bounded frame. */
+   placeholder gives way to the canvas's own frame. Since D149 the stage is
+   unframed, and the camera and mark-tool groups share one toolbar row above
+   the canvas. */
 .capture-stage-canvas {
-  display: block;
-  padding: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem 0.75rem;
+  padding: 0;
   text-align: left;
-  border-style: solid;
+  border: 0;
+  border-radius: 0;
+}
+
+.capture-stage-canvas > :not(.capture-camera):not(.capture-tools) {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+/* Toolbar groups (D149): each group is one segmented bar, so ten loose
+   chips read as two tools. */
+.capture-camera,
+.capture-tools,
+.device-toggle,
+.pin-table-scope {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--press);
+}
+
+.capture-camera button,
+.capture-tools button,
+.device-toggle button,
+.pin-table-scope button,
+.pin-step button,
+.canvas-toolbar > button {
+  font-size: 0.8125rem;
+  padding: 0.2rem 0.6rem;
+  box-shadow: none;
+}
+
+.capture-camera button,
+.capture-tools button,
+.device-toggle button,
+.pin-table-scope button {
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius);
+}
+
+.capture-camera button:hover,
+.capture-tools button:hover,
+.device-toggle button:hover,
+.pin-table-scope button:hover {
+  background: var(--hover);
 }
 
 .capture-camera {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: center;
-  margin: 0 0 0.5rem;
+  gap: 2px;
 }
 
 .capture-camera button[aria-pressed="true"] {
   border-color: var(--accent);
-  font-weight: 700;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-weight: 600;
 }
 
 .capture-zoom {
   min-width: 4ch;
+  padding: 0 0.5rem 0 0.25rem;
+  font-size: 0.8125rem;
   text-align: right;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
@@ -837,10 +1437,18 @@ pre code {
 .capture-canvas {
   height: min(76vh, 60rem);
   min-height: 24rem;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--bg);
+  /* A dotted design-tool ground (D149), so the capture reads as an object
+     on a canvas rather than a picture in a box. */
+  background-color: var(--bg);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--ink) 14%, transparent) 1px,
+    transparent 1.2px
+  );
+  background-size: 18px 18px;
 }
 
 /* React Flow 12 ships no sizing for its root — the parent must provide it.
@@ -1032,16 +1640,11 @@ pre code {
 
 /* The mark tools (D079, D082, D083): one row of toggles, each pressed while
    it waits for the next drag. */
-.capture-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  align-items: center;
-  margin: 0 0 0.5rem;
-}
 .capture-draw-toggle[aria-pressed="true"] {
   border-color: var(--accent);
-  font-weight: 700;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-weight: 600;
 }
 .capture-canvas[data-draw-armed="true"],
 .capture-canvas[data-drawing="true"] {
@@ -1083,11 +1686,11 @@ pre code {
   width: 20rem;
   max-width: calc(100vw - 2rem);
   box-sizing: border-box;
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
-  padding: 0.75rem 0.85rem;
+  box-shadow: var(--shadow-3);
+  padding: 0.875rem 1rem;
 }
 .pin-composer-body {
   display: flex;
@@ -1143,8 +1746,9 @@ pre code {
 }
 
 .founder-share-panel {
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
   background: var(--surface);
   padding: 0.75rem;
   margin-top: 0.5rem;
@@ -1156,8 +1760,8 @@ pre code {
 }
 
 .founder-share-fresh input {
-  border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
   font: inherit;
   font-size: 0.85rem;
   padding: 0.4rem 0.5rem;
@@ -1181,7 +1785,7 @@ pre code {
 }
 
 .thread-entry {
-  border-left: 3px solid var(--line);
+  border-left: 3px solid var(--line-strong);
   padding-left: 0.6rem;
 }
 
@@ -1244,8 +1848,10 @@ pre code {
 
 .project-title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.75rem;
   font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.04rem;
 }
 
 .project-feedback {
@@ -1351,16 +1957,17 @@ pre code {
 .reqs-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem 1.25rem;
-  border-bottom: 2px solid var(--line);
-  padding-bottom: 0.75rem;
-  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 0.875rem;
+  margin-bottom: 2rem;
 }
 
 .wordmark {
-  font-size: 1.4rem;
+  font-size: 1.375rem;
   font-weight: 800;
+  letter-spacing: -0.03rem;
   color: var(--accent);
   text-decoration: none;
 }
@@ -1376,14 +1983,15 @@ pre code {
 
 .reqs-nav a {
   text-decoration: none;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-weight: 500;
   color: var(--ink-soft);
-  padding: 0.15rem 0.35rem;
-  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-md);
 }
 
 .reqs-nav a:hover {
-  background: var(--accent-soft);
+  background: var(--hover);
   color: var(--ink);
 }
 
@@ -1392,12 +2000,142 @@ pre code {
   color: var(--surface);
 }
 
+/* Wide screens (D149): the hub becomes a Notion-style document app. The
+   header turns into a sticky left sidebar with the section list stacked,
+   and the document gets the rest. Narrow screens keep the top bar. */
+@media (min-width: 64rem) {
+  .reqs-shell {
+    max-width: 82rem;
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: 3.5rem;
+    padding-top: 2rem;
+  }
+
+  .reqs-shell > .reqs-header {
+    position: sticky;
+    top: 2rem;
+    align-self: start;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    margin: 0;
+    padding: 0 1rem 0 0;
+    border-bottom: 0;
+    border-right: 1px solid var(--line-soft);
+    min-height: calc(100vh - 4rem);
+  }
+
+  .reqs-shell > .reqs-header .wordmark {
+    padding: 0 0.65rem;
+  }
+
+  .reqs-shell .reqs-nav ul {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .reqs-shell .reqs-nav a {
+    display: block;
+  }
+
+  .reqs-shell > main {
+    min-width: 0;
+  }
+
+  /* Documents keep the reading measure; only a document with its contents
+     rail takes the extra column. */
+  .reqs-shell > main > * {
+    max-width: var(--max);
+  }
+
+  .reqs-shell > main > .doc-with-toc {
+    max-width: none;
+  }
+}
+
+/* "On this page" (D149): stacked above the text on narrow screens, a sticky
+   rail to the right of it on wide ones. */
+.doc-toc {
+  margin: 0 0 1.5rem;
+  font-size: 0.875rem;
+}
+
+.doc-toc-title {
+  margin: 0 0 0.4rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.doc-toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 1px solid var(--line-soft);
+}
+
+.doc-toc a {
+  display: block;
+  padding: 0.2rem 0 0.2rem 0.75rem;
+  margin-left: -1px;
+  border-left: 1px solid transparent;
+  color: var(--ink-soft);
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+.doc-toc a:hover {
+  color: var(--ink);
+  border-left-color: var(--accent);
+}
+
+@media (max-width: 79.99rem) {
+  .doc-toc {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+}
+
+@media (min-width: 80rem) {
+  .doc-with-toc {
+    display: grid;
+    grid-template-columns: minmax(0, var(--max)) 13rem;
+    column-gap: 3rem;
+    align-items: start;
+  }
+
+  .doc-with-toc > .source-cue,
+  .doc-with-toc > .doc-body {
+    grid-column: 1;
+  }
+
+  .doc-with-toc > .doc-toc {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    position: sticky;
+    top: 2rem;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+  }
+}
+
+/* Anchored headings clear the top of the viewport when jumped to. */
+.doc [id] {
+  scroll-margin-top: 1.5rem;
+}
+
 .key-decisions {
   margin: 1.5rem 0 2rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--line);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--line-soft);
   border-left: 4px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
   /* No tinted background: the AA-locked link and soft-ink colors (D047) are
      measured against the page surface, and axe flagged them on the tint. */
   background: var(--surface);
@@ -1418,7 +2156,7 @@ pre code {
 }
 
 .key-decisions .key-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85em;
   font-weight: 700;
 }
@@ -1429,27 +2167,30 @@ pre code {
 }
 
 .doc h1 {
-  font-size: 2rem;
-  line-height: 1.2;
-  margin: 0.5rem 0 1rem;
+  font-size: 2.625rem;
+  line-height: 1.15;
+  letter-spacing: -0.09375rem;
+  margin: 0.5rem 0 1.25rem;
 }
 
 .doc h2 {
-  font-size: 1.4rem;
-  margin: 2rem 0 0.5rem;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 0.25rem;
+  font-size: 1.625rem;
+  letter-spacing: -0.03rem;
+  margin: 2.5rem 0 0.75rem;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 0.4rem;
 }
 
 .doc h3 {
-  font-size: 1.15rem;
-  margin: 1.5rem 0 0.4rem;
+  font-size: 1.25rem;
+  margin: 1.75rem 0 0.5rem;
 }
 
 .doc h4 {
-  font-size: 0.95rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--ink-soft);
   margin: 1.25rem 0 0.25rem;
 }
@@ -1467,15 +2208,15 @@ pre code {
 .doc blockquote {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
-  border-left: 4px solid var(--accent);
+  border-left: 3px solid var(--accent);
   background: var(--surface);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   color: var(--ink-soft);
 }
 
 .doc hr {
   border: none;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--line-soft);
   margin: 2rem 0;
 }
 
@@ -1488,25 +2229,33 @@ pre code {
   border-collapse: collapse;
   min-width: 100%;
   background: var(--surface);
+  font-size: 0.9375rem;
 }
 
 .doc th,
 .doc td {
-  border: 1px solid var(--line);
-  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--line-soft);
+  padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
 }
 
 .doc th {
-  background: var(--accent-soft);
+  background: var(--bg);
+  font-weight: 600;
+}
+
+/* The key-decisions card sits inside .doc; keep its heading flush with the
+   card instead of taking the document h2's section spacing. */
+.doc .key-decisions h2 {
+  margin-top: 0;
 }
 
 .source-cue {
   font-size: 0.85rem;
   color: var(--ink-soft);
-  border: 1px dashed var(--line);
-  border-radius: 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-md);
   padding: 0.5rem 0.75rem;
   background: var(--surface);
 }
@@ -1515,9 +2264,10 @@ pre code {
 
 .decision-card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  padding: 1.5rem 1.75rem;
   margin: 1.25rem 0;
 }
 
@@ -1526,15 +2276,17 @@ pre code {
    rules below keep the pre-fix visual look on the corrected levels. */
 .decision-card h2 {
   margin-top: 0;
-  font-size: 1.25rem;
+  font-size: 1.375rem;
+  letter-spacing: -0.02rem;
   border-bottom: none;
   padding-bottom: 0;
 }
 
 .decision-card h3 {
-  font-size: 0.95rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--ink-soft);
   margin: 1.25rem 0 0.25rem;
 }
@@ -1607,8 +2359,9 @@ pre code {
 }
 
 .walkthrough h1 {
-  font-size: 2rem;
-  line-height: 1.2;
+  font-size: 2.625rem;
+  line-height: 1.15;
+  letter-spacing: -0.09375rem;
   margin: 0.5rem 0 0.5rem;
 }
 
@@ -1624,8 +2377,9 @@ pre code {
   aspect-ratio: 16 / 9;
   width: 100%;
   max-width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
   overflow: hidden;
   background: var(--surface);
 }
@@ -1674,16 +2428,18 @@ pre code {
   width: 100%;
   text-align: left;
   font: inherit;
+  font-weight: 400;
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  box-shadow: none;
   padding: 0.45rem 0.7rem;
   cursor: pointer;
 }
 
 .walkthrough-chapters button:hover {
-  background: var(--accent-soft);
+  background: var(--hover);
 }
 
 .walkthrough-chapters button[aria-current="step"] {
@@ -1705,8 +2461,9 @@ pre code {
 }
 
 .walkthrough-notes {
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
   background: var(--surface);
   padding: 1rem 1.25rem;
 }
@@ -1721,7 +2478,6 @@ pre code {
 }
 
 .home-walkthrough {
-  margin-top: 1.25rem;
   color: var(--ink-soft);
 }
 
@@ -1773,6 +2529,15 @@ pre code {
   padding: 0.6rem;
   text-align: left;
   font: inherit;
+  align-items: stretch;
+  justify-content: flex-start;
+  border-color: var(--line-soft);
+  border-radius: var(--radius-lg);
+}
+
+.overview-card:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
 }
 
 .overview-thumb {
@@ -1781,8 +2546,8 @@ pre code {
   height: 10rem;
   object-fit: cover;
   object-position: top;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
   background: var(--code-bg);
 }
 
@@ -1820,7 +2585,6 @@ pre code {
   margin: 0.5rem 0;
 }
 
-.device-toggle,
 .pin-step {
   display: flex;
   flex-wrap: wrap;
@@ -1832,7 +2596,9 @@ pre code {
 .device-toggle button[aria-pressed="true"],
 .pin-table-scope button[aria-pressed="true"] {
   border-color: var(--accent);
-  font-weight: 700;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-weight: 600;
 }
 
 .pin-step-position {
@@ -1841,11 +2607,7 @@ pre code {
   font-variant-numeric: tabular-nums;
 }
 
-.pin-table-scope {
-  display: flex;
-  gap: 0.4rem;
-  margin: 0;
-}
+
 
 .pin-table-page {
   overflow-wrap: anywhere;

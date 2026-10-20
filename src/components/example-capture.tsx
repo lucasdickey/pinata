@@ -6,6 +6,9 @@
 // layout mirrors the real workspace (capture left, screen-fixed panel right)
 // and reuses the product's pin-badge mark; the thread is depicted as saved
 // content with deliberately no reply control (threads are deferred, D051).
+// Since D149 it renders in two parts: ExampleShowcase (the capture and the
+// selected pin's thread) is the landing hero's product visual, and
+// ExampleCapture (DOM context and the pin list) is the band beneath it.
 
 import { markLabel } from "../lib/canvas/marks";
 import { EXAMPLE_CAPTURE, EXAMPLE_CAPTURE_FRAME, type ExamplePin } from "../lib/example-capture";
@@ -76,90 +79,112 @@ function ExampleMock() {
   );
 }
 
-export function ExampleCapture() {
+/**
+ * The hero's product visual (D149): the capture with its numbered pins, and
+ * the selected pin's thread floating over its lower edge the way a comment
+ * popover sits over the real canvas.
+ */
+export function ExampleShowcase() {
   // The example depicts one selected pin, as the real workspace panel does.
   const selected = EXAMPLE_CAPTURE.pins[0]!;
   return (
+    <div className="example-showcase">
+      <figure className="example-figure">
+        {/* Above the shot, like a window title, so the thread callout can
+            overlap the shot's lower edge without covering it. */}
+        <figcaption className="hint">
+          {EXAMPLE_CAPTURE.projectTitle} — {EXAMPLE_CAPTURE.pageUrl} ·{" "}
+          {EXAMPLE_CAPTURE.device} · version {EXAMPLE_CAPTURE.version}
+        </figcaption>
+        <div
+          className="example-shot"
+          data-testid="example-shot"
+          role="img"
+          aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.pins.length} numbered pins`}
+        >
+          <ExampleMock />
+          {EXAMPLE_CAPTURE.pins.map((pin) => (
+            <span
+              key={pin.number}
+              className="pin-badge pin-badge-example"
+              data-pin-number={pin.number}
+              aria-hidden="true"
+              style={{
+                left: `${(pin.tip.x / EXAMPLE_CAPTURE_FRAME.width) * 100}%`,
+                top: `${(pin.tip.y / EXAMPLE_CAPTURE_FRAME.height) * 100}%`,
+                width: 30,
+                height: 30,
+              }}
+            >
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
+              </svg>
+              <span className="pin-badge-number" style={{ fontSize: 11 }}>
+                {pin.number}
+              </span>
+            </span>
+          ))}
+        </div>
+      </figure>
+
+      <div className="example-callout">
+        <h2 className="example-callout-title">{examplePinLabel(selected)}</h2>
+        <h3 className="example-subheading">Comment thread</h3>
+        {/* The accessible name avoids the bare word "Comment" so the
+            workspace panel's Comment field label stays unambiguous for
+            assistive tech and e2e selectors alike. */}
+        <ol className="example-thread" aria-label="Example thread">
+          {selected.thread.map((entry, index) => (
+            <li key={index}>
+              <span className="example-author">{entry.author}</span>
+              <p>{entry.body}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What each pin carries (D149): the selected pin's DOM context and the
+ * capture's pin list, as two cards under the hero.
+ */
+export function ExampleCapture() {
+  const selected = EXAMPLE_CAPTURE.pins[0]!;
+  return (
     <section className="landing-example" aria-labelledby="example-heading">
-      <h2 id="example-heading">See what a marked-up capture looks like</h2>
+      <h2 id="example-heading">Every pin knows what it points at</h2>
       <p className="hint">
-        A static example drawn from bundled fixture data — nothing here calls a server.
+        The example above, opened up. A static example drawn from bundled fixture data —
+        nothing here calls a server.
       </p>
       <div className="example-grid">
-        <figure className="example-figure">
-          <div
-            className="example-shot"
-            data-testid="example-shot"
-            role="img"
-            aria-label={`Example capture of ${EXAMPLE_CAPTURE.pageUrl}, ${EXAMPLE_CAPTURE.device}, version ${EXAMPLE_CAPTURE.version}, with ${EXAMPLE_CAPTURE.pins.length} numbered pins`}
-          >
-            <ExampleMock />
-            {EXAMPLE_CAPTURE.pins.map((pin) => (
-              <span
-                key={pin.number}
-                className="pin-badge pin-badge-example"
-                data-pin-number={pin.number}
-                aria-hidden="true"
-                style={{
-                  left: `${(pin.tip.x / EXAMPLE_CAPTURE_FRAME.width) * 100}%`,
-                  top: `${(pin.tip.y / EXAMPLE_CAPTURE_FRAME.height) * 100}%`,
-                  width: 30,
-                  height: 30,
-                }}
-              >
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M12 24 C7.6 17.6 4 14.2 4 9 a8 8 0 1 1 16 0 C20 14.2 16.4 17.6 12 24 Z" />
-                </svg>
-                <span className="pin-badge-number" style={{ fontSize: 11 }}>
-                  {pin.number}
-                </span>
-              </span>
-            ))}
+        {selected.element ? (
+          <div className="example-panel">
+            <h3>DOM context</h3>
+            <dl className="panel-facts">
+              <dt>Element</dt>
+              <dd>
+                {selected.element.kind} &lt;{selected.element.tag}&gt;
+              </dd>
+              <dt>Role</dt>
+              <dd>{selected.element.role}</dd>
+              <dt>Text</dt>
+              <dd>“{selected.element.text}”</dd>
+              <dt>Path</dt>
+              <dd>
+                <code>{selected.element.path.join(" › ")}</code>
+              </dd>
+              <dt>Position</dt>
+              <dd>
+                {selected.element.rect.x}, {selected.element.rect.y} ·{" "}
+                {selected.element.rect.width} × {selected.element.rect.height} px
+              </dd>
+            </dl>
           </div>
-          <figcaption className="hint">
-            {EXAMPLE_CAPTURE.projectTitle} — {EXAMPLE_CAPTURE.pageUrl} ·{" "}
-            {EXAMPLE_CAPTURE.device} · version {EXAMPLE_CAPTURE.version}
-          </figcaption>
-        </figure>
-
+        ) : null}
         <div className="example-panel">
-          <h3>{examplePinLabel(selected)}</h3>
-          <h4 className="example-subheading">Comment thread</h4>
-          {/* The accessible name avoids the bare word "Comment" so the
-              workspace panel's Comment field label stays unambiguous for
-              assistive tech and e2e selectors alike. */}
-          <ol className="example-thread" aria-label="Example thread">
-            {selected.thread.map((entry, index) => (
-              <li key={index}>
-                <span className="example-author">{entry.author}</span>
-                <p>{entry.body}</p>
-              </li>
-            ))}
-          </ol>
-          {selected.element ? (
-            <>
-              <h3>DOM context</h3>
-              <dl className="panel-facts">
-                <dt>Element</dt>
-                <dd>
-                  {selected.element.kind} &lt;{selected.element.tag}&gt;
-                </dd>
-                <dt>Role</dt>
-                <dd>{selected.element.role}</dd>
-                <dt>Text</dt>
-                <dd>“{selected.element.text}”</dd>
-                <dt>Path</dt>
-                <dd>
-                  <code>{selected.element.path.join(" › ")}</code>
-                </dd>
-                <dt>Position</dt>
-                <dd>
-                  {selected.element.rect.x}, {selected.element.rect.y} ·{" "}
-                  {selected.element.rect.width} × {selected.element.rect.height} px
-                </dd>
-              </dl>
-            </>
-          ) : null}
           <h3>Pins on this capture</h3>
           <ol className="example-pins" aria-label="Example pins">
             {EXAMPLE_CAPTURE.pins.map((pin) => (
