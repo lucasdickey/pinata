@@ -51,8 +51,6 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --max: 46rem;
   --wide: 72rem;
-  /* The editor's fixed footer (D105); pages that show it pad by this much. */
-  --footer-height: 2.5rem;
   /* The primary button's hover: one step past --ink. */
   --ink-strong: #000000;
   /* Decision status text on cards (D054): accepted, superseded, pending. */
@@ -915,15 +913,6 @@ pre code {
   gap: 0.3rem;
 }
 
-.site-footer .home-nav {
-  margin: 0;
-}
-
-.site-footer .home-nav ul {
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
 .site-footer a,
 .site-footer .link-button {
   text-decoration: none;
@@ -1584,61 +1573,6 @@ pre code {
   padding: 1.5rem 1.25rem 3rem;
 }
 
-/* The editor's documentation links ride in a thin fixed footer (D105)
-   instead of taking a row below the workspace. */
-.app-footer {
-  position: fixed;
-  inset: auto 0 0 0;
-  z-index: 20;
-  height: var(--footer-height);
-  display: flex;
-  align-items: center;
-  /* Lines up with the editor's content edge (.pins-main's gutter). */
-  padding: 0 2.5rem;
-  border-top: var(--hairline) solid var(--line);
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  backdrop-filter: blur(6px);
-  font-size: 0.85rem;
-}
-
-.app-footer .home-nav {
-  margin: 0;
-  min-width: 0;
-}
-
-/* One line, always: on a phone the links scroll sideways rather than wrap
-   out of the fixed bar. */
-.app-footer .home-nav ul {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  white-space: nowrap;
-  scrollbar-width: none;
-}
-
-@media (max-width: 30rem) {
-  .app-footer {
-    padding: 0 1.25rem;
-    font-size: 0.8rem;
-  }
-
-  .app-footer .home-nav ul {
-    gap: 0 0.9rem;
-  }
-}
-
-.app-footer a {
-  color: var(--ink-soft);
-  text-decoration: none;
-}
-
-.app-footer a:hover {
-  color: var(--ink);
-}
-
-.pins-main:has(.app-footer) {
-  padding-bottom: calc(var(--footer-height) + 1.5rem);
-}
-
 .pins-header {
   display: flex;
   flex-wrap: wrap;
@@ -1764,7 +1698,7 @@ pre code {
   left: 0;
   z-index: 1;
   width: min(20rem, calc(100vw - 2.5rem));
-  max-height: calc(100dvh - 2rem - var(--footer-height));
+  max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   padding: 0.75rem 1rem;
   background: var(--surface);

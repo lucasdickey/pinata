@@ -6851,8 +6851,35 @@ window.PINATA = {
       ],
       "supersedes": null,
       "superseded_by": null
+    },
+    {
+      "id": "D148",
+      "date": "2026-10-20",
+      "phase": "build",
+      "title": "Remove the project-documentation links from the page footers",
+      "origin": "user-directed",
+      "status": "accepted",
+      "problem": "The editor carried a fixed footer (D105) and the landing footer a \"How it's built\" column, both listing Requirements, Architecture, Milestones, Decisions and Evals. Those links date from the assignment that started the project and read as scaffolding to a product user.",
+      "decision": "Remove the editor's fixed footer and the landing footer's documentation column, along with the LandingLinks component and its styles. The /reqs pages stay, reachable from the landing top bar's \"How it's built\" link and their own sidebar.",
+      "alternatives": [
+        {
+          "option": "Delete the /reqs hub entirely",
+          "why_not": "The owner asked only to drop the footer links; the hub is still the project's published record."
+        }
+      ],
+      "rationale": "The owner called the footer links an artifact of where the project started.",
+      "consequences": [
+        "The editor regains the 2.5rem the fixed footer took at the bottom of the window.",
+        "The e2e check that clicked each landing footer link is gone; the /reqs sidebar test still covers every route."
+      ],
+      "transcript": {
+        "request": "remove this from teh footer on all pinata pages. it's an artifact of where we started with this thing."
+      },
+      "artifacts": [],
+      "supersedes": null,
+      "superseded_by": null
     }
   ],
-  "as_of": "2026-10-16",
-  "source_hash": "55e5904d1ef7"
+  "as_of": "2026-10-20",
+  "source_hash": "0b627549cf7e"
 };

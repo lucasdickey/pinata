@@ -362,7 +362,6 @@ describe("editor live refresh (D097)", () => {
     const home = screen.getByRole("link", { name: "pinata" });
     expect(home).toHaveAttribute("aria-disabled", "true");
     expect(fireEvent.click(home)).toBe(false);
-    expect(document.querySelector(".app-footer")).toHaveAttribute("inert");
 
     await act(async () => {
       finishIssue(Response.json({ link: { state: "active", version: 1 }, path: "/a/new-agent" }));
@@ -370,6 +369,5 @@ describe("editor live refresh (D097)", () => {
     expect(screen.getByLabelText(/Agent link \(shown once/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
     expect(home).toHaveAttribute("aria-disabled", "false");
-    expect(document.querySelector(".app-footer")).not.toHaveAttribute("inert");
   });
 });

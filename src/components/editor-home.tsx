@@ -24,7 +24,6 @@ import {
 } from "../lib/capture-dispatch";
 import { captureWorkInProgress, nextCapturePoll } from "../lib/capture-polling";
 import { readCsrfProof } from "../lib/csrf";
-import { LandingLinks } from "./landing";
 import { ThemeToggle } from "./theme-toggle";
 import { ProjectWorkspace, type WorkspaceProject } from "./project-workspace";
 
@@ -344,12 +343,6 @@ export function EditorHome({ liveRefreshMs }: { liveRefreshMs?: number } = {}) {
           />
         ) : null}
       </section>
-
-      {/* Documentation lives in a thin fixed footer (D105), so the
-          workspace above keeps the whole window for the canvas. */}
-      <footer className="app-footer" inert={linkIssuing}>
-        <LandingLinks />
-      </footer>
     </main>
   );
 }
